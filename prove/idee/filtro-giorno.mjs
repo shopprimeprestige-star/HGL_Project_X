@@ -320,6 +320,59 @@ export function proveFiltroGiorno(mod, { c, gruppo, radice }) {
   c("l'etichetta con la ✕ c'è e si toglie col suo campo", [{ campo: "coda", etichetta: "Da rispondere" }, { campo: "giorno", etichetta: "Prossimi giorni" }], F.etichetteAccese(con({ coda: "da-rispondere", giorno: "prossimi-giorni" }), () => ""));
   c("senza giorno nessuna etichetta in più", [{ campo: "coda", etichetta: "Da rispondere" }], F.etichetteAccese(con({ coda: "da-rispondere" }), () => ""));
 
+  gruppo("FILTRO GIORNO: LE SEZIONI PER GIORNO, PRONTE PER L'ELENCO A GRUPPI (Compito 1, perGiorno)");
+  {
+    //  Lo stesso mondo di «Da rispondere» di sopra, ma solo le chat che passerebbero davvero quel
+    //  filtro (`perGiorno` riceve un elenco GIÀ filtrato: non filtra lei stessa).
+    const soloAttesa = mondo.filter((x) => x.daRispondere.attesa);
+    const sezioni = (f, elenco = soloAttesa) => G.perGiorno(elenco, f, adesso).map((s) => ({ giorno: s.giorno, ix: ix(s.chats) }));
+    c("raggruppa nell'ordine del calendario, senza riordinare dentro ogni sezione", [
+      { giorno: "scaduti", ix: [6] },
+      { giorno: "ieri", ix: [0] },
+      { giorno: "oggi", ix: [1, 2] },
+      { giorno: "domani", ix: [3] },
+      { giorno: "prossimi-giorni", ix: [4, 5] },
+      { giorno: "senza-data", ix: [7] },
+    ], sezioni(daRisp));
+    c("ogni chat sta in una sezione sola: nessuna persa, nessuna doppia", true,
+      G.perGiorno(soloAttesa, daRisp, adesso).flatMap((s) => s.chats).length === soloAttesa.length);
+    c("le sezioni vuote non compaiono", false, sezioni(daRisp).some((s) => s.ix.length === 0));
+    c("un elenco vuoto dà zero sezioni", [], G.perGiorno([], daRisp, adesso));
+    //  Due chat che cadono nella stessa sezione, inserite in un ordine qualunque: l'ordine di chi
+    //  chiama non si tocca (dentro «Da chiamare» è «per stato e cambio di stato», qui basta provare
+    //  che non viene risistemato).
+    const dueOggi = [mondo[2], mondo[1]]; //  ordine invertito rispetto a sopra
+    c("l'ordine dentro la sezione è quello di chi chiama, non un nuovo ordinamento", [2, 1], ix(G.perGiorno(dueOggi, daRisp, adesso).find((s) => s.giorno === "oggi").chats));
+    //  Solo «ieri» e «prossimi giorni» presenti, in input nell'ordine sbagliato: l'uscita segue
+    //  SEMPRE il calendario (ieri prima), non l'ordine con cui sono arrivate.
+    const invertito = [mondo[4], mondo[0]]; //  prossimi-giorni, poi ieri
+    c("l'ordine delle SEZIONI è sempre quello del calendario, non quello dell'input", ["ieri", "prossimi-giorni"], G.perGiorno(invertito, daRisp, adesso).map((s) => s.giorno));
+  }
+
+  gruppo("FILTRO GIORNO: LA FILA CORTA PER I FILTRI «A MESSAGGIO» (Compito 3, 17/11/2026)");
+  c("i segmenti sono Tutti/Oggi/Ieri/Più vecchi, in ordine", ["Tutti", "Oggi", "Ieri", "Più vecchi"], G.SEGMENTI_FILA_CORTA.map((s) => s.nome));
+  c("…con gli stessi valori di sempre: «Più vecchi» è «scaduti», nessun valore nuovo", ["", "oggi", "ieri", "scaduti"], G.SEGMENTI_FILA_CORTA.map((s) => s.v));
+  c("Da rispondere, Con stelle, Sconosciuti, Clienti, Finestra, Acconto, Con scheda sono «a messaggio»", true,
+    [con({ coda: "da-rispondere" }), con({ stelle: true }), con({ tipo: "senza-scheda" }), con({ tipo: "cliente" }), con({ finestra: "aperta" }), con({ acconto: true }), con({ tipo: "con-scheda" })].every((f) => G.eFiltroAMessaggio(f)));
+  c("Ricontatti, Da chiamare e ogni fase sono «a richiamo», non «a messaggio»", false,
+    [con({ ricontatti: true }), con({ coda: "da-chiamare" }), con({ fase: "per-ora-no" }), con({ fase: "sospeso-clienti" }), con({ fase: "stato:segreteria" })].some((f) => G.eFiltroAMessaggio(f)));
+  c("i valori fuori dalla fila corta (Domani, Prossimi giorni, Senza data) tornano a «Tutti»", ["", "", ""], ["domani", "prossimi-giorni", "senza-data"].map((g) => G.giornoNellaFilaCorta(g)));
+  c("i valori già nella fila corta restano com'erano", ["", "oggi", "ieri", "scaduti"], ["", "oggi", "ieri", "scaduti"].map((g) => G.giornoNellaFilaCorta(g)));
+  c("un valore sconosciuto torna a «Tutti», non un errore", "", G.giornoNellaFilaCorta("tra-un-mese"));
+  c("filtriValidi riporta a «Tutti» un giorno fuori dalla fila corta (Da rispondere + Domani, salvato prima del Compito 3)", "", F.filtriValidi(con({ coda: "da-rispondere", giorno: "domani" }), new Set()).giorno);
+  c("…ma un giorno già nella fila corta resta (Da rispondere + Oggi)", "oggi", F.filtriValidi(con({ coda: "da-rispondere", giorno: "oggi" }), new Set()).giorno);
+  c("…e un filtro «a richiamo» (Da chiamare) con Domani non si tocca: la fila lì è completa", "domani", F.filtriValidi(con({ coda: "da-chiamare", giorno: "domani" }), new Set()).giorno);
+
+  gruppo("FILTRO GIORNO: IL RIEPILOGO NON RIPETE LA PILLOLA (Compito 4, 17/11/2026, soloPillolaAccesa)");
+  c("solo una pillola accesa (Da rispondere): il riepilogo non si mostrerebbe", true, F.soloPillolaAccesa(con({ coda: "da-rispondere" })));
+  c("Ricontatti da solo è anche lui una pillola", true, F.soloPillolaAccesa(con({ ricontatti: true })));
+  c("un filtro del pannello (Attesa WhatsApp, non in VOCI_RIGA): il riepilogo si mostra", false, F.soloPillolaAccesa(con({ fase: "attesa-whatsapp" })));
+  c("uno stato da «Altri stati» (non in VOCI_RIGA): il riepilogo si mostra", false, F.soloPillolaAccesa(con({ fase: "stato:appuntamento_fissato" })));
+  c("pillola + consulente: il riepilogo si mostra (il consulente non è una pillola)", false, F.soloPillolaAccesa({ ...con({ coda: "da-rispondere" }), consulente: "luca" }));
+  c("nessun filtro acceso: non è «solo una pillola» (non c'è nessuna pillola)", false, F.soloPillolaAccesa(V));
+  c("il giorno (interno) non conta: pillola + un giorno scelto resta «solo pillola»", true, F.soloPillolaAccesa(con({ coda: "da-rispondere", giorno: "oggi" })));
+  c("l'Esito di Ricontatti (interno) non conta: Ricontatti + un esito resta «solo pillola»", true, F.soloPillolaAccesa(con({ ricontatti: true, rEsito: "piu_avanti" })));
+
   gruppo("FILTRO GIORNO: DAL DISPOSITIVO SI RILEGGE SOLO QUELLO CHE SI CONOSCE");
   const rileggi = (o, cons = null) => F.leggiFiltri(JSON.stringify(o), cons);
   c("un giorno valido con un filtro acceso si rilegge", "domani", rileggi({ coda: "da-rispondere", giorno: "domani" }).giorno);
@@ -354,7 +407,15 @@ export function proveFiltroGiorno(mod, { c, gruppo, radice }) {
   c("ritoccare il segmento acceso torna a «Tutti»", true, /acceso\s*\?\s*""\s*:/.test(riga));
   c("tocco da 44 px sul telefono come le altre righe", true, /after:-inset-y-/.test(riga) || /h-11/.test(riga));
   c("la pagina la disegna con un filtro acceso (non con la sola riga «Tutte»), a caricamento finito", true, /<RigaGiorno/.test(elencoSrc) && /!caricamento\s*&&\s*!soloRiga/.test(elencoSrc));
-  c("sta dopo la barra sticky (Esito, prossimo meet…) e fuori dall'elenco (resta con zero risultati)", true, elencoSrc.indexOf("<RigaGiorno") > elencoSrc.indexOf("sticky top-0") && elencoSrc.indexOf("<RigaGiorno") < elencoSrc.indexOf("trovate.length === 0"));
+  //  Compito 2 (17/11/2026): sale sopra l'elenco, fuori dall'area che scorre — subito dopo le pillole
+  //  (e dopo «Stato della chiamata» in «Da chiamare»), prima dell'area con `overflow-y-auto`. Le barre
+  //  incollate (Esito, prossimo meet, prossimo ricontatto) restano DENTRO quell'area, in cima.
+  c("sale sopra l'elenco, dopo le pillole e lo «Stato della chiamata», fuori dall'area che scorre", true,
+    elencoSrc.indexOf("<RigaGiorno") > elencoSrc.indexOf('aria-label="Filtri rapidi"') &&
+    elencoSrc.indexOf("<RigaGiorno") > elencoSrc.indexOf('aria-label="Stato della chiamata"') &&
+    elencoSrc.indexOf("<RigaGiorno") < elencoSrc.indexOf("overflow-y-auto"));
+  c("le barre incollate (Esito, prossimo meet, prossimo ricontatto) restano in cima all'elenco, DENTRO l'area che scorre", true,
+    elencoSrc.indexOf("sticky top-0") > elencoSrc.indexOf("overflow-y-auto") && elencoSrc.indexOf("sticky top-0") < elencoSrc.indexOf("trovate.length === 0"));
   c("i numeri della fila usano contaGiorno e l'elenco la stessa passaFiltri, con la stessa ora", true, /contaGiorno\(/.test(elencoSrc) && /passaFiltri\(c, filtri, stelleDi, adessoData\)/.test(elencoSrc));
   c("il giorno è nel salvataggio della vista (si torna in cima se cambia)", true, /JSON\.stringify\(\[filtri,/.test(elencoSrc));
   c("la riga mostra la data usata solo quando non c'è già (consulenza, sede, arrivo)", true, /giornoUsato/.test(rigaChat) && /giornoUsato/.test(elencoSrc));
@@ -363,4 +424,31 @@ export function proveFiltroGiorno(mod, { c, gruppo, radice }) {
   c("nessun database: giorno.ts non importa Supabase", false, /supabase/i.test(senzaCommenti(leggi("src/crm/chatwa/giorno.ts"))));
   c("niente emoji nei file nuovi", true, ![riga, senzaCommenti(leggi("src/crm/chatwa/giorno.ts"))].some((t) => /\p{Extended_Pictographic}/u.test(t)));
   c("il campo è dichiarato in FiltriChat ed è interno come rEsito", true, /giorno: GiornoChat/.test(filtriSrc) && /CAMPI_INTERNI = \["io", "rEsito", "giorno"\]/.test(filtriSrc));
+
+  gruppo("FILTRO GIORNO: L'ETICHETTA DAVANTI ALLA FILA, E LA FILA CORTA (Compito 3, nel disegno)");
+  c("RigaGiorno riceve e mostra l'etichetta", true, /etichetta/.test(riga) && /\{etichetta\}/.test(riga));
+  c("senza `segmenti` mostra i sette di sempre (il valore di default è SEGMENTI_GIORNO)", true, /segmenti\s*=\s*SEGMENTI_GIORNO/.test(riga));
+  c("ElencoChat passa «Ultimo messaggio» o «Da richiamare», e la fila corta solo per i filtri «a messaggio»", true,
+    /etichetta=\{filaCorta \? "Ultimo messaggio" : "Da richiamare"\}/.test(elencoSrc) &&
+    /segmenti=\{filaCorta \? SEGMENTI_FILA_CORTA : undefined\}/.test(elencoSrc) &&
+    /const filaCorta = eFiltroAMessaggio\(filtri\)/.test(elencoSrc));
+
+  gruppo("FILTRO GIORNO: L'ELENCO A GRUPPI PER GIORNO, NEL DISEGNO (Compito 1)");
+  c("ElencoChat raggruppa con perGiorno solo con «Da chiamare»/«Ricontatti» e il giorno su «Tutti»", true,
+    /const gruppoGiorni = filtri\.giorno === "" && \(filtri\.coda === "da-chiamare" \|\| filtri\.ricontatti\)/.test(elencoSrc) &&
+    /perGiorno\(elencoDaChiamare, filtri, adessoData\)/.test(elencoSrc) &&
+    /perGiorno\(ricPrincipali, filtri, adessoData\)/.test(elencoSrc));
+  c("ogni sezione è un <section> con aria-labelledby e un titolo (h2) col numero", true,
+    /<section key=\{g\.giorno\} aria-labelledby=\{`titolo-giorno-\$\{g\.giorno\}`\}>/.test(elencoSrc) &&
+    /<h2[^>]*id=\{`titolo-giorno-\$\{g\.giorno\}`\}/.test(elencoSrc) &&
+    /\{nomeGiorno\(g\.giorno\)\}/.test(elencoSrc));
+  c("il numero della sezione è «tabular-nums» (si legge bene anche quando cresce)", true, /tabular-nums font-normal/.test(elencoSrc));
+  c("il caricamento a pezzi (`visti`) si applica anche ai gruppi, con lo stesso tagliaSezioni", true, /tagliaSezioni\(visti, \.\.\.gruppi\.map/.test(elencoSrc));
+  c("con un giorno specifico scelto (non «Tutti») non si raggruppa: resta la sezione sola di oggi", true, (() => {
+    const F2 = con({ coda: "da-chiamare", giorno: "oggi" });
+    return /gruppoGiorni && filtri\.coda === "da-chiamare"/.test(elencoSrc) && F2.giorno !== "";
+  })());
+
+  gruppo("FILTRO GIORNO: IL RIEPILOGO NON SI RIPETE, NEL DISEGNO (Compito 4)");
+  c("ElencoChat nasconde il riepilogo quando l'unico acceso è una pillola", true, /accesi > 0 && !soloPillolaAccesa\(filtri\) && \(/.test(elencoSrc));
 }
