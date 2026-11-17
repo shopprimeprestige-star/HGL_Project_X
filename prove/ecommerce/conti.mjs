@@ -100,6 +100,23 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("importi assurdi: l'andamento resta finito e coerente", true, tutteFinite(K.andamento(assurdi, P)));
   c("importi assurdi: più venduti con riga enorme resta finito", true, tutteFinite(K.piuVenduti([ord({ items: [voce("Oro", 1e300, 1e300)] }), ord({ items: [voce("Oro", 1e12, 3)] })], P)));
   c("molti ordini enormi: la somma non diventa Infinity", true, tutteFinite(K.panoramica(Array.from({ length: 50 }, () => ord({ total: 1e300 })), P)));
+  // il confine: 100.000 € è un ordine (grosso, ma sano), 100.000,01 no (allineato al tetto di T8)
+  const aConf = K.panoramica([ord({ total: 100000 })], P);
+  const oltre = K.panoramica([ord({ total: 100000.01 })], P);
+  c("tetto: 100.000 € è sano, entra nelle somme", [100000, 0, 1], [aConf.ordini.totale, aConf.importiAnomali, aConf.ordini.n]);
+  c("tetto: 100.000,01 € è fuori norma, vale 0 ma si conta", [0, 1, 1], [oltre.ordini.totale, oltre.importiAnomali, oltre.ordini.n]);
+  c("tetto: lo stesso per l'importo pagato", [100000, 0, 0, 1], [
+    K.panoramica([ord({ total: 5, pagato_il: loc(2026, 11, 11), pagato_importo: 100000 })], P).incassato.importo,
+    K.panoramica([ord({ total: 5, pagato_il: loc(2026, 11, 11), pagato_importo: 100000 })], P).importiAnomali,
+    K.panoramica([ord({ total: 5, pagato_il: loc(2026, 11, 11), pagato_importo: 100000.01 })], P).incassato.importo,
+    K.panoramica([ord({ total: 5, pagato_il: loc(2026, 11, 11), pagato_importo: 100000.01 })], P).importiAnomali]);
+  c("importoFuoriNorma: negativo, enorme, pagato fuori norma sì; sani, annullato non pagato no", [true, true, true, false, false, false], [
+    K.importoFuoriNorma(ord({ total: -50 })), K.importoFuoriNorma(ord({ total: 1e300 })), K.importoFuoriNorma(ord({ total: 40, pagato_il: loc(2026, 11, 11), pagato_importo: -9 })),
+    K.importoFuoriNorma(ord({ total: 100000 })), K.importoFuoriNorma(ord({ total: 40, pagato_il: loc(2026, 11, 11) })), K.importoFuoriNorma(ord({ total: -50, status: "annullato" }))]);
+  c("importiAnomali = ordini del periodo per cui importoFuoriNorma è vero", true, (() => {
+    const l = [...assurdi, A, B, C, D, E, ord({ total: 1e300, created_at: loc(2026, 11, 20) })];
+    return K.panoramica(l, P).importiAnomali === l.filter((o) => K.nelPeriodo(o, P) && K.importoFuoriNorma(o)).length;
+  })());
   c("un ordine con importo sano non è segnato anomalo", 0, K.panoramica([A, B], P).importiAnomali);
 
   // ── ordini fermi / da lavorare ──
@@ -132,6 +149,17 @@ export async function prove(mod, { c, gruppo, radice }) {
   const pns = K.panoramica(misti, PS);
   c("andamento (proprietà): sette giorni, somme = Panoramica", [7, pns.ordini.n, pns.incassato.importo, sparsi.length > 0], [ans.length, ans.reduce((s, x) => s + x.ordini, 0), ans.reduce((s, x) => s + x.incassato, 0), true]);
   c("andamento: periodo a cavallo del cambio d'ora, un elemento per giorno", ["2026-10-24", "2026-10-25", "2026-10-26", "2026-10-27"], K.andamento([], { da: "2026-10-24", a: "2026-10-27" }).map((x) => x.giorno));
+  const dopoMezzanotte = K.andamento([ord({ created_at: loc(2026, 11, 11, 0, 30), total: 10 })], P);
+  c("andamento: un ordine alle 00:30 locali cade nel giorno 11, non nel 10", [0, 1, 0], dopoMezzanotte.map((x) => x.ordini));
+  c("andamento: un ordine alle 23:59 locali cade nel suo giorno", [0, 1, 0], K.andamento([ord({ created_at: loc(2026, 11, 11, 23, 59, 59) })], P).map((x) => x.ordini));
+  c("andamento su un periodo smisurato: l'ordine di oggi c'è, nel suo giorno", [1, "2026-11-12"], (() => {
+    const r = K.andamento([ord({ created_at: loc(2026, 11, 12, 9) })], { da: "1000-01-01", a: "2026-11-12" });
+    return [r.at(-1).ordini, r.at(-1).giorno];
+  })());
+  c("date che non esistono (30 febbraio, mese 13) → periodo rifiutato", [[], [], false, false], [
+    K.andamento([A], { da: "2026-02-30", a: "2026-03-05" }), K.andamento([A], { da: "2026-02-01", a: "2026-13-05" }),
+    K.nelPeriodo(ord({ created_at: loc(2026, 3, 1) }), { da: "2026-02-30", a: "2026-03-05" }), K.nelPeriodo(ord({ created_at: loc(2026, 3, 1) }), { da: "2026-02-28", a: "2026-02-30" })]);
+  c("29 febbraio: solo negli anni bisestili", [true, false], [K.andamento([], { da: "2028-02-29", a: "2028-02-29" }).length === 1, K.andamento([], { da: "2026-02-29", a: "2026-02-29" }).length === 1]);
   c("andamento: periodo capovolto o illeggibile → vuoto", [[], []], [K.andamento([A], { da: "2026-11-12", a: "2026-11-10" }), K.andamento([A], { da: "x", a: "y" })]);
   c("andamento: periodo smisurato → tetto, non si pianta", true, K.andamento([], { da: "1000-01-01", a: "2026-11-12" }).length <= 4000);
   c("andamento: l'ultimo giorno resta quello chiesto anche col tetto", "2026-11-12", K.andamento([], { da: "1000-01-01", a: "2026-11-12" }).at(-1).giorno);
@@ -159,6 +187,8 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("più venduti: senza prezzo / items vuoto / illeggibile: nessun NaN", true, tutteFinite(K.piuVenduti([ord({ items: [{ name: "Senza prezzo", qty: 2 }] }), ord({ items: [] }), ord({ items: "boh" }), ord({ items: [null, 3] })], P)));
   c("più venduti: riga senza prezzo vale 0 ma il pezzo si conta", { pezzi: 2, ricavo: 0 }, (() => { const r = K.piuVenduti([ord({ items: [{ name: "Senza prezzo", qty: 2 }] })], P)[0]; return { pezzi: r.pezzi, ricavo: r.ricavo }; })());
   c("più venduti: senza id prodotto si riconosce dal nome (maiuscole e spazi)", 1, K.piuVenduti([ord({ items: [{ name: "Cuffia ", qty: 1, unit_price: 5 }] }), ord({ items: [{ name: "cuffia", qty: 1, unit_price: 5 }] })], P).length);
+  c("più venduti: pezzi non sani → la riga vale 0 anche nel ricavo", { pezzi: 0, ricavo: 0 }, (() => { const r = K.piuVenduti([ord({ items: [voce("Mille", 1, 2000000)] })], P)[0]; return { pezzi: r.pezzi, ricavo: r.ricavo }; })());
+  c("più venduti: una riga sana accanto a una non sana conta solo la sana", { pezzi: 2, ricavo: 20 }, (() => { const r = K.piuVenduti([ord({ items: [voce("Mix", 10, 2), voce("Mix", 1, 2000000)] })], P)[0]; return { pezzi: r.pezzi, ricavo: r.ricavo }; })());
   c("più venduti: nessun ordine → vuoto", [], K.piuVenduti([], P));
   c("più venduti: prodotti con nome da prototipo non rompono (constructor, __proto__)", 2, K.piuVenduti([ord({ items: [{ name: "constructor", qty: 1, unit_price: 1 }, { name: "__proto__", qty: 1, unit_price: 1 }] })], P).length);
 

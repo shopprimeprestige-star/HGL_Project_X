@@ -19,9 +19,9 @@
 import { chiaveEmail, chiaveTelefono, eAnnullato, eIncassato, importoIncassato, nomeCliente, STATI_ORDINE } from "./ordine";
 import type { Ordine, StatoOrdine } from "./ordine";
 
-/** Oltre questo (10 milioni di euro) un importo non è un ordine di un negozio di capelli: vale 0 e si segnala.
- *  shortcut: soglia unica per tutti gli importi, da rendere configurabile se mai servisse vendere cose da milioni. */
-export const IMPORTO_MAX = 1e7;
+/** Oltre questo (100.000 €, lo stesso tetto di T8) un importo non è un ordine di un negozio di capelli: vale 0 e si segnala.
+ *  shortcut: soglia unica per tutti gli importi, da rendere configurabile se mai servisse vendere cose da questa cifra in su. */
+export const IMPORTO_MAX = 1e5;
 /** Pezzi per riga oltre i quali la riga non conta (stessa logica degli importi). */
 export const PEZZI_MAX = 1e6;
 /** Giorni massimi dell'andamento: sopra, si tengono gli ultimi (730 è già il «lifetime» del filtro). */
@@ -46,9 +46,12 @@ export interface Periodo {
   a: string;
 }
 
+/** «YYYY-MM-DD» di un giorno che esiste (non 2026-02-30, che il Date sposterebbe al 2 marzo). */
+const eGiorno = (g: unknown): g is string => typeof g === "string" && ISO_GIORNO.test(g) && iso(new Date(`${g}T00:00:00`)) === g;
+
 /** Gli estremi in millisecondi (fine esclusa), o `null` se il periodo non si legge o è capovolto. */
 function limiti(p: Periodo): { inizio: number; fine: number } | null {
-  if (!p || !ISO_GIORNO.test(p.da) || !ISO_GIORNO.test(p.a) || p.da > p.a) return null;
+  if (!p || !eGiorno(p.da) || !eGiorno(p.a) || p.da > p.a) return null;
   const inizio = new Date(`${p.da}T00:00:00`).getTime();
   const ultimo = new Date(`${p.a}T00:00:00`);
   ultimo.setDate(ultimo.getDate() + 1); // il giorno dopo: così il cambio d'ora non sposta niente
@@ -66,6 +69,10 @@ const dentro = (o: Ordine, l: { inizio: number; fine: number } | null): boolean 
 export const nelPeriodo = (o: Ordine, p: Periodo): boolean => dentro(o, limiti(p));
 
 /** Gli importi che contano per un ordine, già ripuliti. */
+/** L'ordine ha un importo che la Panoramica NON conta (negativo o sopra `IMPORTO_MAX`)? Conta il totale se non è annullato e l'incassato se è pagato.
+ *  È la stessa regola di `importiAnomali`: la lista Ordini la usa per segnalare le stesse righe. */
+export const importoFuoriNorma = (o: Ordine): boolean => (!eAnnullato(o) && !sano(o.totale)) || (eIncassato(o) && !sano(importoIncassato(o)));
+
 const totaleSano = (o: Ordine): number => oZero(o.totale);
 const incassoSano = (o: Ordine): number => oZero(importoIncassato(o));
 
@@ -91,11 +98,9 @@ export function panoramica(ordini: Ordine[], p: Periodo): Panoramica {
     perStato[o.stato]++;
     const annullato = eAnnullato(o);
     const pagato = eIncassato(o);
-    let strano = false;
     if (!annullato) {
       nOrdini++;
       totOrdini += totaleSano(o);
-      strano = !sano(o.totale);
       if (!pagato) {
         nDa++;
         totDa += totaleSano(o);
@@ -104,10 +109,9 @@ export function panoramica(ordini: Ordine[], p: Periodo): Panoramica {
     if (pagato) {
       nInc++;
       totInc += incassoSano(o);
-      strano = strano || !sano(importoIncassato(o));
       if (annullato) annullatiPagati++;
     }
-    if (strano) anomali++;
+    if (importoFuoriNorma(o)) anomali++;
   }
   return {
     ordini: { n: nOrdini, totale: euro(totOrdini), medio: nOrdini ? euro(totOrdini / nOrdini) : 0 },
@@ -191,7 +195,7 @@ export function piuVenduti(ordini: Ordine[], p: Periodo, max = PIU_VENDUTI): Ven
         per.set(chiave, v);
       }
       const pezzi = oZero(r.qty, PEZZI_MAX);
-      const ricavo = oZero(r.qty * r.prezzo);
+      const ricavo = sano(r.qty, PEZZI_MAX) ? oZero(r.qty * r.prezzo) : 0; // pezzi non sani: la riga vale 0 anche nel ricavo
       v.pezzi += pezzi;
       v.ricavo += ricavo;
       v._ordini.add(o.id);
@@ -313,8 +317,7 @@ export function riacquisto(ordini: Ordine[], p: Periodo, principale?: Principale
   let nelPeriodo = 0;
   for (const c of raggruppaClienti(ordini, principale)) {
     const os = c.ordiniIds.map((id) => perId.get(id)!); // dal più vecchio
-    const primoDentro = os.findIndex((o) => dentro(o, l));
-    if (primoDentro < 0) continue;
+    if (!os.some((o) => dentro(o, l))) continue;
     nelPeriodo++;
     // Tornato se almeno un suo ordine del periodo non è il suo primo di sempre.
     if (os.some((o, i) => i > 0 && dentro(o, l))) elenco.push(c);
