@@ -342,6 +342,6 @@ export async function provePonteChatFlagMigrazione(_mod, { c, gruppo, radice }) 
       /COME SI ANNULLA/.test(grezzo),
     ],
   );
-  const altre = readdirSync(cartella).filter((n) => n.endsWith(".sql") && n !== FILE);
+  const altre = readdirSync(cartella).filter((n) => n.endsWith(".sql") && n !== FILE && !n.includes("ecommerce_ordini")); // e-commerce (17/11) viene dopo: ha il suo ordine
   c("il nome viene dopo l'ultima migrazione esistente", true, FILE > altre.sort().at(-1));
 }

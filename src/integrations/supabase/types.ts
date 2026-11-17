@@ -943,6 +943,39 @@ export type Database = {
         }
         Relationships: []
       }
+      shop_order_eventi: {
+        Row: {
+          id: string
+          created_at: string
+          order_id: string
+          order_ref: string | null
+          tipo: string
+          chi: string | null
+          prima: Json | null
+          dopo: Json | null
+        }
+        Insert: {
+          id?: string
+          created_at?: string
+          order_id: string
+          order_ref?: string | null
+          tipo: string
+          chi?: string | null
+          prima?: Json | null
+          dopo?: Json | null
+        }
+        Update: {
+          id?: string
+          created_at?: string
+          order_id?: string
+          order_ref?: string | null
+          tipo?: string
+          chi?: string | null
+          prima?: Json | null
+          dopo?: Json | null
+        }
+        Relationships: []
+      }
       shop_orders: {
         Row: {
           id: string
@@ -961,6 +994,14 @@ export type Database = {
           shipping: number
           total: number
           status: string
+          lead_id: string | null
+          senza_lead: boolean | null
+          pagato_il: string | null
+          pagato_importo: number | null
+          metodo_pagamento: string | null
+          tracking: string | null
+          note_interne: string | null
+          aggiornato_il: string | null
         }
         Insert: {
           id?: string
@@ -979,6 +1020,14 @@ export type Database = {
           shipping?: number
           total?: number
           status?: string
+          lead_id?: string | null
+          senza_lead?: boolean | null
+          pagato_il?: string | null
+          pagato_importo?: number | null
+          metodo_pagamento?: string | null
+          tracking?: string | null
+          note_interne?: string | null
+          aggiornato_il?: string | null
         }
         Update: {
           id?: string
@@ -997,6 +1046,14 @@ export type Database = {
           shipping?: number
           total?: number
           status?: string
+          lead_id?: string | null
+          senza_lead?: boolean | null
+          pagato_il?: string | null
+          pagato_importo?: number | null
+          metodo_pagamento?: string | null
+          tracking?: string | null
+          note_interne?: string | null
+          aggiornato_il?: string | null
         }
         Relationships: []
       }
