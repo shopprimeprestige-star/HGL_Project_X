@@ -24,6 +24,7 @@
  *     prima query andata male il blocco restava a girare per sempre, senza che
  *     nessuno potesse sapere perché.
  *  ───────────────────────────────────────────────────────────────────────── */
+import { contaNeiKpi } from "@/crm/conta-nei-kpi";
 import { useEffect, useMemo, useState } from "react";
 import { Loader2, Scale } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -152,7 +153,8 @@ export function MetaVsTikTokSection({
         //  quello vero. Si parte dalle schede del CRM, che sono quelle con il
         //  prezzo, e si segna quale riga della landing è già stata contata.
         const consumati = new Set<string>();
-        const schede = (leadCrm.data as Array<{ data: Record<string, unknown> }> | null) || [];
+        //  I «solo blocco orario» non sono lead: vedi crm/conta-nei-kpi.
+        const schede = ((leadCrm.data as Array<{ data: Record<string, unknown> }> | null) || []).filter(contaNeiKpi);
         for (const c of schede) {
           const d = c.data || {};
           const tracking = (d as { tracking?: Record<string, unknown> }).tracking || {};
