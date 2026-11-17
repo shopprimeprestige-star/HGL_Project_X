@@ -3,8 +3,8 @@
  *  Regola pura: src/crm/conta-nei-kpi.ts (`contaNeiKpi`, `soloNeiKpi`). Le prove usano i
  *  calcoli veri (kpi-calcoli, kpi-setter, kpi-netto, aios-feed, booking-utils) con schede
  *  inventate: nessun cliente vero. Il disegno (spunta, etichetta) si prova sul sorgente. */
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { readFileSync, readdirSync, statSync } from "node:fs";
+import { join, relative } from "node:path";
 
 const OGGI = new Date();
 const GIORNO = `${OGGI.getFullYear()}-${String(OGGI.getMonth() + 1).padStart(2, "0")}-${String(OGGI.getDate()).padStart(2, "0")}`;
@@ -171,6 +171,59 @@ export function proveSoloBlocco(mod, { c, gruppo, radice }) {
   c("nessun calcolo legge soloBlocco a mano (solo conta-nei-kpi e i punti di scrittura)", [], [
     "src/crm/kpi-calcoli.ts", "src/crm/kpi-setter.ts", "src/crm/kpi-netto.ts", "src/crm/kpi/aios-feed.ts", "src/crm/ConsultantsPerformance.tsx",
   ].filter((f) => /\.soloBlocco/.test(leggi(f))));
+
+  gruppo("SOLO BLOCCO · RETE DI SICUREZZA: nessun file che CONTA legge i lead grezzi");
+  {
+    //  Scorre tutto src/. Un file «che conta» (KPI, ads, attribuzione, spesa, o che chiama un calcolo
+    //  dei numeri) non può leggere `leads` grezzi da useCRM() né `crm_leads` dal database senza passare
+    //  da `leadsKpi` / `contaNeiKpi` / `soloNeiKpi`. Un file nuovo che lo fa fallisce qui: o lo si
+    //  corregge, o lo si mette in ECCEZIONI con il motivo. Agenda, code di lavoro, trattative, chat,
+    //  promemoria e fatture sono carico di lavoro, non numeri: non sono in questa rete.
+    const ECCEZIONI = {
+      "src/crm/ConsultantsPerformance.tsx": "passa i lead grezzi a calcolaMetricheConsulenti/leadDelGruppo, che filtrano da sole (soloNeiKpi all'ingresso)",
+      "src/crm/ConsultantKPIDialog.tsx": "come sopra: solo calcolaMetriche* e leadDelGruppo*, che filtrano da sole",
+      "src/crm/kpi/DaFareScheda.tsx": "lista di lavoro dei lead importati; il solo conteggio usa leadsKpi",
+      "src/crm/kpi/ConsulentiScheda.tsx": "usa leadsKpi",
+    };
+    const CONTA = /calcolaMetrich|calcolaGiorni|calcolaContoNetto|meetFissatiUltimiTreGiorni|costruisciFeedKpi|buildCrmConvertedIndex|aggregate(Portatore|Pain|Urgenza|Hourly)|righeGiorni|costoPerLead|HealthGlobal/;
+    const PERCORSO = /(^|\/)(kpi|attribution|tiktok-ads-manager|ads-manager)\/|kpi|ads-financials|Performance|campagne|spesa|Spesa|Health|avanzamento/;
+    const files = [];
+    const scorri = (dir) => {
+      for (const n of readdirSync(dir)) {
+        const p = join(dir, n);
+        if (statSync(p).isDirectory()) scorri(p);
+        else if (/\.(ts|tsx)$/.test(n)) files.push(p);
+      }
+    };
+    scorri(join(radice, "src"));
+    const colpevoli = [];
+    for (const f of files) {
+      const rel = relative(radice, f);
+      if (rel in ECCEZIONI || /\.gen\.ts$|integrations\/supabase\/types/.test(rel) || rel === "src/crm/conta-nei-kpi.ts") continue;
+      const t = readFileSync(f, "utf8");
+      const senza = t.replace(/\/\*[\s\S]*?\*\/|(^|[^:"'`])\/\/.*$/gm, "$1");
+      if (!(CONTA.test(senza) || PERCORSO.test(rel))) continue;
+      const filtra = /contaNeiKpi|soloNeiKpi|leadsKpi/.test(senza);
+      //  const { leads, ... } = useCRM()  /  const { leads: x } = useCRM()  (ma non leadsKpi)
+      const grezzoCtx = [...senza.matchAll(/const\s*\{([^}]*)\}\s*=\s*useCRM\(\)/g)].some((m) => /(^|[\s,])leads\s*(,|:|$)/.test(m[1]));
+      const dbGrezzo = /from\("crm_leads"\)/.test(senza) && !/contaNeiKpi|soloNeiKpi/.test(senza);
+      if (grezzoCtx || dbGrezzo) colpevoli.push(`${rel}${grezzoCtx ? " (useCRM().leads)" : ""}${dbGrezzo ? " (crm_leads)" : ""}`);
+    }
+    c("nessun file che conta legge lead grezzi (elenco dei colpevoli)", [], colpevoli);
+    c("le eccezioni dichiarate esistono ancora e hanno un motivo", [], Object.entries(ECCEZIONI).filter(([f, m]) => !m || !files.some((x) => relative(radice, x) === f)).map(([f]) => f));
+    //  I due casi che il collaudo ha chiesto per nome:
+    const leggiSenza = (p) => leggi(p).replace(/\/\*[\s\S]*?\*\/|(^|[^:"'`])\/\/.*$/gm, "$1");
+    c("RitornoScheda (appuntamenti con dataMeeting, elenchi, fuori periodo) parte da leadsKpi", true, /leadsKpi: leads/.test(leggiSenza("src/crm/kpi/RitornoScheda.tsx")));
+    c("cvr-generale-utils non conta dataMeeting e i suoi due chiamanti passano leadsKpi", [false, true, true], [
+      /dataMeeting/.test(leggiSenza("src/crm/kpi/cvr-generale-utils.ts")),
+      /leadsKpi/.test(leggiSenza("src/crm/kpi/RisposteFormScheda.tsx")),
+      /leadsKpi/.test(leggiSenza("src/crm/kpi/ConsultantFunnelKpiTab.tsx")),
+    ]);
+    //  La rete deve davvero accorgersi: un file finto che legge i lead grezzi verrebbe segnalato.
+    const finto = "const { leads } = useCRM();\ncalcolaGiorni(leads)";
+    c("la rete è sensibile: il file finto verrebbe preso", true,
+      CONTA.test(finto) && [...finto.matchAll(/const\s*\{([^}]*)\}\s*=\s*useCRM\(\)/g)].some((m) => /(^|[\s,])leads\s*(,|:|$)/.test(m[1])));
+  }
 
   gruppo("SOLO BLOCCO · LA SPUNTA E L'ETICHETTA (sorgente)");
   const sb = leggi("src/crm/SoloBlocco.tsx");
