@@ -64,6 +64,18 @@ export async function prove(mod, { c, gruppo, radice }) {
     c("guardia: chiesta una volta per ogni chiamata, anche per la conta e per il POST", 3, chiamataGuardia);
   }
 
+  //  ── la guardia che lancia (Supabase non raggiungibile): JSON «interno», niente database, log solo col nome ──
+  {
+    const esiti = [];
+    for (const vai of [(x) => S.gestisciGET(richiesta(""), x.d), (x) => S.gestisciPOST(richiesta("", { azione: "stato", ordineId: ID, da: "nuovo", a: "spedito" }), x.d)]) {
+      const db = fintoDb({ ordini: [riga(1)] });
+      const x = dip(db, { guardia: async () => { throw new Error("rete caduta, cliente Anna Esempio"); } });
+      const r = await leggi(await vai(x));
+      esiti.push([r.stato, r.json.error, db.chiamate, x.log, JSON.stringify(r.json).includes("Anna")]);
+    }
+    c("guardia che lancia: 500 «interno» in JSON, database mai toccato, log solo col nome del tipo", [[500, "interno", 0, ["eccezione Error"], false], [500, "interno", 0, ["eccezione Error"], false]], esiti);
+  }
+
   //  ── GET: elenco, pagine, tetto ──
   {
     const g = await GET(fintoDb({ ordini: molte(2500) }), "");
@@ -278,6 +290,19 @@ export async function prove(mod, { c, gruppo, radice }) {
     const lettureDopo = dsp.registro.slice(dsp.registro.indexOf(upds[0]) + 1, dsp.registro.indexOf(upds[1]));
     c("spazi ai bordi: fra i due tentativi c'è esattamente una lettura dell'ordine", [["shop_orders.select"]], [lettureDopo.map((q) => `${q.tab}.${q.op}`)]);
     c("spazi ai bordi: l'evento è scritto una volta sola", 1, dsp.tabelle.shop_order_eventi.length);
+    // testo di soli spazi scritto a mano: per T8 è «vuoto», per `.or(is.null, eq.)` no → non deve restare 409 per sempre (N2 del revisore)
+    for (const [azione, colonna, extra, corpo] of [
+      ["tracking", "tracking", { tracking: "   " }, { azione: "tracking", ordineId: ID, valore: "ZZ9" }],
+      ["nota", "note_interne", { note_interne: " \t " }, { azione: "nota_interna", ordineId: ID, valore: "ciao" }],
+      ["stato", "status", { status: "  " }, { azione: "stato", ordineId: ID, da: "nuovo", a: "spedito" }],
+    ]) {
+      const dw = fintoDb({ ordini: [riga(1, extra)] });
+      const rw = await POST(dw, corpo);
+      const uw = dw.registro.filter((q) => q.op === "update");
+      c(`solo spazi in «${azione}»: dopo 0 righe si riprova col testo vero → riuscito, due update, un evento`, [200, 2, extra[colonna], 1], [rw.stato, uw.length, uw[1]?.filtri.find((f) => f[1] === colonna)?.[2], dw.tabelle.shop_order_eventi.length]);
+    }
+    const dwc = fintoDb({ ordini: [riga(1, { tracking: "   " })], prima: { "shop_orders.update": (t) => { t.shop_orders[0].tracking = "ALTRO77"; } } });
+    c("solo spazi, ma cambiato davvero da un altro → 409, un solo update", [409, 1], [(await POST(dwc, { azione: "tracking", ordineId: ID, valore: "ZZ9" })).stato, dwc.registro.filter((q) => q.op === "update").length]);
     // conflitto vero con testo: dopo la rilettura il valore è davvero diverso → 409 senza secondo tentativo
     const dcv = fintoDb({ ordini: [riga(1, { tracking: "AB123" })], prima: { "shop_orders.update": (t) => { t.shop_orders[0].tracking = "ALTRO77"; } } });
     const rcv = await POST(dcv, { azione: "tracking", ordineId: ID, valore: "ZZ9" });
@@ -341,6 +366,17 @@ export async function prove(mod, { c, gruppo, radice }) {
     const rc = [];
     for (const b of corpi) { const db = fintoDb({ ordini: [riga(1)] }); const r = await POST(db, b); rc.push([b.slice(0, 12), r.stato, db.scritture.length]); }
     c("corpo vuoto, non JSON, non oggetto o enorme → 400, nessuna scrittura", true, rc.every(([, s, w]) => s === 400 && w === 0));
+    // corpo troppo grande: rifiutato dall'intestazione, senza leggerlo (N4)
+    {
+      let lette = 0;
+      const db = fintoDb({ ordini: [riga(1)] });
+      const x = dip(db);
+      const finta = { url: "https://crm.example.com/api/crm/ordini", method: "POST", headers: new Headers({ "content-length": "20001" }), text: async () => { lette++; return "{}"; } };
+      const r = await leggi(await S.gestisciPOST(finta, x.d));
+      c("content-length oltre il tetto → 413, corpo mai letto, database mai toccato", [413, "valore", 0, 0], [r.stato, r.json.error, lette, db.chiamate]);
+      const ok = await POST(fintoDb({ ordini: [riga(1)] }), { azione: "tracking", ordineId: ID, valore: "A" });
+      c("content-length nel tetto (o assente): il POST normale passa", 200, ok.stato);
+    }
     const nt = await POST(fintoDb({ ordini: [riga(2)] }), { azione: "tracking", ordineId: ID, valore: "A" });
     c("ordine che non esiste → 404 «non_trovato», nessuna scrittura", [404, "non_trovato"], [nt.stato, nt.json.error]);
     const illeggibile = fintoDb({ ordini: [riga(1, { created_at: null })] });
@@ -398,8 +434,7 @@ export async function prove(mod, { c, gruppo, radice }) {
     c("rotta: i soli gestori sono GET e POST, e ciascuno passa dal modulo (che apre con la guardia)", [["GET", "POST"], true, true], [[...R.matchAll(/^\s{6}([A-Z]+):/gm)].map((m) => m[1]), /GET:[^\n]*gestisciGET\(/.test(R), /POST:[^\n]*gestisciPOST\(/.test(R)]);
     for (const f of ["gestisciGET", "gestisciPOST"]) {
       const corpo = M.slice(M.indexOf(`export async function ${f}`));
-      const prima = corpo.indexOf("d.guardia(request)");
-      c(`modulo: ${f} apre con la guardia, prima di ogni altra cosa`, true, prima > 0 && prima < 120 && !corpo.slice(0, prima).includes("d.db"));
+      c(`modulo: ${f} apre con la guardia (dentro il try), prima di ogni altra cosa`, true, /^export async function \w+\([^{}]*\): Promise<Response> \{\s*try \{\s*const g = await d\.guardia\(request\);\s*if \(!g\.ok\) return g\.risposta;/.test(corpo));
     }
     c("nessuna chiave o indirizzo nel codice (solo il client del server)", [false, false, false, false], [/eyJ[A-Za-z0-9_-]{10,}/.test(R + M), /SERVICE_ROLE|process\.env|sb_secret/.test(R + M), /https:\/\/[a-z0-9]+\.supabase\.co/i.test(R + M), /createClient/.test(R + M)]);
     c("`supabaseAdmin` solo nella rotta: il modulo riceve il client", [true, false], [/supabaseAdmin/.test(R), /supabaseAdmin|client\.server/.test(M)]);
