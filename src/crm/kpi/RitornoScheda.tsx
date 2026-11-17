@@ -106,7 +106,7 @@ function oraDi(iso: string | null): string | null {
 }
 
 export function RitornoScheda({ intervallo }: { intervallo: Intervallo }) {
-  const { leads, consultants } = useCRM();
+  const { leadsKpi: leads, consultants } = useCRM();
   const ricerca = useRicerca();
 
   //  ⚠️ TUTTI GLI HOOK SOPRA I RETURN ANTICIPATI. Questa scheda non ne ha, e
