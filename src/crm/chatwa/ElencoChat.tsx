@@ -668,7 +668,15 @@ function ElencoChatBase({ api, onCreaScheda: creaSchedaProp }: ElencoChatProps) 
         {nomeGiorno(g.giorno)}
         <span className="tabular-nums font-normal">({g.totale})</span>
       </h2>
-      <ul>
+      {/*  Revisione (17/11/2026): lo stesso aria-label della vista piatta, così chi usa lo screen
+          reader ritrova la spiegazione dell'ordinamento anche a gruppi. */}
+      <ul
+        aria-label={
+          filtri.coda === "da-chiamare"
+            ? "Chat da chiamare, per stato"
+            : "Ricontatti, dal lead più recente; in cima quelli in priorità"
+        }
+      >
         {g.chats.map((c) => riga(c, c.daRispondere?.attesa ? "attesa" : "normale", mostraFinestra))}
       </ul>
     </section>
@@ -912,7 +920,11 @@ function ElencoChatBase({ api, onCreaScheda: creaSchedaProp }: ElencoChatProps) 
           cima all'elenco, qui sotto) e i due filtri si sommano: la vecchia riga «Con data/Senza data»
           (D4 dell'analisi) non c'è più, «Senza data» è un segmento di questa fila come per ogni altro
           filtro. I nascosti di «Ricontatti» non si contano, come sul tasto. Compito 3: i filtri «a
-          messaggio» hanno la fila corta (Tutti/Oggi/Ieri/Più vecchi), gli altri la fila completa. */}
+          messaggio» hanno la fila corta (Tutti/Oggi/Ieri/Più vecchi), gli altri la fila completa.
+          Revisione (17/11/2026): con una ricerca attiva, la base si filtra anche con `combaciaRicerca`
+          (`combaciaRicerca(c, "")` vale sempre vero, quindi senza ricerca non cambia niente) — senza
+          questo i numeri della fila divergevano da quelli delle sezioni raggruppate, che la ricerca
+          la vedono già (`trovate`). */}
       {!caricamento && !soloRiga && (
         <RigaGiorno
           valore={filtri.giorno}
@@ -921,13 +933,14 @@ function ElencoChatBase({ api, onCreaScheda: creaSchedaProp }: ElencoChatProps) 
           segmenti={filaCorta ? SEGMENTI_FILA_CORTA : undefined}
           conta={(g) =>
             contaGiorno(
-              //  In «Da chiamare» con un chip acceso (revisione 16/11/2026) contano solo le chat di
-              //  quel chip, come l'elenco (`chatDaChiamare(…, sottoAttivo)`).
-              filtri.ricontatti
+              (filtri.ricontatti
                 ? api.chats.filter((c) => !eNascosto(c))
                 : filtri.coda === "da-chiamare"
-                  ? delSottofiltro(api.chats, sottoAttivo)
-                  : api.chats,
+                  ? //  In «Da chiamare» con un chip acceso (revisione 16/11/2026) contano solo le
+                    //  chat di quel chip, come l'elenco (`chatDaChiamare(…, sottoAttivo)`).
+                    delSottofiltro(api.chats, sottoAttivo)
+                  : api.chats
+              ).filter((c) => combaciaRicerca(c, ricerca)),
               filtri,
               stelleDi,
               adessoData,

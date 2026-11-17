@@ -451,4 +451,41 @@ export function proveFiltroGiorno(mod, { c, gruppo, radice }) {
 
   gruppo("FILTRO GIORNO: IL RIEPILOGO NON SI RIPETE, NEL DISEGNO (Compito 4)");
   c("ElencoChat nasconde il riepilogo quando l'unico acceso è una pillola", true, /accesi > 0 && !soloPillolaAccesa\(filtri\) && \(/.test(elencoSrc));
+
+  gruppo("FILTRO GIORNO: LA RICERCA NON FA DIVERGERE LA FILA DALLE SEZIONI (revisione 17/11/2026)");
+  {
+    //  Guasto segnalato dal revisore: senza applicare la ricerca alla base di `contaGiorno`, il
+    //  numero sulla fila (RigaGiorno) e il numero dell'intestazione di sezione (perGiorno, che
+    //  parte da un elenco GIÀ passato per `combaciaRicerca`) potevano dire cose diverse.
+    const { combaciaRicerca } = mod["chatwa/cercaChat"];
+    const ora = quando("2026-11-16T09:00:00Z"); //  lunedì 16/11/2026 a Roma
+    const daChiamareOra = con({ coda: "da-chiamare" });
+    //  Tre «Non risponde» con l'ultimo messaggio di oggi (nessuna regola di data: dataEFonte cade
+    //  sull'ultimo messaggio): tutti nello stesso segmento «Oggi».
+    const tre = [
+      chat({ stato: "non_risponde", ultimo: "2026-11-16T08:00:00Z" }),
+      chat({ stato: "non_risponde", ultimo: "2026-11-16T08:00:00Z" }),
+      chat({ stato: "non_risponde", ultimo: "2026-11-16T08:00:00Z" }),
+    ];
+    //  Una ricerca che combacia con una sola delle tre (le ultime cifre del suo numero).
+    const soloUna = tre[1].phone.slice(-4);
+    c("la ricerca inventata combacia con una sola delle tre chat", 1, tre.filter((c) => combaciaRicerca(c, soloUna)).length);
+    //  Come fa ElencoChat.tsx dopo la correzione: la base di `contaGiorno` passa anche da
+    //  `combaciaRicerca`, la stessa che filtra `trovate` (e quindi le sezioni raggruppate).
+    const baseConRicerca = tre.filter((c) => combaciaRicerca(c, soloUna));
+    const numeroFila = F.contaGiorno(baseConRicerca, daChiamareOra, stelle0, ora, "oggi");
+    const numeroSezione = G.perGiorno(baseConRicerca, daChiamareOra, ora).find((s) => s.giorno === "oggi")?.chats.length ?? 0;
+    c("con la ricerca attiva, il numero della fila e quello della sezione coincidono (e sono 1, non 3)", [1, 1], [numeroFila, numeroSezione]);
+    //  Il guasto che si corregge: SENZA applicare la ricerca alla base della fila, il numero
+    //  resterebbe 3 (tutte e tre), diverso da quello della sezione raggruppata (1).
+    const numeroFilaSenzaCorrezione = F.contaGiorno(tre, daChiamareOra, stelle0, ora, "oggi");
+    c("senza la correzione, il numero della fila (tutte e tre) sarebbe diverso da quello della sezione", true, numeroFilaSenzaCorrezione !== numeroSezione);
+    //  Nel sorgente: la base passata a `contaGiorno` è filtrata con `combaciaRicerca(c, ricerca)`,
+    //  la stessa funzione e lo stesso `ricerca` che filtrano `trovate` (riga 257).
+    c("ElencoChat applica combaciaRicerca alla base dei numeri della fila", true, /\)\.filter\(\(c\) => combaciaRicerca\(c, ricerca\)\)/.test(elencoSrc));
+  }
+
+  gruppo("FILTRO GIORNO: LE SEZIONI RAGGRUPPATE HANNO L'ARIA-LABEL DELLA VISTA PIATTA (revisione 17/11/2026)");
+  c("il <ul> di ogni sezione ha l'aria-label di «Da chiamare» o di «Ricontatti», come la vista piatta", true,
+    /<ul\s*\n\s*aria-label=\{\s*\n\s*filtri\.coda === "da-chiamare"\s*\n\s*\? "Chat da chiamare, per stato"\s*\n\s*: "Ricontatti, dal lead più recente; in cima quelli in priorità"/.test(elencoSrc));
 }
