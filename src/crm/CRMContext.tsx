@@ -27,6 +27,7 @@ import {
   type LeadData,
 } from "./types";
 import { STATI_CONSULENZA, eConversione, ricavoLordo } from "./kpi-calcoli";
+import { soloNeiKpi } from "./conta-nei-kpi";
 //  Chi fa le consulenze si chiede lì: vedi la testata di quel file per il perché
 //  la stessa domanda non si riscrive in ogni punto che sceglie una persona.
 import { soloConsulenti } from "./chi-fa-la-consulenza";
@@ -58,6 +59,9 @@ export interface OpzioniAggiornamento {
 
 interface CRMContextValue {
   leads: Lead[];
+  /** I lead che contano nei numeri: senza i «solo blocco orario» (crm/conta-nei-kpi).
+   *  Le schermate che CONTANO usano questo; quelle di lavoro (agenda, code) usano `leads`. */
+  leadsKpi: Lead[];
   consultants: Consultant[];
   adSpending: AdSpending[];
   loading: boolean;
@@ -1635,9 +1639,10 @@ export function CRMProvider({ children }: { children: ReactNode }) {
     }),
     [],
   );
+  const leadsKpi = useMemo(() => soloNeiKpi(leads), [leads]);
   const valore = useMemo(
-    () => ({ leads, consultants, adSpending, loading, ...stabili }),
-    [leads, consultants, adSpending, loading, stabili],
+    () => ({ leads, leadsKpi, consultants, adSpending, loading, ...stabili }),
+    [leads, leadsKpi, consultants, adSpending, loading, stabili],
   );
 
   return <CRMContext.Provider value={valore}>{children}</CRMContext.Provider>;

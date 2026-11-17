@@ -25,7 +25,7 @@ interface Props {
 }
 
 export function ConsultantFunnelKpiTab({ consultantId }: Props) {
-  const { leads: crmLeads } = useCRM();
+  const { leadsKpi: crmLeads } = useCRM();
   const [period, setPeriod] = useState<Period>(30);
   const [pubLeads, setPubLeads] = useState<PublicLeadLite[]>([]);
   const [loading, setLoading] = useState(true);
