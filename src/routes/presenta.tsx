@@ -12,6 +12,7 @@ import { useZoomPan, ZoomControls } from "@/shop/zoompan";
 import { useViewMode } from "@/shop/viewmode";
 import { useCall, useGuestChannel, hostSetMode, reportGuestError } from "@/shop/call";
 import { readPointerPref, writePointerPref, makePointerHysteresis } from "@/shop/pointer";
+import { avviaVideoOspite, motivoBloccato, motivoErroreMedia, motivoStallo, segnalaVideoOspite, STALLO_DOPO_MS } from "@/shop/video-ospite";
 import { PointerDot } from "@/shop/PointerDot";
 import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
@@ -312,6 +313,10 @@ function PresentaPage() {
   // browser lo impone) e appare subito. `needTap` diventa un semplice avviso
   // discreto, mostrato SOLO se il browser ha davvero bloccato l'audio.
   const [needTap, setNeedTap] = useState(false);
+  //  ⚠️ Il telefono non lascia partire il video NEMMENO in muto (iPhone in
+  //  Risparmio energetico, browser dentro WhatsApp/Instagram…): serve un tocco,
+  //  e va detto chiaramente — vedi `shop/video-ospite`.
+  const [bloccato, setBloccato] = useState(false);
   const [audioOn, setAudioOn] = useState(false);
   const [hostAudio, setHostAudio] = useState(false); // in diretta il video host è muto (audio pulito sul cliente)
   const [full, setFull] = useState(false);           // schermo intero del box media (presentatore)
@@ -599,6 +604,18 @@ function PresentaPage() {
     }
     if (kind === "video") syncTo(s);
   };
+  /** Fa partire il video dell'ospite e aggiorna cosa si vede: audio da attivare,
+   *  oppure — se il telefono rifiuta anche il muto — il pulsante «Tocca per
+   *  vedere il video». Non dipende dallo stato di React (vive anche nel gestore
+   *  del canale, creato una volta sola). */
+  const avvia = (v: HTMLVideoElement, conAudio: boolean) =>
+    avviaVideoOspite(v, conAudio).then((r) => {
+      if (r.esito === "interrotto") return r;
+      setBloccato(r.esito === "bloccato");
+      setNeedTap(r.esito === "muto");
+      if (r.esito === "bloccato") segnalaVideoOspite(motivoBloccato(r.motivo));
+      return r;
+    });
   const syncTo = (s: Record<string, unknown> | null) => {
     const v = videoRef.current; if (!v || !s) return;
     applyingRef.current = true;
@@ -615,12 +632,9 @@ function PresentaPage() {
       //  suo gesto: la promessa veniva rifiutata e non succedeva più niente.
       //  Ora si riprova SUBITO in muto — così il video parte comunque — e
       //  compare il pulsante per attivare l'audio.
-      v.play().catch(() => {
-        v.muted = true;
-        v.play().catch(() => {});
-        setNeedTap(true);
-      });
+      void avvia(v, s.gaudio !== false);
     }
+    if (!playing) setBloccato(false);   // lo ha fermato il consulente: non c'è niente da far partire
     if (!playing && !v.paused) v.pause();
     setTimeout(() => { applyingRef.current = false; }, 150);
   };
@@ -1301,6 +1315,14 @@ function PresentaPage() {
     send("vhello", {}); // richiedi stato corrente
     setTimeout(() => syncTo(pendingRef.current), 250);
   };
+  /** Il tocco di chi ha il telefono che non fa partire il video da solo. */
+  const vediVideo = () => {
+    const v = videoRef.current; if (!v) return;
+    void avvia(v, audioOn).then(() => {
+      send("vhello", {}); // il tempo giusto, come lo vede il consulente
+      setTimeout(() => syncTo(pendingRef.current), 250);
+    });
+  };
 
   // OSPITE: tentativo AUTOMATICO di riproduzione con audio, senza chiedergli nulla.
   // I permessi (camera/microfono) sono già stati concessi entrando in chiamata: nella
@@ -1316,16 +1338,15 @@ function PresentaPage() {
     // rispetta lo stato voluto dal presentatore: se il video era in PAUSA non
     // deve partire da solo per poi essere rimesso in pausa un istante dopo
     const want = pendingRef.current ? !!pendingRef.current.playing : true;
-    if (!want) { v.pause(); return () => { cancelled = true; }; }
-    v.muted = !audioOn;
-    v.play().then(() => { if (!cancelled) setNeedTap(false); })
-      .catch(() => {
-        if (cancelled) return;
-        v.muted = true;                 // ripiego estremo: parte comunque, muto
-        v.play().catch(() => {});
-        setNeedTap(true);
-      });
-    return () => { cancelled = true; };
+    if (!want) { v.pause(); setBloccato(false); return () => { cancelled = true; }; }
+    void avvia(v, audioOn);
+    //  Dopo qualche secondo senza nemmeno un fotogramma si scrive nel diario:
+    //  rete lenta o file illeggibile, da non confondere con un telefono che
+    //  chiede il tocco (quello lo segnala `avvia`).
+    const t = setTimeout(() => {
+      if (!cancelled && v.readyState < 2) segnalaVideoOspite(motivoStallo(v.readyState, v.networkState));
+    }, STALLO_DOPO_MS);
+    return () => { cancelled = true; clearTimeout(t); };
   }, [isViewer, current, currentKind, audioOn]);
 
   // ── dito del presentatore sul media (attivo di default, spegnibile) ───────
@@ -1390,8 +1411,11 @@ function PresentaPage() {
           {currentKind === "image" ? (
             <img src={current || undefined} alt="" className="h-full w-full object-contain" draggable={false} style={{ pointerEvents: "none" }} />
           ) : (
-            <video ref={videoRef} src={current || undefined} playsInline autoPlay muted={!audioOn} data-keepmuted="1"
-              onError={() => reportGuestError(`Media non riproducibile sul dispositivo del cliente: ${current}`)}
+            //  ⚠️ `#t=0.1` + preload: iPhone non disegna NIENTE di un video che
+            //  non è partito, e il suo «play» nativo è nascosto da styles.css. Col
+            //  primo fotogramma, chi deve toccare vede già cosa sta per guardare.
+            <video ref={videoRef} src={current ? conPrimoFotogramma(current) : undefined} preload="auto" playsInline autoPlay muted={!audioOn} data-keepmuted="1"
+              onError={(e) => reportGuestError(motivoErroreMedia(e.currentTarget.error?.code))}
               onLoadedData={() => syncTo(pendingRef.current)} onCanPlay={() => syncTo(pendingRef.current)}
               className="h-full w-full object-contain" style={{ pointerEvents: "none" }} />
           )}
@@ -1411,6 +1435,17 @@ function PresentaPage() {
             <Images className="h-9 w-9 text-brand" />
             <span className="text-sm font-medium">Un attimo, sto preparando il contenuto…</span>
           </div>
+        )}
+        {/* Il telefono non lascia partire il video nemmeno in muto: si vede il primo
+            fotogramma e un pulsante che dice cosa fa (non «Attiva l'audio»). */}
+        {bloccato && current && currentKind === "video" && (
+          <button onClick={vediVideo} aria-label="Tocca per vedere il video"
+            className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-black/25 text-white">
+            <span className="flex h-16 w-16 items-center justify-center rounded-full bg-brand shadow-xl">
+              <Play className="h-7 w-7 translate-x-0.5" fill="currentColor" />
+            </span>
+            <span className="rounded-full bg-black/60 px-4 py-1.5 text-sm font-semibold">Tocca per vedere il video</span>
+          </button>
         )}
         {/* Avviso discreto solo se il browser ha davvero bloccato l'audio */}
         {needTap && current && currentKind === "video" && (

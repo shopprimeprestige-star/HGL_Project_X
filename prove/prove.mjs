@@ -70,6 +70,7 @@ import { proveScontoOpzione } from "./idee/sconto-opzione.mjs";
 import { provePrezziNegativi } from "./idee/prezzi-negativi.mjs";
 import { proveFiltriRitocchi } from "./idee/filtri-ritocchi.mjs";
 import { proveMeetlyStallo } from "./idee/meetly-stallo.mjs";
+import { proveVideoOspite } from "./idee/video-ospite.mjs";
 import { proveMeetlyAvvio } from "./idee/meetly-avvio.mjs";
 import { proveMeetlyRifiniture } from "./idee/meetly-rifiniture.mjs";
 import { proveMeetlyOfferte } from "./idee/meetly-offerte.mjs";
@@ -805,6 +806,8 @@ const MODULI = [
   //  La scatola nera dei collegamenti Meetly (31/10/2026): prove in prove/idee/scatola-nera.mjs.
   "shop/scatola-nera",
   "shop/scatola-nera-browser",
+  //  Il video condiviso in Meetly si vede su ogni telefono (17/11/2026): prove in prove/idee/video-ospite.mjs.
+  "shop/video-ospite",
   //  Media della consulenza Meetly dall'SFU di Cloudflare, dietro interruttore (commessa
   //   2026-10-31-meetly-connessione, Parte B). Le regole pure (T1) ci sono; gli altri tre
   //   (nucleo del server e client Cloudflare: T2; client SFU: T3) entrano nel pacchetto quando il file esiste.
@@ -21754,6 +21757,7 @@ proveChiamateAzzera(mod, { c, gruppo, radice });
 proveScontoOpzione(mod, { c, gruppo, radice });
 provePrezziNegativi(mod, { c, gruppo, radice });
 proveMeetlyStallo(mod, { c, gruppo, radice });
+await proveVideoOspite(mod, { c, gruppo, radice });
 proveMeetlyAvvio(mod, { c, gruppo, radice });
 await proveMeetlyRifiniture(mod, { c, gruppo, radice });
 await proveMeetlyOfferte(mod, { c, gruppo, radice });
