@@ -78,6 +78,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { chiamabile } from "@/crm/chiamabile";
+import { EtichettaBloccoDi } from "@/crm/SoloBlocco";
 import { ChiamaEstero } from "@/crm/ChiamaEstero";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -1407,6 +1408,7 @@ export function RigaLead({
           <span className="truncate">
             {l.data.nome} {l.data.cognome}
           </span>
+          <EtichettaBloccoDi lead={l} />
           {/*  Cifre tabellari e colore tenue: devono restare LEGGIBILI ma non
               competere con il nome — servono a confermare "è questo qui", non
               a essere lette per prime. Il puntino iniziale dice che è la coda
@@ -1818,6 +1820,7 @@ export function SchedaAdesso({
             <span className="truncate">
               {l.data.nome} {l.data.cognome}
             </span>
+            <EtichettaBloccoDi lead={l} />
             {/*  Le ultime cifre del numero anche qui: è la scheda che si guarda
                 dal telefono un attimo prima di chiamare, ed è lì che serve
                 sapere se il numero in rubrica è quello giusto. */}
