@@ -1260,7 +1260,7 @@ function DashboardPage() {
                 mentre la pagina dei numeri saliva, e due schermate che contano
                 le stesse vendite in modo diverso fanno perdere fiducia a
                 entrambe. `eChiusuraVinta` è l'elenco unico di types.ts. */
-              valore={leads.filter((l) => eChiusuraVinta(l.data.stato)).length}
+              valore={leadsKpi.filter((l) => eChiusuraVinta(l.data.stato)).length}
               to="/CRM/avanzamento"
               icona={Wrench}
             />
