@@ -154,4 +154,39 @@ export async function prove(mod, { c, gruppo, radice }) {
   })());
   c("modulo puro: nessun import di React, Supabase o rete", false, /from\s+["'](react|@supabase|@\/integrations)|fetch\(|supabase/i.test(src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "")));
   c("nessuna chiave o segreto nel sorgente", false, /service_role|eyJ[A-Za-z0-9_-]{20,}|sk_live/.test(src));
+
+  //  ── note del revisore (18/11/2026): N1 data «solo giorno», N2 formato, N3 importo testuale, N4 condizioni, N7 confini ──
+  const pgA = (extra, adesso, o) => A.costruisciAzione({ azione: "pagato", ordineId: ID, metodo: "bonifico", ...extra }, o ?? ordine(), adesso);
+  c("tolleranza: +60 s dentro, +61 s fuori", [true, "valore"], [va({ azione: "pagato", ordineId: ID, metodo: "carta", data: "2026-11-18T12:01:00.000Z" }).ok, va({ azione: "pagato", ordineId: ID, metodo: "carta", data: "2026-11-18T12:01:01.000Z" }).motivo]);
+  //  N1: «oggi» scelto da un campo data (AAAA-MM-GG) non è mai «futuro»; si confronta il giorno (Roma), non la mezzanotte UTC
+  const notte = new Date("2026-11-18T23:30:00.000Z"); // a Roma è già il 19
+  c("N1: mezzanotte passata a Roma, «oggi» (19) accettato", [true, true], (() => { const r = pgA({ data: "2026-11-19" }, notte); return [r.ok, r.ok && Date.parse(r.patch.pagato_il) <= notte.getTime()]; })());
+  c("N1: ma il 20 è domani → valore", "valore", pgA({ data: "2026-11-20" }, notte).motivo);
+  c("N1: a mezzogiorno, il giorno stesso vale (scritto a inizio giornata) e domani no", [true, "2026-11-18T00:00:00.000Z", "valore"],
+    (() => { const r = pgA({ data: "2026-11-18" }, ADESSO); return [r.ok, r.patch?.pagato_il, pgA({ data: "2026-11-19" }, ADESSO).motivo]; })());
+  const estate = new Date("2026-07-10T22:30:00.000Z"); // a Roma è l'11, 00:30
+  c("N1: d'estate (UTC+2) vale lo stesso", true, pgA({ data: "2026-07-11" }, estate, ordine({ created_at: "2026-07-01T10:00:00Z" })).ok);
+  //  N2: solo ISO, e non prima del giorno prima dell'ordine
+  for (const data of ["1", "2000", "12/11/2026", "17 novembre 2026", "2026-02-31", "2026-11-17T10:00:00", "2026-11-17T10:00", "oggi", "2026-13-01", "Tue, 17 Nov 2026 10:00:00 GMT"])
+    c(`N2: data «${data}» → valore`, "valore", va({ azione: "pagato", ordineId: ID, metodo: "carta", data }).motivo);
+  c("N2: ISO con Z, con scarto orario e col giorno solo valgono", [true, true, true], ["2026-11-17T15:00:00Z", "2026-11-17T16:00:00+01:00", "2026-11-17"].map((data) => va({ azione: "pagato", ordineId: ID, metodo: "carta", data }).ok));
+  c("N2: istante con microsecondi (come lo rende Postgres) vale", true, va({ azione: "pagato", ordineId: ID, metodo: "carta", data: "2026-11-17T15:00:00.123456+00:00" }).ok);
+  c("N2: prima dell'ordine meno un giorno → valore; il giorno prima vale", ["valore", "valore", true, true],
+    [va({ azione: "pagato", ordineId: ID, metodo: "carta", data: "2026-11-15" }).motivo, va({ azione: "pagato", ordineId: ID, metodo: "carta", data: "2026-11-16T09:00:00Z" }).motivo,
+      va({ azione: "pagato", ordineId: ID, metodo: "carta", data: "2026-11-16" }).ok, va({ azione: "pagato", ordineId: ID, metodo: "carta", data: "2026-11-16T11:00:00Z" }).ok]);
+  //  N3: importo scritto a mano
+  for (const importo of ["0x10", "1e3", "1.234,50", ".5", "-5", "12,555", "12,", "1 2", "+5", "Infinity", "٣"])
+    c(`N3: importo «${importo}» → valore`, "valore", va({ azione: "pagato", ordineId: ID, metodo: "carta", importo }).motivo);
+  c("N3: «12,5», «12.50», « 7 », «0» valgono", [12.5, 12.5, 7, 0], ["12,5", "12.50", " 7 ", "0"].map((importo) => va({ azione: "pagato", ordineId: ID, metodo: "carta", importo }).patch?.pagato_importo));
+  //  N4: condizioni = valore vero della riga; null = «vuoto» (per i testi: NULL oppure '')
+  for (const status of [null, "", "  "]) {
+    const r = va({ azione: "stato", ordineId: ID, da: "nuovo", a: "spedito" }, ordine({ status }));
+    c(`N4: status ${JSON.stringify(status)} in tabella → condizione «vuoto» (null), l'azione parte`, [true, { status: null }], [r.ok, r.condizioni]);
+  }
+  c("N4: tracking e nota vuoti in tabella ('' o spazi) → condizione null, l'azione parte", [{ tracking: null }, { note_interne: null }],
+    [va({ azione: "tracking", ordineId: ID, valore: "T1" }, ordine({ tracking: "" })).condizioni, va({ azione: "nota_interna", ordineId: ID, valore: "n" }, ordine({ note_interne: "   " })).condizioni]);
+  c("N4: tracking con spazi ai bordi in tabella → la condizione è il valore tagliato (T9 riprova una volta, vedi commento in testa)", { tracking: "T1" },
+    va({ azione: "tracking", ordineId: ID, valore: "T2" }, ordine({ tracking: " T1 " })).condizioni);
+  c("T9: il commento in testa elenca gli obblighi (tale e quale, .is, .select, 0 righe = 409)", [true, true, true, true],
+    [/tale e quale/i, /\.is\(/, /\.select\("id"\)/, /0 righe/].map((re) => re.test(src)));
 }
