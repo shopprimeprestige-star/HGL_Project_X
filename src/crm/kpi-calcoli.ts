@@ -14,6 +14,7 @@
 //  creduto, e un KPI a cui non si crede non serve a niente.
 
 import { totaleCostiPratica } from "@/crm/costi-pratica";
+import { soloNeiKpi } from "@/crm/conta-nei-kpi";
 import type { AdSpending, Consultant, Lead } from "@/crm/types";
 import { eAppuntamento, STATI_CHIUSURA_VINTA } from "@/crm/types";
 
@@ -275,7 +276,8 @@ export function calcolaMetricheGenerali(
   // gennaio e chiuso a marzo pesa su gennaio. Il dettaglio giornaliero, più
   // sotto, usa invece la data del meeting per le conversioni: le due sezioni
   // NON tornano fra loro. È così anche nel riferimento (vedi `calcolaGiorni`).
-  const nelPeriodo = leads.filter((l) => dentro(l.data.createdAt));
+  //  I «solo blocco orario» non sono lead: vedi crm/conta-nei-kpi.
+  const nelPeriodo = soloNeiKpi(leads).filter((l) => dentro(l.data.createdAt));
 
   const noShow = nelPeriodo.filter((l) => l.data.stato === "no_show").length;
 
@@ -361,7 +363,7 @@ export function meetFissatiUltimiTreGiorni(leads: Lead[]): {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   };
   const conta = (g: string) =>
-    leads.filter(
+    soloNeiKpi(leads).filter(
       (l) =>
         giornoDi(l.data.createdAt) === g &&
         !!l.data.dataMeeting &&
@@ -418,7 +420,7 @@ export function calcolaMetricheConsulenti(
 ): MetricheConsulente[] {
   // Stesso intervallo e stessa data di attribuzione del riepilogo: se qui si
   // usasse un'altra data, la somma della tabella non tornerebbe con il totale.
-  const nelPeriodo = leads.filter((l) => dentro(l.data.createdAt));
+  const nelPeriodo = soloNeiKpi(leads).filter((l) => dentro(l.data.createdAt));
   const spesaTotale = adSpending
     .filter((s) => dentro(s.data.data))
     .reduce((somma, s) => somma + (Number(s.data.importoSpeso) || 0), 0);
@@ -594,7 +596,7 @@ export function calcolaGiorni(
   // 1) LEAD e APPUNTAMENTI: attribuiti al giorno di INGRESSO del lead. È il
   //    giorno in cui la pubblicità ha prodotto il contatto, quindi è il giorno
   //    su cui ha senso dividere la spesa di quel giorno.
-  const nelPeriodo = leads.filter((l) => dentro(l.data.createdAt));
+  const nelPeriodo = soloNeiKpi(leads).filter((l) => dentro(l.data.createdAt));
   for (const l of nelPeriodo) {
     if (STATI_NON_CONTEGGIABILI.includes(l.data.stato)) continue;
     const g = giornoDi(l.data.createdAt);
@@ -614,7 +616,7 @@ export function calcolaGiorni(
   //    Si scorrono TUTTI i lead, non solo quelli entrati nel periodo: una
   //    vendita fatta questa settimana su un lead di due mesi fa deve comparire
   //    nel giorno in cui è stata chiusa.
-  for (const l of leads) {
+  for (const l of soloNeiKpi(leads)) {
     if (!eConversione(l)) continue;
     const g = giornoDi(l.data.dataMeeting || l.data.createdAt);
     if (!g || !dentro(g)) continue;

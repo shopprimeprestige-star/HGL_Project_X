@@ -64,6 +64,7 @@
 import { eAppuntamento, eStatoNonSvolta } from "@/crm/types";
 import type { Consultant, ConsultantData, Lead } from "@/crm/types";
 import type { FiltroPeriodo } from "@/crm/kpi-calcoli";
+import { soloNeiKpi } from "@/crm/conta-nei-kpi";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    1. IL DATO — che mestiere fa
@@ -537,7 +538,7 @@ export function calcolaMetricheSetter(
   //  l'ingresso del lead): due tabelle affiancate che tagliano il periodo in
   //  due modi diversi non si possono confrontare, e chi legge lo scopre solo
   //  quando i totali non tornano.
-  for (const l of Array.isArray(leads) ? leads : []) {
+  for (const l of soloNeiKpi(leads)) {
     if (!l?.data) continue;
     if (!dentro(l.data.createdAt)) continue;
     const id = testo(l.data.consulenteId);
@@ -691,7 +692,7 @@ export function leadDelGruppoSetter(
   gruppo: GruppoSetter,
   dentro: FiltroPeriodo,
 ): Lead[] {
-  const suoi = (Array.isArray(leads) ? leads : []).filter(
+  const suoi = soloNeiKpi(leads).filter(
     (l) => !!l?.data && dentro(l.data.createdAt) && testo(l.data.consulenteId) === setterId,
   );
   const scelti = suoi.filter((l) => {

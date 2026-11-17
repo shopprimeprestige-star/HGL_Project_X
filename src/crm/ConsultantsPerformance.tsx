@@ -62,6 +62,7 @@ import {
   type FiltroPeriodo,
   type MetricheConsulente,
 } from "@/crm/kpi-calcoli";
+import { soloNeiKpi } from "@/crm/conta-nei-kpi";
 import {
   CLASSI_TONO,
   Chip,
@@ -138,7 +139,7 @@ export function leadDelGruppo(
   gruppo: GruppoNumero,
   dentro: FiltroPeriodo,
 ): Lead[] {
-  const suoi = leads.filter(
+  const suoi = soloNeiKpi(leads).filter(
     (l) =>
       dentro(l.data.createdAt) &&
       (consulenteId === null ? !l.data.consulenteId : l.data.consulenteId === consulenteId),
