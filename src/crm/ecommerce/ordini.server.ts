@@ -230,9 +230,9 @@ function eventoPerLaPagina(x: unknown) {
 }
 
 export async function gestisciGET(request: Request, d: DipendenzeOrdini): Promise<Response> {
-  const g = await d.guardia(request);
-  if (!g.ok) return g.risposta;
   try {
+    const g = await d.guardia(request); // dentro il `try`: se la guardia lancia esce un JSON «interno», non l'errore grezzo
+    if (!g.ok) return g.risposta;
     const q = new URL(request.url).searchParams;
     const adesso = d.adesso().toISOString();
 
@@ -295,7 +295,7 @@ function conCondizioni(
   grezzi: Record<string, string> = {},
 ): Costruttore {
   for (const [colonna, valore] of Object.entries(condizioni)) {
-    if (valore === null)
+    if (valore === null && grezzi[colonna] === undefined)
       q = COLONNE_TESTO.includes(colonna)
         ? q.or(`${colonna}.is.null,${colonna}.eq.`)
         : q.is(colonna, null);
@@ -328,7 +328,7 @@ async function aggiorna(
 const rifiutoDa = (esito: Extract<EsitoAzione, { ok: false }>) =>
   rifiuta(esito.motivo, STATO_HTTP[esito.motivo], esito.errore);
 
-/** Per ogni colonna di testo con un valore: se nella riga è scritto diverso (spazi ai bordi, scritti a mano), il valore vero. */
+/** Per ogni colonna di testo: se nella riga è scritto diverso da quello visto (spazi ai bordi o soli spazi, scritti a mano), il valore vero. */
 function testiVeri(
   riga: Record<string, unknown>,
   condizioni: Record<string, unknown>,
@@ -337,16 +337,20 @@ function testiVeri(
   for (const colonna of COLONNE_TESTO) {
     const visto = condizioni[colonna];
     const scritto = riga[colonna];
-    if (typeof visto === "string" && typeof scritto === "string" && scritto !== visto)
+    // visto `null` = «vuoto» per T8, ma in tabella può esserci un testo di soli spazi: non combacia con `.or(is.null, eq.)`
+    if (typeof scritto === "string" && scritto !== "" && scritto !== (visto ?? ""))
       veri[colonna] = scritto;
   }
   return veri;
 }
 
 export async function gestisciPOST(request: Request, d: DipendenzeOrdini): Promise<Response> {
-  const g = await d.guardia(request);
-  if (!g.ok) return g.risposta;
   try {
+    const g = await d.guardia(request);
+    if (!g.ok) return g.risposta;
+    // il tetto si controlla prima di leggere il corpo (se l'intestazione c'è); quello sul testo resta per chi non la manda
+    const lunghezza = Number(request.headers.get("content-length"));
+    if (lunghezza > MAX_CORPO) throw rifiuta("valore", 413, "La richiesta è troppo grande.");
     const testo = await request.text();
     if (testo.length > MAX_CORPO) throw rifiuta("valore", 400, "La richiesta è troppo grande.");
     let corpo: unknown;
