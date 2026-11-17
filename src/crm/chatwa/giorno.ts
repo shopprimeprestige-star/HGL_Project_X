@@ -8,6 +8,12 @@
  *  la stessa cosa con un interruttore in più. «Scaduti» copre ogni arretrato senza limite, «Prossimi
  *  giorni» ogni data da dopodomani in avanti senza limite, «Senza data» è qui, nella stessa fila, per
  *  ogni filtro.
+ *  ⚠️ 17/11/2026 (secondo giro, ordine e chiarezza): due aggiunte, nessuna regola di filtro cambia.
+ *   Compito 1 — `perGiorno`: raggruppa un elenco GIÀ filtrato e ordinato in sezioni per giorno, per
+ *   disegnare l'elenco di «Da chiamare»/«Ricontatti» a gruppi quando il giorno è «Tutti».
+ *   Compito 3 — `SEGMENTI_FILA_CORTA`/`eFiltroAMessaggio`/`giornoNellaFilaCorta`: i filtri «a messaggio»
+ *   (Da rispondere, Con stelle, Sconosciuti, Clienti, Finestra, Acconto, Con scheda) hanno solo
+ *   Tutti/Oggi/Ieri/Più vecchi — «Domani» e «Prossimi giorni» non hanno senso per un messaggio.
  *
  *  · LA DATA DIPENDE DALLO STATO VERO DEL LEAD, non dal filtro che lo ha portato in vista
  *    (`dataEFonte`, UNA regola sola, dal 16/11/2026):
@@ -212,6 +218,42 @@ export const passaGiorno = (
   adesso: Date,
 ): boolean => f.giorno === "" || inGiorno(dataPerGiorno(c, f), f.giorno, adesso);
 
+// ── Le sezioni per giorno, per l'elenco a gruppi (Compito 1, 17/11/2026) ────────────────────────
+
+/** Gli identificativi di sezione, nell'ordine del calendario: lo stesso ordine della fila. */
+const ORDINE_SEZIONI: readonly GiornoChat[] = [
+  "scaduti",
+  "ieri",
+  "oggi",
+  "domani",
+  "prossimi-giorni",
+  "senza-data",
+];
+
+/** In quale sezione cade un giorno già calcolato da `dataPerGiorno`: la stessa regola della fila
+ *  (`inGiorno`), non una nuova. `""` (nessuna data) è sempre «senza-data». */
+function sezioneDiGiorno(giorno: string, adesso: Date): GiornoChat {
+  if (giorno === "") return "senza-data";
+  return ORDINE_SEZIONI.slice(0, -1).find((s) => inGiorno(giorno, s, adesso)) ?? "senza-data";
+}
+
+/** Divide `chats` (GIÀ filtrate e nell'ordine che l'elenco userebbe: per «Da chiamare» per stato e
+ *  cambio di stato, per «Ricontatti» priorità poi arrivo) in sezioni per giorno, nell'ordine del
+ *  calendario: Scaduti · Ieri · Oggi · Domani · Prossimi giorni · Senza data. Dentro ogni sezione
+ *  l'ordine di `chats` non cambia (non si riordina qui). Le sezioni senza nessuna chat non compaiono.
+ *  Pura: non sa niente del disegno, non taglia niente per il «mostra altre» (lo fa chi disegna). */
+export function perGiorno<T extends ChatPerGiorno>(
+  chats: readonly T[],
+  f: FiltroPerData,
+  adesso: Date,
+): { giorno: GiornoChat; chats: T[] }[] {
+  const sezioni = new Map<GiornoChat, T[]>(ORDINE_SEZIONI.map((s) => [s, []]));
+  for (const c of chats) sezioni.get(sezioneDiGiorno(dataPerGiorno(c, f), adesso))!.push(c);
+  return ORDINE_SEZIONI.map((giorno) => ({ giorno, chats: sezioni.get(giorno)! })).filter(
+    (s) => s.chats.length > 0,
+  );
+}
+
 const COSA_DICE = {
   dataRicontatto: "il giorno del ricontatto",
   dataMeeting: "il giorno della consulenza",
@@ -238,6 +280,31 @@ export function descriviDataFiltro(f: FiltroPerData): string {
   if (regola) return COSA_DICE[regola.chiaveData];
   //  Una fase senza regola (Segreteria, Attesa WhatsApp…): la data scritta vince, come in dataEFonte.
   return f.fase ? RICONTATTO_O_ULTIMO : DATA_ULTIMO;
+}
+
+// ── La fila corta dei filtri «a messaggio» (Compito 3, 17/11/2026) ─────────────────────────────
+
+/** I segmenti della fila corta: Tutti · Oggi · Ieri · Più vecchi. Nessun valore nuovo: «Più vecchi»
+ *  è lo stesso «scaduti» di sempre, solo con un altro nome (qui non c'è un richiamo da aspettare: un
+ *  messaggio non è «scaduto», è solo più vecchio). */
+export const SEGMENTI_FILA_CORTA: readonly { v: GiornoChat; nome: string }[] = [
+  { v: "", nome: "Tutti" },
+  { v: "oggi", nome: "Oggi" },
+  { v: "ieri", nome: "Ieri" },
+  { v: "scaduti", nome: "Più vecchi" },
+];
+
+/** Il filtro acceso guarda l'ultimo messaggio (Da rispondere, Con stelle, Sconosciuti, Clienti,
+ *  Finestra, Acconto, Con scheda), non un richiamo/ricontatto/consulenza? Decide la fila corta
+ *  (ANALISI §2 punto 4 della commessa precedente): «Domani» e «Prossimi giorni» non hanno senso per
+ *  un messaggio già scritto (e nemmeno «scaduto»): bastano Tutti/Oggi/Ieri/Più vecchi. */
+export const eFiltroAMessaggio = (f: FiltroPerData): boolean => descriviDataFiltro(f) === DATA_ULTIMO;
+
+/** Il valore da mostrare/applicare nella fila corta: se non è uno dei quattro segmenti (un giorno
+ *  salvato da prima del Compito 3, o restato da un filtro «a richiamo» appena cambiato), vale
+ *  «Tutti» — niente errore, nessuna data inventata, nessuna migrazione. */
+export function giornoNellaFilaCorta(giorno: GiornoChat): GiornoChat {
+  return SEGMENTI_FILA_CORTA.some((s) => s.v === giorno) ? giorno : "";
 }
 
 // ── La data sulla riga ──────────────────────────────────────────────────────────────────────────
