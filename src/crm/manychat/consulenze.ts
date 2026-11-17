@@ -44,6 +44,7 @@
  *  ───────────────────────────────────────────────────────────────────────── */
 import type { ContattoWa, LeadData, LeadStatus, VoceContattoWa } from "../types";
 import { eAppuntamento } from "../types";
+import { eSoloBlocco } from "../conta-nei-kpi";
 import { aRoma, oraNormale } from "../promemoria/formati";
 import { DA_AUTOMATICO, istanteDiRoma } from "./contatto";
 import { conNota } from "./prenota-scheda";
@@ -189,6 +190,8 @@ export function decidiAssenza(
   acceso = true,
 ): EsitoAssenza | null {
   if (!d || !eAppuntamento(d.stato)) return null;
+  //  Un «solo blocco orario» non ha un cliente che deve entrare: niente assenza, niente messaggio.
+  if (eSoloBlocco({ data: d })) return null;
   const inizio = inizioConsulenza(d);
   if (!inizio) return null;
   const da = inizio.getTime();

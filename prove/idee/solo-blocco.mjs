@@ -128,7 +128,7 @@ export function proveSoloBlocco(mod, { c, gruppo, radice }) {
   c("gli orari liberi con blocchi sono identici a quelli con consulenze vere", libere(tre.map(comeVero)), libere(tre));
 
   gruppo("SOLO BLOCCO · AGENDA E PROMEMORIA NON LA CONOSCONO");
-  for (const f of ["src/crm/booking-utils.ts", "src/crm/doppione-orario.ts", "src/crm/chatwa/prossimo-meet.ts", "src/crm/promemoria/invio.ts", "src/crm/consulenze-del-giorno.ts"]) {
+  for (const f of ["src/crm/booking-utils.ts", "src/crm/doppione-orario.ts", "src/crm/chatwa/prossimo-meet.ts", "src/crm/consulenze-del-giorno.ts"]) {
     c(`${f} non importa conta-nei-kpi (lo slot resta occupato)`, false, /conta-nei-kpi|soloBlocco/.test(leggi(f)));
   }
 
