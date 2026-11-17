@@ -29,7 +29,14 @@ interface Props {
   segmenti?: readonly { v: GiornoChat; nome: string }[];
 }
 
-export function RigaGiorno({ valore, conta, onCambia, data, etichetta, segmenti = SEGMENTI_GIORNO }: Props) {
+export function RigaGiorno({
+  valore,
+  conta,
+  onCambia,
+  data,
+  etichetta,
+  segmenti = SEGMENTI_GIORNO,
+}: Props) {
   return (
     <div
       role="group"
