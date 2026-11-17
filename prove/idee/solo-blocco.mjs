@@ -132,6 +132,23 @@ export function proveSoloBlocco(mod, { c, gruppo, radice }) {
     c(`${f} non importa conta-nei-kpi (lo slot resta occupato)`, false, /conta-nei-kpi|soloBlocco/.test(leggi(f)));
   }
 
+  gruppo("SOLO BLOCCO · AL CLIENTE NON PARTE NIENTE (promemoria e assenza)");
+  {
+    const I = mod["promemoria/invio"];
+    const K2 = mod["manychat/consulenze"];
+    const adesso = new Date("2026-10-22T13:00:00Z"); // giovedì 22/10 15:00 a Roma
+    const d = { nome: "Prova", cognome: "Blocco", telefono: "339 1234567", stato: "appuntamento_fissato", dataMeeting: "2026-10-23", oraMeeting: "10:00" };
+    const ingresso = (x) => ({ d: x, link: "https://esempio.test/meetly/x", aggiornataIl: new Date(adesso.getTime() - 300000).toISOString(), numeriStop: [], adesso, primoGiro: false });
+    c("controllo: la stessa scheda senza spunta riceve il promemoria", "invia", I.decidiInvio(ingresso(d)).azione);
+    c("con la spunta: nessun promemoria, e nessun segno sulla scheda", { azione: "niente" }, I.decidiInvio(ingresso({ ...d, soloBlocco: true })));
+    c("tolta la spunta, il promemoria torna a partire", "invia", I.decidiInvio(ingresso({ ...d, soloBlocco: undefined })).azione);
+    const inizio = Date.parse("2026-10-30T14:00:00.000Z");
+    const dopo = new Date(inizio + 15 * 60000);
+    const dA = { ...d, consulenteId: "m", dataMeeting: "2026-10-30", oraMeeting: "15:00" };
+    c("controllo: assenza senza spunta, nessuno in stanza → si sposta", "sposta", K2.decidiAssenza(dA, dopo, [])?.tipo);
+    c("con la spunta: nessuna assenza, nessun messaggio", null, K2.decidiAssenza({ ...dA, soloBlocco: true }, dopo, []));
+  }
+
   gruppo("SOLO BLOCCO · OGNI CALCOLO PASSA DALLA FUNZIONE UNICA (sorgente)");
   for (const f of [
     "src/crm/kpi-calcoli.ts",

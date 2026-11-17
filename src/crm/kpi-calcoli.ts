@@ -362,8 +362,9 @@ export function meetFissatiUltimiTreGiorni(leads: Lead[]): {
     d.setDate(d.getDate() - scarto);
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   };
+  const validi = soloNeiKpi(leads);
   const conta = (g: string) =>
-    soloNeiKpi(leads).filter(
+    validi.filter(
       (l) =>
         giornoDi(l.data.createdAt) === g &&
         !!l.data.dataMeeting &&
@@ -596,7 +597,8 @@ export function calcolaGiorni(
   // 1) LEAD e APPUNTAMENTI: attribuiti al giorno di INGRESSO del lead. È il
   //    giorno in cui la pubblicità ha prodotto il contatto, quindi è il giorno
   //    su cui ha senso dividere la spesa di quel giorno.
-  const nelPeriodo = soloNeiKpi(leads).filter((l) => dentro(l.data.createdAt));
+  const validi = soloNeiKpi(leads);
+  const nelPeriodo = validi.filter((l) => dentro(l.data.createdAt));
   for (const l of nelPeriodo) {
     if (STATI_NON_CONTEGGIABILI.includes(l.data.stato)) continue;
     const g = giornoDi(l.data.createdAt);
@@ -616,7 +618,7 @@ export function calcolaGiorni(
   //    Si scorrono TUTTI i lead, non solo quelli entrati nel periodo: una
   //    vendita fatta questa settimana su un lead di due mesi fa deve comparire
   //    nel giorno in cui è stata chiusa.
-  for (const l of soloNeiKpi(leads)) {
+  for (const l of validi) {
     if (!eConversione(l)) continue;
     const g = giornoDi(l.data.dataMeeting || l.data.createdAt);
     if (!g || !dentro(g)) continue;

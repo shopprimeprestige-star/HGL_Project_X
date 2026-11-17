@@ -151,6 +151,7 @@ const MODULI = [
   "kpi-calcoli",
   //  «Solo blocco orario» (commessa 2026-11-17-meet-solo-blocco): prove in prove/idee/solo-blocco.mjs.
   "conta-nei-kpi",
+  "manychat/consulenze",
   "kpi-setter",
   //  ⚠️ Non sta in `src/crm` ma in `src/webinar`: vedi il ramo qui sotto sul
   //   percorso. È l'unica regola del webinar che decide una cosa che si vede,
