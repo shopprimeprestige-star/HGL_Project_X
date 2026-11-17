@@ -62,6 +62,9 @@ import { getWhatsAppMessageForStatus } from "@/crm/whatsapp";
 import { formatDate } from "@/lib/date-format";
 import { cn } from "@/lib/utils";
 import { useCRM } from "@/crm/CRMContext";
+import { useConsulenteCollegato } from "@/crm/AuthContext";
+import { EtichettaBloccoDi, SpuntaSoloBlocco } from "@/crm/SoloBlocco";
+import { patchSoloBlocco } from "@/crm/conta-nei-kpi";
 import { Chip, ChipStato, PUNTO_TONO, tonoStato } from "@/crm/ui";
 import {
   CampoFinestra,
@@ -626,6 +629,7 @@ export function LineaDelGiorno({
                     {l.data.nome} {l.data.cognome}
                   </span>
                   <span className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1">
+                    <EtichettaBloccoDi lead={l} />
                     <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
                       <Icona className="h-3 w-3" />
                       {ETICHETTA_IMPEGNO[r.tipo]}
@@ -827,6 +831,9 @@ export function AgendaDaySheet({
   const [quickName, setQuickName] = useState("");
   const [quickPhone, setQuickPhone] = useState("");
   const [quickNote, setQuickNote] = useState("");
+  //  «Solo blocco orario»: spenta di base. Vale solo per il meeting (vedi crm/conta-nei-kpi).
+  const [soloBlocco, setSoloBlocco] = useState(false);
+  const chiHaSpuntato = useConsulenteCollegato()?.nome;
   // Follow-up date (per "da_ricontattare" e "fissa_meet_dopo")
   const [followUpDate, setFollowUpDate] = useState("");
   // Toggle "ha lasciato acconto" per viene_in_sede
@@ -903,6 +910,7 @@ export function AgendaDaySheet({
     setQuickName("");
     setQuickPhone("");
     setQuickNote("");
+    setSoloBlocco(false);
     setFollowUpDate("");
     setAccontoLasciato(false);
     setAccontoImporto("");
@@ -940,6 +948,7 @@ export function AgendaDaySheet({
     } else if (statusV === "appuntamento_fissato") {
       prefill.dataMeeting = date;
       if (slotTime) prefill.oraMeeting = slotTime;
+      if (soloBlocco) Object.assign(prefill, patchSoloBlocco(true, chiHaSpuntato));
     } else {
       // da_ricontattare / fissa_meet_dopo → usa followUpDate (default = data corrente cliccata)
       prefill.dataRicontatto = followUpDate || date;
@@ -966,6 +975,7 @@ export function AgendaDaySheet({
     } else if (statusV === "appuntamento_fissato") {
       prefill.dataMeeting = date;
       if (slotTime) prefill.oraMeeting = slotTime;
+      if (soloBlocco) Object.assign(prefill, patchSoloBlocco(true, chiHaSpuntato));
     } else {
       prefill.dataRicontatto = followUpDate || date;
     }
@@ -1362,6 +1372,9 @@ export function AgendaDaySheet({
                     className={`${CLASSE_AREA} resize-none`}
                   />
                 </CampoFinestra>
+                {statusV === "appuntamento_fissato" && (
+                  <SpuntaSoloBlocco acceso={soloBlocco} onCambia={setSoloBlocco} />
+                )}
               </SezioneFinestra>
             </>
           )}
