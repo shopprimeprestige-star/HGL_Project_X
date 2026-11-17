@@ -46,6 +46,7 @@
  *     (c'è già la conferma), e non dice niente.
  *  ───────────────────────────────────────────────────────────────────────── */
 import { STATI_APPUNTAMENTO, STATI_PRIMO_CONTATTO, eAppuntamento } from "../types";
+import { eSoloBlocco } from "../conta-nei-kpi";
 import { statoPrimaDelRitorno } from "../importa/ritorno-attesa";
 import { aRoma, oraNormale } from "../promemoria/formati";
 import { modoInvito } from "../chatwa/invito-meet";
@@ -798,7 +799,8 @@ export function decidiGiornoMeet(
 
   for (const scheda of schede) {
     const d = scheda.data;
-    if (!eAppuntamento(d.stato)) continue;
+    //  Un «solo blocco orario» non è un appuntamento col cliente: nessun messaggio.
+    if (!eAppuntamento(d.stato) || eSoloBlocco(scheda)) continue;
     if (!d.consulenteId || eImportato(scheda)) continue;
     const giornoMeet = giornoVero(d.dataMeeting);
     const hm = oraNormale(d.oraMeeting);
@@ -1006,7 +1008,7 @@ export function telefoniMeetDomani(
   const domani = giornoDopo(aRoma(adesso).giorno);
   const telefoni = new Map<string, string>();
   for (const { data: d } of schede) {
-    if (!eAppuntamento(d.stato) || !d.consulenteId) continue;
+    if (!eAppuntamento(d.stato) || eSoloBlocco({ data: d }) || !d.consulenteId) continue;
     const hm = oraNormale(d.oraMeeting);
     if (giornoVero(d.dataMeeting) !== domani || !hm) continue;
     const numero = numeroWa(d.telefono);
@@ -1054,7 +1056,8 @@ export function decidiMeetDomani(
   //  Un ordine fisso: fra due doppioni vince sempre la stessa scheda.
   for (const scheda of [...schede].sort((a, b) => a.id.localeCompare(b.id))) {
     const d = scheda.data;
-    if (!eAppuntamento(d.stato)) continue;
+    //  Un «solo blocco orario» non è un appuntamento col cliente: nessun messaggio.
+    if (!eAppuntamento(d.stato) || eSoloBlocco(scheda)) continue;
     if (!d.consulenteId || eImportato(scheda)) continue;
     const giornoMeet = giornoVero(d.dataMeeting);
     const hm = oraNormale(d.oraMeeting);

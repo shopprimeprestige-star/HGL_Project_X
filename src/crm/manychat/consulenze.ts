@@ -141,7 +141,7 @@ export function confermaMancata(
   d: Partial<LeadData> | null | undefined,
   adesso: Date,
 ): ConfermaMancata | null {
-  if (!d || !eAppuntamento(d.stato)) return null;
+  if (!d || !eAppuntamento(d.stato) || eSoloBlocco({ data: d })) return null;
   const c = d.contattoWa;
   if (!c || !automaticoSenzaRisposta(c)) return null;
   const inizio = inizioConsulenza(d);
