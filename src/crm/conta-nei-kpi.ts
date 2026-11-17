@@ -51,7 +51,11 @@ export function patchSoloBlocco(
   acceso: boolean,
   chi?: string | null,
   adesso: Date = new Date(),
+  /** La spunta era già accesa sulla scheda: spostare il blocco non cambia
+   *  quando né da chi è stato messo, quindi non si riscrive niente. */
+  giaAcceso = false,
 ): { soloBlocco?: true; soloBloccoIl?: string; soloBloccoDa?: string } {
+  if (acceso && giaAcceso) return {};
   if (!acceso) return { soloBlocco: undefined, soloBloccoIl: undefined, soloBloccoDa: undefined };
   const nome = String(chi ?? "").trim();
   return {

@@ -584,6 +584,11 @@ function fissaConsulenza(
 ) {
   update("dataMeeting", data || undefined);
   update("oraMeeting", ora || undefined);
+  //  Senza data il blocco non c'è più: la spunta non deve restare invisibile sulla
+  //  scheda e tenerla fuori dai numeri (crm/conta-nei-kpi).
+  if (!data) {
+    for (const [k, v] of Object.entries(patchSoloBlocco(false))) update(k as keyof LeadData, v as never);
+  }
   //  La durata si fissa insieme allo slot: senza, l'appuntamento veniva mandato
   //  al server con una durata diversa da quella su cui la griglia lo aveva
   //  calcolato, e in agenda occupava un'altra fascia.
@@ -746,7 +751,12 @@ export function LeadDialog({
     if (quando.chiaveData === "dataMeeting") {
       fissaConsulenza(form, update, data, ora, DURATA_PREDEFINITA);
       //  «Solo blocco orario»: la scelta fatta nella finestrella si scrive con la data.
-      const blocco = patchSoloBlocco(soloBlocco, consulenteCollegato?.nome);
+      const blocco = patchSoloBlocco(
+        soloBlocco && !!data,
+        consulenteCollegato?.nome,
+        new Date(),
+        form.soloBlocco === true,
+      );
       for (const [k, v] of Object.entries(blocco)) update(k as keyof LeadData, v as never);
       Object.assign(patch, blocco);
       patch.dataMeeting = data || undefined;
@@ -3480,7 +3490,7 @@ function CatenaAppuntamento({
       )}
       {/*  «Solo blocco orario»: l'orario resta occupato in agenda ma questo lead
           non entra in nessun numero. Spenta di base. */}
-      {form.dataMeeting && form.oraMeeting && (
+      {((form.dataMeeting && form.oraMeeting) || form.soloBlocco === true) && (
         <SpuntaSoloBlocco
           acceso={form.soloBlocco === true}
           onCambia={(v) => {

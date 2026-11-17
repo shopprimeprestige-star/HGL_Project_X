@@ -2096,7 +2096,7 @@ function ProceduraQuando({
         patch.oraMeeting = ora || undefined;
         patch.durataMeeting = durata;
         //  «Solo blocco orario»: occupa lo slot, non entra nei numeri (crm/conta-nei-kpi).
-        Object.assign(patch, patchSoloBlocco(soloBlocco, chiHaSpuntato));
+        Object.assign(patch, patchSoloBlocco(soloBlocco, chiHaSpuntato, new Date(), lead.data.soloBlocco === true));
         //  Chi fa la consulenza si scrive INSIEME al quando: l'agenda considera
         //  occupato uno slot solo se sa di chi è, e senza quel nome lo stesso
         //  orario verrebbe offerto di nuovo a un altro cliente.
