@@ -187,6 +187,10 @@ export async function prove(_mod, { c, gruppo, radice }) {
     /PRIMA DI LANCIARLA/.test(testa),
   ]);
   c("M1 in testa: chi la lancia (il titolare), rilanciabile, come si annulla", [true, true, true], [/TITOLARE/.test(testa), /DUE VOLTE NON FA DANNI/.test(testa), /COME SI ANNULLA/.test(testa)]);
+  c("M1 in testa: la precondizione «R1 pubblicato» prima dell'ordine di prova, e il ripristino solo se R1 c'è", [true, true], [
+    /PRECONDIZIONE: il sito pubblicato deve essere già quello di R1/.test(grezzo) && /NON fare il ripristino/.test(grezzo),
+    /RIPRISTINO \(solo se l'ordine di prova NON arriva E R1 è già pubblicato\)/.test(grezzo),
+  ]);
   c("M1 in coda (commento): il ripristino della policy larga, con la nuova tolta dopo, in transazione", true,
     /--\s*DROP POLICY IF EXISTS "anyone can insert shop order"[\s\S]*?--\s*CREATE POLICY "anyone can insert shop order"[\s\S]*?--\s*WITH CHECK \(true\);[\s\S]*?--\s*DROP POLICY IF EXISTS "shop_orders_insert_checkout"[\s\S]*?--\s*COMMIT;/.test(
       grezzo.slice(grezzo.indexOf("NOTIFY pgrst")),

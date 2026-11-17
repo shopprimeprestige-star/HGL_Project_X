@@ -48,10 +48,20 @@
 --   crm_leads non si tocca.
 --
 -- ORDINE: può essere lanciata prima o dopo la pubblicazione del codice di R2
--- (il codice funziona anche senza). Il checkout di oggi continua a funzionare.
+-- (il codice funziona anche senza).
+--
+-- ⚠️ PRECONDIZIONE: il sito pubblicato deve essere già quello di R1 (la
+-- correzione del checkout: l'ordine non si perde più e non si duplica). Il
+-- checkout di PRIMA di R1 leggeva l'ordine appena inserito, cosa che da anonimo
+-- non è permessa: l'ordine di prova NON arriverebbe per un difetto che non c'entra
+-- con questa migrazione, e il ripristino qui sotto butterebbe la policy stretta
+-- per niente. Prima dell'ordine di prova controlla che il sito pubblicato sia
+-- quello di R1 (lo dice la squadra); se non lo è, NON fare il ripristino.
+-- Con R1 pubblicato il checkout di oggi continua a funzionare.
+--
 -- Subito dopo: fai un ORDINE DI PROVA da una finestra anonima del browser (nome
 -- «PROVA-ELIMINARE», dati inventati) e controlla che compaia in Table Editor;
--- se NON compare, esegui il RIPRISTINO in fondo a questo file.
+-- se NON compare e R1 è pubblicato, esegui il RIPRISTINO in fondo a questo file.
 --
 -- LANCIARLA DUE VOLTE NON FA DANNI (ADD COLUMN/CREATE ... IF NOT EXISTS; la
 -- policy nuova viene tolta e ricreata con lo stesso nome).
@@ -117,7 +127,7 @@ COMMIT;
 NOTIFY pgrst, 'reload schema';
 
 -- ─────────────────────────────────────────────────────────────────────────────
--- RIPRISTINO (solo se l'ordine di prova NON arriva): togli i due trattini e
+-- RIPRISTINO (solo se l'ordine di prova NON arriva E R1 è già pubblicato): togli i due trattini e
 -- lancia SOLO queste righe, poi chiedi alla squadra di guardare cosa è andato
 -- storto. Rimette la policy larga di prima; le colonne nuove restano e sono
 -- innocue.
