@@ -61,6 +61,7 @@ import {
   filtriValidi,
   passaFiltri,
   risentireDi,
+  soloPillolaAccesa,
   togli,
   VOCI_RIGA,
   type CampoFiltro,
@@ -79,7 +80,16 @@ import {
   patchPriorita,
 } from "./ricontatti";
 import { BarraEsitoRicontatti } from "./RigheRisentire";
-import { descriviDataFiltro, giornoDiRoma, giornoUsatoSullaRiga } from "./giorno";
+import {
+  descriviDataFiltro,
+  eFiltroAMessaggio,
+  giornoDiRoma,
+  giornoUsatoSullaRiga,
+  nomeGiorno,
+  perGiorno,
+  SEGMENTI_FILA_CORTA,
+  type GiornoChat,
+} from "./giorno";
 import { RigaGiorno } from "./RigaGiorno";
 
 /** I chip dello «Stato della chiamata» (con «Da chiamare» acceso): «Tutti» + uno per stato. */
@@ -214,6 +224,9 @@ function ElencoChatBase({ api, onCreaScheda: creaSchedaProp }: ElencoChatProps) 
   const cercando = ricerca.trim() !== "";
   //  «Tutte» è acceso quando nessun filtro è attivo (il consulente scelto non conta: si ricorda).
   const soloRiga = contaAccesi({ ...filtri, consulente: "" }) === 0;
+  //  La fila dei giorni è corta (Compito 3, 17/11/2026) per i filtri «a messaggio» (Da rispondere,
+  //  Con stelle, Sconosciuti, Clienti, Finestra, Acconto, Con scheda): Tutti/Oggi/Ieri/Più vecchi.
+  const filaCorta = eFiltroAMessaggio(filtri);
 
   // ── Quante chat con questi filtri, e quanti numeri per ogni voce (ricerca esclusa) ────────
   //  L'ora per il filtro «giorno»: la stessa per l'elenco, per i numeri delle voci e per quelli dei segmenti.
@@ -618,6 +631,49 @@ function ElencoChatBase({ api, onCreaScheda: creaSchedaProp }: ElencoChatProps) 
     />
   );
 
+  //  ── L'ELENCO A GRUPPI PER GIORNO (Compito 1, 17/11/2026) ────────────────────────────────────
+  //  Con «Da chiamare» o «Ricontatti» e il giorno su «Tutti», l'elenco si divide in sezioni (Scaduti ·
+  //  Ieri · Oggi · Domani · Prossimi giorni · Senza data), nello stesso ordine della fila dei giorni
+  //  sopra: `perGiorno` (giorno.ts) raggruppa, SENZA riordinare, l'elenco che si vedrebbe comunque
+  //  (per stato in «Da chiamare», per priorità e arrivo in «Ricontatti»). Con un giorno scelto resta
+  //  una sezione sola, come oggi, senza intestazione: niente da raggruppare (l'elenco è già filtrato
+  //  a quel giorno). Il caricamento a pezzi (`visti`) si applica qui, sull'elenco già raggruppato e
+  //  appiattito, con lo stesso `tagliaSezioni` di sopra.
+  const gruppoGiorni = filtri.giorno === "" && (filtri.coda === "da-chiamare" || filtri.ricontatti);
+  const tagliaGruppi = (
+    gruppi: { giorno: GiornoChat; chats: ChatItem[] }[],
+  ): { giorno: GiornoChat; totale: number; chats: ChatItem[] }[] => {
+    const tagliate = tagliaSezioni(visti, ...gruppi.map((g) => g.chats));
+    return gruppi
+      .map((g, i) => ({ giorno: g.giorno, totale: g.chats.length, chats: tagliate[i] }))
+      .filter((g) => g.chats.length > 0);
+  };
+  const gruppiDaChiamareVis =
+    gruppoGiorni && filtri.coda === "da-chiamare"
+      ? tagliaGruppi(perGiorno(elencoDaChiamare, filtri, adessoData))
+      : [];
+  const gruppiRicontattiVis =
+    gruppoGiorni && filtri.ricontatti
+      ? tagliaGruppi(perGiorno(ricPrincipali, filtri, adessoData))
+      : [];
+  const sezioneGiorno = (
+    g: { giorno: GiornoChat; totale: number; chats: ChatItem[] },
+    mostraFinestra?: boolean,
+  ) => (
+    <section key={g.giorno} aria-labelledby={`titolo-giorno-${g.giorno}`}>
+      <h2
+        id={`titolo-giorno-${g.giorno}`}
+        className="t-nota flex items-center gap-1.5 border-b border-border bg-muted/30 px-3 py-1.5 font-semibold text-muted-foreground md:px-2"
+      >
+        {nomeGiorno(g.giorno)}
+        <span className="tabular-nums font-normal">({g.totale})</span>
+      </h2>
+      <ul>
+        {g.chats.map((c) => riga(c, c.daRispondere?.attesa ? "attesa" : "normale", mostraFinestra))}
+      </ul>
+    </section>
+  );
+
   /** Tutto l'elenco è vuoto: si dice perché e, con dei filtri accesi, c'è il tasto per toglierli. */
   const vuoto = (
     <div className="flex flex-col items-center gap-3 px-4 py-10 text-center">
@@ -786,8 +842,10 @@ function ElencoChatBase({ api, onCreaScheda: creaSchedaProp }: ElencoChatProps) 
         })}
       </div>
 
-      {/*  Il riepilogo: mai un filtro acceso che non si vede. Ogni etichetta si toglie con la sua ✕. */}
-      {accesi > 0 && (
+      {/*  Il riepilogo: mai un filtro acceso che non si vede. Ogni etichetta si toglie con la sua ✕.
+          Compito 4 (17/11/2026): se l'unico acceso è una pillola della riga, niente fascia — il
+          numero sta già nel titolo, e la pillola si spegne da sola ritoccandola o con «Tutte». */}
+      {accesi > 0 && !soloPillolaAccesa(filtri) && (
         <div className="flex flex-wrap items-center gap-x-2 border-t border-border px-3 md:px-2">
           <p className="t-nota tabular-nums text-muted-foreground">
             {nTrovate} di {api.chats.length} chat
@@ -821,10 +879,10 @@ function ElencoChatBase({ api, onCreaScheda: creaSchedaProp }: ElencoChatProps) 
       )}
 
       {/*  Sotto «Da chiamare» (30/10/2026): lo stato della chiamata. «Quando richiamare» (tolto il
-          16/11/2026) non c'è più come riga sua: la fila generica dei giorni, poco più sotto
-          (`!soloRiga`), fa lo stesso lavoro con lo stesso nome di ogni altro filtro. Riga che scorre
-          di lato come le pillole sopra, ma più leggera (solo testo, linea sotto quella scelta). I
-          numeri sono quelli che vedrai toccando. */}
+          16/11/2026) non c'è più come riga sua: la fila generica dei giorni, subito sotto (Compito 2
+          del 17/11/2026: è salita qui, ferma, fuori dall'area che scorre), fa lo stesso lavoro con lo
+          stesso nome di ogni altro filtro. Riga che scorre di lato come le pillole sopra, ma più
+          leggera (solo testo, linea sotto quella scelta). I numeri sono quelli che vedrai toccando. */}
       {filtri.coda === "da-chiamare" && (
         <div className="border-y border-border bg-muted/30 px-3 md:px-2">
           <div
@@ -846,6 +904,38 @@ function ElencoChatBase({ api, onCreaScheda: creaSchedaProp }: ElencoChatProps) 
             ))}
           </div>
         </div>
+      )}
+
+      {/*  I giorni (09/11/2026, rifatto il 16/11/2026, salito qui il 17/11/2026 — Compito 2: subito
+          sotto le pillole, e sotto «Stato della chiamata» in «Da chiamare», fermo mentre l'elenco
+          sotto scorre). Dentro «Ricontatti» sta sotto la barra dell'Esito (che resta incollata in
+          cima all'elenco, qui sotto) e i due filtri si sommano: la vecchia riga «Con data/Senza data»
+          (D4 dell'analisi) non c'è più, «Senza data» è un segmento di questa fila come per ogni altro
+          filtro. I nascosti di «Ricontatti» non si contano, come sul tasto. Compito 3: i filtri «a
+          messaggio» hanno la fila corta (Tutti/Oggi/Ieri/Più vecchi), gli altri la fila completa. */}
+      {!caricamento && !soloRiga && (
+        <RigaGiorno
+          valore={filtri.giorno}
+          data={descriviDataFiltro(filtri)}
+          etichetta={filaCorta ? "Ultimo messaggio" : "Da richiamare"}
+          segmenti={filaCorta ? SEGMENTI_FILA_CORTA : undefined}
+          conta={(g) =>
+            contaGiorno(
+              //  In «Da chiamare» con un chip acceso (revisione 16/11/2026) contano solo le chat di
+              //  quel chip, come l'elenco (`chatDaChiamare(…, sottoAttivo)`).
+              filtri.ricontatti
+                ? api.chats.filter((c) => !eNascosto(c))
+                : filtri.coda === "da-chiamare"
+                  ? delSottofiltro(api.chats, sottoAttivo)
+                  : api.chats,
+              filtri,
+              stelleDi,
+              adessoData,
+              g,
+            )
+          }
+          onCambia={(giorno) => setFiltri({ ...filtri, giorno })}
+        />
       )}
 
       {/*  Per chi usa lo screen reader: a ogni cambio, quante chat si vedono. */}
@@ -879,34 +969,6 @@ function ElencoChatBase({ api, onCreaScheda: creaSchedaProp }: ElencoChatProps) 
             )}
           </div>
         )}
-        {/*  I giorni (09/11/2026, rifatto il 16/11/2026): sotto ogni filtro acceso, non sticky. Fuori
-            dall'elenco perché la fila resti anche quando il giorno scelto non dà risultati. Dentro
-            «Ricontatti» sta sotto la barra dell'Esito e i due filtri si sommano: la vecchia riga
-            «Con data/Senza data» a parte (D4 dell'analisi) non c'è più, «Senza data» è un segmento di
-            questa fila come per ogni altro filtro. I nascosti di «Ricontatti» non si contano, come sul
-            tasto. */}
-        {!caricamento && !soloRiga && (
-          <RigaGiorno
-            valore={filtri.giorno}
-            data={descriviDataFiltro(filtri)}
-            conta={(g) =>
-              contaGiorno(
-                //  In «Da chiamare» con un chip acceso (revisione 16/11/2026) contano solo le chat di
-                //  quel chip, come l'elenco (`chatDaChiamare(…, sottoAttivo)`).
-                filtri.ricontatti
-                  ? api.chats.filter((c) => !eNascosto(c))
-                  : filtri.coda === "da-chiamare"
-                    ? delSottofiltro(api.chats, sottoAttivo)
-                    : api.chats,
-                filtri,
-                stelleDi,
-                adessoData,
-                g,
-              )
-            }
-            onCambia={(giorno) => setFiltri({ ...filtri, giorno })}
-          />
-        )}
         {caricamento ? (
           <div className="flex flex-col items-center gap-2 px-4 py-10 text-center text-xs text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin" /> Caricamento chat…
@@ -916,6 +978,8 @@ function ElencoChatBase({ api, onCreaScheda: creaSchedaProp }: ElencoChatProps) 
         ) : filtri.coda === "da-chiamare" ? (
           elencoDaChiamare.length === 0 ? (
             vuoto
+          ) : gruppoGiorni ? (
+            <>{gruppiDaChiamareVis.map((g) => sezioneGiorno(g, true))}</>
           ) : (
             <ul aria-label="Chat da chiamare, per stato">
               {elencoDaChiamareVis.map((c) => riga(c, "normale", true))}
@@ -969,16 +1033,20 @@ function ElencoChatBase({ api, onCreaScheda: creaSchedaProp }: ElencoChatProps) 
                 Tutti i ricontatti sono nascosti: aprili qui sotto.
               </p>
             )}
-            <ul
-              aria-label={
-                filtri.ricontatti
-                  ? "Ricontatti, dal lead più recente; in cima quelli in priorità"
-                  : "Tutte le chat, dall'ultimo messaggio"
-              }
-            >
-              {/*  Come WhatsApp: nessuna riga sbiadita, il grassetto solo per chi aspetta. */}
-              {tutteVis.map((c) => riga(c, c.daRispondere?.attesa ? "attesa" : "normale"))}
-            </ul>
+            {filtri.ricontatti && gruppoGiorni ? (
+              <>{gruppiRicontattiVis.map((g) => sezioneGiorno(g))}</>
+            ) : (
+              <ul
+                aria-label={
+                  filtri.ricontatti
+                    ? "Ricontatti, dal lead più recente; in cima quelli in priorità"
+                    : "Tutte le chat, dall'ultimo messaggio"
+                }
+              >
+                {/*  Come WhatsApp: nessuna riga sbiadita, il grassetto solo per chi aspetta. */}
+                {tutteVis.map((c) => riga(c, c.daRispondere?.attesa ? "attesa" : "normale"))}
+              </ul>
+            )}
             {/*  ── NASCOSTI (31/10/2026) ── in fondo, richiudibile, parte chiuso. Compare quando l'elenco
                 principale è disegnato tutto (le righe arrivano a 40 alla volta). Le righe qui sono tutte
                 disegnate. shortcut: nessun taglio a 40, i nascosti sono pochi; se diventano centinaia, tagliare come `visti`. */}
