@@ -183,10 +183,16 @@ export function proveSoloBlocco(mod, { c, gruppo, radice }) {
       "src/crm/ConsultantsPerformance.tsx": "passa i lead grezzi a calcolaMetricheConsulenti/leadDelGruppo, che filtrano da sole (soloNeiKpi all'ingresso)",
       "src/crm/ConsultantKPIDialog.tsx": "come sopra: solo calcolaMetriche* e leadDelGruppo*, che filtrano da sole",
       "src/crm/kpi/DaFareScheda.tsx": "lista di lavoro dei lead importati; il solo conteggio usa leadsKpi",
-      "src/crm/kpi/ConsulentiScheda.tsx": "usa leadsKpi",
+      "src/crm/tiktok-ads-manager/AdDetailDrawer.tsx": "usa i lead del contesto solo per APRIRE la scheda cliccata; i conteggi leggono crm_leads con contaNeiKpi",
+      "src/routes/CRM.index.tsx": "code di lavoro di Oggi (carico, non numeri); i totali «Andamento» usano leadsKpi",
     };
     const CONTA = /calcolaMetrich|calcolaGiorni|calcolaContoNetto|meetFissatiUltimiTreGiorni|costruisciFeedKpi|buildCrmConvertedIndex|aggregate(Portatore|Pain|Urgenza|Hourly)|righeGiorni|costoPerLead|HealthGlobal/;
     const PERCORSO = /(^|\/)(kpi|attribution|tiktok-ads-manager|ads-manager)\/|kpi|ads-financials|Performance|campagne|spesa|Spesa|Health|avanzamento/;
+    //  Vero se si destruttura la chiave `leads` (anche rinominata) da useCRM(); `leadsKpi: leads` NO.
+    const leggeLeadGrezzi = (t) =>
+      [...t.matchAll(/const\s*\{([^}]*)\}\s*=\s*useCRM\(\)/g)].some((m) =>
+        m[1].split(",").some((x) => x.split(":")[0].trim() === "leads"),
+      );
     const files = [];
     const scorri = (dir) => {
       for (const n of readdirSync(dir)) {
@@ -205,11 +211,12 @@ export function proveSoloBlocco(mod, { c, gruppo, radice }) {
       if (!(CONTA.test(senza) || PERCORSO.test(rel))) continue;
       const filtra = /contaNeiKpi|soloNeiKpi|leadsKpi/.test(senza);
       //  const { leads, ... } = useCRM()  /  const { leads: x } = useCRM()  (ma non leadsKpi)
-      const grezzoCtx = [...senza.matchAll(/const\s*\{([^}]*)\}\s*=\s*useCRM\(\)/g)].some((m) => /(^|[\s,])leads\s*(,|:|$)/.test(m[1]));
+      const grezzoCtx = leggeLeadGrezzi(senza);
       const dbGrezzo = /from\("crm_leads"\)/.test(senza) && !/contaNeiKpi|soloNeiKpi/.test(senza);
       if (grezzoCtx || dbGrezzo) colpevoli.push(`${rel}${grezzoCtx ? " (useCRM().leads)" : ""}${dbGrezzo ? " (crm_leads)" : ""}`);
     }
     c("nessun file che conta legge lead grezzi (elenco dei colpevoli)", [], colpevoli);
+    //  ConsulentiScheda non è più un'eccezione: usa leadsKpi.
     c("le eccezioni dichiarate esistono ancora e hanno un motivo", [], Object.entries(ECCEZIONI).filter(([f, m]) => !m || !files.some((x) => relative(radice, x) === f)).map(([f]) => f));
     //  I due casi che il collaudo ha chiesto per nome:
     const leggiSenza = (p) => leggi(p).replace(/\/\*[\s\S]*?\*\/|(^|[^:"'`])\/\/.*$/gm, "$1");
@@ -222,7 +229,7 @@ export function proveSoloBlocco(mod, { c, gruppo, radice }) {
     //  La rete deve davvero accorgersi: un file finto che legge i lead grezzi verrebbe segnalato.
     const finto = "const { leads } = useCRM();\ncalcolaGiorni(leads)";
     c("la rete è sensibile: il file finto verrebbe preso", true,
-      CONTA.test(finto) && [...finto.matchAll(/const\s*\{([^}]*)\}\s*=\s*useCRM\(\)/g)].some((m) => /(^|[\s,])leads\s*(,|:|$)/.test(m[1])));
+      CONTA.test(finto) && leggeLeadGrezzi(finto) && !leggeLeadGrezzi("const { leadsKpi: leads } = useCRM();"));
   }
 
   gruppo("SOLO BLOCCO · LA SPUNTA E L'ETICHETTA (sorgente)");
