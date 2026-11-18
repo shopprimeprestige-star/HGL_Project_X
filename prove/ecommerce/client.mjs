@@ -391,6 +391,9 @@ export async function prove(mod, { c, gruppo, radice }) {
     azioni.shift()(risposta({ ok: true, ordine: ordineServer(1, { stato: "spedito" }), storico: true }));
     await azione;
     letture.shift()(risposta(elencoOk([ordineServer(1)])));    // arriva ora, con lo stato vecchio
+    await sfiata();
+    c("archivio: ...e mentre si rilegge si vede già l'ordine nuovo, mai quello vecchio", "spedito", a.stato().ordini[0].stato);
+    letture.shift()(risposta(elencoOk([ordineServer(1, { stato: "spedito" })]))); // la rilettura fatta dopo l'azione
     await vecchia;
     c("archivio: una rilettura vecchia, arrivata dopo l'azione, non riporta indietro l'ordine", "spedito", a.stato().ordini[0].stato);
     c("archivio: ...e non resta in «aggiornamento»", false, a.stato().inAggiornamento);
@@ -453,6 +456,139 @@ export async function prove(mod, { c, gruppo, radice }) {
     c("numeretto: fermato (voce non visibile) non chiede più", n, f.chiamate.length);
   }
 
+  //  ── note del revisore T10 (18/11/2026) ──
+  //  1. Una richiesta che non risponde mai non deve bloccare il giro: tetto di 20 s con AbortSignal.timeout
+  {
+    const originale = AbortSignal.timeout;
+    const ctrls = [];
+    const tetti = [];
+    AbortSignal.timeout = (ms) => { tetti.push(ms); const k = new AbortController(); ctrls.push(k); return k.signal; };
+    try {
+      const visti = [];
+      const appeso = (url, init) => new Promise((_, no) => {
+        visti.push(init?.signal);
+        init.signal.addEventListener("abort", () => no(new DOMException("tempo scaduto", "TimeoutError")));
+      });
+      const { porte } = porteFinte();
+      const a = K.creaArchivioOrdini({ fetch: appeso, porte });
+      const x = a.aggiorna();
+      await sfiata();
+      c("tetto: la lettura parte con un tetto di 20 s (segnale passato a fetch)", [[20_000], true, true], [tetti, visti[0] === ctrls[0].signal, a.stato().inAggiornamento]);
+      ctrls[0].abort();
+      await x;
+      const s = a.stato();
+      c("tetto: scaduto il tempo → errore «rete», non più in aggiornamento, non in caricamento", ["rete", false, false], [s.errore?.tipo, s.inAggiornamento, s.inCaricamento]);
+      const y = a.aggiorna();
+      await sfiata();
+      c("tetto: dopo il tempo scaduto «Aggiorna» parte di nuovo (la lettura non resta appesa)", 2, visti.length);
+      ctrls[1].abort();
+      await y;
+      //  anche l'azione ha il tetto, e il messaggio dice che non si sa se è stata salvata
+      const azioneInVolo = K.eseguiAzione(appeso, AZIONE);
+      await sfiata();
+      ctrls[2].abort();
+      const az = await azioneInVolo;
+      c("tetto: azione senza risposta → «rete» con la frase «non so se è stata salvata»", [false, "rete", true, 3], [az.ok, az.errore?.tipo, /Non so se/.test(az.errore?.messaggio ?? ""), visti.length]);
+    } finally {
+      AbortSignal.timeout = originale;
+    }
+  }
+  //  2. Lettura scartata → si rilegge da soli; su conflitto non si riusa una lettura partita prima della modifica
+  {
+    const { porte } = porteFinte();
+    const letture = [];
+    const azioni = [];
+    const f = (url, init) => new Promise((ok) => (init?.method === "POST" ? azioni : letture).push(ok));
+    const a = K.creaArchivioOrdini({ fetch: f, porte });
+    const prima = a.aggiorna();                                  // la PRIMISSIMA lettura è in corso
+    const azione = a.esegui({ azione: "stato", ordineId: ID, da: "nuovo", a: "spedito" });
+    azioni.shift()(risposta({ ok: true, ordine: ordineServer(1, { stato: "spedito" }), storico: true }));
+    await azione;
+    letture.shift()(risposta(elencoOk([ordineServer(1)])));      // risposta vecchia: si scarta
+    await sfiata();
+    c("scarto: la lettura scartata ne fa partire subito un'altra", 1, letture.length);
+    letture.shift()(risposta(elencoOk([ordineServer(1, { stato: "spedito" })])));
+    await prima;
+    const s = a.stato();
+    c("scarto: la prima lettura non resta «in caricamento» in attesa del timer", [true, false, "spedito"], [s.caricato, s.inCaricamento, s.ordini[0]?.stato]);
+  }
+  {
+    const { porte } = porteFinte();
+    const letture = [];
+    const azioni = [];
+    const f = (url, init) => new Promise((ok) => (init?.method === "POST" ? azioni : letture).push(ok));
+    const a = K.creaArchivioOrdini({ fetch: f, porte });
+    const prima = a.aggiorna();
+    letture.shift()(risposta(elencoOk([ordineServer(1)])));
+    await prima;
+    const inVolo = a.aggiorna();                                  // lettura partita PRIMA della modifica dell'altro…
+    const azione = a.esegui({ azione: "stato", ordineId: ID, da: "nuovo", a: "spedito" });
+    azioni.shift()(risposta({ ok: false, error: "conflitto", messaggio: "modificato da qualcun altro" }, 409));
+    await azione;
+    letture.shift()(risposta(elencoOk([ordineServer(1)])));       // …e arriva col dato vecchio
+    await sfiata();
+    c("conflitto: la lettura già in volo non basta, ne parte una nuova", 1, letture.length);
+    letture.shift()(risposta(elencoOk([ordineServer(1, { stato: "in_preparazione" })])));
+    await inVolo;
+    c("conflitto: alla fine l'elenco è quello nuovo", "in_preparazione", a.stato().ordini[0].stato);
+  }
+  //  3. Permesso tolto o sessione finita: gli ordini non restano a schermo
+  for (const [stato, tipo] of [[403, "permesso"], [401, "sessione"]]) {
+    const { porte, p } = porteFinte();
+    const f = fetchFinto(risposta(elencoOk([ordineServer(1)])), risposta({ ok: false, error: tipo === "permesso" ? "permesso" : "auth", ordini: [] }, stato));
+    const a = K.creaArchivioOrdini({ fetch: f, porte });
+    p.t = 1_000; await a.aggiorna();
+    await a.aggiorna();
+    const s = a.stato();
+    c(`${tipo}: dopo una lettura buona gli ordini spariscono (niente nome/telefono a schermo)`, [tipo, [], false, null, 0, false], [s.errore?.tipo, s.ordini, s.caricato, s.ultimoAggiornamento, s.scartati, s.troncato]);
+  }
+  //  4. useOrdiniNuovi con attivo falso restituisce null (sul testo: il valore tenuto non esce)
+  c("useOrdiniNuovi: con attivo falso restituisce null, non l'ultimo numero", true, /attivo\s*\?\s*nuovi\s*:\s*null/.test(src("useOrdiniNuovi.ts")));
+  //  5. 403 e 401 finale: il giro non si riarma; riparte con «Aggiorna» o tornando sulla scheda
+  {
+    const { porte, p } = porteFinte();
+    let n = 0;
+    const l = K.creaLettore({ ogniMs: 30_000, leggi: async () => { n++; return false; }, porte });
+    l.avvia(); await sfiata();
+    await p.avanza(300_000);
+    c("lettore: se `leggi` dice «non riarmare» nessun timer e nessuna nuova richiesta", [1, 0], [n, p.timer.size]);
+    p.mostra(); await sfiata();
+    c("lettore: tornando sulla scheda (dopo più di 5 s) riparte", 2, n);
+    p.mostra(); await sfiata();
+    c("lettore: un segnale a meno di 5 s non arma il timer di un giro sospeso", [2, 0], [n, p.timer.size]);
+    await l.aggiorna();
+    c("lettore: «Aggiorna» legge anche a giro sospeso", 3, n);
+    l.ferma();
+  }
+  for (const [stato, tipo] of [[403, "permesso"], [401, "sessione"]]) {
+    const { porte, p } = porteFinte();
+    const f = fetchFinto(risposta({ ok: false, error: tipo === "permesso" ? "permesso" : "auth", ordini: [] }, stato));
+    const a = K.creaArchivioOrdini({ fetch: f, porte });
+    const ferma = a.avvia(); await sfiata();
+    await p.avanza(300_000);
+    c(`archivio: ${tipo} → una richiesta sola in 5 minuti (non si insiste)`, [1, 0], [f.chiamate.length, p.timer.size]);
+    p.mostra(); await sfiata();
+    c(`archivio: ${tipo} → tornando sulla scheda ci riprova una volta`, 2, f.chiamate.length);
+    await a.aggiorna();
+    c(`archivio: ${tipo} → «Aggiorna» ci riprova`, 3, f.chiamate.length);
+    ferma();
+    const g = fetchFinto(risposta({ ok: false, error: "permesso" }, 403));
+    const visti = [];
+    const fermaConta = K.avviaConta({ attivo: true, fetch: g, porte: porteFinte().porte, alCambio: (x) => visti.push(x) });
+    await sfiata();
+    fermaConta();
+  }
+  {
+    //  il numeretto: 403 → una richiesta e basta; un guasto di rete invece continua
+    const { porte, p } = porteFinte();
+    const f = fetchFinto(risposta({ ok: false, error: "permesso" }, 403));
+    const ferma = K.avviaConta({ attivo: true, fetch: f, porte, alCambio: vuota });
+    await sfiata();
+    await p.avanza(600_000);
+    c("numeretto: 403 → una richiesta sola, nessun timer acceso", [1, 0], [f.chiamate.length, p.timer.size]);
+    ferma();
+  }
+
   //  ── sul testo ──
   {
     const client = src("client.ts"), ordini = src("useOrdini.ts"), nuovi = src("useOrdiniNuovi.ts");
@@ -465,6 +601,7 @@ export async function prove(mod, { c, gruppo, radice }) {
     c("testo: nessuna azione di cancellazione (D11)", [false, false, false], Object.values(tutto).map((t) => /elimin|cancell|delete/i.test(t)));
     c("testo: l'indirizzo della rotta è scritto una volta sola, in client.ts", [1, 0, 0], [(senzaCommenti(client).match(/\/api\/crm\/ordini/g) ?? []).length, (ordini.match(/\/api\/crm\/ordini/g) ?? []).length, (nuovi.match(/\/api\/crm\/ordini/g) ?? []).length]);
     c("testo: il fuso/ora non è fissato nel cliente (ora del browser)", false, /timeZone/.test(client));
+    c("testo: la richiesta ha il tetto di 20 s (AbortSignal.timeout)", [true, true], [/AbortSignal\.timeout\(\s*TETTO_RICHIESTA_MS\s*\)/.test(client), /TETTO_RICHIESTA_MS\s*=\s*20_000/.test(client)]);
     c("testo: nessun setInterval (i timer sono a catena, uno alla volta)", false, /setInterval/.test(senzaCommenti(client)));
   }
 }
