@@ -830,6 +830,9 @@ const PERMESSO_DI_PAGINA: { percorso: string; permesso: Permesso }[] = [
   { percorso: "/CRM/nuovi-contatti", permesso: "lead.assegna" },
   { percorso: "/CRM/orari-disponibili", permesso: "impostazioni" },
   { percorso: "/CRM/preventivi", permesso: "preventivi" },
+  //  Gli ordini dello shop mostrano indirizzi e soldi: li vede chi tocca i soldi (SPEC §9.2). La rotta /api/crm/ordini
+  //  chiede lo stesso permesso su ogni chiamata: questa riga spiega il perché a chi apre l'indirizzo a mano.
+  { percorso: "/CRM/ecommerce", permesso: "pagamenti" },
   //  ⚠️ Chi viene in sede ci viene per una CONSULENZA: la pagina conta chi è
   //   atteso, chi ha un esito da mettere e quanto c'è da incassare quel
   //   giorno. Nascondere la voce dal menu non basta — l'indirizzo si conosce e

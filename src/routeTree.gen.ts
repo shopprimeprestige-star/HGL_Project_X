@@ -100,6 +100,7 @@ import { Route as CRMImpostazioniRouteImport } from './routes/CRM.impostazioni'
 import { Route as CRMImportaLeadRouteImport } from './routes/CRM.importa-lead'
 import { Route as CRMImportaRouteImport } from './routes/CRM.importa'
 import { Route as CRMFattureRouteImport } from './routes/CRM.fatture'
+import { Route as CRMEcommerceRouteImport } from './routes/CRM.ecommerce'
 import { Route as CRMDafareRouteImport } from './routes/CRM.dafare'
 import { Route as CRMCruscottoWaRouteImport } from './routes/CRM.cruscotto-wa'
 import { Route as CRMContabilitaRouteImport } from './routes/CRM.contabilita'
@@ -687,6 +688,11 @@ const CRMImportaRoute = CRMImportaRouteImport.update({
 const CRMFattureRoute = CRMFattureRouteImport.update({
   id: '/fatture',
   path: '/fatture',
+  getParentRoute: () => CRMRoute,
+} as any)
+const CRMEcommerceRoute = CRMEcommerceRouteImport.update({
+  id: '/ecommerce',
+  path: '/ecommerce',
   getParentRoute: () => CRMRoute,
 } as any)
 const CRMDafareRoute = CRMDafareRouteImport.update({
@@ -1404,6 +1410,7 @@ export interface FileRoutesByFullPath {
   '/CRM/contabilita': typeof CRMContabilitaRoute
   '/CRM/cruscotto-wa': typeof CRMCruscottoWaRoute
   '/CRM/dafare': typeof CRMDafareRoute
+  '/CRM/ecommerce': typeof CRMEcommerceRoute
   '/CRM/fatture': typeof CRMFattureRoute
   '/CRM/importa': typeof CRMImportaRoute
   '/CRM/importa-lead': typeof CRMImportaLeadRoute
@@ -1626,6 +1633,7 @@ export interface FileRoutesByTo {
   '/CRM/contabilita': typeof CRMContabilitaRoute
   '/CRM/cruscotto-wa': typeof CRMCruscottoWaRoute
   '/CRM/dafare': typeof CRMDafareRoute
+  '/CRM/ecommerce': typeof CRMEcommerceRoute
   '/CRM/fatture': typeof CRMFattureRoute
   '/CRM/importa': typeof CRMImportaRoute
   '/CRM/importa-lead': typeof CRMImportaLeadRoute
@@ -1850,6 +1858,7 @@ export interface FileRoutesById {
   '/CRM/contabilita': typeof CRMContabilitaRoute
   '/CRM/cruscotto-wa': typeof CRMCruscottoWaRoute
   '/CRM/dafare': typeof CRMDafareRoute
+  '/CRM/ecommerce': typeof CRMEcommerceRoute
   '/CRM/fatture': typeof CRMFattureRoute
   '/CRM/importa': typeof CRMImportaRoute
   '/CRM/importa-lead': typeof CRMImportaLeadRoute
@@ -2077,6 +2086,7 @@ export interface FileRouteTypes {
     | '/CRM/contabilita'
     | '/CRM/cruscotto-wa'
     | '/CRM/dafare'
+    | '/CRM/ecommerce'
     | '/CRM/fatture'
     | '/CRM/importa'
     | '/CRM/importa-lead'
@@ -2299,6 +2309,7 @@ export interface FileRouteTypes {
     | '/CRM/contabilita'
     | '/CRM/cruscotto-wa'
     | '/CRM/dafare'
+    | '/CRM/ecommerce'
     | '/CRM/fatture'
     | '/CRM/importa'
     | '/CRM/importa-lead'
@@ -2522,6 +2533,7 @@ export interface FileRouteTypes {
     | '/CRM/contabilita'
     | '/CRM/cruscotto-wa'
     | '/CRM/dafare'
+    | '/CRM/ecommerce'
     | '/CRM/fatture'
     | '/CRM/importa'
     | '/CRM/importa-lead'
@@ -3528,6 +3540,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CRMFattureRouteImport
       parentRoute: typeof CRMRoute
     }
+    '/CRM/ecommerce': {
+      id: '/CRM/ecommerce'
+      path: '/ecommerce'
+      fullPath: '/CRM/ecommerce'
+      preLoaderRoute: typeof CRMEcommerceRouteImport
+      parentRoute: typeof CRMRoute
+    }
     '/CRM/dafare': {
       id: '/CRM/dafare'
       path: '/dafare'
@@ -4494,6 +4513,7 @@ interface CRMRouteChildren {
   CRMContabilitaRoute: typeof CRMContabilitaRoute
   CRMCruscottoWaRoute: typeof CRMCruscottoWaRoute
   CRMDafareRoute: typeof CRMDafareRoute
+  CRMEcommerceRoute: typeof CRMEcommerceRoute
   CRMFattureRoute: typeof CRMFattureRoute
   CRMImportaRoute: typeof CRMImportaRoute
   CRMImportaLeadRoute: typeof CRMImportaLeadRoute
@@ -4531,6 +4551,7 @@ const CRMRouteChildren: CRMRouteChildren = {
   CRMContabilitaRoute: CRMContabilitaRoute,
   CRMCruscottoWaRoute: CRMCruscottoWaRoute,
   CRMDafareRoute: CRMDafareRoute,
+  CRMEcommerceRoute: CRMEcommerceRoute,
   CRMFattureRoute: CRMFattureRoute,
   CRMImportaRoute: CRMImportaRoute,
   CRMImportaLeadRoute: CRMImportaLeadRoute,
