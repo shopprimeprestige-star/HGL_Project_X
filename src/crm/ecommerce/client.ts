@@ -27,6 +27,8 @@ const MAX_SCHEDE = 20; // come la rotta
 /** Un numeretto oltre questo non è credibile. shortcut: tetto fisso, da alzare se il negozio supera il milione di ordini nuovi. */
 const NUOVI_MAX = 1_000_000;
 const MAX_MESSAGGIO = 300;
+/** Oltre questo una richiesta senza risposta (rete caduta a metà) è «rete»: senza tetto il giro delle letture resterebbe appeso. */
+const TETTO_RICHIESTA_MS = 20_000;
 
 /* ══ GLI INDIRIZZI ══════════════════════════════════════════════════════════ */
 
@@ -108,7 +110,12 @@ type Grezza = { corpo: Record<string, unknown> } | { errore: ErroreOrdini };
 async function chiama(f: FetchRotta, url: string, init?: RequestInit): Promise<Grezza> {
   let r: Response;
   try {
-    r = await f(url, init);
+    //  `fetchCRM` riusa lo stesso `init` nel secondo tentativo dopo un 401: il tetto vale per tutta la chiamata
+    const tetto =
+      typeof AbortSignal.timeout === "function"
+        ? { signal: AbortSignal.timeout(TETTO_RICHIESTA_MS) }
+        : {};
+    r = await f(url, { ...init, ...tetto });
   } catch {
     return { errore: errore("rete") }; // mai il testo del browser: può nominare l'indirizzo o il numero
   }
@@ -281,11 +288,14 @@ export function porteBrowser(doc?: Document, win?: Window): PorteTempo {
  *    quindi due letture non si sovrappongono mai (nemmeno con la rete lenta).
  *  - Scheda nascosta: il timer scatta, non chiede niente e NON si riarma. Nessuna richiesta, nessun timer acceso.
  *  - Scheda di nuovo visibile / pagina ripresa / rete tornata: si rilegge subito, se l'ultima lettura è di più di 5 s fa.
+ *  - Accesso negato (403, o 401 dopo il tentativo già fatto da `fetchCRM`): `leggi` restituisce `false`, il timer non si
+ *    riarma; si riparte con «Aggiorna» o tornando sulla scheda (dopo più di 5 s).
  *  - `aggiorna()` (il tasto «Aggiorna») legge sempre, anche se la scheda risulta nascosta; con una lettura già in
  *    corso restituisce quella. */
 export function creaLettore(opz: {
   ogniMs: number;
-  leggi: () => Promise<void>;
+  /** `false` = non riarmare il timer (accesso negato: insistere è inutile); ogni altro esito = si continua */
+  leggi: () => Promise<boolean | void>;
   porte: PorteTempo;
 }) {
   const { ogniMs, leggi, porte } = opz;
@@ -293,6 +303,7 @@ export function creaLettore(opz: {
   let inCorso: Promise<void> | null = null;
   let timer: unknown = null;
   let ultima = -Infinity;
+  let sospeso = false; // l'ultima lettura ha detto «non riarmare»: si riparte con `aggiorna` o tornando sulla scheda
   let smetti: () => void = () => {};
 
   const pianifica = () => {
@@ -303,14 +314,15 @@ export function creaLettore(opz: {
   const leggiOra = (): Promise<void> => {
     if (inCorso) return inCorso;
     ultima = porte.adesso();
+    sospeso = false;
     inCorso = (async () => {
       try {
-        await leggi();
+        sospeso = (await leggi()) === false;
       } catch {
         // il giro non si ferma per una lettura andata male; niente log (dati dei clienti)
       } finally {
         inCorso = null;
-        pianifica();
+        if (!sospeso) pianifica();
       }
     })();
     return inCorso;
@@ -322,7 +334,7 @@ export function creaLettore(opz: {
   const alSegnale = () => {
     if (fermato || !porte.visibile()) return;
     if (porte.adesso() - ultima >= MINIMO_FRA_LETTURE_MS) void leggiOra();
-    else if (timer === null && !inCorso) pianifica();
+    else if (timer === null && !inCorso && !sospeso) pianifica();
   };
 
   return {
@@ -341,6 +353,9 @@ export function creaLettore(opz: {
     aggiorna: leggiOra,
   };
 }
+
+/** 403, o 401 che arriva dopo il tentativo già fatto da `fetchCRM`: riprovare ogni 30 s non serve a niente. */
+const eAccessoNegato = (e: ErroreOrdini): boolean => e.tipo === "permesso" || e.tipo === "sessione";
 
 /* ══ L'ARCHIVIO DEGLI ORDINI (quello che la pagina legge) ═══════════════════ */
 
@@ -387,11 +402,32 @@ export function creaArchivioOrdini(opz: { fetch: FetchRotta; porte: PorteTempo }
   };
 
   const leggi = async () => {
-    const v = versione;
     imposta({ inAggiornamento: true });
-    const r = await leggiElenco(f);
-    if (v !== versione) return imposta({ inAggiornamento: false }); // partita prima di un'azione: porterebbe l'ordine indietro
-    if (!r.ok) return imposta({ errore: r.errore, inCaricamento: false, inAggiornamento: false });
+    let r: RisultatoElenco;
+    //  Una lettura partita prima di un'azione e arrivata dopo porterebbe l'ordine indietro: si scarta e si rilegge
+    //  subito. Si ripete solo se nel frattempo è riuscita un'altra azione (ogni azione sale di una versione).
+    for (;;) {
+      const v = versione;
+      r = await leggiElenco(f);
+      if (v === versione) break;
+    }
+    if (!r.ok) {
+      //  Senza permesso (o senza sessione) gli ordini già letti non devono restare a schermo.
+      const negato = eAccessoNegato(r.errore);
+      imposta({
+        errore: r.errore,
+        inCaricamento: false,
+        inAggiornamento: false,
+        ...(negato && {
+          ordini: [],
+          caricato: false,
+          ultimoAggiornamento: null,
+          scartati: 0,
+          troncato: false,
+        }),
+      });
+      return !negato;
+    }
     imposta({
       ordini: r.ordini,
       caricato: true,
@@ -428,7 +464,10 @@ export function creaArchivioOrdini(opz: { fetch: FetchRotta; porte: PorteTempo }
         versione++;
         imposta({ ordini: applicaOrdine(stato.ordini, r.ordine) });
       } else if (!r.ok && ["conflitto", "non_trovato", "migrazione"].includes(r.errore.tipo)) {
-        void lettore.aggiorna(); // l'elenco non è più quello che la pagina credeva: si rilegge da soli
+        //  L'elenco non è più quello che la pagina credeva: si rilegge da soli. La versione sale perché una lettura già
+        //  in volo può essere partita PRIMA della modifica dell'altro: si scarta e se ne fa una nuova.
+        versione++;
+        void lettore.aggiorna();
       }
       return r;
     },
@@ -452,6 +491,7 @@ export function avviaConta(opz: {
     leggi: async () => {
       const r = await leggiConta(opz.fetch);
       if (r.ok) opz.alCambio(r.nuovi);
+      else return !eAccessoNegato(r.errore);
     },
   });
   lettore.avvia();
