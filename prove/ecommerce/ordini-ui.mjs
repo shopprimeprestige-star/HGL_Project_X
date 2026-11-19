@@ -122,7 +122,7 @@ export async function prove(mod, { c, gruppo, radice }) {
   // ══ 5. LE FRASI DOPO UN'AZIONE ══
   const az = (azione, extra = {}) => ({ azione, ordineId: ordP.id, ...extra });
   const buono = (storico = true) => ({ ok: true, nessunCambio: false, ordine: ordP, storico });
-  c("azione riuscita: tono «ok», una frase per ogni azione", [true, true, true, true, true], [
+  c("azione riuscita: tono «ok», una frase per ogni azione", true, [
     U.esitoAzione(buono(), az("stato", { da: "nuovo", a: "spedito" })),
     U.esitoAzione(buono(), az("pagato", { metodo: "carta" })),
     U.esitoAzione(buono(), az("pagamento_annullato")),
@@ -175,14 +175,42 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("il periodo è `nelPeriodo` di conti.ts, mai `rangeMatch`", [true, false], [/nelPeriodo\(/.test(uiT), /rangeMatch/.test(uiT + elT + deT)]);
   c("gli ordini si identificano per id: mai un confronto sul numero ordine", [false, false, false], testi.map((t) => /\.ref\s*[!=]==?|order_ref/.test(senzaCommenti(t))));
   c("l'elenco usa i filtri puri, `ordineDaId` e `importoFuoriNorma`", [true, true, true], [/filtraOrdini\(/.test(elT), /ordineDaId\(/.test(elT), /importoFuoriNorma\(/.test(elT)]);
-  c("stato e ordine passano dall'indirizzo con `imposta(`", true, /imposta\(\{[^}]*stato/.test(elT) && /imposta\(\{[^}]*ordine/.test(elT));
+  c("stato e ordine passano dall'indirizzo con `imposta(`", true, /imposta\??\.?\(\{[^}]*stato/.test(elT) && /imposta\??\.?\(\{[^}]*ordine/.test(elT));
   c("le azioni partono da un punto solo (`esegui(`) e ne leggono l'esito con `esitoAzione`", [1, true, 0], [(elT.match(/\besegui\(/g) || []).length, /esitoAzione\(/.test(elT), (deT.match(/\besegui\(/g) || []).length]);
-  c("la conferma passa da `serveConferma` e c'è un AlertDialog; l'azione si lancia da due punti soltanto (diretta o dopo la conferma)", [true, true, 2], [/serveConferma\(/.test(elT), /<AlertDialog\b/.test(elT), (elT.match(/\blancia\(/g) || []).length]);
+  c("la conferma passa da `serveConferma` e c'è un AlertDialog; l'azione si lancia da due punti soltanto (diretta o dopo la conferma)", [true, true, 2], [/serveConferma\(/.test(elT), /<AlertDialog\b/.test(elT), (elT.match(/(?<!function )\blancia\(/g) || []).length]);
   c("i comandi dipendono dalla migrazione: `comandiAttivi(migrazionePronta)`", true, /comandiAttivi\(/.test(elT) && /migrazionePronta/.test(elT));
   c("un doppio clic non lancia due azioni (blocco sincrono, non solo lo stato)", true, /useRef/.test(elT) && /occupato/.test(elT));
   c("il pannello torna al punto di partenza alla chiusura (fuoco)", true, /onCloseAutoFocus/.test(deT));
   c("il guscio passa `esegui` e `storico` alla scheda", [true, true], [/esegui=\{lettura\.esegui\}/.test(senzaCommenti(leggi("src/routes/CRM.ecommerce.tsx"))), /storico=\{lettura\.storico\}/.test(senzaCommenti(leggi("src/routes/CRM.ecommerce.tsx")))]);
   c("telefono: il pannello è a tutta larghezza sotto 640 px", true, /w-full[^"]*sm:max-w-/.test(leggi("src/crm/ecommerce/DettaglioOrdine.tsx")));
+
+  // ══ 8b. LE NOTE DEL REVISORE SU T11 (toccano il guscio, la Panoramica e il menu) ══
+  const PG = mod["ecommerce/pagina"];
+  const guscioT = leggi("src/routes/CRM.ecommerce.tsx");
+  const guscio = senzaCommenti(guscioT);
+  const panT = senzaCommenti(leggi("src/crm/ecommerce/Panoramica.tsx"));
+  const barra = senzaCommenti(leggi("src/crm/CRMSidebar.tsx"));
+  //  nota 1: gli ordini fermi sono «di sempre»; l'elenco che si apre deve contenerli tutti, altrimenti cifra ≠ righe
+  const vecchio = ord({ status: "nuovo", created_at: loc(2026, 10, 1, 9) }); // 48 giorni fa
+  const recente = ord({ status: "nuovo", created_at: loc(2026, 11, 17, 9) });
+  const fermi = K.ordiniFermi([vecchio, recente, A1], ADESSO);
+  const tuttoP = PG.periodoDaRange(PG.RANGE_TUTTO, [vecchio, recente, A1], ADESSO);
+  const trenta = PG.periodoDaRange(PG.rangeDiPartenza(ADESSO), [vecchio, recente, A1], ADESSO);
+  c("(sanità) il fermo da 48 giorni è fermo", true, fermi.includes(vecchio));
+  c("fermi → «Tutto»: ogni ordine fermo è fra le righe dell'elenco «Nuovo» (cifra = righe)", true, fermi.every((o) => U.filtraOrdini([vecchio, recente, A1], { periodo: tuttoP, stato: "nuovo" }).includes(o)));
+  c("…mentre con i 30 giorni di partenza il fermo da 48 giorni NON c'era: per questo il periodo cambia", false, U.filtraOrdini([vecchio], { periodo: trenta, stato: "nuovo" }).includes(vecchio));
+  c("«Tutto» = nessuna data nel filtro", { from: null, to: null }, PG.RANGE_TUTTO);
+  c("il guscio, dai fermi, rimette il periodo su «Tutto» prima di aprire l'elenco", true, /opzioni\?\.tutto\)\s*setRange\(RANGE_TUTTO\)/.test(guscio));
+  c("la Panoramica chiede «tutto» dal riquadro dei fermi e dalla riga «e altri N»; gli stati del periodo no", [2, 1], [(panT.match(/apriStato\("nuovo", \{ tutto: true \}\)/g) || []).length, (panT.match(/apriStato\(s\)/g) || []).length]);
+  //  nota 2: l'avviso di migrazione non manda un consulente a cercare un file
+  c("frase della migrazione: «Chiedi a chi gestisce il database…», niente nome di file", [true, false], [/^Chiedi a chi gestisce il database di applicare l'aggiornamento degli ordini\.$/.test(PG.AVVISO_MIGRAZIONE), /\.sql|SQL Editor|Supabase/.test(PG.AVVISO_MIGRAZIONE)]);
+  c("il guscio e i comandi spenti usano la stessa frase", [true, true], [/\{AVVISO_MIGRAZIONE\}/.test(guscio) && !/ecommerce_ordini\.sql/.test(guscio), /AVVISO_MIGRAZIONE/.test(uiT + elT + deT)]);
+  //  nota 3: il tetto di lettura è uno solo
+  c("20.000 non è scritto a mano nel guscio: arriva da `MAX_ORDINI_LETTI`, la stessa costante della rotta", [true, false, true, 20000], [/MAX_ORDINI_LETTI/.test(guscio), /20\.000|20_000|20000/.test(guscio), /MAX_ORDINI = MAX_ORDINI_LETTI/.test(leggi("src/crm/ecommerce/ordini.server.ts")), O.MAX_ORDINI_LETTI]);
+  //  nota 4: numeretto senza dato
+  c("titolo del numeretto senza dato (null): «Ordini dello shop», non «Nessun ordine nuovo»", true, /ordiniNuovi === null\s*\?\s*"Ordini dello shop"/.test(barra));
+  //  nota 6: il valore delle barre si legge anche senza mouse
+  c("l'andamento ha la tabella dei valori (details/summary, tastiera) e le barre sono più scure", [true, true, false], [/Valori giorno per giorno/.test(panT) && /<table/.test(panT) && /<th scope="row"/.test(panT), /bg-sky-700/.test(panT), /bg-sky-600\/80/.test(panT)]);
 
   // ══ 9. LE SCHERMATE, DISEGNATE SUL SERIO ══
   const dove = mkdtempSync(join(tmpdir(), "ordini-ui-"));
@@ -200,6 +228,7 @@ export async function prove(mod, { c, gruppo, radice }) {
     const { createElement: h } = req("react");
     const { renderToStaticMarkup } = req("react-dom/server");
     const { ElencoOrdini } = await tsx("src/crm/ecommerce/ElencoOrdini.tsx", "elenco");
+    const { Panoramica } = await tsx("src/crm/ecommerce/Panoramica.tsx", "panoramica");
     const { CorpoOrdine, DettaglioOrdine } = await tsx("src/crm/ecommerce/DettaglioOrdine.tsx", "dettaglio");
     const testo = (html) => html.replace(/<[^>]+>/g, " ").replace(/&amp;/g, "&").replace(/&#x27;/g, "'").replace(/&quot;/g, '"').replace(/\s+/g, " ");
     const lettura = (ordini, extra = {}) => ({ ordini, caricato: true, inCaricamento: false, inAggiornamento: false, errore: null, scartati: 0, troncato: false, migrazionePronta: true, ultimoAggiornamento: 0, ...extra });
@@ -208,6 +237,7 @@ export async function prove(mod, { c, gruppo, radice }) {
     const disegna = (ordini, props = {}, extra = {}) =>
       renderToStaticMarkup(h(ElencoOrdini, { lettura: lettura(ordini, extra), periodo: P, migrazionePronta: extra.migrazionePronta ?? true, imposta: () => {}, esegui: finto, storico: stoVuoto, ...props }));
     const bottoni = (html) => html.split("<button").slice(1).map((s) => s.slice(0, s.indexOf("</button>") + 9));
+    const spento = (tag) => /\sdisabled=""/.test(tag.slice(0, tag.indexOf(">") + 1)); // l'attributo, non le classi «disabled:…»
     const selects = (html) => html.split("<select").slice(1).map((s) => s.slice(0, s.indexOf("</select>") + 9));
 
     const html = disegna(TUTTI);
@@ -215,8 +245,8 @@ export async function prove(mod, { c, gruppo, radice }) {
     c("l'elenco mostra le 4 righe del periodo (non quella di un secondo dopo), numeri e nomi", [true, true, false, 4], [/Anna Esempio/.test(t) && /HG-BBB222/.test(t), /Nicolò Verdi/.test(t), /Dario/.test(t), (html.match(/data-riga="/g) || []).length]);
     c("totali con la virgola e gli euro; pagato / non pagato scritti", true, /€ 24,90/.test(t) && /Pagato/.test(t) && /Non pagato/.test(t));
     c("ogni riga ha uno stato cambiabile (menu nativo, va con la tastiera e sul telefono) con tutti e cinque gli stati", [true, true], [selects(html).length >= 4, selects(html).every((s) => ["Nuovo", "In preparazione", "Spedito", "Consegnato", "Annullato"].every((n) => s.includes(n)))]);
-    c("il menu dello stato ha un nome per chi usa il lettore di schermo", true, selects(html).every((s) => /aria-label="Stato dell'ordine HG-/.test(s)));
-    c("ogni riga ha un pulsante che apre il dettaglio, col nome dell'ordine", true, /aria-label="Apri l'ordine HG-AAA111/.test(html));
+    c("il menu dello stato ha un nome per chi usa il lettore di schermo", true, selects(html).every((s) => /aria-label="Stato ordine HG-/.test(s)));
+    c("ogni riga ha un pulsante che apre il dettaglio, col nome dell'ordine", true, /aria-label="Apri ordine HG-AAA111/.test(html));
     c("niente «NaN», «undefined», «Infinity» in pagina", false, /NaN|undefined|Infinity|\[object/.test(t));
     c("la ricerca e i filtri ci sono, con etichette", true, /type="search"/.test(html) && /aria-label="Cerca/.test(html) && /Non pagati/.test(t) && /Tutti/.test(t));
 
@@ -228,8 +258,8 @@ export async function prove(mod, { c, gruppo, radice }) {
     c("nessun ordine in tabella: stato vuoto chiaro", true, /Nessun ordine/.test(zero));
 
     const spenti = disegna(TUTTI, { migrazionePronta: false }, { migrazionePronta: false });
-    c("migrazione mancante: tutti i menu dello stato spenti, e il motivo scritto", [true, true], [selects(spenti).every((s) => /disabled/.test(s.slice(0, s.indexOf(">")))), /aggiornamento del database|database/i.test(testo(spenti))]);
-    c("migrazione pronta: i menu sono accesi", false, selects(html).some((s) => /disabled/.test(s.slice(0, s.indexOf(">")))));
+    c("migrazione mancante: tutti i menu dello stato spenti, e il motivo scritto", [true, true], [selects(spenti).every((s) => spento(s)), /aggiornamento del database|database/i.test(testo(spenti))]);
+    c("migrazione pronta: i menu sono accesi", false, selects(html).some((s) => spento(s)));
 
     const strano = testo(disegna([ord({ total: -50, subtotal: -50, shipping: 0, status: "consegnato" }), ord({ total: 1e300, subtotal: 1e300, shipping: 0 })]));
     c("importi fuori norma: la riga lo dice invece di mostrare una cifra assurda", true, (strano.match(/importo fuori norma/g) || []).length === 2 && !/NaN|Infinity|e\+/.test(strano));
@@ -237,6 +267,11 @@ export async function prove(mod, { c, gruppo, radice }) {
     const molti = Array.from({ length: U.PAGINA_RIGHE + 30 }, (_, i) => ord({ created_at: loc(2026, 11, 10, 8, i % 50) }));
     const hm = disegna(molti);
     c("oltre il tetto: si disegna solo il tetto e c'è «Mostra altri» con quanti mancano", [U.PAGINA_RIGHE, true], [(hm.match(/data-riga="/g) || []).length, /Mostra altri/.test(testo(hm)) && /30/.test(testo(hm))]);
+
+    // la Panoramica: note intere (nota 5) e valori giornalieri leggibili (nota 6)
+    const pan = renderToStaticMarkup(h(Panoramica, { lettura: lettura([A1, B1, C1]), periodo: P, adesso: ADESSO, apriStato: () => {} }));
+    c("le note dei riquadri vanno a capo, non finiscono in «…» (nota 5)", true, /whitespace-normal[^>]*>[^<]*annullati esclusi/.test(pan) && /whitespace-normal[^>]*>[^<]*di cui 1 annullat/.test(pan));
+    c("la tabella dei valori per giorno c'è, con un giorno per riga, e dice gli ordini di ogni giorno (nota 6)", true, /<table/.test(pan) && (pan.match(/<th scope="row"/g) || []).length === K.andamento([A1, B1, C1], P).length);
 
     // il corpo del dettaglio
     const chiedi = async () => true;
@@ -254,9 +289,9 @@ export async function prove(mod, { c, gruppo, radice }) {
     const tp = testo(corpo(oPag));
     c("ordine pagato: «Pagato € 24,90 · Bonifico», «Annulla pagamento» sì, «Segna come pagato» no", [true, true, false], [/€ 24,90/.test(tp) && /Bonifico/.test(tp), /Annulla pagamento/.test(tp), /Segna come pagato/.test(tp)]);
     const spent = corpo(o1, { comandi: false });
-    c("senza migrazione: tutti i comandi spenti (stato, pagato, salva) e il motivo", [true, true], [bottoni(spent).filter((b) => /Segna come pagato|>Salva</.test(b)).every((b) => /disabled/.test(b.slice(0, b.indexOf(">")))), /database/i.test(testo(spent))]);
+    c("senza migrazione: tutti i comandi spenti (stato, pagato, salva) e il motivo", [true, true], [bottoni(spent).filter((b) => /Segna come pagato|>Salva</.test(b)).every((b) => spento(b)), /database/i.test(testo(spent))]);
     const occ = corpo(o1, { occupato: true });
-    c("mentre un'azione è in corso i comandi sono spenti (niente doppi invii)", true, bottoni(occ).filter((b) => /Segna come pagato|>Salva</.test(b)).every((b) => /disabled/.test(b.slice(0, b.indexOf(">")))));
+    c("mentre un'azione è in corso i comandi sono spenti (niente doppi invii)", true, bottoni(occ).filter((b) => /Segna come pagato|>Salva</.test(b)).every((b) => spento(b)));
     c("il menu dello stato nel pannello ha lo stato attuale scelto", true, /<option value="nuovo" selected/.test(selects(hc)[0] || "") || /selected=""[^>]*value="nuovo"|value="nuovo"[^>]*selected/.test(selects(hc)[0] || ""));
     const conEsito = testo(corpo(o1, { esito: { tono: "errore", testo: "Un collega l'ha appena modificato: ho ricaricato." } }));
     c("l'esito dell'ultima azione si vede dentro il pannello", true, /collega l'ha appena modificato/.test(conEsito));

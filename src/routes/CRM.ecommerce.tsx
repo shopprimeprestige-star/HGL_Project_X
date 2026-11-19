@@ -26,11 +26,14 @@ import { DateRangeFilter, type DateRange } from "@/crm/DateRangeFilter";
 import { useOrdini } from "@/crm/ecommerce/useOrdini";
 import { oraHHmm } from "@/crm/ecommerce/client";
 import {
+  AVVISO_MIGRAZIONE,
+  RANGE_TUTTO,
   leggiRicerca,
   periodoDaRange,
   rangeDiPartenza,
   type RicercaEcommerce,
 } from "@/crm/ecommerce/pagina";
+import { MAX_ORDINI_LETTI } from "@/crm/ecommerce/ordine";
 import { Avviso } from "@/crm/ecommerce/Avviso";
 import { Panoramica } from "@/crm/ecommerce/Panoramica";
 import { ElencoOrdini } from "@/crm/ecommerce/ElencoOrdini";
@@ -70,7 +73,11 @@ function PaginaEcommerce() {
   const scheda = ricerca.scheda ?? "panoramica";
   const bloccato = lettura.errore?.tipo === "permesso" || lettura.errore?.tipo === "sessione";
   const aggiorna = () => void lettura.aggiorna();
-  const apriStato = (stato: StatoOrdine) => void navigate({ search: { scheda: "ordini", stato } });
+  //  Dagli «ordini fermi» (di sempre) si apre l'elenco su «Tutto»: con i 30 giorni di partenza la cifra e le righe non coinciderebbero.
+  const apriStato = (stato: StatoOrdine, opzioni?: { tutto?: boolean }) => {
+    if (opzioni?.tutto) setRange(RANGE_TUTTO);
+    void navigate({ search: { scheda: "ordini", stato } });
+  };
   const imposta = (p: { stato?: StatoOrdine; ordine?: string }) =>
     void navigate({ search: (prev) => ({ ...prev, ...p }), replace: true });
 
@@ -189,8 +196,7 @@ function PaginaEcommerce() {
           {lettura.migrazionePronta === false && (
             <Avviso>
               Il database non è ancora pronto per gestire gli ordini: si vedono, ma stato, pagamenti
-              e note non si possono modificare. Applica il file ecommerce_ordini.sql dal SQL Editor
-              di Supabase.
+              e note non si possono modificare. {AVVISO_MIGRAZIONE}
             </Avviso>
           )}
           {lettura.scartati > 0 && (
@@ -203,8 +209,9 @@ function PaginaEcommerce() {
           )}
           {lettura.troncato && (
             <Avviso>
-              Gli ordini sono moltissimi: si leggono solo i più recenti (fino a 20.000). Le cifre
-              dei periodi più lontani possono essere incomplete.
+              Gli ordini sono moltissimi: si leggono solo i più recenti (fino a{" "}
+              {MAX_ORDINI_LETTI.toLocaleString("it-IT")}). Le cifre dei periodi più lontani possono
+              essere incomplete.
             </Avviso>
           )}
           {periodo.da > periodo.a && (
@@ -221,6 +228,8 @@ function PaginaEcommerce() {
               ordine={ricerca.ordine}
               migrazionePronta={lettura.migrazionePronta}
               imposta={imposta}
+              esegui={lettura.esegui}
+              storico={lettura.storico}
             />
           )}
         </>

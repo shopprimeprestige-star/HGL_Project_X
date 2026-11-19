@@ -1218,7 +1218,9 @@ export function CRMSidebar() {
       titolo:
         vedeEcommerce && ordiniNuovi
           ? `${plurale(ordiniNuovi, "ordine nuovo", "ordini nuovi")} da lavorare · si aggiorna ogni minuto`
-          : "Nessun ordine nuovo da lavorare",
+          : ordiniNuovi === null
+            ? "Ordini dello shop" // mai letto o lettura fallita: non si sa se ce ne sono
+            : "Nessun ordine nuovo da lavorare",
     },
   };
 

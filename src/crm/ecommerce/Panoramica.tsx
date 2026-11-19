@@ -48,6 +48,12 @@ const TONO_STATO = {
   annullato: "persa",
 } as const;
 
+/** La nota di un riquadro va a capo invece di finire in «…»: sono le etichette oneste («di cui 1 annullato», «annullati esclusi»), non si perdono.
+ *  `Kpi` tronca la nota (è il suo comportamento per tutto il CRM): qui si annulla solo per le note di questa pagina. */
+const NotaIntera = ({ children }: { children: string }) => (
+  <span className="block whitespace-normal">{children}</span>
+);
+
 const giornoLeggibile = (giorno: string): string => dataBreve(`${giorno}T12:00:00`);
 
 export interface PropsPanoramica {
@@ -56,8 +62,8 @@ export interface PropsPanoramica {
   periodo: Periodo;
   /** L'istante di «adesso», deciso dal guscio (serve a «fermi»): così il disegno non dipende dall'orologio. */
   adesso: Date;
-  /** Il clic su uno stato apre la scheda «Ordini» già filtrata. */
-  apriStato: (stato: StatoOrdine) => void;
+  /** Il clic su uno stato apre la scheda «Ordini» già filtrata. `tutto`: anche il periodo diventa «Tutto» (per le cifre «di sempre»). */
+  apriStato: (stato: StatoOrdine, opzioni?: { tutto?: boolean }) => void;
 }
 
 export function Panoramica({ lettura, periodo, adesso, apriStato }: PropsPanoramica) {
@@ -96,25 +102,33 @@ export function Panoramica({ lettura, periodo, adesso, apriStato }: PropsPanoram
         <Kpi
           etichetta="Ordini"
           valore={p.ordini.n}
-          nota={`${euro(p.ordini.medio)} di media · annullati esclusi`}
+          nota={<NotaIntera>{`${euro(p.ordini.medio)} di media · annullati esclusi`}</NotaIntera>}
         />
         <Kpi
           etichetta="Incassato"
           valore={euro(p.incassato.importo)}
-          nota={`${plurale(p.incassato.n, "ordine", "ordini")}${p.annullatiPagati > 0 ? ` · di cui ${plurale(p.annullatiPagati, "annullato", "annullati")}` : ""}`}
+          nota={
+            <NotaIntera>{`${plurale(p.incassato.n, "ordine", "ordini")}${p.annullatiPagati > 0 ? ` · di cui ${plurale(p.annullatiPagati, "annullato", "annullati")}` : ""}`}</NotaIntera>
+          }
           tono={p.incassato.importo > 0 ? "vinta" : "neutro"}
         />
         <Kpi
           etichetta="Da incassare"
           valore={euro(p.daIncassare.importo)}
-          nota={`${plurale(p.daIncassare.n, "ordine", "ordini")} non pagati`}
+          nota={
+            <NotaIntera>{`${plurale(p.daIncassare.n, "ordine", "ordini")} non pagati`}</NotaIntera>
+          }
         />
         <Kpi
           etichetta="Ordini fermi"
           valore={fermi.length}
-          nota={fermi.length > 0 ? "nuovi da più di 48 ore, mai toccati" : "Nessun ordine fermo"}
+          nota={
+            <NotaIntera>
+              {fermi.length > 0 ? "nuovi da più di 48 ore, mai toccati" : "Nessun ordine fermo"}
+            </NotaIntera>
+          }
           tono={fermi.length > 0 ? "in_sospeso" : "neutro"}
-          onClick={fermi.length > 0 ? () => apriStato("nuovo") : undefined}
+          onClick={fermi.length > 0 ? () => apriStato("nuovo", { tutto: true }) : undefined}
         />
       </KpiRiga>
       <p className="-mt-2 text-[11px] leading-snug text-muted-foreground">
@@ -160,7 +174,15 @@ export function Panoramica({ lettura, periodo, adesso, apriStato }: PropsPanoram
           </ul>
           {fermi.length > FERMI_ELENCATI && (
             <p className="border-t border-border px-4 py-2 text-[11.5px] text-muted-foreground">
-              e altri {fermi.length - FERMI_ELENCATI} — li trovi nella scheda Ordini, stato «Nuovo».
+              e altri {fermi.length - FERMI_ELENCATI} —{" "}
+              <button
+                type="button"
+                className="underline underline-offset-2 hover:text-foreground"
+                onClick={() => apriStato("nuovo", { tutto: true })}
+              >
+                aprili nella scheda Ordini
+              </button>
+              , stato «Nuovo», senza limite di periodo.
             </p>
           )}
         </Scheda>
@@ -344,7 +366,7 @@ function Andamento({ giorni }: { giorni: ReturnType<typeof andamento> }) {
               key={g.giorno}
               title={`${giornoLeggibile(g.giorno)} · ${plurale(g.ordini, "ordine", "ordini")} · ${euro(g.incassato)} incassati`}
               className={cn(
-                "min-w-[2px] flex-1 rounded-t-sm bg-sky-600/80",
+                "min-w-[2px] flex-1 rounded-t-sm bg-sky-700",
                 v === 0 && "bg-transparent",
               )}
               style={{
@@ -363,6 +385,41 @@ function Andamento({ giorni }: { giorni: ReturnType<typeof andamento> }) {
         </span>
         <span>{giornoLeggibile(ultimo)}</span>
       </div>
+      {/*  Le barre dicono il valore solo col mouse: la stessa serie, in tabella, si legge con la tastiera e con il lettore di schermo. */}
+      <details className="mt-2 text-[12px]">
+        <summary className="w-fit cursor-pointer rounded px-1 py-0.5 text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+          Valori giorno per giorno
+        </summary>
+        <div className="mt-1 max-h-56 overflow-y-auto">
+          <table className="w-full text-left tabular-nums">
+            <caption className="sr-only">Ordini e incassato per ogni giorno del periodo</caption>
+            <thead className="text-muted-foreground">
+              <tr>
+                <th scope="col" className="py-1 pr-3 font-medium">
+                  Giorno
+                </th>
+                <th scope="col" className="py-1 pr-3 text-right font-medium">
+                  Ordini
+                </th>
+                <th scope="col" className="py-1 text-right font-medium">
+                  Incassato
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {visibili.map((g) => (
+                <tr key={g.giorno}>
+                  <th scope="row" className="py-1 pr-3 font-normal">
+                    {giornoLeggibile(g.giorno)}
+                  </th>
+                  <td className="py-1 pr-3 text-right">{g.ordini}</td>
+                  <td className="py-1 text-right">{euro(g.incassato)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </details>
     </Scheda>
   );
 }
