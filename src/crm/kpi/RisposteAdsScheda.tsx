@@ -37,7 +37,7 @@ import { domandeDeiLead, haRisposte, rispostaMigliore } from "./risposte-lead";
 const pct = (n: number) => `${n.toFixed(1)}%`;
 
 export function RisposteAdsScheda({ dentro }: { dentro: FiltroPeriodo }) {
-  const { leads } = useCRM();
+  const { leadsKpi: leads } = useCRM();
   const [scelta, setScelta] = useState<string | null>(null);
 
   //  Solo le schede del periodo, e solo quelle che hanno risposto a qualcosa:

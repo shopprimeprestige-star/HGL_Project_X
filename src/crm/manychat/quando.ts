@@ -28,6 +28,7 @@
  *  ───────────────────────────────────────────────────────────────────────── */
 import type { Consultant, LeadData } from "../types";
 import { eAppuntamento } from "../types";
+import { eSoloBlocco } from "../conta-nei-kpi";
 import { aRoma, oraNormale } from "../promemoria/formati";
 import { istanteDiRoma } from "./contatto";
 import {
@@ -291,7 +292,8 @@ export function decidiPromemoria(
 
   for (const scheda of schede) {
     const d = scheda.data;
-    if (!eAppuntamento(d.stato)) continue;
+    //  Un «solo blocco orario» non è un appuntamento col cliente: nessun messaggio.
+    if (!eAppuntamento(d.stato) || eSoloBlocco(scheda)) continue;
     if (!d.consulenteId || eImportato(scheda)) continue;
     const giornoMeet = giornoVero(d.dataMeeting);
     const ora = oraNormale(d.oraMeeting);

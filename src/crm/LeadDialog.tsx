@@ -125,6 +125,8 @@
  *  ───────────────────────────────────────────────────────────────────────── */
 
 import { BadgeChiamate, useSegnaChiamata } from "@/crm/ContaChiamate";
+import { EtichettaBlocco, SpuntaSoloBlocco } from "@/crm/SoloBlocco";
+import { patchSoloBlocco } from "@/crm/conta-nei-kpi";
 import {
   Component,
   useEffect,
@@ -582,6 +584,11 @@ function fissaConsulenza(
 ) {
   update("dataMeeting", data || undefined);
   update("oraMeeting", ora || undefined);
+  //  Senza data il blocco non c'è più: la spunta non deve restare invisibile sulla
+  //  scheda e tenerla fuori dai numeri (crm/conta-nei-kpi).
+  if (!data) {
+    for (const [k, v] of Object.entries(patchSoloBlocco(false))) update(k as keyof LeadData, v as never);
+  }
   //  La durata si fissa insieme allo slot: senza, l'appuntamento veniva mandato
   //  al server con una durata diversa da quella su cui la griglia lo aveva
   //  calcolato, e in agenda occupava un'altra fascia.
@@ -738,11 +745,20 @@ export function LeadDialog({
    *  Su un lead che in archivio non c'è ancora (il wizard del lead nuovo) non
    *  si può scrivere: lì resta la bozza, e il salvataggio finale è il passo
    *  successivo della procedura — che infatti si vede. */
-  const confermaQuando = async (data: string, ora: string) => {
+  const confermaQuando = async (data: string, ora: string, soloBlocco = false) => {
     if (!quando) return;
     const patch: Partial<LeadData> = {};
     if (quando.chiaveData === "dataMeeting") {
       fissaConsulenza(form, update, data, ora, DURATA_PREDEFINITA);
+      //  «Solo blocco orario»: la scelta fatta nella finestrella si scrive con la data.
+      const blocco = patchSoloBlocco(
+        soloBlocco && !!data,
+        consulenteCollegato?.nome,
+        new Date(),
+        form.soloBlocco === true,
+      );
+      for (const [k, v] of Object.entries(blocco)) update(k as keyof LeadData, v as never);
+      Object.assign(patch, blocco);
       patch.dataMeeting = data || undefined;
       patch.oraMeeting = ora || undefined;
       if (DURATA_PREDEFINITA && !form.durataMeeting) patch.durataMeeting = DURATA_PREDEFINITA;
@@ -1712,6 +1728,7 @@ export function LeadDialog({
           cliente={nomeCompleto}
           valoreData={testo(form[quando.chiaveData])}
           valoreOra={testo(form[quando.chiaveOra])}
+          valoreSoloBlocco={form.soloBlocco === true}
           onAnnulla={() => setQuando(null)}
           onConferma={confermaQuando}
           onOrariLiberi={
@@ -3306,6 +3323,7 @@ function CatenaAppuntamento({
   /** presente solo quando c'era già un appuntamento: «lascia com'era» */
   onChiudi?: () => void;
 }) {
+  const chiHaSpuntato = useConsulenteCollegato()?.nome;
   const durata = Number(form.durataMeeting) > 0 ? Number(form.durataMeeting) : DURATA_PREDEFINITA;
   //  Le due liste si guardano prima di usarle: qui si scorre l'archivio intero
   //  a ogni render, ed è il punto in cui una riga malformata (`data` mancante,
@@ -3467,7 +3485,19 @@ function CatenaAppuntamento({
           <span className="text-[12px] text-slate-500">
             {durata} min{consulente ? ` · ${nomeConsulente(consulente)}` : ""}
           </span>
+          {form.soloBlocco === true && <EtichettaBlocco />}
         </div>
+      )}
+      {/*  «Solo blocco orario»: l'orario resta occupato in agenda ma questo lead
+          non entra in nessun numero. Spenta di base. */}
+      {((form.dataMeeting && form.oraMeeting) || form.soloBlocco === true) && (
+        <SpuntaSoloBlocco
+          acceso={form.soloBlocco === true}
+          onCambia={(v) => {
+            for (const [k, x] of Object.entries(patchSoloBlocco(v, chiHaSpuntato)))
+              update(k as keyof LeadData, x as never);
+          }}
+        />
       )}
     </SezioneFinestra>
   );
@@ -3552,6 +3582,7 @@ function FinestraQuando({
   cliente,
   valoreData,
   valoreOra,
+  valoreSoloBlocco,
   onAnnulla,
   onConferma,
   onOrariLiberi,
@@ -3561,14 +3592,17 @@ function FinestraQuando({
   /** quello che c'è adesso sulla scheda: spostare parte da lì, non da zero */
   valoreData: string;
   valoreOra: string;
+  /** «Solo blocco orario» com'è adesso sulla scheda (vale solo per la consulenza) */
+  valoreSoloBlocco?: boolean;
   onAnnulla: () => void;
-  onConferma: (data: string, ora: string) => void;
+  onConferma: (data: string, ora: string, soloBlocco?: boolean) => void;
   /** presente solo per la consulenza: passa all'agenda del consulente */
   onOrariLiberi?: () => void;
 }) {
   const partenza = valoreData.slice(0, 10);
   const [data, setData] = useState(partenza);
   const [ora, setOra] = useState(valoreOra.slice(0, 5));
+  const [soloBlocco, setSoloBlocco] = useState(!!valoreSoloBlocco);
 
   //  Gli scatti si contano dalla data ATTUALE quando c'è ed è ancora futura
   //  («+1 settimana» da quella fissata, che è come lo si dice al cliente).
@@ -3599,7 +3633,7 @@ function FinestraQuando({
 
   const conferma = () => {
     if (!puoConfermare) return;
-    onConferma(data, ora);
+    onConferma(data, ora, soloBlocco);
   };
 
   return (
@@ -3690,6 +3724,11 @@ function FinestraQuando({
           </div>
         </div>
       </SezioneFinestra>
+
+      {/*  «Solo blocco orario»: solo dove si fissa la consulenza, mai per i ricontatti. */}
+      {richiesta.chiaveData === "dataMeeting" && (
+        <SpuntaSoloBlocco acceso={soloBlocco} onCambia={setSoloBlocco} />
+      )}
 
       {/*  LA DATA EFFETTIVA — scritta per esteso, con la distanza da oggi e il
           nome del campo che riceverà il valore. */}

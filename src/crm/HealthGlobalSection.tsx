@@ -55,7 +55,7 @@ function pctDelta(curr: number, prev: number): number | null {
 }
 
 export function HealthGlobalSection() {
-  const { leads } = useCRM();
+  const { leadsKpi: leads } = useCRM();
   const { user } = useAuth();
 
   // Async metrics: meta_ad_spend (CPL/ROAS) + public_leads (CAPI/LPS/non accettati)

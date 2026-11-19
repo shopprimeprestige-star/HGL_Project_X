@@ -76,7 +76,7 @@ const DIMENSIONI: { v: Dimensione; t: string; nota: string }[] = [
 ];
 
 export function FontiScheda({ intervallo }: { intervallo: Intervallo }) {
-  const { leads, consultants } = useCRM();
+  const { leadsKpi: leads, consultants } = useCRM();
 
   //  ⚠️ TUTTI GLI HOOK SOPRA I RETURN ANTICIPATI: questa scheda non ne ha.
   //  La spesa è LA STESSA della scheda «Ritorno» — stesso registro, stessa

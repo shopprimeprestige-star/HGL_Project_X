@@ -17,6 +17,7 @@ import { useConsulente, mieiLead } from "@/crm/consulente-sessione";
 import { esitoDi } from "@/crm/MeetGiornalieri";
 import { leadAttributionDate, leadConversionDate } from "@/crm/lead-analytics";
 import type { Lead } from "@/crm/types";
+import { soloNeiKpi } from "@/crm/conta-nei-kpi";
 
 export const Route = createFileRoute("/consulente/kpi")({
   component: NumeriPage,
@@ -71,17 +72,19 @@ function NumeriPage() {
     const al = iso(oggi);
     const dentro = (g?: string | null) => !!g && g >= dal && g <= al;
 
-    const assegnati = leads.filter((l) => {
+    //  I «solo blocco orario» non contano: vedi crm/conta-nei-kpi.
+    const contano = soloNeiKpi(leads);
+    const assegnati = contano.filter((l) => {
       const d = leadAttributionDate(l);
       return d ? dentro(iso(d)) : false;
     }).length;
 
-    const conAppuntamento = leads.filter((l) => dentro(l.data.dataMeeting?.slice(0, 10)));
+    const conAppuntamento = contano.filter((l) => dentro(l.data.dataMeeting?.slice(0, 10)));
     const appuntamenti = conAppuntamento.length;
     const presentati = conAppuntamento.filter((l) => esitoDi(l) === "completato").length;
     const noShow = conAppuntamento.filter((l) => esitoDi(l) === "no_show").length;
 
-    const venduti = leads.filter((l) => {
+    const venduti = contano.filter((l) => {
       const d = leadConversionDate(l);
       return d ? dentro(iso(d)) : false;
     });

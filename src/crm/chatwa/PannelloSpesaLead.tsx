@@ -86,7 +86,7 @@ function useSpesaMeta(giorni: string[], attivo: boolean) {
 /** Il tasto dell'intestazione: l'icona WhatsApp, con accanto i lead di oggi e il
  *  costo per lead di oggi (se c'è la spesa). Tocca = si apre il pannello. */
 export function TastoSpesaLead() {
-  const { leads, adSpending, reload } = useCRM();
+  const { leadsKpi: leads, adSpending, reload } = useCRM();
   const { user } = useAuth();
   const [aperto, setAperto] = useState(false);
   const [periodo, setPeriodo] = useState<Periodo>(7);

@@ -1,5 +1,6 @@
 // Server functions per le metriche finanziarie e la deep analysis creativa.
 // Incrocia meta_ad_spend (live da Marketing API) con crm_leads (vendite reali).
+import { contaNeiKpi } from "@/crm/conta-nei-kpi";
 import { createServerFn } from "@tanstack/react-start";
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
@@ -36,6 +37,7 @@ async function authenticate(accessToken: string) {
 }
 
 interface LeadDataShape {
+  soloBlocco?: boolean;
   stato?: string;
   fonte?: string;
   piattaformaAds?: string;
@@ -183,6 +185,8 @@ export const getAdsFinancials = createServerFn({ method: "POST" })
       .eq("user_id", userId);
     const list = (leads ?? [])
       .map((l) => ({ d: l.data as LeadDataShape, created: l.created_at as string }))
+      //  I «solo blocco orario» non sono lead: vedi crm/conta-nei-kpi.
+      .filter((x) => contaNeiKpi({ data: x.d }))
       .filter((x) => {
         const dt = leadDate(x.d.createdAt, x.created);
         return dt && dt >= since && dt < until;
@@ -393,6 +397,8 @@ export const getCreativePerformance = createServerFn({ method: "POST" })
       .eq("user_id", userId);
     const list = (leads ?? [])
       .map((l) => ({ d: l.data as LeadDataShape, created: l.created_at as string }))
+      //  I «solo blocco orario» non sono lead: vedi crm/conta-nei-kpi.
+      .filter((x) => contaNeiKpi({ data: x.d }))
       .filter((x) => {
         const dt = leadDate(x.d.createdAt, x.created);
         return dt && dt >= since && dt < until;
@@ -2758,7 +2764,7 @@ export const getAttributionOverview = createServerFn({ method: "POST" })
     type CrmRow = { id: string; data: LeadDataShape & { tracking?: { external_id?: string; ad_id?: string; ad_name?: string; campaign_id?: string }; email?: string; nome?: string; cognome?: string; publicLeadId?: string }; created_at: string };
     type PubRow = { id: string; external_id: string | null; email: string; nome: string; cognome: string; created_at: string; ad_id: string | null; ad_name: string | null; campaign_id: string | null; status: string };
 
-    const crmLeads = (crmLeadsRaw ?? []) as CrmRow[];
+    const crmLeads = ((crmLeadsRaw ?? []) as CrmRow[]).filter(contaNeiKpi);
     const pubLeads = (publicLeadsRaw ?? []) as PubRow[];
 
     // Costruisci una lista unificata, dedup via publicLeadId
@@ -3036,7 +3042,7 @@ export const getAttributionOverview = createServerFn({ method: "POST" })
         .gte("created_at", prevSinceISO).lte("created_at", prevUntilISO)
         .order("created_at", { ascending: false }).limit(2000);
 
-      const prevCrmRows = (prevCrm ?? []) as Array<{ id: string; data: LeadDataShape & { tracking?: { external_id?: string }; publicLeadId?: string }; created_at: string }>;
+      const prevCrmRows = ((prevCrm ?? []) as Array<{ id: string; data: LeadDataShape & { tracking?: { external_id?: string }; publicLeadId?: string }; created_at: string }>).filter(contaNeiKpi);
       const prevPubRows = (prevPub ?? []) as Array<{ id: string; external_id: string | null; created_at: string }>;
       const prevSeenPub = new Set<string>();
       for (const c of prevCrmRows) { if (c.data?.publicLeadId) prevSeenPub.add(c.data.publicLeadId); }

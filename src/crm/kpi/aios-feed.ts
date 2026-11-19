@@ -38,6 +38,7 @@ import type { AdSpending, Lead } from "@/crm/types";
 import { eAppuntamento, fasePer } from "@/crm/types";
 import { eConversione, giornoDi, ricavoLordo, STATI_CONSULENZA } from "@/crm/kpi-calcoli";
 import { canaleDi } from "@/crm/kpi/canale";
+import { soloNeiKpi } from "@/crm/conta-nei-kpi";
 
 export const SOGLIA_MIN = 5;
 export const FUSO = "Europe/Rome";
@@ -604,7 +605,7 @@ export function costruisciFeedKpi(ingresso: IngressoFeed) {
   const w = finestre(oggi);
   const pubblici = ingresso.pubblici ?? {};
 
-  const tutti = (Array.isArray(ingresso.leads) ? ingresso.leads : [])
+  const tutti = soloNeiKpi(ingresso.leads)
     .filter((l) => l?.data)
     .map((l) => leggi(l, pubblici));
   // Lead con data illeggibile: non stanno in nessun periodo (come nel CRM).

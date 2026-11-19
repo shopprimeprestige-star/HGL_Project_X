@@ -67,7 +67,7 @@ function classeCvr(cvr: number, consulenze: number): string | undefined {
 }
 
 export function ConsulentiScheda({ intervallo }: { intervallo: Intervallo }) {
-  const { leads, consultants } = useCRM();
+  const { leadsKpi: leads, consultants } = useCRM();
   //  ⚠️ TUTTI GLI HOOK SOPRA I RETURN ANTICIPATI. Da quando esistono le due
   //  viste un return anticipato c'è (quella dei setter), e sta DOPO l'ultimo
   //  hook e dopo tutti i calcoli: spostare un useMemo sotto di esso lo farebbe

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { contaNeiKpi } from "@/crm/conta-nei-kpi";
 import {
   CampoFinestra,
   Foglio,
@@ -155,7 +156,7 @@ export function AdDetailDrawer({
         if (p.ad_id !== ad.ad_id) continue;
         out.push({ source: "public", id: p.id, name: `${p.nome || ""} ${p.cognome || ""}`.trim() || p.email, status: p.status, createdAt: p.created_at, revenue: 0, ad_id: p.ad_id, ttclid: p.ttclid });
       }
-      for (const c of (crmRes.data as Array<{ id: string; data: Record<string, unknown>; created_at: string }> | null) || []) {
+      for (const c of ((crmRes.data as Array<{ id: string; data: Record<string, unknown>; created_at: string }> | null) || []).filter(contaNeiKpi)) {
         const d = c.data || {};
         const tracking = (d as { tracking?: Record<string, unknown> }).tracking || {};
         const ttclid = (d as { ttclid?: string }).ttclid || (tracking as { ttclid?: string }).ttclid;

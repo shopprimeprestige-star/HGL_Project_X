@@ -187,7 +187,7 @@ function scartoDelMeseVicino(scarto: number, delta: number): number {
 }
 
 function DashboardPage() {
-  const { leads, consultants, updateLead, aggiornaContattoLocale } = useCRM();
+  const { leads, leadsKpi, consultants, updateLead, aggiornaContattoLocale } = useCRM();
   /*  ── CHE COSA SI VEDE, E CHI È ───────────────────────────────────────────
       Richiesta del titolare (14/10/2026): chi non fa consulenze vede la
       giornata di tutti in sola lettura, con la striscia dei posti liberi e
@@ -1242,13 +1242,13 @@ function DashboardPage() {
           <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
             <Totale
               etichetta="Trattative"
-              valore={leads.length}
+              valore={leadsKpi.length}
               to="/CRM/trattative"
               icona={Users}
             />
             <Totale
               etichetta="Appuntamenti oggi"
-              valore={leads.filter((l) => soloGiorno(l.data.dataMeeting) === oggi).length}
+              valore={leadsKpi.filter((l) => soloGiorno(l.data.dataMeeting) === oggi).length}
               to="/CRM/agenda"
               icona={CalendarDays}
             />
@@ -1260,7 +1260,7 @@ function DashboardPage() {
                 mentre la pagina dei numeri saliva, e due schermate che contano
                 le stesse vendite in modo diverso fanno perdere fiducia a
                 entrambe. `eChiusuraVinta` è l'elenco unico di types.ts. */
-              valore={leads.filter((l) => eChiusuraVinta(l.data.stato)).length}
+              valore={leadsKpi.filter((l) => eChiusuraVinta(l.data.stato)).length}
               to="/CRM/avanzamento"
               icona={Wrench}
             />

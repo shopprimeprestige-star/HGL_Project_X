@@ -50,6 +50,7 @@ import { Chip, PUNTO_TONO, Scheda, tonoStato } from "@/crm/ui";
 import { DURATA_PREDEFINITA } from "@/crm/invito";
 //  Chi fa le consulenze si chiede lì, e solo lì: vedi la testata di quel file.
 import { NotaSoloConsulenti, consulentiPerConsulenza } from "@/crm/chi-fa-la-consulenza";
+import { EtichettaBloccoDi } from "@/crm/SoloBlocco";
 import { LEAD_STATUS_LABEL, type Consultant, type FasciaOraria, type Lead } from "@/crm/types";
 import {
   STRADA_ACCOMPAGNATORE,
@@ -620,6 +621,8 @@ export function AgendaTuttiConsulenti({
                                   <span className="block truncate text-[11px] leading-tight text-muted-foreground">
                                     {LEAD_STATUS_LABEL[l.data.stato]}
                                   </span>
+                                  {/*  «Solo blocco orario»: occupa la fascia, non è una consulenza. */}
+                                  <EtichettaBloccoDi lead={l} className="mt-0.5" />
                                 </span>
                               </button>
                             </td>
@@ -704,6 +707,7 @@ export function AgendaTuttiConsulenti({
                     <span className="font-medium">
                       {e.lead.data.nome} {e.lead.data.cognome}
                     </span>
+                    <EtichettaBloccoDi lead={e.lead} />
                     <span className="opacity-70">{col.consultant.data.nome}</span>
                     <Chip tono="in_sospeso">{motivo}</Chip>
                   </button>
