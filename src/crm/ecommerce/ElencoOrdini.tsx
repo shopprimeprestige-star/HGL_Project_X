@@ -92,11 +92,11 @@ export function ElencoOrdini({
 
   const righe = useMemo(
     () => filtraOrdini(lettura.ordini, { periodo, stato, pagato, ricerca }),
-    [lettura.ordini, periodo.da, periodo.a, stato, pagato, ricerca],
+    [lettura.ordini, periodo, stato, pagato, ricerca],
   );
   const conteggi = useMemo(
     () => conteggiPerStato(lettura.ordini, { periodo, pagato, ricerca }),
-    [lettura.ordini, periodo.da, periodo.a, pagato, ricerca],
+    [lettura.ordini, periodo, pagato, ricerca],
   );
   const aperto = ordineDaId(lettura.ordini, ordine);
 

@@ -72,8 +72,6 @@ export interface Ordine {
 export const MAX_RIGHE = 200;
 /** Quanti ordini si leggono al massimo dalla tabella (la rotta si ferma qui e dichiara `troncato`; la pagina lo scrive nell'avviso). */
 export const MAX_ORDINI_LETTI = 20_000;
-/** Quanti ordini si leggono al massimo dalla tabella (la rotta si ferma qui e dichiara `troncato`; la pagina lo scrive nell'avviso). */
-export const MAX_ORDINI_LETTI = 20_000;
 /** Tetto di ogni testo letto. shortcut: un solo tetto per tutti i campi, largo per le note; da dividere se un campo ne chiede uno suo. */
 export const MAX_TESTO = 5000;
 
