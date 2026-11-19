@@ -22,7 +22,7 @@
  *    (porta la riga intera: nome, telefono, indirizzo), mai id o testi del cliente. Le risposte non li ripetono.
  *  · Nessuna cancellazione, da nessuna parte. */
 import { costruisciAzione, eUuid, type EsitoAzione, type MotivoErrore } from "./azioni";
-import { normalizzaOrdine, normalizzaTutti, type Ordine } from "./ordine";
+import { MAX_ORDINI_LETTI, normalizzaOrdine, normalizzaTutti, type Ordine } from "./ordine";
 
 /* ══ LE PORTE ═══════════════════════════════════════════════════════════════ */
 
@@ -63,7 +63,7 @@ export interface DipendenzeOrdini {
 
 const PAGINA = 1000;
 /** Oltre questo numero di ordini si legge solo fin qui e si dichiara `troncato`. */
-const MAX_ORDINI = 20_000;
+const MAX_ORDINI = MAX_ORDINI_LETTI; // il numero sta in ordine.ts: lo legge anche l'avviso della pagina
 const MAX_ID_LEAD = 20;
 const MAX_EVENTI = 200;
 const MAX_CORPO = 20_000; // la nota più lunga è 2000 caratteri

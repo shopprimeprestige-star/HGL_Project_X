@@ -19,6 +19,13 @@ export interface IntervalloFiltro {
 export const euro = (n: number): string =>
   `€ ${(Number.isFinite(n) ? n : 0).toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
+/** Cosa si dice a chi non può far niente perché il database non è pronto (non è il consulente a dover trovare un file). */
+export const AVVISO_MIGRAZIONE = "Chiedi a chi gestisce il database di applicare l'aggiornamento degli ordini.";
+
+/** «Tutto»: nessuna data nel filtro. Lo si usa quando si apre l'elenco da una cifra «di sempre» (gli ordini fermi): con i 30 giorni
+ *  di partenza la cifra e le righe non coinciderebbero. */
+export const RANGE_TUTTO: IntervalloFiltro = { from: null, to: null };
+
 /* Le schede di R2 sono due: «panoramica» (la partenza, indirizzo pulito) e «ordini». «Clienti» e «Da collegare» arrivano con
    R3/R4: finché non ci sono, un indirizzo che le chiede apre la Panoramica. */
 
