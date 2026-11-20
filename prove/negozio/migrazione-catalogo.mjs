@@ -90,7 +90,9 @@ export async function prove(_mod, { c, gruppo, radice }) {
     /^CREATE (UNIQUE )?INDEX IF NOT EXISTS \w+ ON public\.shop_\w+ \(/.test(s) ||
     /^ALTER TABLE public\.shop_\w+ ENABLE ROW LEVEL SECURITY$/.test(s) ||
     /^REVOKE ALL ON TABLE public\.shop_\w+ FROM PUBLIC, anon, authenticated$/.test(s) ||
+    /^REVOKE ALL ON TABLE public\.shop_(giacenza_movimenti|storico) FROM service_role$/.test(s) ||
     /^GRANT ALL ON TABLE public\.shop_\w+ TO service_role$/.test(s) ||
+    /^GRANT SELECT, INSERT ON TABLE public\.shop_(giacenza_movimenti|storico) TO service_role$/.test(s) ||
     /^REVOKE ALL ON FUNCTION public\.shop_\w+\([^)]*\) FROM PUBLIC, anon, authenticated$/.test(s) ||
     /^GRANT EXECUTE ON FUNCTION public\.shop_\w+\([^)]*\) TO service_role$/.test(s) ||
     /^CREATE OR REPLACE FUNCTION public\.shop_\w+\(/.test(s) ||
@@ -144,15 +146,19 @@ export async function prove(_mod, { c, gruppo, radice }) {
     [...tutto.matchAll(/CREATE TABLE IF NOT EXISTS public\.(\w+)/g)].map((m) => m[1]).sort());
   c("nessuna CREATE/ALTER/DROP POLICY nel file, e nessuna parola «policy» fuori dai commenti", 0, (tutto.match(/\bPOLICY\b/gi) ?? []).length);
   c("nessuna scrittura su storage.objects (nessuna policy: si carica solo con permesso firmato dal server)", false, /storage\.objects/.test(tutto));
+  const REGISTRI = ["shop_giacenza_movimenti", "shop_storico"];
   for (const t of TABELLE) {
-    c(`${t}: ENABLE ROW LEVEL SECURITY, REVOKE ALL a PUBLIC/anon/authenticated, GRANT ALL a service_role`, [true, true, true], [
+    const permessi = REGISTRI.includes(t) ? "SELECT, INSERT" : "ALL";
+    c(`${t}: ENABLE ROW LEVEL SECURITY, REVOKE ALL a PUBLIC/anon/authenticated, GRANT ${permessi} a service_role`, [true, true, true], [
       new RegExp(`ALTER TABLE public\\.${t} ENABLE ROW LEVEL SECURITY`).test(tutto),
       new RegExp(`REVOKE ALL ON TABLE public\\.${t} FROM PUBLIC, anon, authenticated`).test(tutto),
-      new RegExp(`GRANT ALL ON TABLE public\\.${t} TO service_role`).test(tutto),
+      new RegExp(`GRANT ${permessi} ON TABLE public\\.${t} TO service_role`).test(tutto),
     ]);
   }
+  c("i registri: prima si toglie ogni permesso a service_role (Supabase glieli dà tutti di default), poi si rida SELECT e INSERT", [true, true], REGISTRI.map((r) =>
+    tutto.indexOf(`REVOKE ALL ON TABLE public.${r} FROM service_role`) > 0 && tutto.indexOf(`REVOKE ALL ON TABLE public.${r} FROM service_role`) < tutto.indexOf(`GRANT SELECT, INSERT ON TABLE public.${r} TO service_role`)));
+  c("i registri (movimenti, storico): al server solo SELECT e INSERT, mai ALL/UPDATE/DELETE/TRUNCATE (nessuna cancellazione, garantita dal database)", [], stmt.filter((s) => /^GRANT .* ON TABLE public\.(shop_giacenza_movimenti|shop_storico) /.test(s)).filter((s) => !/^GRANT SELECT, INSERT ON TABLE /.test(s)));
   c("ogni GRANT (tabella, vista, funzione) è a service_role e a nessun altro", [], stmt.filter((s) => s.startsWith("GRANT ")).filter((s) => !/ TO service_role$/.test(s)));
-
   /* ── i vincoli che le regole richiedono al database ── */
   const tabella = (nome) => stmt.find((s) => s.startsWith(`CREATE TABLE IF NOT EXISTS public.${nome} (`)) ?? "";
   const prodotti = tabella("shop_prodotti");
@@ -203,7 +209,9 @@ export async function prove(_mod, { c, gruppo, radice }) {
   for (const [nome, firma] of Object.entries(FUNZIONI)) {
     const def = stmt.find((s) => s.startsWith(`CREATE OR REPLACE FUNCTION public.${nome}(`)) ?? "";
     c(`${nome}: SECURITY DEFINER con search_path = public, in plpgsql`, true, /LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS \$\$…\$\$$/.test(def));
-    c(`${nome}: REVOKE … FROM PUBLIC, anon, authenticated e GRANT EXECUTE … TO service_role`, [true, true], [
+    // la funzione del trigger la esegue il database da sé: REVOKE sì, GRANT no; le altre tre sono del server
+    const delTrigger = nome === "shop_controlla_pubblicazione";
+    c(`${nome}: REVOKE … FROM PUBLIC, anon, authenticated${delTrigger ? " e NESSUN GRANT" : " e GRANT EXECUTE … TO service_role"}`, [true, !delTrigger], [
       tutto.includes(`REVOKE ALL ON FUNCTION public.${nome}(${firma}) FROM PUBLIC, anon, authenticated`),
       tutto.includes(`GRANT EXECUTE ON FUNCTION public.${nome}(${firma}) TO service_role`),
     ]);
@@ -231,10 +239,11 @@ export async function prove(_mod, { c, gruppo, radice }) {
     /BEFORE INSERT ON public\.shop_prodotti FOR EACH ROW WHEN \(NEW\.stato = 'pubblicato'\)/.test(tutto),
     /BEFORE UPDATE OF stato ON public\.shop_prodotti FOR EACH ROW WHEN \(NEW\.stato = 'pubblicato' AND OLD\.stato IS DISTINCT FROM 'pubblicato'\)/.test(tutto),
   ]);
-  c("il trigger controlla: descrizione breve, una categoria, foto principale non rimossa con alt, variante attiva con SKU e prezzo effettivo > 0", [true, true, true, true, true], [
+  c("il trigger controlla: descrizione breve, una categoria, foto principale non rimossa con alt (e con liberatoria se ritrae persone), variante attiva con SKU e prezzo effettivo > 0", [true, true, true, true, true, true], [
     /btrim\(COALESCE\(NEW\.descrizione_breve, ''\)\) = ''/.test(trig),
     /shop_prodotti_categorie pc WHERE pc\.prodotto_id = NEW\.id/.test(trig),
     /m\.slot = 'principale'[\s\S]*m\.rimosso_il IS NULL[\s\S]*btrim\(COALESCE\(m\.alt, ''\)\) <> ''/.test(trig),
+    /m\.slot = 'principale'[\s\S]*NOT m\.ritrae_persone OR m\.liberatoria_ok/.test(trig),
     /v\.attiva/.test(trig) && /btrim\(COALESCE\(v\.sku, ''\)\) <> ''/.test(trig),
     /COALESCE\(v\.prezzo_cent, NEW\.prezzo_cent\) > 0/.test(trig),
   ]);

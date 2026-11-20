@@ -21,7 +21,7 @@
 --      come messaggio_automatico_imposta, con riga nello storico).
 --   4. Crea un trigger sul prodotto: un prodotto passa a «pubblicato» solo se ha
 --      descrizione breve, una categoria, la foto principale (non rimossa, con
---      testo alternativo) e una variante attiva con SKU e prezzo effettivo > 0.
+--      testo alternativo, e se ritrae persone con liberatoria) e una variante attiva con SKU e prezzo effettivo > 0.
 --   5. Crea quattro VISTE per il sito pubblico (shop_v_prodotti, shop_v_varianti,
 --      shop_v_media, shop_v_categorie): solo le colonne pubbliche, solo prodotti
 --      pubblicati, mai la giacenza (la variante porta «disponibile»), mai le foto
@@ -57,8 +57,13 @@
 -- VERIFICA, dopo averla applicata (tutte in sola lettura):
 --   SELECT chiave, valore FROM public.shop_impostazioni ORDER BY chiave;
 --      → catalogo_sito = "codice", giacenza_bassa = 3
---   SELECT count(*) FROM pg_policies WHERE tablename LIKE 'shop\_%';
---      → 0 per le tabelle shop_prodotti… (le policy di shop_orders sono altre cose)
+--   SELECT count(*) FROM pg_policies WHERE schemaname = 'public' AND tablename LIKE 'shop\_%' AND tablename <> 'shop_orders';
+--      → 0 (le policy di shop_orders sono un'altra cosa e restano com'erano)
+--   SELECT policyname, cmd, roles, qual, with_check FROM pg_policies WHERE schemaname = 'storage' AND tablename = 'objects';
+--      → di solito nessuna riga. Se ne vedi, guarda che ognuna nomini un bucket (bucket_id = '…')
+--        e che nessuna valga per TUTTI i bucket con ruolo public/anon (senza bucket_id nel
+--        qual o nel with_check): una policy così renderebbe leggibile o scrivibile anche
+--        shop-media oltre le regole di questo shop. Se la trovi, fermati e dillo alla squadra.
 --   SELECT id, public, file_size_limit FROM storage.buckets WHERE id = 'shop-media';
 --      → public = true, 26214400
 --
@@ -262,8 +267,13 @@ GRANT ALL ON TABLE public.shop_prodotti TO service_role;
 GRANT ALL ON TABLE public.shop_prodotti_categorie TO service_role;
 GRANT ALL ON TABLE public.shop_varianti TO service_role;
 GRANT ALL ON TABLE public.shop_media TO service_role;
-GRANT ALL ON TABLE public.shop_giacenza_movimenti TO service_role;
-GRANT ALL ON TABLE public.shop_storico TO service_role;
+-- Movimenti e storico sono registri: il server può solo leggere e aggiungere (niente UPDATE né
+-- DELETE né TRUNCATE nemmeno con la chiave di servizio: «nessuna cancellazione» la garantisce il database).
+-- (Supabase dà di default ogni permesso a service_role sugli oggetti nuovi: qui si toglie e si rida solo ciò che serve.)
+REVOKE ALL ON TABLE public.shop_giacenza_movimenti FROM service_role;
+REVOKE ALL ON TABLE public.shop_storico FROM service_role;
+GRANT SELECT, INSERT ON TABLE public.shop_giacenza_movimenti TO service_role;
+GRANT SELECT, INSERT ON TABLE public.shop_storico TO service_role;
 
 -- ── 4. La giacenza: blocco di riga, mai sotto zero, movimento nella stessa transazione ──
 -- Ritorna la giacenza di DOPO. Con due richieste insieme la seconda aspetta la prima,
@@ -377,6 +387,7 @@ BEGIN
        AND m.slot = 'principale'
        AND m.rimosso_il IS NULL
        AND btrim(COALESCE(m.alt, '')) <> ''
+       AND (NOT m.ritrae_persone OR m.liberatoria_ok)
   ) THEN
     RAISE EXCEPTION 'shop_pubblicazione_negata: manca la foto principale con il testo alternativo' USING ERRCODE = 'check_violation';
   END IF;
@@ -403,7 +414,8 @@ CREATE OR REPLACE TRIGGER shop_controlla_pubblicazione_stato
   FOR EACH ROW WHEN (NEW.stato = 'pubblicato' AND OLD.stato IS DISTINCT FROM 'pubblicato')
   EXECUTE FUNCTION public.shop_controlla_pubblicazione();
 
--- Le funzioni le chiama solo il server (stessa regola di promemoria_aggancia).
+-- Le funzioni le chiama solo il server (stessa regola di promemoria_aggancia); la funzione del
+-- trigger non la chiama nessuno: la esegue il database da sé, quindi niente GRANT.
 REVOKE ALL ON FUNCTION public.shop_giacenza_muovi(uuid, integer, text, text, text, text) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.shop_giacenza_imposta(uuid, integer, text, text) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.shop_impostazione_imposta(text, jsonb, jsonb, text) FROM PUBLIC, anon, authenticated;
@@ -411,7 +423,6 @@ REVOKE ALL ON FUNCTION public.shop_controlla_pubblicazione() FROM PUBLIC, anon, 
 GRANT EXECUTE ON FUNCTION public.shop_giacenza_muovi(uuid, integer, text, text, text, text) TO service_role;
 GRANT EXECUTE ON FUNCTION public.shop_giacenza_imposta(uuid, integer, text, text) TO service_role;
 GRANT EXECUTE ON FUNCTION public.shop_impostazione_imposta(text, jsonb, jsonb, text) TO service_role;
-GRANT EXECUTE ON FUNCTION public.shop_controlla_pubblicazione() TO service_role;
 
 -- ── 7. Le viste per il sito pubblico (D1, seconda difesa) ────────────────────
 -- Il server pubblico legge SOLO da qui. Sono viste normali (girano con i diritti del

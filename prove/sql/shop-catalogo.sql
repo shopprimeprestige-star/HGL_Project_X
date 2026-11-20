@@ -205,18 +205,28 @@ SELECT pg_temp.uguale('anon e authenticated non scrivono su nessuna tabella (INS
     WHERE has_table_privilege(r, 'public.' || o, 'INSERT') OR has_table_privilege(r, 'public.' || o, 'UPDATE')
        OR has_table_privilege(r, 'public.' || o, 'DELETE') OR has_table_privilege(r, 'public.' || o, 'TRUNCATE')
        OR has_table_privilege(r, 'public.' || o, 'REFERENCES') OR has_table_privilege(r, 'public.' || o, 'TRIGGER')), ''));
-SELECT pg_temp.uguale('anon, authenticated e PUBLIC non eseguono nessuna delle quattro funzioni; service_role le esegue tutte', '|||',
+SELECT pg_temp.uguale('anon, authenticated e PUBLIC non eseguono nessuna delle quattro funzioni; service_role esegue le tre del server (quella del trigger non conta: non si chiama a mano e S1 non le dà nessun GRANT)', '|||',
   (SELECT string_agg(
      CASE WHEN has_function_privilege('anon', f, 'EXECUTE') OR has_function_privilege('authenticated', f, 'EXECUTE')
             OR EXISTS (SELECT 1 FROM pg_proc p, aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a WHERE p.oid = f::regprocedure AND a.grantee = 0)
           THEN 'APERTA:' || f
-          WHEN NOT has_function_privilege('service_role', f, 'EXECUTE') THEN 'CHIUSA:' || f
+          WHEN f <> 'public.shop_controlla_pubblicazione()' AND NOT has_function_privilege('service_role', f, 'EXECUTE') THEN 'CHIUSA:' || f
           ELSE '' END, '|' ORDER BY f)
      FROM unnest(ARRAY[
        'public.shop_giacenza_muovi(uuid, integer, text, text, text, text)',
        'public.shop_giacenza_imposta(uuid, integer, text, text)',
        'public.shop_impostazione_imposta(text, jsonb, jsonb, text)',
        'public.shop_controlla_pubblicazione()']) f));
+SELECT pg_temp.uguale('registri (movimenti, storico): service_role legge e aggiunge, NON modifica, non cancella, non svuota (lo garantisce il database)', 'INSERT,SELECT|INSERT,SELECT|false|false',
+  (SELECT string_agg(privilege_type, ',' ORDER BY privilege_type) FROM information_schema.role_table_grants WHERE grantee = 'service_role' AND table_name = 'shop_storico') || '|' ||
+  (SELECT string_agg(privilege_type, ',' ORDER BY privilege_type) FROM information_schema.role_table_grants WHERE grantee = 'service_role' AND table_name = 'shop_giacenza_movimenti') || '|' ||
+  (has_table_privilege('service_role', 'public.shop_storico', 'UPDATE') OR has_table_privilege('service_role', 'public.shop_storico', 'DELETE') OR has_table_privilege('service_role', 'public.shop_storico', 'TRUNCATE'))::text || '|' ||
+  (has_table_privilege('service_role', 'public.shop_giacenza_movimenti', 'UPDATE') OR has_table_privilege('service_role', 'public.shop_giacenza_movimenti', 'DELETE') OR has_table_privilege('service_role', 'public.shop_giacenza_movimenti', 'TRUNCATE'))::text);
+SELECT pg_temp.uguale('… e con SET ROLE service_role un DELETE, un UPDATE o un TRUNCATE sui registri è rifiutato (42501)', '42501|42501|42501',
+  concat_ws('|',
+    pg_temp.come('service_role', 'DELETE FROM public.shop_giacenza_movimenti'),
+    pg_temp.come('service_role', 'UPDATE public.shop_storico SET chi = NULL'),
+    pg_temp.come('service_role', 'TRUNCATE public.shop_storico')));
 SELECT pg_temp.uguale('service_role legge tabelle e viste (il server funziona)', '',
   coalesce((SELECT string_agg(o, ',') FROM unnest(ARRAY[
     'shop_impostazioni','shop_categorie','shop_prodotti','shop_prodotti_categorie','shop_varianti','shop_media','shop_giacenza_movimenti','shop_storico',
@@ -282,6 +292,11 @@ INSERT INTO public.shop_media (id, prodotto_id, slot, path_480, alt) VALUES
 INSERT INTO public.shop_media (id, prodotto_id, slot, path_480, alt, rimosso_il) VALUES
   ('00000000-0000-4000-8000-00000000e002', '00000000-0000-4000-8000-00000000a001', 'principale', 'prova/t-rimossa-480.jpg', 'Testo alternativo', now());
 SELECT pg_temp.uguale('foto principale senza alt, o rimossa: rifiutato', '23514 shop_pubblicazione_negata: manca la foto principale con il testo alternativo',
+  pg_temp.errore($q$UPDATE public.shop_prodotti SET stato = 'pubblicato' WHERE id = '00000000-0000-4000-8000-00000000a001'$q$));
+-- Una foto principale con alt, non rimossa, ma di una PERSONA senza liberatoria: nel pubblico non uscirebbe, quindi non vale.
+INSERT INTO public.shop_media (id, prodotto_id, slot, path_480, alt, ritrae_persone, liberatoria_ok) VALUES
+  ('00000000-0000-4000-8000-00000000e004', '00000000-0000-4000-8000-00000000a001', 'principale', 'prova/t-persona-480.jpg', 'Testo alternativo', true, false);
+SELECT pg_temp.uguale('foto principale di una persona SENZA liberatoria: rifiutato (nel pubblico non uscirebbe)', '23514 shop_pubblicazione_negata: manca la foto principale con il testo alternativo',
   pg_temp.errore($q$UPDATE public.shop_prodotti SET stato = 'pubblicato' WHERE id = '00000000-0000-4000-8000-00000000a001'$q$));
 INSERT INTO public.shop_media (id, prodotto_id, slot, path_480, alt) VALUES
   ('00000000-0000-4000-8000-00000000e003', '00000000-0000-4000-8000-00000000a001', 'principale', 'prova/t-buona-480.jpg', 'Testo alternativo');
