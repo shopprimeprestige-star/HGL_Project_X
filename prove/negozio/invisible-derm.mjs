@@ -91,14 +91,14 @@ export async function prove(mod, { c, gruppo }) {
   const schedaAnteprima = await k.scheda("sistema-in-bozza", chiave);
   const schedaConCorrelato = await k.scheda("prodotto-di-prova");
   const categorie = await k.categorie();
-  const carrello = await k.righeCarrello(["PROVA-ID-A", "PROVA-ID-B", "PROVA-ID3-A", "PROVA-ID4-A", "PROVA-001-NE-30", "PROVA-ID2-A"]);
+  const carrello = await k.righeCarrello(["PROVA-ID-A", "PROVA-ID-B", "PROVA-ID3-A", "PROVA-ID4-A", "PROVA-001-A", "PROVA-ID2-A"]);
   const sitemap = await k.vociSitemap();
   c("elenco: Invisible Derm c'è, senza prezzo", [true, null], [elenco.some((p) => p.slug === "invisible-derm"), perSlug(elenco, "invisible-derm")?.prezzoDaCent]);
   c("scheda: trovata, senza prezzo, non acquistabile", [null, [null, null], false], [scheda?.prezzoDaCent, scheda?.varianti.map((v) => v.prezzoCent), scheda?.acquistabile]);
   c("anteprima (chiave valida): la scheda della bozza esce, senza prezzo", [true, null, false], [!!schedaAnteprima, schedaAnteprima?.prezzoDaCent, schedaAnteprima?.acquistabile]);
   c("carrello: ogni sku di Invisible Derm (anche quelli per riga, per slug e in bozza) è «non più disponibile»; un prodotto normale resta con prezzo",
     [{ sku: "PROVA-ID-A", nonPiuDisponibile: true }, { sku: "PROVA-ID-B", nonPiuDisponibile: true }, { sku: "PROVA-ID3-A", nonPiuDisponibile: true }, { sku: "PROVA-ID4-A", nonPiuDisponibile: true }, 2890, { sku: "PROVA-ID2-A", nonPiuDisponibile: true }],
-    carrello.map((r) => (r.sku === "PROVA-001-NE-30" ? r.prezzoCent : r)));
+    carrello.map((r) => (r.sku === "PROVA-001-A" ? r.prezzoCent : r)));
   for (const [nome, valore] of [["elenco", elenco], ["scheda", scheda], ["scheda con «Ti serve anche»", schedaConCorrelato], ["anteprima", schedaAnteprima], ["categorie", categorie], ["carrello", carrello], ["sitemap", sitemap]])
     c(`${nome}: nessuna forma di 4731, 47.31 o 47,31 nella risposta serializzata`, false, PREZZO.test(JSON.stringify(valore)));
 
