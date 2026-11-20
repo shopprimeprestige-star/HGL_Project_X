@@ -13,6 +13,7 @@
  *  ⚠️ Nessun log: gli ordini contengono nome, telefono e indirizzo dei clienti. */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { PackageSearch, Search } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -322,7 +323,7 @@ export function ElencoOrdini({
                         o,
                       )
                     }
-                    className={classeMenuStato(o.stato)}
+                    className={cn(classeMenuStato(o.stato), "self-start sm:self-auto")}
                   >
                     {STATI_ORDINE.map((s) => (
                       <option key={s} value={s}>
