@@ -83,3 +83,12 @@ export function shouldDispatchLeadToAds(lead: Pick<Lead, "data">): boolean {
       tracking?.utm_campaign,
   );
 }
+
+/** ── CHI PUÒ ARRIVARE A META E TIKTOK DAL CRM ─────────────────────────────────
+ *  Un lead da campagna (`shouldDispatchLeadToAds`) E col consenso marketing registrato sulla scheda
+ *  (`tracking.consenso_marketing`, copiato da `public_leads` quando si prende in carico il contatto).
+ *  Solo `true` vero: ignoto (schede esistenti, a mano, importate, Meta Lead Ads, colonna non ancora creata)
+ *  vuol dire NO. `shouldDispatchLeadToAds` non cambia: serve ancora a chi vuole sapere se la scheda è da campagna. */
+export function puoInviareAlleAds(lead: Pick<Lead, "data">): boolean {
+  return shouldDispatchLeadToAds(lead) && lead.data?.tracking?.consenso_marketing === true;
+}

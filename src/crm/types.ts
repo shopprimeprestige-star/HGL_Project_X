@@ -1231,6 +1231,10 @@ export interface TrackingInfo {
   form_name?: string;
   creative_name?: string;
   external_id?: string;
+  /** Il consenso marketing dato sul sito (D32), copiato da `public_leads.consenso_marketing` quando si prende in
+   *  carico il contatto. SOLO `true` fa partire `Lead` e `Purchase` verso Meta e TikTok (crm/lead-ads); assente
+   *  (schede esistenti, a mano, importate, Meta Lead Ads, colonna non ancora creata) vuol dire «ignoto» e non parte niente. */
+  consenso_marketing?: boolean;
 }
 
 /** ── UNA RIGA DELLO STORICO ACQUISTI ──────────────────────────────────────
