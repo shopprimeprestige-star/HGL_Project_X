@@ -92,7 +92,7 @@ export async function prove(_mod, { c, gruppo, radice }) {
   c("niente è cambiato: nessun campo da salvare", {}, S.patchCampi(base.campi, conv().campi, { pubblicato: false }));
   c("cambia il nome: parte solo il nome", { nome: "Nuovo" }, S.patchCampi(base.campi, conv({ nome: "Nuovo" }).campi, { pubblicato: false }));
   const camb = conv({ sku: "NUOVO-1", slug: "nuovo-1", prezzo: "30" }).campi;
-  c("in bozza partono SKU, indirizzo e prezzo", { sku: "NUOVO-1", slug: "nuovo-1", prezzoCent: 3000 }, S.patchCampi(base.campi, camb, { pubblicato: false }));
+  c("in bozza partono SKU, indirizzo e prezzo", { slug: "nuovo-1", sku: "NUOVO-1", prezzoCent: 3000 }, S.patchCampi(base.campi, camb, { pubblicato: false }));
   c("su un pubblicato SKU, indirizzo e prezzo NON partono da soli (il prezzo si cambia con il suo tasto)", {}, S.patchCampi(base.campi, camb, { pubblicato: true }));
   c("un campo con errore non parte, gli altri sì", { nome: "Nuovo" }, S.patchCampi(base.campi, conv({ nome: "Nuovo", prezzo: "abc" }).campi, { pubblicato: false }));
   c("le liste si confrontano per contenuto", {}, S.patchCampi(base.campi, conv({ passi: "Applica\nLascia in posa" }).campi, { pubblicato: false }));
