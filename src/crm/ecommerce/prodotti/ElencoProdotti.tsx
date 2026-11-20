@@ -91,7 +91,7 @@ const MAX_PEZZI = 1_000_000;
 const FERMANO = ["sessione", "permesso", "migrazione", "rete"];
 
 const campo =
-  "h-8 rounded-md border border-border bg-card px-2 text-[12px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+  "h-11 rounded-md border border-border bg-card px-2 text-[12px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:h-8";
 
 interface EsitoGruppo {
   tono: "ok" | "attenzione" | "errore";
@@ -298,6 +298,7 @@ export function ElencoProdotti({ negozio, apri, categorieAggiornate = 0 }: Props
         {SEGMENTI.map((s) => (
           <Segmento
             key={s}
+            className="min-h-9 md:min-h-0"
             attivo={segmento === s}
             onClick={() => cambiaFiltri({ segmento: s === "tutti" ? undefined : s })}
           >
@@ -318,7 +319,7 @@ export function ElencoProdotti({ negozio, apri, categorieAggiornate = 0 }: Props
             placeholder="Cerca per nome o SKU"
             aria-label="Cerca per nome o SKU"
             maxLength={100}
-            className="h-8 pl-8 text-[12.5px]"
+            className="h-11 pl-8 text-[12.5px] md:h-8"
           />
         </div>
         {categorie.length > 0 && (
@@ -346,7 +347,7 @@ export function ElencoProdotti({ negozio, apri, categorieAggiornate = 0 }: Props
             type="button"
             variant="outline"
             size="sm"
-            className="h-8 text-[12px]"
+            className="h-11 text-[12px] md:h-8"
             onClick={() => void aggiorna()}
             disabled={inAggiornamento}
           >
@@ -381,7 +382,7 @@ export function ElencoProdotti({ negozio, apri, categorieAggiornate = 0 }: Props
           <Button
             type="button"
             size="sm"
-            className="h-8 text-[12px]"
+            className="h-11 text-[12px] md:h-8"
             disabled={occupato}
             onClick={() => void cambiaStato("pubblicato")}
           >
@@ -391,7 +392,7 @@ export function ElencoProdotti({ negozio, apri, categorieAggiornate = 0 }: Props
             type="button"
             size="sm"
             variant="outline"
-            className="h-8 text-[12px]"
+            className="h-11 text-[12px] md:h-8"
             disabled={occupato}
             onClick={() => void cambiaStato("bozza")}
           >
@@ -401,7 +402,7 @@ export function ElencoProdotti({ negozio, apri, categorieAggiornate = 0 }: Props
             type="button"
             size="sm"
             variant="outline"
-            className="h-8 text-[12px]"
+            className="h-11 text-[12px] md:h-8"
             disabled={occupato}
             onClick={() => void duplica()}
           >
@@ -412,7 +413,7 @@ export function ElencoProdotti({ negozio, apri, categorieAggiornate = 0 }: Props
             type="button"
             size="sm"
             variant="ghost"
-            className="h-8 text-[12px]"
+            className="h-11 text-[12px] md:h-8"
             disabled={occupato}
             onClick={() => setScelti(new Set())}
           >
@@ -427,8 +428,7 @@ export function ElencoProdotti({ negozio, apri, categorieAggiornate = 0 }: Props
         <Vuoto
           icona={PackageOpen}
           titolo="Non c'è ancora nessun prodotto."
-          testo="Crea il primo: lo completi con calma, in bozza, e lo pubblichi quando è pronto."
-          azione={tastoNuovo}
+          testo="Crea il primo con «Nuovo prodotto»: lo completi con calma, in bozza, e lo pubblichi quando è pronto."
         />
       ) : visibili.length === 0 ? (
         <Vuoto
@@ -448,7 +448,7 @@ export function ElencoProdotti({ negozio, apri, categorieAggiornate = 0 }: Props
               type="button"
               size="sm"
               variant="outline"
-              className="h-8 text-[12px]"
+              className="h-11 text-[12px] md:h-8"
               onClick={togliFiltri}
             >
               Togli i filtri
@@ -471,7 +471,7 @@ export function ElencoProdotti({ negozio, apri, categorieAggiornate = 0 }: Props
             <table className="w-full border-collapse text-left text-[13px]">
               <thead className="border-b border-border bg-muted/40 text-[11.5px] text-muted-foreground">
                 <tr>
-                  <th scope="col" className="w-10 px-3 py-2">
+                  <th scope="col" className="w-10 px-3 py-2 align-middle">
                     <input
                       type="checkbox"
                       aria-label="Scegli i primi prodotti dell'elenco"
@@ -480,7 +480,7 @@ export function ElencoProdotti({ negozio, apri, categorieAggiornate = 0 }: Props
                       className="h-4 w-4 accent-sky-600"
                     />
                   </th>
-                  <Intestazione colonna="nome" ordine={ordine} ordinaPer={ordinaPer}>
+                  <Intestazione colonna="nome" ordine={ordine} ordinaPer={ordinaPer} larga>
                     Nome
                   </Intestazione>
                   <Intestazione colonna="sku" ordine={ordine} ordinaPer={ordinaPer}>
@@ -588,7 +588,7 @@ export function ElencoProdotti({ negozio, apri, categorieAggiornate = 0 }: Props
                       <button
                         type="button"
                         onClick={() => apri(r.id)}
-                        className="block min-h-6 max-w-full rounded-md text-left text-[14px] font-medium leading-snug focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        className="-my-3 block max-w-full py-3 rounded-md text-left text-[14px] font-medium leading-snug focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                       >
                         {r.nome}
                       </button>
@@ -623,7 +623,7 @@ export function ElencoProdotti({ negozio, apri, categorieAggiornate = 0 }: Props
       )}
 
       {/* Telefono: il tasto resta in basso, sotto il pollice */}
-      <div className="fixed inset-x-4 bottom-4 z-30 md:hidden">
+      <div className="fixed inset-x-4 bottom-[max(1rem,env(safe-area-inset-bottom))] z-30 md:hidden">
         <Button
           type="button"
           className="h-12 w-full text-[14px] shadow-lg"
@@ -654,12 +654,14 @@ function Intestazione({
   ordine,
   ordinaPer,
   destra,
+  larga,
   children,
 }: {
   colonna: Colonna;
   ordine: { colonna: Colonna; direzione: Direzione };
   ordinaPer: (c: Colonna) => void;
   destra?: boolean;
+  larga?: boolean;
   children: ReactNode;
 }) {
   const attiva = ordine.colonna === colonna;
@@ -668,7 +670,7 @@ function Intestazione({
     <th
       scope="col"
       aria-sort={attiva ? (ordine.direzione === "su" ? "ascending" : "descending") : "none"}
-      className={cn("px-3 py-2 font-medium", destra && "text-right")}
+      className={cn("px-3 py-2 font-medium", destra && "text-right", larga && "w-[38%]")}
     >
       <button
         type="button"
@@ -789,7 +791,7 @@ function EsitoAzione({ esito, chiudi }: { esito: EsitoGruppo; chiudi: () => void
 /** La prima lettura è fallita: niente da mostrare, solo la frase e il modo di riprovare. */
 function ErroreLettura({ errore, riprova }: { errore: ErroreNegozio; riprova: () => void }) {
   const tasto = (
-    <Button size="sm" variant="outline" className="h-8 text-[12px]" onClick={riprova}>
+    <Button size="sm" variant="outline" className="h-11 text-[12px] md:h-8" onClick={riprova}>
       Riprova
     </Button>
   );
@@ -823,7 +825,7 @@ function Scheletri() {
         {[0, 1, 2, 3].map((i) => (
           <div
             key={i}
-            className="h-7 w-20 animate-pulse rounded-lg border border-border bg-muted/50"
+            className="h-7 w-20 animate-pulse motion-reduce:animate-none rounded-lg border border-border bg-muted/50"
           />
         ))}
       </div>
@@ -832,7 +834,7 @@ function Scheletri() {
         aria-hidden="true"
       >
         {[0, 1, 2, 3, 4].map((i) => (
-          <div key={i} className="h-14 animate-pulse bg-muted/50" />
+          <div key={i} className="h-14 animate-pulse motion-reduce:animate-none bg-muted/50" />
         ))}
       </div>
     </div>
@@ -902,7 +904,7 @@ function PannelloGiacenza({
       </p>
     );
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex max-w-2xl flex-col gap-2">
       <p className="flex flex-wrap items-center gap-1.5 text-[12px] text-muted-foreground">
         Canali:
         {CANALI.map((k) => (
@@ -970,7 +972,7 @@ function RigaGiacenza({ variante, esegui }: { variante: Variante; esegui: Negozi
 
   return (
     <li className="flex flex-wrap items-center gap-x-3 gap-y-1">
-      <span className="min-w-0 flex-1 basis-40 text-[12.5px]">
+      <span className="min-w-0 basis-56 text-[12.5px]">
         <span className="font-medium">{variante.nome || "Variante unica"}</span>
         <span className="ml-2 text-[11.5px] tabular-nums text-muted-foreground">
           {variante.sku}
@@ -995,13 +997,13 @@ function RigaGiacenza({ variante, esegui }: { variante: Variante; esegui: Negozi
           value={valore}
           onChange={(e) => setValore(e.target.value)}
           aria-invalid={!valido}
-          className="h-8 w-20 text-right text-[12.5px] tabular-nums"
+          className="h-11 w-20 text-right text-[12.5px] tabular-nums md:h-8"
         />
         <Button
           type="submit"
           size="sm"
           variant="outline"
-          className="h-8 text-[12px]"
+          className="h-11 text-[12px] md:h-8"
           disabled={!valido || invariato || invio}
         >
           {invio ? "Salvo…" : "Imposta"}
