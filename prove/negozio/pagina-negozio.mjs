@@ -138,7 +138,8 @@ export async function prove(_mod, { c, gruppo, radice }) {
     toccati = []; // shortcut: il commit di partenza non c'è (repository nuovo): non si può confrontare; si toglie quando BASE non serve più
   }
   c("`CRMSidebar.tsx`, `permessi.ts` e `routeTree.gen.ts` non sono nel diff", [], toccati.filter((f) => /CRMSidebar\.tsx$|crm\/permessi\.ts$|routeTree\.gen\.ts$/.test(f)));
-  c("nel diff non c'è nessun file dei compiti di T09, T10 e T13 (client, server, rotte)", [], toccati.filter((f) => /^src\/crm\/negozio\/|^src\/routes\/api\./.test(f)));
+  //  T17 (D36) tocca `client.ts` di proposito: la foto della categoria in tre misure (la sua prova è in client.mjs). Il resto no.
+  c("nel diff non c'è nessun file dei compiti di T09, T10 e T13 (client, server, rotte), salvo `client.ts` di T17 (D36)", [], toccati.filter((f) => /^src\/crm\/negozio\/|^src\/routes\/api\./.test(f) && f !== "src/crm/negozio/client.ts"));
 
   // ── i cinque segnaposto ──
   const FIRME = {
@@ -157,10 +158,12 @@ export async function prove(_mod, { c, gruppo, radice }) {
     const testo = esiste ? readFileSync(p, "utf8") : "";
     c(`${nome}.tsx esiste ed esporta \`${nome}\` con la firma finale`, true, esiste && new RegExp(`export function ${nome}\\(`).test(testo));
     const m = esiste ? await caricaTsx(p).catch(() => ({})) : {};
-    c(`${nome} ritorna null (segnaposto: lo riempie ${compito})`, null, typeof m[nome] === "function" ? m[nome](PROPS_DI_ESEMPIO[nome]) : "non è una funzione");
+    //  Categorie e ApriShop le ha riempite T17 (prove/negozio/categorie-sorgente.mjs e interruttore-sorgente.mjs): non sono più segnaposto.
+    const RIEMPITO = nome === "Categorie" || nome === "ApriShop";
+    if (!RIEMPITO) c(`${nome} ritorna null (segnaposto: lo riempie ${compito})`, null, typeof m[nome] === "function" ? m[nome](PROPS_DI_ESEMPIO[nome]) : "non è una funzione");
     const testa = testo.slice(0, testo.indexOf("*/") + 2);
     c(`${nome}: in cima c'è il commento con le props pensate per ${compito}`, [true, true], [new RegExp(compito).test(testa), /props/i.test(testa) && /export interface Props/.test(testo)]);
-    c(`${nome}: nessun import di React o di moduli del CRM (un segnaposto non porta pesi)`, false, /^\s*import\s+(?!type\b)/m.test(senzaCommenti(testo)));
+    if (!RIEMPITO) c(`${nome}: nessun import di React o di moduli del CRM (un segnaposto non porta pesi)`, false, /^\s*import\s+(?!type\b)/m.test(senzaCommenti(testo)));
   }
 
   // ── l'elenco ──
