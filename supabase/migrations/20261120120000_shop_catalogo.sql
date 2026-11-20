@@ -60,10 +60,10 @@
 --   SELECT count(*) FROM pg_policies WHERE schemaname = 'public' AND tablename LIKE 'shop\_%' AND tablename <> 'shop_orders';
 --      → 0 (le policy di shop_orders sono un'altra cosa e restano com'erano)
 --   SELECT policyname, cmd, roles, qual, with_check FROM pg_policies WHERE schemaname = 'storage' AND tablename = 'objects';
---      → di solito nessuna riga. Se ne vedi, guarda che ognuna nomini un bucket (bucket_id = '…')
---        e che nessuna valga per TUTTI i bucket con ruolo public/anon (senza bucket_id nel
---        qual o nel with_check): una policy così renderebbe leggibile o scrivibile anche
---        shop-media oltre le regole di questo shop. Se la trovi, fermati e dillo alla squadra.
+--      → vedrai le 4 policy «landing-media» (sono di un'altra cosa e non si toccano). Nessuna deve
+--        riguardare shop-media, e nessuna deve valere per TUTTI i bucket con ruolo public/anon (cioè
+--        senza bucket_id nel qual o nel with_check): una policy così renderebbe leggibile o scrivibile
+--        anche shop-media oltre le regole di questo shop. Se la trovi, fermati e dillo alla squadra.
 --   SELECT id, public, file_size_limit FROM storage.buckets WHERE id = 'shop-media';
 --      → public = true, 26214400
 --
