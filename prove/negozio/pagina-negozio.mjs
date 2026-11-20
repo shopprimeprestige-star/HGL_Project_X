@@ -148,7 +148,8 @@ export async function prove(_mod, { c, gruppo, radice }) {
     toccati = []; // shortcut: il commit di partenza non c'è (repository nuovo): non si può confrontare; si toglie quando BASE non serve più
   }
   c("`CRMSidebar.tsx`, `permessi.ts` e `routeTree.gen.ts` non sono nel diff", [], toccati.filter((f) => /CRMSidebar\.tsx$|crm\/permessi\.ts$|routeTree\.gen\.ts$/.test(f)));
-  c("nel diff non c'è nessun file dei compiti di T09, T10 e T13 (client, server, rotte)", [], toccati.filter((f) => /^src\/crm\/negozio\/|^src\/routes\/api\./.test(f)));
+  //  T17 (D36) tocca `client.ts` di proposito: la foto della categoria in tre misure (la sua prova è in client.mjs). Il resto no.
+  c("nel diff non c'è nessun file dei compiti di T09, T10 e T13 (client, server, rotte), salvo `client.ts` di T17 (D36)", [], toccati.filter((f) => /^src\/crm\/negozio\/|^src\/routes\/api\./.test(f) && f !== "src/crm/negozio/client.ts"));
 
   // ── i cinque segnaposto ──
   const FIRME = {
@@ -166,15 +167,14 @@ export async function prove(_mod, { c, gruppo, radice }) {
     const esiste = existsSync(p);
     const testo = esiste ? readFileSync(p, "utf8") : "";
     c(`${nome}.tsx esiste ed esporta \`${nome}\` con la firma finale`, true, esiste && new RegExp(`export function ${nome}\\(`).test(testo));
-    //  T15 ha riempito SchedaProdotto ed EditorVarianti: «ritorna null» e «nessun import» valgono solo per i segnaposto che restano (T16, T17).
-    //  La firma di quei due la controlla `scheda-sorgente.mjs`.
-    const m = esiste && compito !== "T15" ? await caricaTsx(p).catch(() => ({})) : {};
-    if (compito !== "T15")
-    c(`${nome} ritorna null (segnaposto: lo riempie ${compito})`, null, typeof m[nome] === "function" ? m[nome](PROPS_DI_ESEMPIO[nome]) : "non è una funzione");
+    //  T15 (SchedaProdotto, EditorVarianti) e T17 (Categorie, ApriShop) hanno riempito i loro segnaposto: le loro prove sono
+    //  `scheda-sorgente.mjs`, `categorie-sorgente.mjs` e `interruttore-sorgente.mjs`. Resta segnaposto solo `EditorMedia` (T16).
+    const RIEMPITO = compito === "T15" || compito === "T17";
+    const m = esiste && !RIEMPITO ? await caricaTsx(p).catch(() => ({})) : {};
+    if (!RIEMPITO) c(`${nome} ritorna null (segnaposto: lo riempie ${compito})`, null, typeof m[nome] === "function" ? m[nome](PROPS_DI_ESEMPIO[nome]) : "non è una funzione");
     const testa = testo.slice(0, testo.indexOf("*/") + 2);
     c(`${nome}: in cima c'è il commento con le props pensate per ${compito}`, [true, true], [new RegExp(compito).test(testa), /props/i.test(testa) && /export interface Props/.test(testo)]);
-    if (compito !== "T15")
-    c(`${nome}: nessun import di React o di moduli del CRM (un segnaposto non porta pesi)`, false, /^\s*import\s+(?!type\b)/m.test(senzaCommenti(testo)));
+    if (!RIEMPITO) c(`${nome}: nessun import di React o di moduli del CRM (un segnaposto non porta pesi)`, false, /^\s*import\s+(?!type\b)/m.test(senzaCommenti(testo)));
   }
 
   // ── l'elenco ──

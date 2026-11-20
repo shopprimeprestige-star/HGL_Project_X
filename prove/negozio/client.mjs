@@ -191,14 +191,34 @@ export async function prove(mod, { c, gruppo, radice }) {
         c(`«${m}»: l'archivio rilegge l'elenco`, 3, ar.chiamate.length);
       }
     }
-    // «categoria_foto» (T09): azione con la versione obbligatoria
+    // «categoria_foto» (T09 + D36): la foto in tre misure; il client non fa partire una richiesta che il server rifiuterebbe di sicuro
     {
+      const FOTO = { categoriaId: ID, path480: "foto/a1.jpg", path960: "foto/a2.jpg", path1600: "foto/a3.jpg", alt: "Una foto" };
+      const V = "2026-11-20T10:00:00+00:00";
       const f = fetchFinto(risposta({ ok: true }));
-      const senza = await K.eseguiAzione(f, "categoria_foto", { id: ID, path: "foto/x.jpg", alt: "Una foto" });
+      const senza = await K.eseguiAzione(f, "categoria_foto", FOTO);
       c("categoria_foto senza `versione`: non parte, errore «valore»", [false, "valore", 0], [senza.ok, senza.errore.tipo, f.chiamate.length]);
-      const con = await K.eseguiAzione(f, "categoria_foto", { id: ID, path: "foto/x.jpg", alt: "Una foto", versione: "2026-11-20T10:00:00+00:00" });
-      c("categoria_foto con la `versione`: parte come POST, col nome dell'azione", [true, 1, "categoria_foto"], [con.ok, f.chiamate.length, JSON.parse(f.chiamate[0].init.body).azione]);
+      const con = await K.eseguiAzione(f, "categoria_foto", { ...FOTO, versione: V });
+      c("categoria_foto con `categoriaId`, tre misure, `alt` e `versione`: parte come POST, col nome dell'azione", [true, 1, "categoria_foto"], [con.ok, f.chiamate.length, JSON.parse(f.chiamate[0].init.body).azione]);
+      const corpo = JSON.parse(f.chiamate[0].init.body);
+      c("…e il corpo porta le tre misure e l'alt come sono", [FOTO.path480, FOTO.path960, FOTO.path1600, FOTO.alt, ID], [corpo.path480, corpo.path960, corpo.path1600, corpo.alt, corpo.categoriaId]);
       c("…ed è nell'elenco delle azioni", true, K.AZIONI_NEGOZIO.includes("categoria_foto"));
+      // la forma vecchia (una sola misura, `id`) o incompleta non parte: il server la rifiuterebbe
+      const g = fetchFinto(risposta({ ok: true }));
+      const storte = {
+        "con `id` al posto di `categoriaId`": (({ categoriaId, ...r }) => ({ ...r, id: categoriaId }))(FOTO),
+        "con la sola `path` (una misura)": { categoriaId: ID, path: "foto/x.jpg", alt: "Una foto" },
+        "senza `path480`": { ...FOTO, path480: undefined },
+        "senza `path960`": { ...FOTO, path960: "" },
+        "senza `path1600`": { ...FOTO, path1600: 5 },
+        "senza `alt`": { ...FOTO, alt: "   " },
+        "con `categoriaId` non valido": { ...FOTO, categoriaId: "../x" },
+      };
+      for (const [nome, dati] of Object.entries(storte)) {
+        const r = await K.eseguiAzione(g, "categoria_foto", { ...dati, versione: V });
+        c(`categoria_foto ${nome}: non parte, errore «valore»`, [false, "valore"], [r.ok, r.errore?.tipo]);
+      }
+      c("…nessuna delle storte ha chiamato il server", 0, g.chiamate.length);
     }
     // 502/503/504 senza `motivo` (timeout dell'hosting) su un'azione: può aver scritto, come la rete caduta
     {

@@ -74,6 +74,14 @@ function mancaVersione(azione: string, dati: Record<string, unknown>): boolean {
   return richiesta && !(typeof dati.versione === "string" && dati.versione !== "");
 }
 
+/** D36: la foto di una categoria arriva in tre misure (`path480`, `path960`, `path1600`) con l'`alt` e la `categoriaId`: se ne manca una il server
+ *  la rifiuterebbe di sicuro, quindi non parte nemmeno. (Che i percorsi siano veri lo controlla il server.) */
+function fotoCategoriaIncompleta(azione: string, dati: Record<string, unknown>): boolean {
+  if (azione !== "categoria_foto") return false;
+  const pieno = (v: unknown) => typeof v === "string" && v.trim() !== "";
+  return !(eId(dati.categoriaId) && pieno(dati.path480) && pieno(dati.path960) && pieno(dati.path1600) && pieno(dati.alt));
+}
+
 /* ══ GLI ERRORI ═════════════════════════════════════════════════════════════ */
 
 export type TipoErrore =
@@ -257,6 +265,7 @@ export type RisultatoAzione = RisultatoDati;
 export async function eseguiAzione(f: FetchRotta, azione: string, dati: Record<string, unknown> = {}): Promise<RisultatoAzione> {
   if (!(AZIONI_NEGOZIO as readonly string[]).includes(azione)) return { ok: false, errore: errore("valore") };
   if (mancaVersione(azione, dati)) return { ok: false, errore: errore("valore", "Manca la versione di ciò che stai modificando: ricarica la pagina e riprova.") };
+  if (fotoCategoriaIncompleta(azione, dati)) return { ok: false, errore: errore("valore", "La foto della categoria è incompleta: scegli di nuovo la foto e descrivila.") };
   const g = await chiama(f, ROTTA, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
