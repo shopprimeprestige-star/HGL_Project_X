@@ -73,8 +73,8 @@ export const Route = createRootRoute({
   //  aggiornano" e i clienti che cadono a metà consulenza dopo un deploy.
   //  `no-cache` non vieta la cache: obbliga a chiedere al server se è cambiata,
   //  quindi non costa banda quando non serve.
-  //  ⚠️ `Referrer-Policy: no-referrer` sulle pagine NON ammesse (ordine, CRM, preventivo, videochiamata, `?watch`…): il loro indirizzo
-  //   porta codici e non deve uscire verso altri siti. La pagina è quella FINALE della catena (l'ultimo incontro); la regola è la
+  //  ⚠️ `Referrer-Policy: strict-origin` sulle pagine NON ammesse (ordine, CRM, preventivo, videochiamata, `?watch`…): il loro indirizzo
+  //   porta codici e non deve uscire verso altri siti (esce solo l'origine). Non `no-referrer`: YouTube lo rifiuta («errore 153»). La pagina è quella FINALE della catena (l'ultimo incontro); la regola è la
   //   stessa dei pixel e del banner (`percorsoAmmesso`), non un elenco a parte.
   headers: ({ matches }) => {
     const pagina = matches[matches.length - 1] as { pathname?: string; search?: Record<string, unknown> } | undefined;

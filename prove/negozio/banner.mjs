@@ -89,6 +89,11 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("il banner non ruba il fuoco da solo: nessun `autoFocus`", false, /autoFocus|autofocus/.test(src.banner));
   c("il banner usa il file dei testi (nessun testo di bottone scritto nel componente)", [true, false], [/testi-cookie/.test(src.banner), /["'>]\s*Accetta\s*["'<]/.test(senzaCommenti(src.banner))]);
 
+  /* il fuoco non si perde (nota 3 del revisore): dopo la scelta va sulla riga di stato, alla chiusura torna al link che aveva aperto il banner (o al primo «Gestisci cookie») */
+  c("fuoco: il banner porta il fuoco sulla riga di conferma (`tabIndex={-1}`) quando la scelta è salvata", [true, true], [/statoRef/.test(src.banner) && /\.focus\(/.test(src.banner), /role="status"[\s\S]{0,200}tabIndex=\{-1\}|tabIndex=\{-1\}[\s\S]{0,200}role="status"/.test(src.banner)]);
+  c("fuoco: il provider ricorda l'elemento che aveva il fuoco quando si apre da «Gestisci cookie» e lo ridà alla chiusura (altrimenti il primo link «Gestisci cookie»)", [true, true, true], [/document\.activeElement/.test(src.provider), /isConnected/.test(src.provider), /data-gestisci-cookie/.test(src.provider) && /data-gestisci-cookie/.test(src.gestisci)]);
+  c("fuoco: non lo toglie a chi l'ha già spostato altrove (controlla `document.body` prima di ridarlo)", true, /document\.body/.test(src.provider));
+
   /* ───────────────── 2 · IL MARCHIO DEL BANNER ───────────────── */
   const esbuild = requireQui("esbuild");
   const dir = mkdtempSync(join(tmpdir(), "banner-"));
@@ -277,9 +282,9 @@ export async function prove(mod, { c, gruppo, radice }) {
   for (const [p, q] of NON_AMMESSE) {
     const x = nuovo({ consenso: NIENTE, path: p, search: q });
     await x.ctl.valuta();
-    conMeta.push(x.meta?.content ?? null);
+    conMeta.push(!!x.meta?.content);
   }
-  c("pagine non ammesse: `applicaConsenso` gira lo stesso (anche senza scelta e senza configurazione) e mette `<meta referrer=no-referrer>`", NON_AMMESSE.map(() => "no-referrer"), conMeta);
+  c("pagine non ammesse: `applicaConsenso` gira lo stesso (anche senza scelta e senza configurazione) e mette il `<meta name=referrer>` (il valore è di T26)", NON_AMMESSE.map(() => true), conMeta);
   const ra = nuovo({ consenso: NIENTE, path: "/shop" });
   await ra.ctl.valuta();
   c("pagina ammessa: nessun meta del referrer", null, ra.meta);
@@ -287,7 +292,7 @@ export async function prove(mod, { c, gruppo, radice }) {
   await rb.ctl.valuta();
   rb.vai("/shop");
   await rb.ctl.valuta();
-  c("dalla pagina non ammessa a una ammessa (navigazione interna) il meta si toglie; e si rimette tornando indietro", [null, "no-referrer"], [rb.meta, (rb.vai("/CRM/leads"), await rb.ctl.valuta(), rb.meta?.content)]);
+  c("dalla pagina non ammessa a una ammessa (navigazione interna) il meta si toglie; e si rimette tornando indietro", [null, true], [rb.meta, (rb.vai("/CRM/leads"), await rb.ctl.valuta(), !!rb.meta?.content)]);
   const cornice = nuovo({ consenso: MARKETING, cornice: true });
   await cornice.ctl.valuta();
   c("dentro un iframe (anteprima): 0 script, 0 richieste, 0 controlli, 0 PageView", "0/0/0/0", [cornice.scripts.length, cornice.configChiamate, cornice.adminChiamate, cornice.pv.length].join("/"));
@@ -358,11 +363,12 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("`politicaReferrer` esiste", "function", typeof RP);
   if (typeof RP === "function") {
     const NO = (p, q = "") => RP(p, q);
-    c("Referrer-Policy: no-referrer su ordine, CRM, preventivo, videochiamata, media, `?watch`, anteprima e pagine non elencate", NON_AMMESSE.concat([["/CRM", ""], ["/media/x", ""], ["/meetly/x", ""], ["/preventivo", ""], ["/non-esiste", ""]]).map(() => "no-referrer"),
+    c("Referrer-Policy: strict-origin (NON no-referrer: YouTube risponde «errore 153» agli incorporamenti senza Referer) su ordine, CRM, preventivo, videochiamata, media, `?watch`, anteprima e pagine non elencate", NON_AMMESSE.concat([["/CRM", ""], ["/media/x", ""], ["/meetly/x", ""], ["/preventivo", ""], ["/non-esiste", ""]]).map(() => "strict-origin"),
       NON_AMMESSE.concat([["/CRM", ""], ["/media/x", ""], ["/meetly/x", ""], ["/preventivo", ""], ["/non-esiste", ""]]).map(([p, q]) => NO(p, q)?.["Referrer-Policy"]));
     c("nessuna intestazione sulle pagine ammesse (la landing e lo shop tengono il referrer di sempre)", PAGINE_SI.map(() => undefined), PAGINE_SI.map(([p, q]) => RP(p, q)?.["Referrer-Policy"]));
-    c("la ricerca può arrivare come testo o come oggetto della rotta (`{watch: \"x\"}`): stessa risposta", ["no-referrer", "no-referrer", undefined], [RP("/shop", { watch: "x" })?.["Referrer-Policy"], RP("/shop", "?t=1")?.["Referrer-Policy"], RP("/shop", { utm_source: "ig" })?.["Referrer-Policy"]]);
+    c("la ricerca può arrivare come testo o come oggetto della rotta (`{watch: \"x\"}`): stessa risposta", ["strict-origin", "strict-origin", undefined], [RP("/shop", { watch: "x" })?.["Referrer-Policy"], RP("/shop", "?t=1")?.["Referrer-Policy"], RP("/shop", { utm_source: "ig" })?.["Referrer-Policy"]]);
   }
+  c("né la radice né `controllo.ts` usano `no-referrer` (rompe i lettori YouTube di /web, /webinar, /slide, /presenta)", [false, false], [/["']no-referrer["']/.test(senzaCommenti(radiceSrc)), /["']no-referrer["']/.test(senzaCommenti(src.controllo))]);
   c("`__root.tsx` mette l'intestazione dalle `headers` della radice, senza perdere `Cache-Control`", [true, true], [/politicaReferrer/.test(radiceSrc), /no-cache, must-revalidate/.test(radiceSrc)]);
 
   // un amministratore che cambia scelta: niente, e nessuna revoca che ricarica a vuoto

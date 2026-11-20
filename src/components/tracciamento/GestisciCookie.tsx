@@ -15,7 +15,7 @@ export function GestisciCookie({ className = STILE_PIEDE }: { className?: string
   const ricerca = useRouterState({ select: (s) => s.location.searchStr });
   if (!bannerAmmesso(percorso, ricerca, false, false)) return null;
   return (
-    <button type="button" className={className} onClick={() => window.dispatchEvent(new Event(EVENTO_APRI_COOKIE))}>
+    <button type="button" data-gestisci-cookie className={className} onClick={() => window.dispatchEvent(new Event(EVENTO_APRI_COOKIE))}>
       {TESTI.gestisci}
     </button>
   );

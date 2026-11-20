@@ -41,6 +41,7 @@ export function BannerCookie({ attuale, onScelta, onChiudi, esito = null, vistaI
   const scheda = useRef<HTMLDivElement>(null);
   const primaCasella = useRef<HTMLInputElement>(null);
   const fuocoSulleScelte = useRef(false);
+  const statoRef = useRef<HTMLParagraphElement>(null);
 
   useEffect(() => {
     if (daUtente) scheda.current?.focus();
@@ -48,6 +49,12 @@ export function BannerCookie({ attuale, onScelta, onChiudi, esito = null, vistaI
   useEffect(() => {
     if (vista === "scelte" && fuocoSulleScelte.current) primaCasella.current?.focus();
   }, [vista]);
+  // premuto un bottone da tastiera il bottone sparisce: il fuoco va sulla riga di conferma invece di cadere sulla pagina
+  useEffect(() => {
+    if (esito !== "ok") return;
+    const a = document.activeElement;
+    if (!a || a === document.body || scheda.current?.contains(a)) statoRef.current?.focus();
+  }, [esito]);
   // la conferma resta qualche secondo e poi se ne va da sola: non c'è niente da premere
   useEffect(() => {
     if (esito !== "ok") return;
@@ -70,7 +77,7 @@ export function BannerCookie({ attuale, onScelta, onChiudi, esito = null, vistaI
     >
       <div className="max-h-[85dvh] overflow-y-auto overscroll-contain rounded-t-xl border-t border-white/15 bg-[#081634] px-5 pt-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] text-white shadow-galleggiante sm:rounded-xl sm:border sm:pb-5">
         {conferma ? (
-          <p role="status" className="text-sm leading-relaxed text-white/90">
+          <p ref={statoRef} role="status" tabIndex={-1} className="text-sm leading-relaxed text-white/90 outline-none">
             {TESTI.salvata}
           </p>
         ) : (

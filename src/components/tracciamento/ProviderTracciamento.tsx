@@ -39,6 +39,9 @@ export function ProviderTracciamento() {
   const [daUtente, setDaUtente] = useState(false);
   const [esito, setEsito] = useState<"ok" | "errore" | null>(null);
   const controllo = useRef<ReturnType<typeof creaControllo> | null>(null);
+  // dove stava il fuoco quando l'utente ha aperto il banner dal link, e se alla chiusura il fuoco va ridato
+  const fuocoPrima = useRef<HTMLElement | null>(null);
+  const ridaiFuoco = useRef(false);
 
   // una volta, nel browser: il controllo, la scelta di adesso e i due eventi (scelta cambiata, «Gestisci cookie»)
   useEffect(() => {
@@ -62,6 +65,7 @@ export function ProviderTracciamento() {
       void c.consensoCambiato(nuova);
     };
     const suApri = () => {
+      fuocoPrima.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
       setDaUtente(true);
       setEsito(null);
       setRiaperto(true);
@@ -88,12 +92,25 @@ export function ProviderTracciamento() {
     setEsito(scriviConsenso(magazzino(), s, Date.now()).scelto ? "ok" : "errore");
   }, []);
   const chiudi = useCallback(() => {
+    ridaiFuoco.current = true;
     setRiaperto(false);
     setEsito(null);
     setDaUtente(false);
   }, []);
 
-  if (!mostraBanner({ percorso, ricerca, inCornice, admin, consenso, riaperto: riaperto || esito === "ok" })) return null;
+  const visibile = mostraBanner({ percorso, ricerca, inCornice, admin, consenso, riaperto: riaperto || esito === "ok" });
+  // il banner se n'è andato (conferma finita o Esc): il fuoco non resta sulla pagina vuota. Torna al link che l'aveva aperto, o al primo
+  // «Gestisci cookie»; se nel frattempo l'utente l'ha già portato altrove non si tocca.
+  useEffect(() => {
+    if (visibile || !ridaiFuoco.current) return;
+    ridaiFuoco.current = false;
+    const a = document.activeElement;
+    if (a && a !== document.body) return;
+    const dove = fuocoPrima.current?.isConnected ? fuocoPrima.current : document.querySelector<HTMLElement>("[data-gestisci-cookie]");
+    fuocoPrima.current = null;
+    dove?.focus({ preventScroll: true });
+  }, [visibile]);
+  if (!visibile) return null;
   return (
     <BannerCookie
       // si rimonta se cambia il modo di aprirlo: così le caselle partono dalla scelta di adesso

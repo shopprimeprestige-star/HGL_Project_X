@@ -35,10 +35,11 @@ export function serveRevoca(prima: Consenso, dopo: Consenso): boolean {
 }
 
 /** `Referrer-Policy` delle pagine NON ammesse (ordine, CRM, preventivo, videochiamata, `?watch`…): il loro indirizzo porta codici e non deve
- *  uscire verso altri siti. Stessa regola di pixel e banner; la ricerca può essere un testo o l'oggetto della rotta (contano le chiavi). */
+ *  uscire verso altri siti. ⚠️ `strict-origin` e NON `no-referrer`: del referrer resta solo l'origine del sito (mai percorso né query), ma YouTube
+ *  la pretende dagli incorporamenti (senza, il lettore risponde «errore 153» e il video non parte: /web, /webinar, /slide, /presenta). Stessa regola di pixel e banner; la ricerca può essere un testo o l'oggetto della rotta (contano le chiavi). */
 export function politicaReferrer(percorso: string, ricerca: string | Record<string, unknown>): Record<string, string> | undefined {
   const testo = typeof ricerca === "string" ? ricerca : new URLSearchParams(Object.keys(ricerca ?? {}).map((k) => [k, ""])).toString();
-  return percorsoAmmesso(percorso, testo, false) ? undefined : { "Referrer-Policy": "no-referrer" };
+  return percorsoAmmesso(percorso, testo, false) ? undefined : { "Referrer-Policy": "strict-origin" };
 }
 
 export type PorteControllo = {
