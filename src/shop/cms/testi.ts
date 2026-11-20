@@ -32,7 +32,7 @@ const ELENCO: readonly { parola: string; modello: string }[] = [
   { parola: "Remy", modello: "remy" },
   { parola: "europei", modello: "europe[aeio]" },
   { parola: "indistinguibile", modello: "indistinguibil[ei]" },
-  { parola: "best seller", modello: "best[\\s-]?seller" },
+  { parola: "best seller", modello: "best[\\s-]*seller" },
   { parola: "più venduto", modello: "pi[uù]\\s+vendut[aeio]" },
 ];
 export const PAROLE_DA_NON_USARE: readonly string[] = ELENCO.map((p) => p.parola);

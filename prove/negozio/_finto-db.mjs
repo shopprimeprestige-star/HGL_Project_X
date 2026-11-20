@@ -45,9 +45,16 @@ const chiDi = (chi) => (typeof chi === "string" && chi.trim() ? chi.trim() : "sc
 /** Uguaglianza fra valori JSON come jsonb: l'ordine delle chiavi non conta. */
 const canonico = (v) => (Array.isArray(v) ? v.map(canonico) : v && typeof v === "object" ? Object.fromEntries(Object.keys(v).sort().map((k) => [k, canonico(v[k])])) : v);
 const nonNeg = (v) => v == null || v >= 0;
+const pieno = (v) => typeof v === "string" && v.trim() !== ""; // btrim(x) <> ''
+const tipoJson = (v, tipo) => v == null || (tipo === "array" ? Array.isArray(v) : v !== null && typeof v === "object" && !Array.isArray(v)); // jsonb_typeof
 const CHECK = {
-  shop_prodotti: (r) => nonNeg(r.prezzo_cent) && (r.stato == null || ["bozza", "pubblicato", "archiviato"].includes(r.stato)),
-  shop_varianti: (r) => nonNeg(r.giacenza) && nonNeg(r.prezzo_cent),
+  shop_categorie: (r) => pieno(r.slug) && pieno(r.nome) && ["categoria", "collezione"].includes(r.tipo),
+  shop_prodotti: (r) =>
+    nonNeg(r.prezzo_cent) && (r.stato == null || ["bozza", "pubblicato", "archiviato"].includes(r.stato)) &&
+    pieno(r.sku) && pieno(r.slug) && pieno(r.nome) && ["patch", "cura", "kit"].includes(r.tipo) &&
+    (r.origine == null || r.origine === "codice") && tipoJson(r.caratteristiche, "array") && tipoJson(r.contenuto, "oggetto") &&
+    tipoJson(r.canali, "oggetto") && tipoJson(r.bozza_modifiche, "oggetto"),
+  shop_varianti: (r) => nonNeg(r.giacenza) && nonNeg(r.prezzo_cent) && pieno(r.sku) && tipoJson(r.opzioni, "oggetto"),
   shop_giacenza_movimenti: (r) => r.motivo == null || MOTIVI.includes(r.motivo),
   shop_media: (r) =>
     SLOT.includes(r.slot) &&

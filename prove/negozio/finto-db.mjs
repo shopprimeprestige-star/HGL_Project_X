@@ -193,6 +193,21 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("media con variante ma slot diverso da «campione» → 23514; con «campione» passa", ["23514", null], [await media({ variante_id: V1 }), await media({ slot: "campione", variante_id: V1 })]);
   c("tutti gli slot di S1 sono ammessi", [], (await Promise.all(SLOT.map(async (slot) => [slot, await media({ slot, variante_id: slot === "campione" ? V1 : null })]))).filter(([, e]) => e));
 
+  // ── i CHECK di S1 su tipo, btrim e jsonb_typeof ──
+  const ck = fintoDb({ tabelle: tabelleProva() });
+  const codici = [
+    (await ck.from("shop_prodotti").insert(prodottoProva({ id: uuid(0x2a0), sku: "PROVA-K1", slug: "k1", id_codice: null, tipo: "boh" }))).error?.code,
+    (await ck.from("shop_prodotti").insert(prodottoProva({ id: uuid(0x2a1), sku: "  ", slug: "k2", id_codice: null }))).error?.code,
+    (await ck.from("shop_prodotti").insert(prodottoProva({ id: uuid(0x2a2), sku: "PROVA-K3", slug: "k3", id_codice: null, caratteristiche: {} }))).error?.code,
+    (await ck.from("shop_prodotti").insert(prodottoProva({ id: uuid(0x2a3), sku: "PROVA-K4", slug: "k4", id_codice: null, canali: [] }))).error?.code,
+    (await ck.from("shop_categorie").insert({ slug: "k", nome: "K", tipo: "boh" })).error?.code,
+    (await ck.from("shop_categorie").insert({ slug: " ", nome: "K" })).error?.code,
+    (await ck.from("shop_varianti").insert(varianteProva({ id: uuid(0x3a0), sku: "" }))).error?.code,
+    (await ck.from("shop_varianti").insert(varianteProva({ id: uuid(0x3a1), sku: "PROVA-K5", opzioni: [] }))).error?.code,
+  ];
+  c("CHECK: tipo del prodotto, SKU vuoto, caratteristiche non elenco, canali non oggetto, tipo e slug vuoto della categoria, SKU vuoto e opzioni non oggetto della variante → 23514", Array(8).fill("23514"), codici);
+  c("CHECK: un prodotto in regola passa", null, (await ck.from("shop_prodotti").insert(prodottoProva({ id: uuid(0x2a9), sku: "PROVA-OK", slug: "ok", id_codice: null }))).error);
+
   // ── 7. una funzione assente è PGRST202; 8. `eq(col, null)` non trova niente ──
   c("rpc di una funzione che non c'è: PGRST202", "PGRST202", (await fintoDb({ tabelle: tabelleProva() }).rpc("shop_non_esiste", {})).error?.code);
   c("eq(col, null) non trova niente (`= NULL` non è mai vero); is(col, null) sì", [0, 2], [(await db.from("shop_prodotti").select("id").eq("bozza_modifiche", null)).data.length, (await db.from("shop_prodotti").select("id").is("bozza_modifiche", null)).data.length]);
