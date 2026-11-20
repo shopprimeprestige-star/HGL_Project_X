@@ -24,29 +24,44 @@ export interface StatoShop {
   puoAprire: boolean;
 }
 
-const eOggetto = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
+const eOggetto = (v: unknown): v is Record<string, unknown> =>
+  typeof v === "object" && v !== null && !Array.isArray(v);
 
 /** Le righe ben formate; le altre si scartano (una riga che non si capisce non può far aprire niente). */
 function leggiRighe(x: unknown): RigaCondizione[] {
   if (!Array.isArray(x)) return [];
   return x.flatMap((r) =>
-    eOggetto(r) && typeof r.chiave === "string" && r.chiave && typeof r.ok === "boolean" && typeof r.valutabile === "boolean" && typeof r.frase === "string"
+    eOggetto(r) &&
+    typeof r.chiave === "string" &&
+    r.chiave &&
+    typeof r.ok === "boolean" &&
+    typeof r.valutabile === "boolean" &&
+    typeof r.frase === "string"
       ? [{ chiave: r.chiave, ok: r.ok, valutabile: r.valutabile, frase: r.frase }]
       : [],
   );
 }
 
-export const statoCondizione = (r: RigaCondizione): StatoRiga => (!r.valutabile ? "non_valutabile" : r.ok ? "ok" : "no");
+export const statoCondizione = (r: RigaCondizione): StatoRiga =>
+  !r.valutabile ? "non_valutabile" : r.ok ? "ok" : "no";
 
 /** Le condizioni di una risposta (`{ righe, puoAprire }`), per la lettura e per il rifiuto «cancello». `null` se non si capisce. */
 export function righeDaCondizioni(condizioni: unknown): RigaCondizione[] | null {
-  return eOggetto(condizioni) && Array.isArray(condizioni.righe) ? leggiRighe(condizioni.righe) : null;
+  return eOggetto(condizioni) && Array.isArray(condizioni.righe)
+    ? leggiRighe(condizioni.righe)
+    : null;
 }
 
 /** `true` solo se il server lo dice e ogni riga è valutabile e a posto (e ce n'è almeno una). */
 export function puoAprireDa(condizioni: unknown): boolean {
   const righe = righeDaCondizioni(condizioni);
-  return eOggetto(condizioni) && condizioni.puoAprire === true && righe !== null && righe.length > 0 && righe.every((r) => statoCondizione(r) === "ok");
+  return (
+    eOggetto(condizioni) &&
+    condizioni.puoAprire === true &&
+    righe !== null &&
+    righe.length > 0 &&
+    righe.every((r) => statoCondizione(r) === "ok")
+  );
 }
 
 export function leggiStatoShop(dati: unknown): StatoShop | null {
@@ -55,8 +70,17 @@ export function leggiStatoShop(dati: unknown): StatoShop | null {
   const valore = eOggetto(catalogo) ? catalogo.valore : null;
   if (valore !== "codice" && valore !== "cms") return null;
   const g = dati.interruttori.giacenza_bassa;
-  const soglia = eOggetto(g) && typeof g.valore === "number" && Number.isSafeInteger(g.valore) && g.valore >= 0 ? g.valore : null;
-  return { valore, aperto: valore === "cms", soglia, righe: righeDaCondizioni(dati.condizioni) ?? [], puoAprire: puoAprireDa(dati.condizioni) };
+  const soglia =
+    eOggetto(g) && typeof g.valore === "number" && Number.isSafeInteger(g.valore) && g.valore >= 0
+      ? g.valore
+      : null;
+  return {
+    valore,
+    aperto: valore === "cms",
+    soglia,
+    righe: righeDaCondizioni(dati.condizioni) ?? [],
+    puoAprire: puoAprireDa(dati.condizioni),
+  };
 }
 
 /** I titoli per il titolare. Una chiave sconosciuta usa la frase del server. */
@@ -73,7 +97,8 @@ export const titoloCondizione = (r: RigaCondizione): string => TITOLI[r.chiave] 
 
 export const FRASE_NON_VALUTABILE = "Si attiva col rilascio della cassa.";
 /** Sotto il titolo: la frase del server, tranne per le righe che oggi non si sanno valutare. */
-export const fraseCondizione = (r: RigaCondizione): string => (r.valutabile ? r.frase : FRASE_NON_VALUTABILE);
+export const fraseCondizione = (r: RigaCondizione): string =>
+  r.valutabile ? r.frase : FRASE_NON_VALUTABILE;
 
 export function riepilogoCondizioni(righe: readonly RigaCondizione[]) {
   return {

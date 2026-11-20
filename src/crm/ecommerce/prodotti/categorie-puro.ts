@@ -26,14 +26,22 @@ export interface CategoriaVista {
   slugBloccato: boolean;
 }
 
-const eOggetto = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
+const eOggetto = (v: unknown): v is Record<string, unknown> =>
+  typeof v === "object" && v !== null && !Array.isArray(v);
 const testoOrNull = (v: unknown): string | null => (typeof v === "string" && v.trim() ? v : null);
 
 /** L'elenco nell'ordine del server. `null` se la risposta non è un elenco (non si finge «nessuna categoria»). */
 export function leggiCategorie(dati: unknown): CategoriaVista[] | null {
   if (!eOggetto(dati) || !Array.isArray(dati.categorie)) return null;
   return dati.categorie.flatMap((r): CategoriaVista[] => {
-    if (!eOggetto(r) || typeof r.id !== "string" || !r.id || typeof r.nome !== "string" || typeof r.slug !== "string") return [];
+    if (
+      !eOggetto(r) ||
+      typeof r.id !== "string" ||
+      !r.id ||
+      typeof r.nome !== "string" ||
+      typeof r.slug !== "string"
+    )
+      return [];
     return [
       {
         id: r.id,
@@ -45,9 +53,14 @@ export function leggiCategorie(dati: unknown): CategoriaVista[] | null {
         ordine: typeof r.ordine === "number" ? r.ordine : 0,
         visibile: r.visibile === true,
         versione: testoOrNull(r.versione),
-        quanti: typeof r.quanti === "number" && Number.isSafeInteger(r.quanti) && r.quanti > 0 ? r.quanti : 0,
+        quanti:
+          typeof r.quanti === "number" && Number.isSafeInteger(r.quanti) && r.quanti > 0
+            ? r.quanti
+            : 0,
         //  Se la bandiera manca ma c'è la data di pubblicazione, l'indirizzo è bloccato: nel dubbio si blocca.
-        slugBloccato: r.slugBloccato === true || (r.slugBloccato === undefined && testoOrNull(r.pubblicataIl) !== null),
+        slugBloccato:
+          r.slugBloccato === true ||
+          (r.slugBloccato === undefined && testoOrNull(r.pubblicataIl) !== null),
       },
     ];
   });
@@ -69,7 +82,8 @@ export function motivoNascosta(c: Pick<CategoriaVista, "visibile" | "quanti">): 
   return null;
 }
 
-export const fraseProdotti = (n: number): string => `${n} ${n === 1 ? "prodotto pubblicato" : "prodotti pubblicati"}`;
+export const fraseProdotti = (n: number): string =>
+  `${n} ${n === 1 ? "prodotto pubblicato" : "prodotti pubblicati"}`;
 
 /** L'indirizzo della miniatura: base dello Storage + percorso. Senza base o con un percorso che esce dalla cartella, niente foto. */
 export function urlFoto(base: string | undefined, path: string | null): string | null {
@@ -85,15 +99,24 @@ export interface PercorsiFoto {
   path1600: string;
 }
 /** I file prodotti da `disegnaMisure` (uno per misura, `per` = i nomi che serve) e i loro percorsi, nello stesso ordine → i tre nomi. */
-export function assegnaPercorsi(misure: ReadonlyArray<{ per: readonly number[] }>, percorsi: readonly string[]): PercorsiFoto | null {
+export function assegnaPercorsi(
+  misure: ReadonlyArray<{ per: readonly number[] }>,
+  percorsi: readonly string[],
+): PercorsiFoto | null {
   if (misure.length !== percorsi.length) return null;
   const per: Record<number, string> = {};
   misure.forEach((m, i) => m.per.forEach((n) => (per[n] = percorsi[i])));
-  return per[480] && per[960] && per[1600] ? { path480: per[480], path960: per[960], path1600: per[1600] } : null;
+  return per[480] && per[960] && per[1600]
+    ? { path480: per[480], path960: per[960], path1600: per[1600] }
+    : null;
 }
 
 /** Il corpo di `categoria_foto`; `null` se manca la versione o l'alt (obbligatorio, al massimo 125 segni). */
-export function corpoFoto(c: Pick<CategoriaVista, "id" | "versione">, percorsi: PercorsiFoto, alt: string): Record<string, unknown> | null {
+export function corpoFoto(
+  c: Pick<CategoriaVista, "id" | "versione">,
+  percorsi: PercorsiFoto,
+  alt: string,
+): Record<string, unknown> | null {
   const testo = alt.trim();
   if (!c.versione || !testo || testo.length > TETTI.alt) return null;
   return { categoriaId: c.id, ...percorsi, alt: testo, versione: c.versione };
@@ -110,11 +133,15 @@ export function corpoSalva(
   const slug = campi.slug.trim();
   const frase = campi.frase.trim();
   if (!nome) return { errore: "Scrivi il nome della categoria." };
-  if (nome.length > MAX_NOME) return { errore: `Il nome può avere al massimo ${MAX_NOME} caratteri.` };
-  if (frase.length > MAX_FRASE) return { errore: `La frase può avere al massimo ${MAX_FRASE} caratteri.` };
+  if (nome.length > MAX_NOME)
+    return { errore: `Il nome può avere al massimo ${MAX_NOME} caratteri.` };
+  if (frase.length > MAX_FRASE)
+    return { errore: `La frase può avere al massimo ${MAX_FRASE} caratteri.` };
   const mandaSlug = !c || !c.slugBloccato;
-  if (mandaSlug && !slugValido(slug)) return { errore: "L'indirizzo non è valido: solo lettere minuscole, numeri e trattini." };
+  if (mandaSlug && !slugValido(slug))
+    return { errore: "L'indirizzo non è valido: solo lettere minuscole, numeri e trattini." };
   if (!c) return { nome, slug, ...(frase && { frase }) };
-  if (!c.versione) return { errore: "Manca la versione della categoria: aggiorna l'elenco e riprova." };
+  if (!c.versione)
+    return { errore: "Manca la versione della categoria: aggiorna l'elenco e riprova." };
   return { id: c.id, versione: c.versione, nome, ...(mandaSlug && { slug }), frase: frase || null };
 }

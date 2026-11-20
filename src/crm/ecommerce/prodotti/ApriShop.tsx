@@ -81,7 +81,14 @@ export function ApriShop({ negozio }: PropsApriShop) {
     setLettura((p) =>
       stato
         ? { stato, errore: null, letto: true }
-        : { stato: p.stato, errore: { tipo: "server", messaggio: "Non capisco la risposta del server: riprova tra un momento." }, letto: true },
+        : {
+            stato: p.stato,
+            errore: {
+              tipo: "server",
+              messaggio: "Non capisco la risposta del server: riprova tra un momento.",
+            },
+            letto: true,
+          },
     );
   }, [interruttori]);
 
@@ -94,7 +101,11 @@ export function ApriShop({ negozio }: PropsApriShop) {
   }, [carica]);
 
   /** Un cambio di interruttore. Gli errori dicono cosa è successo; il conflitto e la rete incerta rileggono. */
-  async function imposta(dati: { chiave: string; valore: string | number; atteso: unknown }, fatto: string, lavoroInCorso: Lavoro) {
+  async function imposta(
+    dati: { chiave: string; valore: string | number; atteso: unknown },
+    fatto: string,
+    lavoroInCorso: Lavoro,
+  ) {
     setLavoro(lavoroInCorso);
     setEsito(null);
     const r = await esegui("interruttore_imposta", dati);
@@ -109,33 +120,55 @@ export function ApriShop({ negozio }: PropsApriShop) {
     if (e.tipo === "cancello") {
       //  Il server ha le sue righe: si mostrano quelle (può aver visto qualcosa che qui è già vecchio).
       const righe = righeDaCondizioni(e.condizioni);
-      if (righe) setLettura((p) => (p.stato ? { ...p, stato: { ...p.stato, righe, puoAprire: false } } : p));
+      if (righe)
+        setLettura((p) => (p.stato ? { ...p, stato: { ...p.stato, righe, puoAprire: false } } : p));
       setEsito({ tono: "errore", testo: e.messaggio });
       return;
     }
     if (e.tipo === "conflitto") {
-      setEsito({ tono: "errore", testo: "Un'altra persona ha cambiato lo shop nel frattempo: ho aggiornato la schermata. Controlla e riprova." });
+      setEsito({
+        tono: "errore",
+        testo:
+          "Un'altra persona ha cambiato lo shop nel frattempo: ho aggiornato la schermata. Controlla e riprova.",
+      });
       await carica();
       return;
     }
     if (e.tipo === "rete") await carica(); // la richiesta può essere arrivata: si guarda com'è davvero
-    setEsito({ tono: "errore", testo: e.messaggio, riprova: e.tipo === "rete" ? undefined : () => void imposta(dati, fatto, lavoroInCorso) });
+    setEsito({
+      tono: "errore",
+      testo: e.messaggio,
+      riprova: e.tipo === "rete" ? undefined : () => void imposta(dati, fatto, lavoroInCorso),
+    });
   }
 
   if (!lettura.letto)
     return (
-      <div role="status" aria-busy="true" className="h-24 animate-pulse rounded-xl border border-border bg-muted/50 motion-reduce:animate-none">
+      <div
+        role="status"
+        aria-busy="true"
+        className="h-24 animate-pulse rounded-xl border border-border bg-muted/50 motion-reduce:animate-none"
+      >
         <span className="sr-only">Controllo lo shop…</span>
       </div>
     );
   //  Senza permesso o sessione l'elenco dei prodotti lo dice già: qui non si ripete.
-  if (!lettura.stato && (lettura.errore?.tipo === "permesso" || lettura.errore?.tipo === "sessione")) return null;
+  if (
+    !lettura.stato &&
+    (lettura.errore?.tipo === "permesso" || lettura.errore?.tipo === "sessione")
+  )
+    return null;
   if (!lettura.stato)
     return (
       <Avviso
         errore
         azione={
-          <Button size="sm" variant="outline" className="h-11 text-[12px] md:h-8" onClick={() => void carica()}>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-11 text-[12px] md:h-8"
+            onClick={() => void carica()}
+          >
             Riprova
           </Button>
         }
@@ -171,7 +204,11 @@ function Pannello({
   lavoro: Lavoro | null;
   esito: Esito | null;
   ricontrolla: () => void;
-  imposta: (dati: { chiave: string; valore: string | number; atteso: unknown }, fatto: string, lavoro: Lavoro) => Promise<void>;
+  imposta: (
+    dati: { chiave: string; valore: string | number; atteso: unknown },
+    fatto: string,
+    lavoro: Lavoro,
+  ) => Promise<void>;
 }) {
   const occupato = lavoro !== null;
   const { aPosto, totale, nonValutabili } = riepilogoCondizioni(stato.righe);
@@ -179,10 +216,18 @@ function Pannello({
   /** Non parte se lo shop non si può aprire: il server lo rifiuterebbe comunque. */
   const apri = () => {
     if (!stato.puoAprire) return;
-    void imposta({ chiave: "catalogo_sito", valore: "cms", atteso: stato.valore }, "Lo shop è aperto al pubblico.", "apertura");
+    void imposta(
+      { chiave: "catalogo_sito", valore: "cms", atteso: stato.valore },
+      "Lo shop è aperto al pubblico.",
+      "apertura",
+    );
   };
   const chiudi = () => {
-    void imposta({ chiave: "catalogo_sito", valore: "codice", atteso: stato.valore }, "Lo shop è chiuso: il sito è tornato al catalogo di prima.", "chiusura");
+    void imposta(
+      { chiave: "catalogo_sito", valore: "codice", atteso: stato.valore },
+      "Lo shop è chiuso: il sito è tornato al catalogo di prima.",
+      "chiusura",
+    );
   };
 
   const messaggi = (
@@ -191,12 +236,18 @@ function Pannello({
         <Avviso
           errore
           azione={
-            <Button size="sm" variant="outline" className="h-11 text-[12px] md:h-8" onClick={ricontrolla}>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-11 text-[12px] md:h-8"
+              onClick={ricontrolla}
+            >
               Riprova
             </Button>
           }
         >
-          Non riesco ad aggiornare lo shop: quello che vedi è l&apos;ultima lettura buona. {errore.messaggio}
+          Non riesco ad aggiornare lo shop: quello che vedi è l&apos;ultima lettura buona.{" "}
+          {errore.messaggio}
         </Avviso>
       )}
       {esito && (
@@ -204,7 +255,12 @@ function Pannello({
           errore={esito.tono === "errore"}
           azione={
             esito.riprova && (
-              <Button size="sm" variant="outline" className="h-11 text-[12px] md:h-8" onClick={esito.riprova}>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-11 text-[12px] md:h-8"
+                onClick={esito.riprova}
+              >
                 Riprova
               </Button>
             )
@@ -227,7 +283,13 @@ function Pannello({
             </p>
             <p className="mt-0.5 text-[12.5px] text-emerald-900/80">{FRASE_AVVISO}</p>
           </div>
-          <Button type="button" variant="outline" className="min-h-11 bg-white text-[12.5px] sm:min-h-8" disabled={occupato} onClick={chiudi}>
+          <Button
+            type="button"
+            variant="outline"
+            className="min-h-11 bg-white text-[12.5px] sm:min-h-8"
+            disabled={occupato}
+            onClick={chiudi}
+          >
             {lavoro === "chiusura" ? "Chiudo…" : "Chiudi lo shop"}
           </Button>
         </div>
@@ -272,14 +334,24 @@ function Pannello({
               <span className="text-[12px] tabular-nums text-muted-foreground">
                 {aPosto} su {totale} a posto
               </span>
-              <Button type="button" variant="ghost" size="sm" className="min-h-11 text-[12px] sm:min-h-8" disabled={occupato} onClick={ricontrolla}>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="min-h-11 text-[12px] sm:min-h-8"
+                disabled={occupato}
+                onClick={ricontrolla}
+              >
                 <RefreshCw className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
                 Ricontrolla
               </Button>
             </div>
           </div>
           {stato.righe.length === 0 ? (
-            <p className="mt-2 text-[12.5px] text-muted-foreground">Il server non ha mandato le condizioni: lo shop non si può aprire. Riprova tra un momento.</p>
+            <p className="mt-2 text-[12.5px] text-muted-foreground">
+              Il server non ha mandato le condizioni: lo shop non si può aprire. Riprova tra un
+              momento.
+            </p>
           ) : (
             <ul className="mt-2 divide-y divide-border">
               {stato.righe.map((r) => {
@@ -290,16 +362,25 @@ function Pannello({
                     <Icona className={cn("mt-0.5 h-4 w-4 shrink-0", classe)} aria-hidden="true" />
                     <div className="min-w-0 flex-1">
                       <p className="text-[13px] font-medium leading-snug">{titoloCondizione(r)}</p>
-                      <p className="text-[12.5px] leading-snug text-muted-foreground">{fraseCondizione(r)}</p>
+                      <p className="text-[12.5px] leading-snug text-muted-foreground">
+                        {fraseCondizione(r)}
+                      </p>
                     </div>
-                    <span className={cn("shrink-0 text-[11.5px] font-medium", classe)}>{testo}</span>
+                    <span className={cn("shrink-0 text-[11.5px] font-medium", classe)}>
+                      {testo}
+                    </span>
                   </li>
                 );
               })}
             </ul>
           )}
-          <p id="apri-shop-esito" className="mt-2 flex items-start gap-1.5 text-[12.5px] text-muted-foreground">
-            {!stato.puoAprire && <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />}
+          <p
+            id="apri-shop-esito"
+            className="mt-2 flex items-start gap-1.5 text-[12.5px] text-muted-foreground"
+          >
+            {!stato.puoAprire && (
+              <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+            )}
             <span>
               {stato.puoAprire
                 ? "Tutte le condizioni sono a posto: puoi aprire lo shop. Potrai richiuderlo con un clic."
@@ -324,7 +405,11 @@ function ImpostazioniCatalogo({
 }: {
   stato: StatoShop;
   lavoro: Lavoro | null;
-  imposta: (dati: { chiave: string; valore: string | number; atteso: unknown }, fatto: string, lavoro: Lavoro) => Promise<void>;
+  imposta: (
+    dati: { chiave: string; valore: string | number; atteso: unknown },
+    fatto: string,
+    lavoro: Lavoro,
+  ) => Promise<void>;
 }) {
   const [bozza, setBozza] = useState(stato.soglia === null ? "" : String(stato.soglia));
   //  Quando il valore sul server cambia (rilettura) la casella lo segue.
@@ -334,13 +419,19 @@ function ImpostazioniCatalogo({
   const cambiata = valida && valore !== stato.soglia;
   return (
     <details className="rounded-xl border border-border bg-card px-4 text-[12.5px]">
-      <summary className="flex min-h-11 cursor-pointer items-center font-medium sm:min-h-9">Impostazioni del catalogo</summary>
+      <summary className="flex min-h-11 cursor-pointer items-center font-medium sm:min-h-9">
+        Impostazioni del catalogo
+      </summary>
       <form
         className="flex flex-wrap items-end gap-3 pb-3"
         onSubmit={(ev) => {
           ev.preventDefault();
           if (!cambiata || valore === null || stato.soglia === null) return;
-          void imposta({ chiave: "giacenza_bassa", valore, atteso: stato.soglia }, "Soglia di giacenza bassa salvata.", "soglia");
+          void imposta(
+            { chiave: "giacenza_bassa", valore, atteso: stato.soglia },
+            "Soglia di giacenza bassa salvata.",
+            "soglia",
+          );
         }}
       >
         <div className="flex flex-col gap-1">
@@ -361,7 +452,12 @@ function ImpostazioniCatalogo({
             <span>pezzi</span>
           </div>
         </div>
-        <Button type="submit" variant="outline" className="min-h-11 text-[12.5px] sm:min-h-8" disabled={!cambiata || lavoro !== null}>
+        <Button
+          type="submit"
+          variant="outline"
+          className="min-h-11 text-[12.5px] sm:min-h-8"
+          disabled={!cambiata || lavoro !== null}
+        >
           {lavoro === "soglia" ? "Salvo…" : "Salva"}
         </Button>
         <p id="soglia-aiuto" className="basis-full text-muted-foreground">

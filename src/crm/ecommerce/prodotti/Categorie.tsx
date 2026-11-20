@@ -29,12 +29,25 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Chip, Vuoto } from "@/crm/ui";
 import { fetchCRM } from "@/crm/AuthContext";
 import { Avviso } from "@/crm/ecommerce/Avviso";
 import { caricaConPermesso, chiediPermesso, type ErroreNegozio } from "@/crm/negozio/client";
-import { controllaFile, disegnaMisure, pianoFoto, type Piano, type PortaCanvas } from "@/crm/negozio/ridimensiona";
+import {
+  controllaFile,
+  disegnaMisure,
+  pianoFoto,
+  type Piano,
+  type PortaCanvas,
+} from "@/crm/negozio/ridimensiona";
 import { slugDa, TETTI } from "@/shop/cms/modello";
 import {
   ETICHETTA_NASCOSTA,
@@ -59,7 +72,9 @@ export interface PropsCategorie {
 
 type Esegui = Negozio["esegui"];
 /** Dove stanno le foto pubbliche (`…/storage/v1/object/public/shop-media`). Senza, si vede un riquadro al posto della miniatura. */
-const BASE_FOTO = import.meta.env.VITE_SUPABASE_URL ? `${import.meta.env.VITE_SUPABASE_URL as string}/storage/v1/object/public/shop-media` : undefined;
+const BASE_FOTO = import.meta.env.VITE_SUPABASE_URL
+  ? `${import.meta.env.VITE_SUPABASE_URL as string}/storage/v1/object/public/shop-media`
+  : undefined;
 
 interface Lettura {
   elenco: CategoriaVista[] | null;
@@ -79,7 +94,8 @@ const tastoRiprova = (riprova: () => void) => (
 
 /** Le frasi dei fallimenti di un'azione sulle categorie, nostre dove il client ne dice una sbagliata per le categorie. */
 function fraseErrore(e: ErroreNegozio): string {
-  if (e.tipo === "conflitto") return "Un'altra persona ha cambiato questa categoria nel frattempo: ho aggiornato l'elenco. Controlla e riprova.";
+  if (e.tipo === "conflitto")
+    return "Un'altra persona ha cambiato questa categoria nel frattempo: ho aggiornato l'elenco. Controlla e riprova.";
   return e.messaggio;
 }
 
@@ -100,14 +116,26 @@ export function Categorie({ negozio, cambiate }: PropsCategorie) {
     if (!vivo.current || n !== sequenza.current) return;
     if (!r.ok) {
       const negato = r.errore.tipo === "permesso" || r.errore.tipo === "sessione";
-      setLettura((p) => ({ ...p, elenco: negato ? null : p.elenco, errore: r.errore, letto: true }));
+      setLettura((p) => ({
+        ...p,
+        elenco: negato ? null : p.elenco,
+        errore: r.errore,
+        letto: true,
+      }));
       return;
     }
     const elenco = leggiCategorie(r.dati);
     setLettura((p) =>
       elenco
         ? { elenco, errore: null, letto: true }
-        : { ...p, errore: { tipo: "server", messaggio: "Non capisco la risposta del server: riprova tra un momento." }, letto: true },
+        : {
+            ...p,
+            errore: {
+              tipo: "server",
+              messaggio: "Non capisco la risposta del server: riprova tra un momento.",
+            },
+            letto: true,
+          },
     );
   }, [categorie]);
 
@@ -125,7 +153,12 @@ export function Categorie({ negozio, cambiate }: PropsCategorie) {
     if (!id) return;
     fuoco.current = null;
     const el = document.getElementById(id) as HTMLButtonElement | null;
-    (el && !el.disabled ? el : document.getElementById(id.replace(/-(su|giu)-/, (_m, d: string) => (d === "su" ? "-giu-" : "-su-"))))?.focus();
+    (el && !el.disabled
+      ? el
+      : document.getElementById(
+          id.replace(/-(su|giu)-/, (_m, d: string) => (d === "su" ? "-giu-" : "-su-")),
+        )
+    )?.focus();
   }, [lettura.elenco]);
 
   const elenco = lettura.elenco;
@@ -147,7 +180,8 @@ export function Categorie({ negozio, cambiate }: PropsCategorie) {
       if (r.errore.tipo === "conflitto" || r.errore.tipo === "rete") await carica();
       return;
     }
-    if (r.dati.storico === false && typeof r.dati.avvisoStorico === "string") setEsito({ tono: "errore", testo: r.dati.avvisoStorico });
+    if (r.dati.storico === false && typeof r.dati.avvisoStorico === "string")
+      setEsito({ tono: "errore", testo: r.dati.avvisoStorico });
     setAnnuncio(annunciata);
     await fatto();
   }
@@ -157,11 +191,16 @@ export function Categorie({ negozio, cambiate }: PropsCategorie) {
       <div role="status" aria-busy="true" className="flex flex-col gap-2">
         <span className="sr-only">Carico le categorie…</span>
         {[0, 1].map((i) => (
-          <div key={i} aria-hidden="true" className="h-20 animate-pulse rounded-xl border border-border bg-muted/50 motion-reduce:animate-none" />
+          <div
+            key={i}
+            aria-hidden="true"
+            className="h-20 animate-pulse rounded-xl border border-border bg-muted/50 motion-reduce:animate-none"
+          />
         ))}
       </div>
     );
-  if (!elenco && (lettura.errore?.tipo === "permesso" || lettura.errore?.tipo === "sessione")) return null;
+  if (!elenco && (lettura.errore?.tipo === "permesso" || lettura.errore?.tipo === "sessione"))
+    return null;
   if (!elenco)
     return lettura.errore?.tipo === "migrazione" ? (
       <Vuoto
@@ -171,7 +210,11 @@ export function Categorie({ negozio, cambiate }: PropsCategorie) {
         azione={tastoRiprova(() => void carica())}
       />
     ) : (
-      <Vuoto titolo="Non riesco a leggere le categorie" testo={lettura.errore?.messaggio} azione={tastoRiprova(() => void carica())} />
+      <Vuoto
+        titolo="Non riesco a leggere le categorie"
+        testo={lettura.errore?.messaggio}
+        azione={tastoRiprova(() => void carica())}
+      />
     );
 
   const ids = elenco.map((c) => c.id);
@@ -179,7 +222,11 @@ export function Categorie({ negozio, cambiate }: PropsCategorie) {
     const nuovo = spostaId(ids, i, verso);
     if (!nuovo || lavoro) return;
     fuoco.current = `cat-${verso === -1 ? "su" : "giu"}-${ids[i]}`;
-    void lancia("categoria_ordina", { ids: nuovo }, `«${elenco[i].nome}» è in posizione ${i + 1 + verso} su ${elenco.length}.`);
+    void lancia(
+      "categoria_ordina",
+      { ids: nuovo },
+      `«${elenco[i].nome}» è in posizione ${i + 1 + verso} su ${elenco.length}.`,
+    );
   };
   const corrente = finestra?.id ? (elenco.find((c) => c.id === finestra.id) ?? null) : null;
 
@@ -190,15 +237,26 @@ export function Categorie({ negozio, cambiate }: PropsCategorie) {
           <h2 id="categorie-titolo" className="text-[15px] font-semibold tracking-tight">
             Categorie
           </h2>
-          <p className="text-[12.5px] text-muted-foreground">L&apos;ordine qui è quello del sito. Una categoria non si toglie: si nasconde.</p>
+          <p className="text-[12.5px] text-muted-foreground">
+            L&apos;ordine qui è quello del sito. Una categoria non si toglie: si nasconde.
+          </p>
         </div>
-        <Button type="button" className="min-h-11 text-[12.5px] sm:min-h-9" onClick={() => setFinestra({ id: null })}>
+        <Button
+          type="button"
+          className="min-h-11 text-[12.5px] sm:min-h-9"
+          onClick={() => setFinestra({ id: null })}
+        >
           <Plus className="mr-1.5 h-4 w-4" aria-hidden="true" />
           Nuova categoria
         </Button>
       </div>
 
-      {lettura.errore && <Avviso errore azione={tastoRiprova(() => void carica())}>Non riesco ad aggiornare le categorie: quelle che vedi sono l&apos;ultima lettura buona. {lettura.errore.messaggio}</Avviso>}
+      {lettura.errore && (
+        <Avviso errore azione={tastoRiprova(() => void carica())}>
+          Non riesco ad aggiornare le categorie: quelle che vedi sono l&apos;ultima lettura buona.{" "}
+          {lettura.errore.messaggio}
+        </Avviso>
+      )}
       {esito && <Avviso errore={esito.tono === "errore"}>{esito.testo}</Avviso>}
       <p role="status" className="sr-only">
         {annuncio}
@@ -210,7 +268,11 @@ export function Categorie({ negozio, cambiate }: PropsCategorie) {
           titolo="Non c'è ancora nessuna categoria."
           testo="Le categorie raggruppano i prodotti sul sito (per esempio «Patch» e «Cura»)."
           azione={
-            <Button type="button" className="min-h-11 text-[12.5px] sm:min-h-9" onClick={() => setFinestra({ id: null })}>
+            <Button
+              type="button"
+              className="min-h-11 text-[12.5px] sm:min-h-9"
+              onClick={() => setFinestra({ id: null })}
+            >
               Crea la prima categoria
             </Button>
           }
@@ -221,7 +283,10 @@ export function Categorie({ negozio, cambiate }: PropsCategorie) {
             const perche = motivoNascosta(c);
             const foto = urlFoto(BASE_FOTO, c.fotoPath);
             return (
-              <li key={c.id} className="flex flex-col gap-3 rounded-xl border border-border bg-card p-3 sm:flex-row sm:items-center">
+              <li
+                key={c.id}
+                className="flex flex-col gap-3 rounded-xl border border-border bg-card p-3 sm:flex-row sm:items-center"
+              >
                 <div className="flex min-w-0 flex-1 items-start gap-3">
                   <div className="flex shrink-0 flex-col">
                     <button
@@ -247,7 +312,12 @@ export function Categorie({ negozio, cambiate }: PropsCategorie) {
                   </div>
                   <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-border bg-background">
                     {foto ? (
-                      <img src={foto} alt="" loading="lazy" className="h-full w-full object-cover" />
+                      <img
+                        src={foto}
+                        alt=""
+                        loading="lazy"
+                        className="h-full w-full object-cover"
+                      />
                     ) : (
                       <ImagePlus className="h-5 w-5 text-sky-700" aria-hidden="true" />
                     )}
@@ -262,10 +332,16 @@ export function Categorie({ negozio, cambiate }: PropsCategorie) {
                       )}
                     </p>
                     <p className="flex items-center gap-1 text-[12px] text-muted-foreground">
-                      {c.slugBloccato && <Lock className="h-3 w-3 shrink-0" aria-label="Indirizzo bloccato" />}
+                      {c.slugBloccato && (
+                        <Lock className="h-3 w-3 shrink-0" aria-label="Indirizzo bloccato" />
+                      )}
                       <span className="break-all">/shop/c/{c.slug}</span>
                     </p>
-                    {c.frase && <p className="mt-0.5 line-clamp-2 text-[12.5px] text-foreground/80">{c.frase}</p>}
+                    {c.frase && (
+                      <p className="mt-0.5 line-clamp-2 text-[12.5px] text-foreground/80">
+                        {c.frase}
+                      </p>
+                    )}
                     <p className="mt-0.5 text-[12px] tabular-nums text-muted-foreground">
                       {fraseProdotti(c.quanti)}
                       {perche && <span> · {perche}</span>}
@@ -278,13 +354,22 @@ export function Categorie({ negozio, cambiate }: PropsCategorie) {
                       checked={c.visibile}
                       disabled={lavoro || !c.versione}
                       onCheckedChange={(v) =>
-                        void lancia("categoria_visibile", { id: c.id, visibile: v, versione: c.versione }, v ? `«${c.nome}» è visibile.` : `«${c.nome}» è spenta.`)
+                        void lancia(
+                          "categoria_visibile",
+                          { id: c.id, visibile: v, versione: c.versione },
+                          v ? `«${c.nome}» è visibile.` : `«${c.nome}» è spenta.`,
+                        )
                       }
                       aria-label={`Mostra «${c.nome}» sul sito`}
                     />
                     Visibile
                   </label>
-                  <Button type="button" variant="outline" className="min-h-11 text-[12.5px] sm:min-h-9" onClick={() => setFinestra({ id: c.id })}>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="min-h-11 text-[12.5px] sm:min-h-9"
+                    onClick={() => setFinestra({ id: c.id })}
+                  >
                     <Pencil className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
                     Modifica
                   </Button>
@@ -358,7 +443,9 @@ function FinestraCategoria({
         <DialogHeader>
           <DialogTitle>{nuova ? "Nuova categoria" : `Categoria «${categoria.nome}»`}</DialogTitle>
           <DialogDescription>
-            {nuova ? "Nasce nascosta: la accendi dall'elenco quando ci sono prodotti da mostrare." : "Nome, indirizzo e frase si salvano con «Salva». La foto si salva da sola con il suo tasto."}
+            {nuova
+              ? "Nasce nascosta: la accendi dall'elenco quando ci sono prodotti da mostrare."
+              : "Nome, indirizzo e frase si salvano con «Salva». La foto si salva da sola con il suo tasto."}
           </DialogDescription>
         </DialogHeader>
         <form
@@ -402,13 +489,24 @@ function FinestraCategoria({
                 className="min-h-11 text-[14px] sm:min-h-9"
               />
             </span>
-            <span id="categoria-slug-aiuto" className="text-[11.5px] font-normal text-muted-foreground">
-              {bloccato ? "L'indirizzo non si cambia più: la categoria è già uscita sul sito e i link condivisi smetterebbero di funzionare." : "Solo lettere minuscole, numeri e trattini. Dopo la pubblicazione non si potrà più cambiare."}
+            <span
+              id="categoria-slug-aiuto"
+              className="text-[11.5px] font-normal text-muted-foreground"
+            >
+              {bloccato
+                ? "L'indirizzo non si cambia più: la categoria è già uscita sul sito e i link condivisi smetterebbero di funzionare."
+                : "Solo lettere minuscole, numeri e trattini. Dopo la pubblicazione non si potrà più cambiare."}
             </span>
           </label>
           <label className="flex flex-col gap-1 text-[12.5px] font-medium">
             Frase
-            <Textarea value={frase} onChange={(e) => setFrase(e.target.value)} maxLength={MAX_FRASE} rows={2} className="text-[14px] font-normal" />
+            <Textarea
+              value={frase}
+              onChange={(e) => setFrase(e.target.value)}
+              maxLength={MAX_FRASE}
+              rows={2}
+              className="text-[14px] font-normal"
+            />
             <span className="text-[11.5px] font-normal tabular-nums text-muted-foreground">
               {frase.trim().length}/{MAX_FRASE}
             </span>
@@ -419,7 +517,13 @@ function FinestraCategoria({
             </p>
           )}
           <DialogFooter className="gap-2">
-            <Button type="button" variant="outline" className="min-h-11 sm:min-h-9" disabled={invio} onClick={chiudi}>
+            <Button
+              type="button"
+              variant="outline"
+              className="min-h-11 sm:min-h-9"
+              disabled={invio}
+              onClick={chiudi}
+            >
               Chiudi
             </Button>
             <Button type="submit" className="min-h-11 sm:min-h-9" disabled={invio}>
@@ -428,9 +532,16 @@ function FinestraCategoria({
           </DialogFooter>
         </form>
         {categoria ? (
-          <FotoCategoria categoria={{ ...categoria, versione }} esegui={esegui} fatto={fatto} nuovaVersione={setVersione} />
+          <FotoCategoria
+            categoria={{ ...categoria, versione }}
+            esegui={esegui}
+            fatto={fatto}
+            nuovaVersione={setVersione}
+          />
         ) : (
-          <p className="text-[12px] text-muted-foreground">La foto si aggiunge dopo aver creato la categoria.</p>
+          <p className="text-[12px] text-muted-foreground">
+            La foto si aggiunge dopo aver creato la categoria.
+          </p>
         )}
       </DialogContent>
     </Dialog>
@@ -527,7 +638,11 @@ function FotoCategoria({
         let path = caricati.current.get(m.lato);
         if (!path) {
           setFase(`Carico la foto ${i + 1} di ${file.length}…`);
-          const permesso = await chiediPermesso(fetchCRM, { tipo: "foto", mime: m.blob.type || "image/jpeg", peso: m.blob.size });
+          const permesso = await chiediPermesso(fetchCRM, {
+            tipo: "foto",
+            mime: m.blob.type || "image/jpeg",
+            peso: m.blob.size,
+          });
           if (!permesso.ok) return fallita(permesso.errore.messaggio);
           const su = await caricaConPermesso(fetchNudo, permesso.permesso, m.blob);
           if (!su.ok) return fallita(su.errore.messaggio);
@@ -538,14 +653,30 @@ function FotoCategoria({
       }
       const tre = assegnaPercorsi(file, percorsi);
       const corpo = tre ? corpoFoto(categoria, tre, alt) : null;
-      if (!corpo) return fallita("La foto non è completa o manca la descrizione: scegli di nuovo la foto e descrivila.");
+      if (!corpo)
+        return fallita(
+          "La foto non è completa o manca la descrizione: scegli di nuovo la foto e descrivila.",
+        );
       setFase("Salvo la foto…");
       const r = await esegui("categoria_foto", corpo);
-      if (!r.ok) return fallita(r.errore.tipo === "conflitto" ? "Un'altra persona ha cambiato questa categoria nel frattempo: ho aggiornato l'elenco. Salva di nuovo la foto." : r.errore.messaggio, r.errore.tipo === "conflitto");
+      if (!r.ok)
+        return fallita(
+          r.errore.tipo === "conflitto"
+            ? "Un'altra persona ha cambiato questa categoria nel frattempo: ho aggiornato l'elenco. Salva di nuovo la foto."
+            : r.errore.messaggio,
+          r.errore.tipo === "conflitto",
+        );
       const k = r.dati.categoria as { versione?: unknown } | undefined;
       if (typeof k?.versione === "string") nuovaVersione(k.versione);
-      const dette = Array.isArray(r.dati.avvisi) ? (r.dati.avvisi as unknown[]).filter((x): x is string => typeof x === "string") : [];
-      setAvvisi([...dette, ...(r.dati.storico === false && typeof r.dati.avvisoStorico === "string" ? [r.dati.avvisoStorico] : [])]);
+      const dette = Array.isArray(r.dati.avvisi)
+        ? (r.dati.avvisi as unknown[]).filter((x): x is string => typeof x === "string")
+        : [];
+      setAvvisi([
+        ...dette,
+        ...(r.dati.storico === false && typeof r.dati.avvisoStorico === "string"
+          ? [r.dati.avvisoStorico]
+          : []),
+      ]);
       setSalvata("Foto salvata.");
       setScelta(null);
       setAlt("");
@@ -553,7 +684,9 @@ function FotoCategoria({
       setFase(null);
       await fatto();
     } catch (e) {
-      fallita(e instanceof Error ? e.message : "Non sono riuscito a preparare la foto: provane un'altra.");
+      fallita(
+        e instanceof Error ? e.message : "Non sono riuscito a preparare la foto: provane un'altra.",
+      );
     }
   };
   /** Un fallimento: la frase e «Riprova». Con `rileggere` anche l'elenco si aggiorna (e con lui la versione). */
@@ -573,7 +706,11 @@ function FotoCategoria({
           className={`flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-lg ${scelta || attuale ? "border border-border" : "border-2 border-dashed border-sky-400 bg-sky-50"}`}
         >
           {scelta || attuale ? (
-            <img src={scelta?.anteprima ?? attuale ?? ""} alt="" className="h-full w-full object-cover" />
+            <img
+              src={scelta?.anteprima ?? attuale ?? ""}
+              alt=""
+              className="h-full w-full object-cover"
+            />
           ) : (
             <ImagePlus className="h-6 w-6 text-sky-700" aria-hidden="true" />
           )}
@@ -626,7 +763,13 @@ function FotoCategoria({
         <div role="alert" className="flex flex-wrap items-center gap-2 text-[12.5px] text-rose-800">
           <span className="min-w-0 flex-1">{errore}</span>
           {scelta && (
-            <Button type="button" size="sm" variant="outline" className="h-11 text-[12px] md:h-8" onClick={() => void salva()}>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-11 text-[12px] md:h-8"
+              onClick={() => void salva()}
+            >
               Riprova
             </Button>
           )}
@@ -634,7 +777,12 @@ function FotoCategoria({
       )}
       {scelta && (
         <div>
-          <Button type="button" className="min-h-11 sm:min-h-9" disabled={!altOk || fase !== null} onClick={() => void salva()}>
+          <Button
+            type="button"
+            className="min-h-11 sm:min-h-9"
+            disabled={!altOk || fase !== null}
+            onClick={() => void salva()}
+          >
             Salva la foto
           </Button>
         </div>
