@@ -77,7 +77,10 @@ async function imposta(corpo: Record<string, unknown>, chi: string, d: PorteInte
   return { chiave, valore, cambiato: true };
 }
 
-export const eseguiInterruttori = (_azione: string, corpo: Record<string, unknown>, chi: string, d: PorteInterruttori) => imposta(corpo, chi, d);
+export const eseguiInterruttori = async (azione: string, corpo: Record<string, unknown>, chi: string, d: PorteInterruttori) => {
+  if (azione !== "interruttore_imposta") throw rifiuta("azione_sconosciuta", 400, "Questa azione non è prevista."); // mai un'azione di ripiego
+  return imposta(corpo, chi, d);
+};
 
 export const gestisciGET = (request: Request, d: PorteInterruttori): Promise<Response> =>
   gestisci(request, d, async () => {

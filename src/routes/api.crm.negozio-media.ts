@@ -19,6 +19,7 @@ const dipendenze: PorteMedia = {
   log: (codice) => console.warn(`[negozio-media] ${codice}`),
   storage: {
     creaPermesso: async (bucket, path) => {
+      //  senza opzioni: niente `upsert`, quindi un file che esiste già non si sovrascrive mai
       const r = await supabaseAdmin.storage.from(bucket).createSignedUploadUrl(path);
       //  il modulo scrive nel log un codice fisso e risponde 500: il messaggio dello Storage non esce
       if (r.error || !r.data) throw new Error("permesso");

@@ -134,6 +134,7 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("S1 non applicata → 409 motivo «migrazione» in lettura e in scrittura", [[409, "migrazione"], [409, "migrazione"]], [[mm.stato, mm.corpo.motivo], [mp.stato, mp.corpo.motivo]]);
   const gs = await esegui({ azione: "categoria_salva", id: C1, nome: "Nuovo", versione: ISTANTE }, { db: fintoDb({ tabelle: tabelle(), errori: { "shop_storico.insert": { error: { code: "XX001", message: "x" } } } }) });
   c("lo storico non si scrive: la categoria è salvata lo stesso, la risposta lo dice, nel log solo il codice", [200, "Nuovo", false, ["storico XX001"]], [gs.stato, cat(gs.db, C1).nome, gs.corpo.storico, gs.log]);
+  c("…avvisoStorico c'è anche per categoria_salva; con lo storico scritto non c'è", [true, undefined], [typeof gs.corpo.avvisoStorico === "string", m.corpo.avvisoStorico]);
   const ge = await esegui({ azione: "categoria_salva", id: C1, nome: "Nuovo", versione: ISTANTE }, { db: fintoDb({ tabelle: tabelle(), errori: { "shop_categorie.update": { error: { code: "XX002", message: "PROVA riga intera" } } } }) });
   c("errore del database → 500 con frase generica, log col solo codice", [500, "interno", ["aggiorna XX002"], false], [ge.stato, ge.corpo.motivo, ge.log, /PROVA|XX002/.test(JSON.stringify(ge.corpo))]);
   for (const [nome, corpo] of [["JSON rotto", "{no"], ["lista", "[]"], ["azione sconosciuta", { azione: "categoria_boh" }]]) {
@@ -153,6 +154,12 @@ export async function prove(mod, { c, gruppo, radice }) {
     return [...t.matchAll(/\.delete\(/g)].map((m) => ({ f, sulLegame: /from\("shop_prodotti_categorie"\)\s*$/.test(t.slice(0, m.index)) }));
   });
   c("`.delete(` compare una volta sola in src/crm/negozio, e subito dopo from(\"shop_prodotti_categorie\")", [[{ f: "categorie.server.ts", sulLegame: true }]], [conDelete]);
+  for (const nome of ["constructor", "toString", "categoria_boh", "", undefined, null, 5, "categoria_ordina "]) {
+    const db = fintoDb({ tabelle: tabelle() });
+    let errore = null;
+    try { await K.eseguiCategorie(nome, { ids: [C1, C2, C3], nome: "X" }, "Chi", porte({ db }).d); } catch (e) { errore = e; }
+    c(`eseguiCategorie(${JSON.stringify(nome)}) → rifiuto esplicito 400 azione_sconosciuta, niente ripiego su «ordina» (database mai toccato)`, [400, "azione_sconosciuta", 0], [errore?.stato, errore?.motivo, db.chiamate]);
+  }
   for (const nome of ["constructor", "toString", "__proto__", "hasOwnProperty", "categoria_salva "]) {
     const r = await esegui({ azione: nome, id: C1 });
     c(`azione «${nome}» → 400 azione_sconosciuta (elenco chiuso, non un oggetto che eredita), nessuna chiamata`, [400, "azione_sconosciuta", 0], [r.stato, r.corpo.motivo, r.db.chiamate]);
@@ -198,8 +205,10 @@ export async function prove(mod, { c, gruppo, radice }) {
     c(`prodotto_categorie ${nome} → 400, nessuna chiamata al database`, [400, 0], [r.stato, r.db.chiamate]);
   }
   c("…la risposta porta la versione riletta del prodotto", ADESSO, ri.corpo.versione);
+  c("…e dichiara che lo storico è scritto (nessun avviso)", [true, undefined], [ri.corpo.storico, ri.corpo.avvisoStorico]);
   const sf = await esegui(pc(P_BOZZA, [C1]), { db: fintoDb({ tabelle: tabelle(), errori: { "shop_storico.insert": { error: { code: "XX004", message: "x" } } } }) });
   c("storico non scritto: i legami sono cambiati lo stesso, la risposta dice storico:false, nel log solo il codice", [[C1], false, ["storico XX004"]], [legami(sf.db, P_BOZZA), sf.corpo.storico, sf.log]);
+  c("…e porta una frase per il pannello (avvisoStorico), senza codici né dettagli", [true, false], [typeof sf.corpo.avvisoStorico === "string" && /storico/i.test(sf.corpo.avvisoStorico), /XX004/.test(JSON.stringify(sf.corpo))]);
   const mg = await esegui(pc(P_BOZZA, [C1]), { db: fintoDb({ tabelle: tabelle(), mancante: true }) });
   c("S1 non applicata → 409 migrazione", [409, "migrazione"], [mg.stato, mg.corpo.motivo]);
   const dl = fintoDb({ tabelle: tabelle() });

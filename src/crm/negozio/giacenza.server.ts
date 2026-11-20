@@ -65,6 +65,8 @@ export async function eseguiGiacenza(
   chi: string,
   d: PorteDb,
 ): Promise<Record<string, unknown>> {
+  // azione non riconosciuta: un rifiuto esplicito, mai un'azione di ripiego
+  if (azione !== "giacenza_muovi" && azione !== "giacenza_imposta") throw rifiuta("azione_sconosciuta", 400, "Questa azione non è prevista.");
   const variante = varianteDi(corpo.varianteId);
   if (azione === "giacenza_muovi") {
     const delta = interoDi(corpo.delta, -MAX_PEZZI);

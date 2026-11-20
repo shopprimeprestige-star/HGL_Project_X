@@ -78,6 +78,10 @@ export async function leggiCategorie(d: PorteDb) {
 
 /* ── scrittura ───────────────────────────────────────────────────────── */
 
+/** Se lo storico non si è scritto la risposta lo dichiara (`storico: false` e una frase per il pannello): il cambio c'è, il registro no. */
+const FRASE_STORICO = "Il cambio è stato salvato ma non è stato registrato nello storico: avvisa chi gestisce il sito.";
+const esitoStorico = (scritto: boolean) => (scritto ? { storico: true } : { storico: false, avvisoStorico: FRASE_STORICO });
+
 /** Una riga di storico per campo cambiato. Non fa mai fallire l'azione: dice solo se è riuscita. */
 async function scriviStorico(d: PorteDb, entita: string, id: string, cambi: Cambio[], chi: string): Promise<boolean> {
   if (!cambi.length) return true;
@@ -165,7 +169,7 @@ async function salva(corpo: Riga, chi: string, d: PorteDb) {
     const nataId = nata && typeof nata.id === "string" ? nata.id : null;
     if (!nata || !nataId) throw guasto(d, "inserisci", { code: "risposta" });
     const cambi = Object.entries({ ...patch, slug }).filter(([, v]) => v !== null).map(([campo, dopo]) => ({ campo, prima: null, dopo }));
-    return { categoria: { id: nataId, slug, versione: typeof nata.aggiornato_il === "string" ? nata.aggiornato_il : null }, storico: await scriviStorico(d, "categoria", nataId, cambi, chi) };
+    return { categoria: { id: nataId, slug, versione: typeof nata.aggiornato_il === "string" ? nata.aggiornato_il : null }, ...esitoStorico(await scriviStorico(d, "categoria", nataId, cambi, chi)) };
   }
 
   const corrente = tutte.find((r) => r.id === id);
@@ -180,7 +184,7 @@ async function salva(corpo: Riga, chi: string, d: PorteDb) {
   if (!cambi.length) return { categoria: { id, slug: slugDopo, versione: corrente.aggiornato_il }, cambiato: false };
   await aggiorna(d, id, String(corrente.aggiornato_il), Object.fromEntries(cambi.map((x) => [x.campo, x.dopo])));
   const nuovaVersione = await versioneAttuale(d, "shop_categorie", id);
-  return { categoria: { id, slug: slugDopo, versione: nuovaVersione }, cambiato: true, storico: await scriviStorico(d, "categoria", id, cambi, chi) };
+  return { categoria: { id, slug: slugDopo, versione: nuovaVersione }, cambiato: true, ...esitoStorico(await scriviStorico(d, "categoria", id, cambi, chi)) };
 }
 
 async function visibile(corpo: Riga, chi: string, d: PorteDb) {
@@ -195,7 +199,7 @@ async function visibile(corpo: Riga, chi: string, d: PorteDb) {
   // la prima volta che esce si ricorda quando: da quel momento l'indirizzo non si cambia più
   if (corpo.visibile && !corrente.pubblicata_il) patch.pubblicata_il = d.adesso().toISOString();
   await aggiorna(d, id, String(corrente.aggiornato_il), patch);
-  return { cambiato: true, versione: await versioneAttuale(d, "shop_categorie", id), storico: await scriviStorico(d, "categoria", id, [{ campo: "visibile", prima: corrente.visibile, dopo: corpo.visibile }], chi) };
+  return { cambiato: true, versione: await versioneAttuale(d, "shop_categorie", id), ...esitoStorico(await scriviStorico(d, "categoria", id, [{ campo: "visibile", prima: corrente.visibile, dopo: corpo.visibile }], chi)) };
 }
 
 async function ordina(corpo: Riga, chi: string, d: PorteDb) {
@@ -214,7 +218,7 @@ async function ordina(corpo: Riga, chi: string, d: PorteDb) {
     await aggiorna(d, id as string, null, { ordine: posizione + 1 });
     storico = (await scriviStorico(d, "categoria", id as string, [{ campo: "ordine", prima: corrente.ordine, dopo: posizione + 1 }], chi)) && storico;
   }
-  return { storico };
+  return esitoStorico(storico);
 }
 
 /** La foto della categoria. Il percorso è quello che ha dato `media.server.ts` (cartella `foto/`); l'alt è obbligatorio.
@@ -244,7 +248,7 @@ async function fotoDellaCategoria(corpo: Riga, chi: string, d: PorteDb) {
   return {
     categoria: { id, slug: String(corrente.slug), versione: await versioneAttuale(d, "shop_categorie", id) },
     avvisi: testo.avvisi.map((a) => a.frase),
-    storico,
+    ...esitoStorico(storico),
   };
 }
 
@@ -279,7 +283,7 @@ async function categorieDelProdotto(corpo: Riga, chi: string, d: PorteDb) {
   if (tolte.length) dati(d, "legami", await d.db.from("shop_prodotti_categorie").delete().eq("prodotto_id", prodottoId).in("categoria_id", tolte));
   const slugs = (elenco: string[]) => elenco.map((id) => String(tutte.find((k) => k.id === id)?.slug ?? id)).sort();
   const storico = await scriviStorico(d, "prodotto", prodottoId, [{ campo: "categorie", prima: slugs(attuali), dopo: slugs(ids) }], chi);
-  return { categorie: ids, cambiato: true, versione: await versioneAttuale(d, "shop_prodotti", prodottoId), storico };
+  return { categorie: ids, cambiato: true, versione: await versioneAttuale(d, "shop_prodotti", prodottoId), ...esitoStorico(storico) };
 }
 
 /* ── i gestori ───────────────────────────────────────────────────────── */
@@ -287,9 +291,10 @@ async function categorieDelProdotto(corpo: Riga, chi: string, d: PorteDb) {
 export async function eseguiCategorie(azione: string, corpo: Riga, chi: string, d: PorteDb) {
   if (azione === "categoria_salva") return salva(corpo, chi, d);
   if (azione === "categoria_visibile") return visibile(corpo, chi, d);
+  if (azione === "categoria_ordina") return ordina(corpo, chi, d);
   if (azione === "prodotto_categorie") return categorieDelProdotto(corpo, chi, d);
   if (azione === "categoria_foto") return fotoDellaCategoria(corpo, chi, d);
-  return ordina(corpo, chi, d);
+  throw rifiuta("azione_sconosciuta", 400, "Questa azione non è prevista."); // mai un'azione di ripiego
 }
 
 export const gestisciGET = (request: Request, d: PorteDb): Promise<Response> =>

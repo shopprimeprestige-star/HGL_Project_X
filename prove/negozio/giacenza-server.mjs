@@ -97,5 +97,11 @@ export async function prove(mod, { c, gruppo, radice }) {
     const r = await esegui({ azione: nome, varianteId: V5, delta: 1, motivo: "carico" });
     c(`azione «${nome}» → 400 azione_sconosciuta, nessuna chiamata`, [400, "azione_sconosciuta", 0], [r.stato, r.corpo.motivo, r.db.chiamate]);
   }
+  for (const nome of ["constructor", "toString", "giacenza_boh", "", undefined, null, 5, "giacenza_muovi "]) {
+    const db = fintoDb({ tabelle: tabelleProva() });
+    let errore = null;
+    try { await G.eseguiGiacenza(nome, { varianteId: V5, delta: 1, motivo: "carico", valore: 3 }, "Chi", porte({ db }).d); } catch (e) { errore = e; }
+    c(`eseguiGiacenza(${JSON.stringify(nome)}) → rifiuto esplicito 400 azione_sconosciuta, nessuna azione predefinita (database mai toccato)`, [400, "azione_sconosciuta", 0], [errore?.stato, errore?.motivo, db.chiamate]);
+  }
   c("l'elenco delle azioni del modulo", ["giacenza_imposta", "giacenza_muovi"], [...G.AZIONI_GIACENZA].sort());
 }

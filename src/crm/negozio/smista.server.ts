@@ -9,7 +9,7 @@
  *    esito passa ai moduli (che la «richiamano» e ricevono lo stesso esito: nessuna seconda verifica).
  *  · L'azione si cerca con `Object.hasOwn` su una tabella costruita dagli elenchi dei moduli: `constructor`, `toString`,
  *    `__proto__` non esistono. Un'azione fuori elenco va al modulo dei prodotti, che risponde 400 senza toccare il database.
- *  · Il corpo si legge UNA volta qui; ai moduli arriva una richiesta nuova con lo stesso corpo (il corpo si legge una volta sola). */
+ *  · Il corpo si legge UNA volta qui, a pezzi e fermandosi al tetto (anche senza Content-Length); ai moduli arriva una richiesta nuova con lo stesso corpo (il corpo si legge una volta sola). */
 import {
   AZIONI_PRODOTTI,
   gestisciGET as leggiProdotti,
@@ -17,7 +17,7 @@ import {
   type ClienteDb as ClienteDbProdotti,
   type DipendenzeProdotti,
 } from "./prodotti.server";
-import type { ClienteDb as ClienteDbCms } from "./comune";
+import { Rifiuto, leggiTesto, type ClienteDb as ClienteDbCms } from "./comune";
 import { AZIONI_GIACENZA, gestisciPOST as scriviGiacenza } from "./giacenza.server";
 import { AZIONI_CATEGORIE, gestisciGET as leggiCategorie, gestisciPOST as scriviCategorie } from "./categorie.server";
 import { AZIONI_INTERRUTTORI, gestisciGET as leggiInterruttori, gestisciPOST as scriviInterruttori, type FattiEsterni } from "./interruttori.server";
@@ -71,6 +71,7 @@ async function conGuardia(
     if (!g.ok) return g.risposta;
     return await lavoro({ ...d, guardia: async () => g });
   } catch (e) {
+    if (e instanceof Rifiuto) return json({ ok: false, motivo: e.motivo, frase: e.frase }, e.stato);
     d.log(`eccezione ${nomeDi(e)}`); // mai il messaggio
     return json({ ok: false, motivo: "interno", frase: "Qualcosa non ha funzionato: riprova tra un momento." }, 500);
   }
@@ -85,9 +86,7 @@ export const gestisciGET = (request: Request, d: DipendenzeNegozio): Promise<Res
 
 export const gestisciPOST = (request: Request, d: DipendenzeNegozio): Promise<Response> =>
   conGuardia(request, d, async (dd) => {
-    if (Number(request.headers.get("content-length")) > MAX_CORPO) return json({ ok: false, motivo: "valore", frase: "La richiesta è troppo grande." }, 413);
-    const testo = await request.text();
-    if (testo.length > MAX_CORPO) return json({ ok: false, motivo: "valore", frase: "La richiesta è troppo grande." }, 400);
+    const testo = await leggiTesto(request, MAX_CORPO); // a pezzi: oltre il tetto si smette di leggere (413)
     let azione: unknown;
     try {
       azione = (JSON.parse(testo) as { azione?: unknown } | null)?.azione;
@@ -96,7 +95,6 @@ export const gestisciPOST = (request: Request, d: DipendenzeNegozio): Promise<Re
     }
     const modulo: Modulo = typeof azione === "string" && Object.hasOwn(PER_AZIONE, azione) ? PER_AZIONE[azione] : "prodotti";
     // corpo già letto: ai moduli arriva una richiesta nuova con lo stesso testo (senza content-length: lo ricalcola)
-    const intestazioni = new Headers(request.headers);
-    intestazioni.delete("content-length");
+    const intestazioni = new Headers([...request.headers].filter(([nome]) => nome.toLowerCase() !== "content-length"));
     return SCRIVI[modulo](new Request(request.url, { method: "POST", headers: intestazioni, body: testo }), dd);
   });

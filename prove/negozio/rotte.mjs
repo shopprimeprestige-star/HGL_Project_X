@@ -93,6 +93,22 @@ export async function prove(mod, { c, gruppo, radice }) {
   const a413 = ambiente();
   c("content-length dichiarato enorme → 413 prima di leggere, database mai toccato", [413, 0], [(await S.gestisciPOST(intest, a413.d)).status, a413.db.chiamate]);
 
+  // ── il corpo si legge a pezzi e ci si ferma al tetto (anche senza Content-Length) ──
+  const flusso = (dimensionePezzo, contatore) => new ReadableStream({
+    pull(ctrl) { contatore.letti++; ctrl.enqueue(new TextEncoder().encode("x".repeat(dimensionePezzo))); if (contatore.letti > 20000) ctrl.close(); },
+  });
+  const richiestaFlusso = (contatore, extra = {}) => new Request("https://sito.test/api/crm/negozio", { method: "POST", headers: { "content-type": "application/json", ...extra }, body: flusso(1000, contatore), duplex: "half" });
+  for (const [nome, gestore, tetto] of [["smistamento (tetto 100 mila)", (r, a) => S.gestisciPOST(r, a.d), 100_000], ["giacenza (tetto 20 mila)", (r, a) => G.gestisciPOST(r, a.d), 20_000], ["categorie (tetto 20 mila)", (r, a) => K.gestisciPOST(r, a.d), 20_000]]) {
+    const cont = { letti: 0 }, a = ambiente();
+    const r = await leggi(await gestore(richiestaFlusso(cont), a));
+    c(`corpo senza Content-Length che non finisce mai, ${nome}: rifiutato (413) e si smette di leggere poco oltre il tetto`, [413, false, true, 0], [r.stato, r.corpo.ok, cont.letti <= tetto / 1000 + 5, a.db.chiamate]);
+  }
+  {
+    const cont = { letti: 0 }, a = ambiente();
+    const r = await S.gestisciPOST(richiestaFlusso(cont, { "content-length": "999999" }), a.d);
+    c("Content-Length oltre il tetto: 413 senza leggere il corpo (al più il primo pezzo che il flusso prepara da sé)", [413, true], [r.status, cont.letti <= 2]);
+  }
+
   // ── le rotte, sul sorgente ──
   const dir = join(radice, "src/routes");
   const rotte = { "api.crm.negozio.ts": "/api/crm/negozio", "api.crm.negozio-media.ts": "/api/crm/negozio-media" };
@@ -115,6 +131,7 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("api.crm.negozio.ts: l'errore della guardia porta la forma che il client si aspetta (extra prodotti: [])", true, /extra: \{ prodotti: \[\] \}/.test(rn));
   const rm = togliCommenti(readFileSync(join(dir, "api.crm.negozio-media.ts"), "utf8"));
   c("api.crm.negozio-media.ts: il permesso si chiede allo Storage con createSignedUploadUrl (solo caricamento, mai una lettura firmata)", [true, false], [rm.includes("createSignedUploadUrl"), /createSignedUrl\(|download\(/.test(rm)]);
+  c("api.crm.negozio-media.ts: createSignedUploadUrl senza opzioni e MAI con upsert: un file che c'è già non si sovrascrive", [1, false], [[...rm.matchAll(/createSignedUploadUrl\(path\)/g)].length, /upsert/i.test(rm)]);
   c("api.crm.negozio-media.ts: se lo Storage risponde con un errore, la porta lancia (il modulo risponde 500 senza ripetere nulla)", true, /throw new Error/.test(rm));
   const sm = togliCommenti(readFileSync(join(radice, "src/crm/negozio/smista.server.ts"), "utf8"));
   c("smista.server.ts: l'azione si cerca con Object.hasOwn, non con `in` né con un oggetto che eredita", [true, false], [sm.includes("Object.hasOwn"), /\bin\s+(perAzione|SMISTA|AZIONI)/.test(sm)]);

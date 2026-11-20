@@ -101,11 +101,37 @@ export const righe = (x: unknown): Record<string, unknown>[] => (Array.isArray(x
 
 const MAX_CORPO = 20_000;
 
+/** Il corpo di una richiesta come testo, letto a pezzi: si smette appena si supera `max` (413), senza leggere il resto.
+ *  Se `Content-Length` dice già che è troppo, non si legge niente. Chi non lo dichiara (flusso a pezzi) si ferma lo stesso. */
+export async function leggiTesto(request: Request, max: number): Promise<string> {
+  const troppo = () => rifiuta("valore", 413, "La richiesta è troppo grande.");
+  if (Number(request.headers.get("content-length")) > max) throw troppo();
+  const lettore = request.body?.getReader();
+  if (!lettore) return "";
+  const pezzi: Uint8Array[] = [];
+  let totale = 0;
+  for (;;) {
+    const { done, value } = await lettore.read();
+    if (done) break;
+    totale += value.byteLength;
+    if (totale > max) {
+      await lettore.cancel().catch(() => undefined);
+      throw troppo();
+    }
+    pezzi.push(value);
+  }
+  const intero = new Uint8Array(totale);
+  let da = 0;
+  for (const p of pezzi) {
+    intero.set(p, da);
+    da += p.byteLength;
+  }
+  return new TextDecoder().decode(intero);
+}
+
 /** Il corpo di un POST: JSON, un oggetto, non oltre `MAX_CORPO`. Altrimenti un rifiuto, prima di qualunque lavoro. */
 export async function leggiCorpo(request: Request): Promise<Record<string, unknown>> {
-  if (Number(request.headers.get("content-length")) > MAX_CORPO) throw rifiuta("valore", 413, "La richiesta è troppo grande.");
-  const testo = await request.text();
-  if (testo.length > MAX_CORPO) throw rifiuta("valore", 400, "La richiesta è troppo grande.");
+  const testo = await leggiTesto(request, MAX_CORPO);
   let corpo: unknown;
   try {
     corpo = JSON.parse(testo);

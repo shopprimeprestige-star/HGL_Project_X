@@ -118,6 +118,12 @@ export async function prove(mod, { c, gruppo, radice }) {
     const a2 = await esegui(imposta(nome, "codice", "cms"));
     c(`azione e chiave «${nome}» → 400, nessuna chiamata`, [[400, "azione_sconosciuta", 0], [400, "valore", 0]], [[a1.stato, a1.corpo.motivo, a1.db.chiamate], [a2.stato, a2.corpo.motivo, a2.db.chiamate]]);
   }
+  for (const nome of ["constructor", "toString", "interruttore_boh", "", undefined, null, 5, "interruttore_imposta "]) {
+    const db = fintoDb({ tabelle: duePubblicati() });
+    let errore = null;
+    try { await I.eseguiInterruttori(nome, { chiave: "giacenza_bassa", valore: 5, atteso: 3 }, "Chi", { ...porte({ db }).d, fattiEsterni: FATTI_R1 }); } catch (e) { errore = e; }
+    c(`eseguiInterruttori(${JSON.stringify(nome)}) → rifiuto esplicito 400 azione_sconosciuta, l'interruttore non cambia (database mai toccato)`, [400, "azione_sconosciuta", 0], [errore?.stato, errore?.motivo, db.chiamate]);
+  }
   const sorg = readFileSync(join(radice, "src/crm/negozio/interruttori.server.ts"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
   c("il sorgente non scrive mai direttamente: niente .insert( .update( .upsert( .delete(", [], [".insert(", ".update(", ".upsert(", ".delete("].filter((t) => sorg.includes(t)));
   c("…e passa da shop_impostazione_imposta", true, sorg.includes("shop_impostazione_imposta"));
