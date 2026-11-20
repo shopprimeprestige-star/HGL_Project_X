@@ -249,7 +249,7 @@ export async function prove(mod, { c, gruppo }) {
   /* ── su una pagina non ammessa il referrer completo non esce ── */
   const rf = nuovo({ path: "/shop/ordine/HG-1", search: "?t=abc" });
   rf.car.applicaConsenso(NIENTE, CONFIG);
-  c("pagina non ammessa: c'è `<meta name=\"referrer\" content=\"no-referrer\">` (anche senza consenso e senza script)", [true, "referrer", "no-referrer", 0], [!!rf.meta, rf.meta?.name, rf.meta?.content, rf.scripts.length]);
+  c("pagina non ammessa: c'è `<meta name=\"referrer\" content=\"strict-origin\">` (esce solo l'origine; con no-referrer YouTube rifiuta i lettori, errore 153), anche senza consenso e senza script", [true, "referrer", "strict-origin", 0], [!!rf.meta, rf.meta?.name, rf.meta?.content, rf.scripts.length]);
   rf.car.applicaConsenso(NIENTE, CONFIG);
   c("…una volta sola, non si duplica", true, !!rf.meta);
   rf.finestra.location.pathname = "/shop";

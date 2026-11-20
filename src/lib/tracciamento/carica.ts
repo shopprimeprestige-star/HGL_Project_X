@@ -214,7 +214,8 @@ export function creaCaricatore(porte: PorteCarica): Caricatore {
   }
 
   /** Su una pagina non ammessa il referrer completo non deve uscire verso altri siti (è una pagina con codici
-   *  nell'indirizzo): un `<meta name="referrer" content="no-referrer">` messo e tolto secondo la pagina. Non c'è bisogno
+   *  nell'indirizzo): un `<meta name="referrer" content="strict-origin">` messo e tolto secondo la pagina (esce solo
+   *  l'origine, mai il percorso; con `no-referrer` YouTube rifiuta i lettori, errore 153). Non c'è bisogno
    *  di consenso né di script: il provider lo richiama a ogni cambio di rotta (dentro `applicaConsenso`). */
   function proteggiReferrer() {
     try {
@@ -226,7 +227,7 @@ export function creaCaricatore(porte: PorteCarica): Caricatore {
           meta.name = "referrer";
           documento.head.appendChild(meta);
         }
-        meta.content = "no-referrer";
+        meta.content = "strict-origin";
       } else if (meta) {
         meta.remove?.();
       }
