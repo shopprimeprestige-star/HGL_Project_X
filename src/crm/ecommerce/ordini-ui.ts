@@ -27,7 +27,7 @@ import {
   totaleCoerente,
 } from "./ordine";
 import type { Ordine, StatoOrdine } from "./ordine";
-import { AVVISO_MIGRAZIONE, euro } from "./pagina";
+import { euro } from "./pagina";
 
 /** Quante righe si disegnano per volta: con migliaia di ordini nel periodo la pagina non deve disegnarli tutti. */
 export const PAGINA_RIGHE = 100;
@@ -90,10 +90,14 @@ function passa(o: Ordine, f: Omit<Filtri, "stato">, q: string): boolean {
   if (f.pagato === "no" && eIncassato(o)) return false;
   return !q || combacia(o, q);
 }
+/** Una ricerca di soli segni («-», «+», «()») non cerca niente: «-» combacerebbe con ogni «HG-…». */
+const conTesto = (q: string): string => (/[\p{L}\p{N}]/u.test(q) ? q : "");
 const domanda = (r?: string): string =>
-  norma(String(r ?? ""))
-    .trim()
-    .slice(0, RICERCA_MAX);
+  conTesto(
+    norma(String(r ?? ""))
+      .trim()
+      .slice(0, RICERCA_MAX),
+  );
 
 /** Gli ordini che si vedono, dal più recente. Non muta l'elenco in ingresso. */
 export function filtraOrdini(ordini: Ordine[], f: Filtri): Ordine[] {
@@ -191,7 +195,6 @@ export function testoConferma(a: Azione, o: Ordine): TestoConferma | null {
 /** I comandi si accendono solo con la migrazione pronta; «non so ancora» e «mancante» li spengono. */
 export const comandiAttivi = (migrazionePronta: boolean | null): boolean =>
   migrazionePronta === true;
-export { AVVISO_MIGRAZIONE };
 
 // ── le frasi dopo un'azione ────────────────────────────────────────────────
 
@@ -209,7 +212,10 @@ const FRASE_OK: Record<Azione["azione"], string> = {
 };
 
 /** Cosa dire dopo un'azione. Ogni risposta della rotta ha una frase: nessuna resta muta. */
-export function esitoAzione(r: RisultatoAzione, a: Azione): Esito {
+export function esitoAzione(r: RisultatoAzione, a: Azione, ref?: string): Esito {
+  //  Col filtro «Nuovo» attivo, cambiare lo stato di una riga la fa sparire: la frase dice di quale ordine parla.
+  const dell = (e: Esito): Esito =>
+    ref && e.tono !== "errore" ? { ...e, testo: `${ref}: ${e.testo}` } : e;
   if (!r.ok) {
     const { tipo, messaggio } = r.errore;
     if (tipo === "conflitto")
@@ -222,15 +228,34 @@ export function esitoAzione(r: RisultatoAzione, a: Azione): Esito {
       return { tono: "errore", testo: "Non trovo più questo ordine: ho ricaricato l'elenco." };
     return { tono: "errore", testo: messaggio };
   }
-  if (r.nessunCambio) return { tono: "ok", testo: "Era già così: non ho cambiato niente." };
+  if (r.nessunCambio) return dell({ tono: "ok", testo: "Era già così: non ho cambiato niente." });
   if (!r.storico)
-    return {
+    return dell({
       tono: "avviso",
       testo:
         "Modifica salvata, ma la riga nello storico non si è scritta: l'ordine è a posto, lo storico no.",
-    };
-  if (a.azione === "tracking" && !a.valore.trim()) return { tono: "ok", testo: "Tracking tolto." };
-  return { tono: "ok", testo: FRASE_OK[a.azione] ?? "Fatto." };
+    });
+  if (a.azione === "tracking" && !a.valore.trim())
+    return dell({ tono: "ok", testo: "Tracking tolto." });
+  return dell({ tono: "ok", testo: FRASE_OK[a.azione] ?? "Fatto." });
+}
+
+/** Avvolge una funzione asincrona così che ne giri UNA alla volta: una chiamata mentre l'altra lavora non parte e vale `false`
+ *  (il secondo clic sul tasto, prima che il primo abbia finito). Se la funzione lancia, il blocco si libera comunque.
+ *  Il blocco è una variabile, non lo stato di React: lo stato arriva un attimo dopo il secondo clic. */
+export function unaPerVolta<A extends unknown[], R>(
+  fn: (...a: A) => Promise<R>,
+): (...a: A) => Promise<R | false> {
+  let inCorso = false;
+  return async (...a) => {
+    if (inCorso) return false;
+    inCorso = true;
+    try {
+      return await fn(...a);
+    } finally {
+      inCorso = false;
+    }
+  };
 }
 
 // ── avvisi sull'ordine ─────────────────────────────────────────────────────

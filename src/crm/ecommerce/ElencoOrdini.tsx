@@ -34,7 +34,6 @@ import type { RisultatoAzione, RisultatoStorico, StatoOrdini } from "./client";
 import { ETICHETTA_STATO, STATI_ORDINE, eIncassato, nomeCliente } from "./ordine";
 import type { Ordine, StatoOrdine } from "./ordine";
 import {
-  AVVISO_MIGRAZIONE,
   PAGINA_RIGHE,
   comandiAttivi,
   conteggiPerStato,
@@ -44,9 +43,10 @@ import {
   ordineDaId,
   serveConferma,
   testoConferma,
+  unaPerVolta,
 } from "./ordini-ui";
 import type { Esito, FiltroPagato } from "./ordini-ui";
-import { euro } from "./pagina";
+import { AVVISO_MIGRAZIONE, euro } from "./pagina";
 import { DettaglioOrdine, MessaggioEsito, classeMenuStato } from "./DettaglioOrdine";
 
 export interface PropsElencoOrdini {
@@ -85,7 +85,6 @@ export function ElencoOrdini({
   const [pagato, setPagato] = useState<FiltroPagato | undefined>(undefined);
   const [visibili, setVisibili] = useState(PAGINA_RIGHE);
   const [occupato, setOccupato] = useState(false);
-  const bloccato = useRef(false); // il blocco vero: lo stato React arriva un attimo dopo il secondo clic
   const [esito, setEsito] = useState<Esito | null>(null);
   const [conferma, setConferma] = useState<{ azione: Azione; ordine: Ordine } | null>(null);
   const ultimaRiga = useRef<HTMLElement | null>(null);
@@ -108,27 +107,29 @@ export function ElencoOrdini({
     return () => clearTimeout(t);
   }, [esito]);
 
-  /** L'UNICO punto che parla con la rotta. Una azione per volta; `true` = riuscita. */
-  async function lancia(azione: Azione): Promise<boolean> {
-    if (bloccato.current) return false;
-    bloccato.current = true;
-    setOccupato(true);
-    setEsito(null);
-    try {
-      const r = await esegui(azione);
-      setEsito(esitoAzione(r, azione));
-      return r.ok;
-    } catch {
-      setEsito({
-        tono: "errore",
-        testo: "Qualcosa non ha funzionato: aggiorna l'elenco e controlla l'ordine.",
-      });
-      return false;
-    } finally {
-      bloccato.current = false;
-      setOccupato(false);
-    }
-  }
+  /** L'UNICO punto che parla con la rotta. Una azione per volta (`unaPerVolta`: un secondo clic mentre la prima lavora non parte);
+   *  `true` = riuscita. L'`esegui` si legge dal riferimento: la funzione si crea una volta sola, la prop può cambiare. */
+  const eseguiRef = useRef(esegui);
+  eseguiRef.current = esegui;
+  const lancia = useRef(
+    unaPerVolta(async (azione: Azione, ref: string): Promise<boolean> => {
+      setOccupato(true);
+      setEsito(null);
+      try {
+        const r = await eseguiRef.current(azione);
+        setEsito(esitoAzione(r, azione, ref));
+        return r.ok;
+      } catch {
+        setEsito({
+          tono: "errore",
+          testo: "Qualcosa non ha funzionato: aggiorna l'elenco e controlla l'ordine.",
+        });
+        return false;
+      } finally {
+        setOccupato(false);
+      }
+    }),
+  ).current;
 
   /** Le azioni gravi (annullare l'ordine, annullare il pagamento) passano da una conferma; le altre partono. */
   const chiedi = (azione: Azione, o: Ordine): Promise<boolean> => {
@@ -136,12 +137,12 @@ export function ElencoOrdini({
       setConferma({ azione, ordine: o });
       return Promise.resolve(false);
     }
-    return lancia(azione);
+    return lancia(azione, o.ref);
   };
   const confermata = () => {
     const c = conferma;
     setConferma(null);
-    if (c) void lancia(c.azione);
+    if (c) void lancia(c.azione, c.ordine.ref);
   };
 
   const scegliStato = (s: StatoOrdine | undefined) => {

@@ -463,7 +463,7 @@ export function creaArchivioOrdini(opz: { fetch: FetchRotta; porte: PorteTempo }
       if (r.ok && !r.nessunCambio) {
         versione++;
         imposta({ ordini: applicaOrdine(stato.ordini, r.ordine) });
-      } else if (!r.ok && ["conflitto", "non_trovato", "migrazione"].includes(r.errore.tipo)) {
+      } else if (!r.ok && ["conflitto", "non_trovato", "migrazione", "permesso", "sessione"].includes(r.errore.tipo)) {
         //  L'elenco non è più quello che la pagina credeva: si rilegge da soli. La versione sale perché una lettura già
         //  in volo può essere partita PRIMA della modifica dell'altro: si scarta e se ne fa una nuova.
         versione++;

@@ -376,6 +376,20 @@ export async function prove(mod, { c, gruppo, radice }) {
     await sfiata();
     c("archivio: conflitto → errore alla pagina e rilettura automatica dell'elenco", [false, "conflitto", ["GET", "POST", "GET"], "in_preparazione"], [r.ok, r.errore.tipo, f.chiamate.map((x) => x.init?.method ?? "GET"), a.stato().ordini[0].stato]);
   }
+  for (const [stato, tipo] of [[403, "permesso"], [401, "sessione"]]) {
+    //  permesso tolto o sessione scaduta DURANTE un'azione: gli ordini spariscono subito, non fra 30 s
+    const { porte } = porteFinte();
+    const f = fetchFinto(
+      risposta(elencoOk([ordineServer(1)])),
+      risposta({ ok: false, error: tipo === "permesso" ? "permesso" : "auth", ordini: [] }, stato),
+      risposta({ ok: false, error: tipo === "permesso" ? "permesso" : "auth", ordini: [] }, stato),
+    );
+    const a = K.creaArchivioOrdini({ fetch: f, porte });
+    await a.aggiorna();
+    const r = await a.esegui({ azione: "stato", ordineId: ID, da: "nuovo", a: "spedito" });
+    await sfiata();
+    c(`azione con ${tipo} negato: l'errore va alla pagina, l'elenco si rilegge subito e si svuota`, [false, tipo, ["GET", "POST", "GET"], []], [r.ok, r.errore.tipo, f.chiamate.map((x) => x.init?.method ?? "GET"), a.stato().ordini]);
+  }
   {
     //  una rilettura partita PRIMA dell'azione e arrivata DOPO non riporta indietro l'ordine
     const { porte } = porteFinte();

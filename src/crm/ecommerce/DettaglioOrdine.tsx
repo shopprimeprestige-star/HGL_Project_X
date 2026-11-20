@@ -35,7 +35,6 @@ import {
 } from "./ordine";
 import type { MetodoPagamento, Ordine, StatoOrdine } from "./ordine";
 import {
-  AVVISO_MIGRAZIONE,
   TONO_STATO_ORDINE,
   avvisiOrdine,
   controllaPagamento,
@@ -44,7 +43,7 @@ import {
   ordinaEventi,
 } from "./ordini-ui";
 import type { Esito } from "./ordini-ui";
-import { euro } from "./pagina";
+import { AVVISO_MIGRAZIONE, euro } from "./pagina";
 
 /** Il menu nativo: sul telefono si apre il selettore del sistema e con la tastiera si usano le frecce. */
 export const CLASSE_MENU =
@@ -524,8 +523,11 @@ export function DettaglioOrdine({
         //  Sotto i 640 px è a tutta pagina; la X di serie si nasconde, c'è «Chiudi» da 44 px.
         className="crm-theme flex w-full flex-col gap-0 bg-white p-0 text-foreground sm:max-w-[520px] [&>button]:hidden"
         onCloseAutoFocus={(e) => {
+          //  Aperto da un link (nessuna riga di partenza, o riga non più nell'elenco) il fuoco lo rimette Radix dove sa.
+          const riga = ultimaRiga?.current;
+          if (!riga?.isConnected) return;
           e.preventDefault();
-          ultimaRiga?.current?.focus();
+          riga.focus();
         }}
       >
         <div className="flex shrink-0 items-center gap-1 border-b border-border py-1.5 pl-4 pr-1">

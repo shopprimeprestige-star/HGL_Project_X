@@ -30,6 +30,7 @@ import { ETICHETTA_STATO, STATI_ORDINE, nomeCliente } from "./ordine";
 import type { StatoOrdine } from "./ordine";
 import type { StatoOrdini } from "./client";
 import { euro } from "./pagina";
+import { TONO_STATO_ORDINE } from "./ordini-ui";
 import { Avviso } from "./Avviso";
 
 /** Quanti ordini fermi, e quante righe dei più venduti e dei clienti, si elencano. */
@@ -38,15 +39,6 @@ const CLIENTI_ELENCATI = 10;
 /** shortcut: il grafico mostra al massimo gli ultimi 90 giorni del periodo (a 3660 barre non si legge niente); se serve vedere
  *  più lontano, raggruppare per settimana o per mese. */
 const GIORNI_GRAFICO = 90;
-
-/** Un tono per stato: serve a distinguere i numeri a colpo d'occhio, ma il nome dello stato è sempre scritto. */
-const TONO_STATO = {
-  nuovo: "da_lavorare",
-  in_preparazione: "in_sospeso",
-  spedito: "in_corso",
-  consegnato: "vinta",
-  annullato: "persa",
-} as const;
 
 /** La nota di un riquadro va a capo invece di finire in «…»: sono le etichette oneste («di cui 1 annullato», «annullati esclusi»), non si perdono.
  *  `Kpi` tronca la nota (è il suo comportamento per tutto il CRM): qui si annulla solo per le note di questa pagina. */
@@ -207,7 +199,7 @@ export function Panoramica({ lettura, periodo, adesso, apriStato }: PropsPanoram
                   key={s}
                   etichetta={ETICHETTA_STATO[s]}
                   valore={p.perStato[s]}
-                  tono={p.perStato[s] > 0 ? TONO_STATO[s] : "neutro"}
+                  tono={p.perStato[s] > 0 ? TONO_STATO_ORDINE[s] : "neutro"}
                   onClick={() => apriStato(s)}
                 />
               ))}

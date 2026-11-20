@@ -69,8 +69,10 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("ricerca per telefono: stesso numero scritto in tre modi trova lo stesso ordine", [["HG-AAA111"], ["HG-AAA111"], ["HG-AAA111"]], [refs(f({ ricerca: "+39 300 000 0001" })), refs(f({ ricerca: "0039 3000000001" })), refs(f({ ricerca: "3000000001" }))]);
   c("ricerca per telefono a pezzi (ultime cifre)", ["HG-BBB222"], refs(f({ ricerca: "000 0002" })));
   c("ricerca che non trova niente: elenco vuoto, non un errore", [], f({ ricerca: "zzz" }));
-  c("ricerca con caratteri da espressione regolare non lancia", [[], []], [f({ ricerca: "(((" }), f({ ricerca: "[a-" })]);
+  c("ricerca con caratteri da espressione regolare non lancia (soli segni = nessun filtro; con una lettera si cerca e non trova)", [4, 0, 0], [f({ ricerca: "(((" }).length, f({ ricerca: "[a-" }).length, f({ ricerca: "a(b" }).length]);
   c("ricerca vuota o di soli spazi = nessun filtro", 4, f({ ricerca: "   " }).length);
+  c("ricerca di soli segni («-», «+», «()») = nessun filtro, non «tutto quello che ha un trattino»", [4, 4, 4], [f({ ricerca: "-" }).length, f({ ricerca: " + " }).length, f({ ricerca: "()" }).length]);
+  c("…ma «-» dentro una ricerca vera conta («hg-bbb» trova)", ["HG-BBB222"], refs(f({ ricerca: "hg-bbb" })));
   c("ricerca enorme non lancia e non trova", [], f({ ricerca: "a".repeat(100000) }));
   const copia = JSON.stringify(TUTTI);
   f({ stato: "nuovo", ricerca: "anna" });
@@ -119,6 +121,32 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("serveConferma e testoConferma non lanciano con azioni strane", [false, null], [U.serveConferma({ azione: "boh" }), U.testoConferma({ azione: "boh" }, ordP)]);
   c("i comandi sono accesi solo se la migrazione è pronta (vero); falso e «non so» li spengono", [true, false, false], [U.comandiAttivi(true), U.comandiAttivi(false), U.comandiAttivi(null)]);
 
+  // ══ 4b. UNA AZIONE PER VOLTA ══
+  {
+    const sblocchi = [];
+    const chiamate = [];
+    const una = U.unaPerVolta(async (x) => { chiamate.push(x); await new Promise((r) => sblocchi.push(r)); return `fatto-${x}`; });
+    const p1 = una("a");
+    const p2 = una("b"); // il secondo clic, prima che il primo sia finito
+    const r2 = await p2;
+    c("unaPerVolta: la seconda chiamata mentre la prima lavora NON parte e vale «no»", [["a"], false], [chiamate.slice(), r2]);
+    sblocchi.shift()();
+    c("…e la prima finisce con il suo risultato", "fatto-a", await p1);
+    const p3 = una("c");
+    c("finita la prima, si può ripartire", [["a", "c"]], [chiamate.slice()]);
+    sblocchi.shift()();
+    await p3;
+    const ko = U.unaPerVolta(async () => { throw new Error("x"); });
+    let lanciato = false;
+    try { await ko(); } catch { lanciato = true; }
+    const ok2 = U.unaPerVolta(async () => true);
+    c("se la funzione lancia, l'errore passa e il blocco si libera (non resta chiuso per sempre)", [true, true], [lanciato, await (async () => { let n = 0; const f = U.unaPerVolta(async () => { n++; if (n === 1) throw new Error("x"); return true; }); try { await f(); } catch { /* il primo lancia */ } return f(); })()]);
+    c("(sanità) una funzione che non lancia si può chiamare di seguito", [true, true], [await ok2(), await ok2()]);
+    const due = U.unaPerVolta(async (x) => { await Promise.resolve(); return x; });
+    const [u1, u2] = await Promise.all([due(1), due(2)]);
+    c("due chiamate nello stesso istante: parte la prima sola", [1, false], [u1, u2]);
+  }
+
   // ══ 5. LE FRASI DOPO UN'AZIONE ══
   const az = (azione, extra = {}) => ({ azione, ordineId: ordP.id, ...extra });
   const buono = (storico = true) => ({ ok: true, nessunCambio: false, ordine: ordP, storico });
@@ -133,6 +161,10 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("tracking vuoto = «tolto», non «salvato»", true, /tolto/i.test(U.esitoAzione(buono(), az("tracking", { valore: "  " })).testo));
   const senzaStorico = U.esitoAzione(buono(false), az("stato", { a: "spedito" }));
   c("storico:false → tono «avviso»: la modifica c'è, lo storico no", [ "avviso", true, true ], [senzaStorico.tono, /storico/i.test(senzaStorico.testo), /salvat|c'è|registrat/i.test(senzaStorico.testo)]);
+  const conRef = U.esitoAzione(buono(), az("stato", { a: "spedito" }), "HG-XYZ789");
+  c("con il numero dell'ordine la frase dice quale (la riga può sparire dal filtro attivo)", [true, "ok"], [/^HG-XYZ789[: ·—-]/.test(conRef.testo) && /Stato aggiornato/.test(conRef.testo), conRef.tono]);
+  c("…anche per «storico:false» e «era già così»", [true, true], [/HG-XYZ789/.test(U.esitoAzione(buono(false), az("stato", {}), "HG-XYZ789").testo), /HG-XYZ789/.test(U.esitoAzione({ ok: true, nessunCambio: true }, az("stato", {}), "HG-XYZ789").testo)]);
+  c("senza numero la frase è quella di prima", "Stato aggiornato.", U.esitoAzione(buono(), az("stato", { a: "spedito" })).testo);
   const nessun = U.esitoAzione({ ok: true, nessunCambio: true }, az("stato", { a: "spedito" }));
   c("nessunCambio: una frase tranquilla, non un errore", [ "ok", true ], [nessun.tono, /già così|niente da cambiare/i.test(nessun.testo)]);
   const err = (tipo, messaggio = "frase della rotta") => ({ ok: false, errore: { tipo, messaggio } });
@@ -176,11 +208,12 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("gli ordini si identificano per id: mai un confronto sul numero ordine", [false, false, false], testi.map((t) => /\.ref\s*[!=]==?|order_ref/.test(senzaCommenti(t))));
   c("l'elenco usa i filtri puri, `ordineDaId` e `importoFuoriNorma`", [true, true, true], [/filtraOrdini\(/.test(elT), /ordineDaId\(/.test(elT), /importoFuoriNorma\(/.test(elT)]);
   c("stato e ordine passano dall'indirizzo con `imposta(`", true, /imposta\??\.?\(\{[^}]*stato/.test(elT) && /imposta\??\.?\(\{[^}]*ordine/.test(elT));
-  c("le azioni partono da un punto solo (`esegui(`) e ne leggono l'esito con `esitoAzione`", [1, true, 0], [(elT.match(/\besegui\(/g) || []).length, /esitoAzione\(/.test(elT), (deT.match(/\besegui\(/g) || []).length]);
+  c("le azioni partono da un punto solo (`esegui(`) e ne leggono l'esito con `esitoAzione`", [1, true, 0], [(elT.match(/\beseguiRef\.current\(/g) || []).length, /esitoAzione\(/.test(elT), (deT.match(/\besegui\(/g) || []).length]);
   c("la conferma passa da `serveConferma` e c'è un AlertDialog; l'azione si lancia da due punti soltanto (diretta o dopo la conferma)", [true, true, 2], [/serveConferma\(/.test(elT), /<AlertDialog\b/.test(elT), (elT.match(/(?<!function )\blancia\(/g) || []).length]);
   c("i comandi dipendono dalla migrazione: `comandiAttivi(migrazionePronta)`", true, /comandiAttivi\(/.test(elT) && /migrazionePronta/.test(elT));
-  c("un doppio clic non lancia due azioni (blocco sincrono, non solo lo stato)", true, /useRef/.test(elT) && /occupato/.test(elT));
-  c("il pannello torna al punto di partenza alla chiusura (fuoco)", true, /onCloseAutoFocus/.test(deT));
+  c("un doppio clic non lancia due azioni: `lancia` è `unaPerVolta(...)`, il blocco vive in un `useRef`", [true, true], [/const lancia = useRef\(\s*unaPerVolta\(/.test(elT), /unaPerVolta/.test(uiT)]);
+  c("il pannello torna al punto di partenza alla chiusura (fuoco), ma solo se la riga c'è ancora: da un link lascia fare a Radix", [true, true], [/onCloseAutoFocus/.test(deT), /isConnected\)\s*return;[\s\S]{0,80}preventDefault\(\)[\s\S]{0,80}\.focus\(\)/.test(deT)]);
+  c("niente re-export di `AVVISO_MIGRAZIONE` da ordini-ui: i file lo prendono da pagina.ts", [false, true, true], [/export \{[^}]*AVVISO_MIGRAZIONE/.test(uiT), /AVVISO_MIGRAZIONE[^;]*from "\.\/pagina"/.test(elT), /AVVISO_MIGRAZIONE[^;]*from "\.\/pagina"/.test(deT)]);
   c("il guscio passa `esegui` e `storico` alla scheda", [true, true], [/esegui=\{lettura\.esegui\}/.test(senzaCommenti(leggi("src/routes/CRM.ecommerce.tsx"))), /storico=\{lettura\.storico\}/.test(senzaCommenti(leggi("src/routes/CRM.ecommerce.tsx")))]);
   c("telefono: il pannello è a tutta larghezza sotto 640 px", true, /w-full[^"]*sm:max-w-/.test(leggi("src/crm/ecommerce/DettaglioOrdine.tsx")));
 
@@ -190,6 +223,7 @@ export async function prove(mod, { c, gruppo, radice }) {
   const guscio = senzaCommenti(guscioT);
   const panT = senzaCommenti(leggi("src/crm/ecommerce/Panoramica.tsx"));
   const barra = senzaCommenti(leggi("src/crm/CRMSidebar.tsx"));
+  c("la tabella dei toni dello stato è una sola: la Panoramica importa quella di ordini-ui", [true, false], [/TONO_STATO_ORDINE[^;]*from "\.\/ordini-ui"/.test(panT), /const TONO_STATO\b/.test(panT)]);
   //  nota 1: gli ordini fermi sono «di sempre»; l'elenco che si apre deve contenerli tutti, altrimenti cifra ≠ righe
   const vecchio = ord({ status: "nuovo", created_at: loc(2026, 10, 1, 9) }); // 48 giorni fa
   const recente = ord({ status: "nuovo", created_at: loc(2026, 11, 17, 9) });
@@ -270,8 +304,11 @@ export async function prove(mod, { c, gruppo, radice }) {
 
     // la Panoramica: note intere (nota 5) e valori giornalieri leggibili (nota 6)
     const pan = renderToStaticMarkup(h(Panoramica, { lettura: lettura([A1, B1, C1]), periodo: P, adesso: ADESSO, apriStato: () => {} }));
-    c("le note dei riquadri vanno a capo, non finiscono in «…» (nota 5)", true, /whitespace-normal[^>]*>[^<]*annullati esclusi/.test(pan) && /whitespace-normal[^>]*>[^<]*di cui 1 annullat/.test(pan));
-    c("la tabella dei valori per giorno c'è, con un giorno per riga, e dice gli ordini di ogni giorno (nota 6)", true, /<table/.test(pan) && (pan.match(/<th scope="row"/g) || []).length === K.andamento([A1, B1, C1], P).length);
+    c("le note dei quattro riquadri vanno a capo, non finiscono in «…» (nota 5)", [4, true, true], [(pan.match(/<span class="block whitespace-normal">/g) || []).length, /whitespace-normal">[^<]*annullati esclusi/.test(pan), /whitespace-normal">[^<]*di cui 1 annullat/.test(pan)]);
+    const righeTab = [...pan.matchAll(/<tr><th scope="row"[^>]*>([^<]*)<\/th><td[^>]*>(\d+)<\/td><td[^>]*>([^<]*)<\/td><\/tr>/g)].map((m) => [m[2], m[3].replace(/&nbsp;/g, " ")]);
+    const attese = K.andamento([A1, B1, C1], P).map((g) => [String(g.ordini), PG.euro(g.incassato)]);
+    c("tabella dei valori per giorno: una riga per giorno, con gli ordini e l'incassato di quel giorno, uguali ai conti (nota 6)", attese, righeTab);
+    c("…dentro un <details> con il suo <summary>, non nascosta, e con didascalia per il lettore di schermo", [true, false, true], [/<details[^>]*>\s*<summary[^>]*>[^<]*Valori giorno per giorno[\s\S]*<table/.test(pan), /<details[^>]*(hidden|display)/.test(pan), /<caption class="sr-only">/.test(pan)]);
 
     // il corpo del dettaglio
     const chiedi = async () => true;
