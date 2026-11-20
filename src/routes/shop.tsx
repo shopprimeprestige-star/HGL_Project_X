@@ -1,12 +1,25 @@
 import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
 import { ShoppingBag, Menu } from "lucide-react";
 import { CartProvider, useCart } from "@/shop/CartContext";
 import { getProduct } from "@/shop/catalog";
+import { modalitaCatalogo, schedaProdotto } from "@/shop/cms/catalogo.functions";
+import { nomeProtesiPerBarra } from "@/shop/cms/guscio";
 import { BarraConsulenza } from "@/components/landing/consulenza/BarraConsulenza";
+import { GestisciCookie } from "@/components/tracciamento/GestisciCookie";
 import { Toaster } from "@/components/ui/sonner";
 import logo from "@/assets/logo-hair-genius.png";
 
 export const Route = createFileRoute("/shop")({
+  //  La modalità del catalogo (`codice` o `cms`) si legge UNA volta, qui, e scende a tutte le pagine dello shop nel contesto
+  //  della rotta (`modalita`): le pagine figlie non la rileggono. Se la lettura non riesce, lo shop resta quello di oggi.
+  beforeLoad: async () => {
+    try {
+      return { modalita: await modalitaCatalogo() };
+    } catch {
+      return { modalita: "codice" as const };
+    }
+  },
   head: () => ({
     meta: [
       { title: "Hair Genius Shop — Toupee e prodotti per la cura" },
@@ -70,7 +83,7 @@ function Header() {
   );
 }
 
-function ShopFooter() {
+function ShopFooter({ modalita }: { modalita: "codice" | "cms" }) {
   return (
     <footer className="bg-footer border-t border-white/10">
       <div className="mx-auto max-w-6xl px-4 py-10">
@@ -83,10 +96,14 @@ function ShopFooter() {
             <a href="/privacy-policy" className="hover:text-white/80">Privacy</a>
             <a href="/termini-e-condizioni" className="hover:text-white/80">Termini</a>
             <a href="/cookie-policy" className="hover:text-white/80">Cookie</a>
+            {/* Riapre la scelta dei cookie. `-my-1.5 py-1.5`: area da toccare più alta senza allungare la riga. */}
+            <GestisciCookie className="-my-1.5 cursor-pointer py-1.5 hover:text-white/80 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white" />
             <Link to="/shop" className="hover:text-white/80">Catalogo</Link>
           </div>
           <p className="mt-2 text-[11px] text-white/30">
-            © {new Date().getFullYear()} Hair Genius Labs SRLS · Spedizione gratuita sopra €59
+            © {new Date().getFullYear()} Hair Genius Labs SRLS
+            {/* Con il catalogo CMS la soglia non c'è più (la cifra non è più vera): la frase si mostra solo con quello del codice. */}
+            {modalita !== "cms" && " · Spedizione gratuita sopra €59"}
           </p>
         </div>
       </div>
@@ -95,20 +112,35 @@ function ShopFooter() {
 }
 
 /** La barra della consulenza: nella scheda di una protesi sa quale protesi si guarda. */
-function BarraShop() {
+function BarraShop({ modalita }: { modalita: "codice" | "cms" }) {
   const path = useRouterState({ select: (s) => s.location.pathname });
   const slug = path.match(/^\/shop\/prodotto\/([^/]+)/)?.[1];
-  let prodotto: ReturnType<typeof getProduct>;
+  let slugLetto: string | undefined;
   try {
-    prodotto = slug ? getProduct(decodeURIComponent(slug)) : undefined;
+    slugLetto = slug ? decodeURIComponent(slug) : undefined;
   } catch {
     //  Indirizzo rotto (es. %E0): niente protesi, e il negozio resta in piedi.
-    prodotto = undefined;
+    slugLetto = undefined;
   }
-  return <BarraConsulenza provenienza="stock" prodotto={prodotto?.category === "toupee" ? prodotto.name : undefined} />;
+  //  Catalogo CMS: la protesi si chiede al server dopo il montaggio (la barra comunque compare solo dopo); un guasto = nessun nome.
+  const [nomeCms, setNomeCms] = useState<string | undefined>();
+  useEffect(() => {
+    setNomeCms(undefined);
+    if (modalita !== "cms" || !slugLetto) return;
+    let vivo = true;
+    schedaProdotto({ data: { slug: slugLetto } })
+      .then((p) => vivo && setNomeCms(nomeProtesiPerBarra(p)))
+      .catch(() => {});
+    return () => {
+      vivo = false;
+    };
+  }, [modalita, slugLetto]);
+  const prodotto = modalita !== "cms" && slugLetto ? getProduct(slugLetto) : undefined;
+  return <BarraConsulenza provenienza="stock" prodotto={modalita === "cms" ? nomeCms : prodotto?.category === "toupee" ? prodotto.name : undefined} />;
 }
 
 function ShopLayout() {
+  const { modalita } = Route.useRouteContext();
   return (
     <CartProvider>
       <div className="bg-blueprint min-h-screen text-white">
@@ -116,9 +148,9 @@ function ShopLayout() {
         <main className="mx-auto max-w-6xl px-4 py-8">
           <Outlet />
         </main>
-        <ShopFooter />
+        <ShopFooter modalita={modalita} />
         {/* Dopo il piè di pagina: lo spazio che la barra riserva sta qui, sotto tutto. */}
-        <BarraShop />
+        <BarraShop modalita={modalita} />
         <Toaster />
       </div>
     </CartProvider>
