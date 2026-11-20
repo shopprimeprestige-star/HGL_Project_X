@@ -191,6 +191,8 @@ export async function prove(_mod, { c, gruppo, radice }) {
   // il perimetro
   let diff = null;
   try {
+    //  Sul ramo di integrazione `shop-r1` T16 e T17 hanno legittimamente toccato questi file: il perimetro di T15 vale solo sui rami di compito (T32, fase 1).
+    if (execFileSync("git", ["rev-parse", "--abbrev-ref", "HEAD"], { cwd: radice, encoding: "utf8" }).trim() === "shop-r1") throw new Error("integrazione");
     diff = execFileSync(
       "git",
       [
