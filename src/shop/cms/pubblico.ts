@@ -19,6 +19,7 @@ import {
   normalizzaCaratteristiche,
   prezzoEffettivo,
   type CampiProdotto,
+  type CategoriaPubblica,
   type ProdottoPubblico,
   type SrcFoto,
 } from "./modello";
@@ -47,6 +48,18 @@ const CAMPI_DELLA_BOZZA = [
 const prima = (a: MediaLetto, b: MediaLetto) =>
   a.ordine - b.ordine || (a.creatoIl ?? "").localeCompare(b.creatoIl ?? "") || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
 
+type Url = (percorso: string | null) => string | null;
+/** I percorsi del database → indirizzi completi (con `baseMedia`), o com'erano se non c'è. */
+const creaUrl = (baseMedia?: string): Url => {
+  const base = baseMedia ? baseMedia.replace(/\/+$/, "") : "";
+  return (percorso) => (percorso ? (base ? `${base}/${percorso.replace(/^\/+/, "")}` : percorso) : null);
+};
+/** Una foto vale solo con tutte e tre le misure. */
+const creaFoto = (url: Url) => (m: MediaLetto): SrcFoto | null => {
+  const w480 = url(m.path480), w960 = url(m.path960), w1600 = url(m.path1600);
+  return w480 && w960 && w1600 ? { w480, w960, w1600 } : null;
+};
+
 interface Costruito {
   id: string;
   correlatoId: string | null;
@@ -58,12 +71,8 @@ interface Costruito {
 export function costruisciPubblico(righe: unknown, opzioni: OpzioniPubblico = {}): ProdottoPubblico[] {
   const r = oggetto(righe);
   if (!r) return [];
-  const base = opzioni.baseMedia ? opzioni.baseMedia.replace(/\/+$/, "") : "";
-  const url = (percorso: string | null): string | null => (percorso ? (base ? `${base}/${percorso.replace(/^\/+/, "")}` : percorso) : null);
-  const foto = (m: MediaLetto): SrcFoto | null => {
-    const w480 = url(m.path480), w960 = url(m.path960), w1600 = url(m.path1600);
-    return w480 && w960 && w1600 ? { w480, w960, w1600 } : null;
-  };
+  const url = creaUrl(opzioni.baseMedia);
+  const foto = creaFoto(url);
 
   const tutteLeVarianti = righeDi(r.varianti).flatMap((x) => varianteDaRiga(x) ?? []);
   const tuttiIMedia = righeDi(r.media).flatMap((x) => mediaDaRiga(x) ?? []);
@@ -173,4 +182,29 @@ export function costruisciPubblico(righe: unknown, opzioni: OpzioniPubblico = {}
     if (altro) x.p.correlato = { slug: altro.p.slug, nome: altro.p.nome, prezzoDaCent: altro.p.prezzoDaCent, foto: altro.p.media.find((m) => m.slot === "principale")?.src ?? null };
   }
   return costruiti.map((x) => x.p);
+}
+
+/**
+ * Le categorie pubbliche (PIANO §3.1 `CategoriaPubblica`): solo `visibile` e con almeno un prodotto pubblicato (`quanti`,
+ * che calcola la vista `shop_v_categorie`; senza un numero > 0 la categoria non esiste). La foto è la «principale» di quella
+ * categoria (stessa scelta e stessi filtri dei prodotti), solo se ha le tre misure. Ordine: `ordine`, poi nome.
+ */
+export function costruisciCategorie(righe: unknown, opzioni: { baseMedia?: string } = {}): CategoriaPubblica[] {
+  const r = oggetto(righe);
+  if (!r) return [];
+  const foto = creaFoto(creaUrl(opzioni.baseMedia));
+  const media = righeDi(r.media).flatMap((x) => mediaDaRiga(x) ?? []).filter((m) => m.slot === "principale" && !m.rimossoIl && !(m.ritraePersone && !m.liberatoriaOk)).sort(prima);
+  return righeDi(r.categorie)
+    .flatMap((riga) => {
+      const c = categoriaDaRiga(riga), quanti = intero(riga.quanti);
+      return c && c.visibile && quanti !== null && quanti > 0 ? [{ c, quanti }] : [];
+    })
+    .sort((a, b) => a.c.ordine - b.c.ordine || a.c.nome.localeCompare(b.c.nome))
+    .map(({ c, quanti }) => {
+      const m = media.find((x) => x.categoriaId === c.id);
+      return {
+        slug: c.slug, nome: c.nome, tipo: c.tipo, frase: c.frase, foto: m ? foto(m) : null,
+        seo: { titolo: c.seoTitolo, descrizione: c.seoDescrizione }, ordine: c.ordine, quanti,
+      };
+    });
 }
