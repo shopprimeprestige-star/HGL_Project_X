@@ -12,7 +12,7 @@ import { SITO } from "@/seo/regole";
 import { emettiEvento } from "@/lib/tracciamento/api";
 import { modalitaCatalogo, schedaProdotto } from "@/shop/cms/catalogo.functions";
 import { daPubblicoAProdotto, varianteDaOpzioni } from "@/shop/cms/adattatore";
-import { cercaScheda, datiEventoCodice, datiEventoScheda, primaVolta, senzaPrezzo, testataScheda, type Scheda } from "@/shop/cms/scheda";
+import { cercaScheda, datiEventoCodice, datiEventoScheda, intestazioniScheda, primaVolta, senzaPrezzo, testataScheda, type Scheda } from "@/shop/cms/scheda";
 
 /** Cosa ha deciso il caricamento (T20): la scheda e se l'indirizzo porta `?anteprima=`. Un guasto del database NON arriva qui: è un errore temporaneo. */
 type Caricato = { scheda: Exclude<Scheda, { tipo: "temporaneo" }>; anteprima: boolean };
@@ -40,7 +40,8 @@ export const Route = createFileRoute("/shop/prodotto/$slug")({
     const t = testataScheda(loaderData.scheda.tipo === "cms" ? loaderData.scheda.prodotto : null, loaderData.anteprima, SITO);
     return { meta: t.meta, links: t.links, scripts: t.scripts };
   },
-  headers: ({ loaderData }): Record<string, string> => (loaderData?.anteprima ? { "Cache-Control": "private, no-store" } : {}),
+  //  Guasto (loader lanciato: `match.status` «error», nessun `loaderData`) → `no-store`; anteprima → `private, no-store`.
+  headers: ({ loaderData, match }) => intestazioniScheda({ anteprima: Boolean(loaderData?.anteprima), errore: match?.status === "error" }),
   errorComponent: ErroreTemporaneo,
   component: ProductDetail,
 });

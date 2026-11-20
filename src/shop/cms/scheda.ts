@@ -7,6 +7,7 @@
  *  · `testataScheda`: titolo, descrizione, immagine, indirizzo canonico e JSON-LD; `noindex` e NIENTE JSON-LD in anteprima.
  *  · `datiEventoScheda`: i dati di `ViewContent` e `AddToCart` (stesso SKU, centesimi interi).
  *  · `primaVolta`: «una volta per prodotto e sessione».
+ *  · `intestazioniScheda`: `no-store` per il guasto, `private, no-store` per l'anteprima.
  *  ⚠️ Mai la giacenza: arriva solo `disponibile`. */
 import type { DatiEvento } from "../../lib/tracciamento/eventi";
 import type { Product } from "../catalog";
@@ -87,6 +88,13 @@ export function testataScheda(p: ProdottoPubblico | null, anteprima: boolean, si
     // niente tag vuoto: in anteprima (o per un prodotto che il JSON-LD scarta) non c'è
     scripts: json ? [{ type: "application/ld+json", children: json }] : [],
   };
+}
+
+/** Le intestazioni della RISPOSTA della scheda (oltre a `no-cache, must-revalidate` della radice, che resta per tutto il resto).
+ *  Un guasto (il loader ha lanciato) e l'anteprima non si fermano in nessuna memoria: né del browser né della rete. */
+export function intestazioniScheda(s: { anteprima: boolean; errore: boolean }): Record<string, string> {
+  if (s.errore) return { "Cache-Control": "no-store" };
+  return s.anteprima ? { "Cache-Control": "private, no-store" } : {};
 }
 
 /* ── gli eventi ── */
