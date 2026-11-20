@@ -135,6 +135,9 @@ export async function prove(mod, { c, gruppo, radice }) {
   const rn = togliCommenti(readFileSync(join(dir, "api.crm.negozio.ts"), "utf8"));
   c("api.crm.negozio.ts: la chiave dell'anteprima si legge dall'ambiente del Worker, mai scritta", true, rn.includes("process.env.SUPABASE_SERVICE_ROLE_KEY"));
   c("api.crm.negozio.ts: i fatti del R2 (pagamento, spedizione e resi, email, M2) non vengono dichiarati veri dalla rotta", false, /(pagamentoIncassa|spedizioneResi|emailConferma|migrazioneOrdini)\s*:\s*true/.test(rn));
+  //   T32: il banner c'è davvero (T27): `__root.tsx` monta `ProviderTracciamento`, che mostra `BannerCookie`. È l'unico fatto che la rotta dichiara vero.
+  c("api.crm.negozio.ts: dichiara `bannerPresente: true` (il banner è montato nella radice), e nessun altro fatto vero", [true, true, false],
+    [/bannerPresente\s*:\s*true/.test(rn), /<ProviderTracciamento\s*\/>/.test(readFileSync(join(dir, "__root.tsx"), "utf8")) && /BannerCookie/.test(readFileSync(join(dir, "../components/tracciamento/ProviderTracciamento.tsx"), "utf8")), /bannerPresente\s*:\s*null/.test(rn)]);
   c("api.crm.negozio.ts: l'errore della guardia porta la forma che il client si aspetta (extra prodotti: [])", true, /extra: \{ prodotti: \[\] \}/.test(rn));
   const rm = togliCommenti(readFileSync(join(dir, "api.crm.negozio-media.ts"), "utf8"));
   c("api.crm.negozio-media.ts: il permesso si chiede allo Storage con createSignedUploadUrl (solo caricamento, mai una lettura firmata)", [true, false], [rm.includes("createSignedUploadUrl"), /createSignedUrl\(|download\(/.test(rm)]);

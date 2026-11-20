@@ -25,9 +25,9 @@ const dipendenze: DipendenzeNegozio = {
   //  ⚠️ Solo codici: mai l'oggetto errore, mai testi del titolare.
   log: (codice) => console.warn(`[negozio] ${codice}`),
   chiaveServizio: () => process.env.SUPABASE_SERVICE_ROLE_KEY,
-  //  Il banner dei cookie non si sa ancora verificare da qui (arriva con T27 e con il rilascio della cassa): «non valutabile»,
-  //  quindi lo shop non si può aprire. Quando il banner è nel sito si passa il valore vero; i fatti del R2 si aggiungono allora.
-  fattiEsterni: () => ({ bannerPresente: null }),
+  //  Il banner dei cookie c'è (T27: `ProviderTracciamento` è montato nella radice). Gli altri fatti (pagamento, spedizioni e resi,
+  //  email, migrazione degli ordini) restano «non valutabili» finché non arriva il Rilascio 2: lo shop si apre solo in forzatura.
+  fattiEsterni: () => ({ bannerPresente: true }),
 };
 
 export const Route = createFileRoute("/api/crm/negozio")({
