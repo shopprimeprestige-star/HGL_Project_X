@@ -10,19 +10,23 @@
  *   `disponibile`, e il numero si ferma qui.
  *  ⚠️ Il filtro «solo pubblicati» c'è anche qui, oltre che nella vista (D1): due difese. La bozza esce soltanto se il
  *   chiamante passa `anteprima: { slug }` DOPO aver verificato la chiave (`anteprima.ts`), e solo per quello slug.
- *  ⚠️ Le colonne si leggono con `righe.ts` (snake_case → tipi del modello): qui non si rifà. Le colonne di filtro
- *   (`stato`, `attiva`, `liberatoria_ok`, `rimosso_il`) nelle viste possono mancare: vedi `righe.ts`.
+ *  ⚠️ Le colonne si leggono con `righe.ts` (snake_case → tipi del modello): qui non si rifà. Una colonna di filtro
+ *   (`stato`, `attiva`, `liberatoria_ok`, `ritrae_persone`, `rimosso_il`) che manca tiene la riga FUORI: vedi `righe.ts`.
+ *  ⚠️ D39: Invisible Derm esce SENZA prezzo (`prezzoDaCent` e `prezzoCent` delle varianti `null`, `acquistabile: false`, varianti non
+ *   disponibili) e non si scarta per il prezzo: il numero si ferma qui, come la giacenza. Vedi `eInvisibleDerm`.
  *  ⚠️ Righe di forma sbagliata non lanciano: si scartano. Un prezzo che non è un intero positivo scarta la variante
- *   (mai un prezzo inventato). Due foto nello stesso slot: vince una sola, sempre la stessa (ordine, creato_il, id). */
+ *   (mai un prezzo inventato). Due foto nello stesso slot: vince una sola, sempre la stessa (`ordine`, poi `id`). */
 import {
   SLOT,
   normalizzaCaratteristiche,
   prezzoEffettivo,
   type CampiProdotto,
+  type CategoriaPubblica,
+  type Media,
   type ProdottoPubblico,
   type SrcFoto,
 } from "./modello";
-import { categoriaDaRiga, booleano, faq, intero, mediaDaRiga, oggetto, prodottoDaRiga, righeDi, testi, testo, varianteDaRiga, type MediaLetto } from "./righe";
+import { categoriaDaRiga, booleano, faq, intero, mediaDaRiga, oggetto, prodottoDaRiga, righeDi, testi, testo, varianteDaRiga } from "./righe";
 
 export interface OpzioniPubblico {
   /** Dove stanno le foto (`…/storage/v1/object/public/shop-media`): si antepone ai percorsi. Senza, restano com'erano. */
@@ -30,6 +34,10 @@ export interface OpzioniPubblico {
   /** La chiave d'anteprima è stata verificata per QUESTO indirizzo: la sua bozza esce, con le modifiche non pubblicate. */
   anteprima?: { slug: string };
 }
+
+/** D39: Invisible Derm è sempre senza prezzo. Una funzione sola, per nome (anche «Invisible-Derm», «InvisibleDerm», «invisible_derm»):
+ *  da qui in poi il prezzo non esiste più nei dati che escono dal server. */
+export const eInvisibleDerm = (nome: unknown): boolean => typeof nome === "string" && /invisible[\s\-_]*derm/i.test(nome);
 
 const SLOT_PRODOTTO = SLOT.filter((s) => s !== "campione");
 /** Come si ordinano le foto nella scheda (Design §4.4.3): la principale, la foto di scala come seconda, le altre, il video. */
@@ -43,9 +51,20 @@ const CAMPI_DELLA_BOZZA = [
   "faq", "resoConsentito", "resoGiorni", "boxConsulenza", "correlatoId", "seoTitolo", "seoDescrizione", "seoMediaId",
 ] as const satisfies readonly (keyof CampiProdotto)[];
 
-/** Tra due media dello stesso slot: prima `ordine`, poi `creato_il` (se c'è), poi `id`. Mai l'ordine in cui sono arrivati. */
-const prima = (a: MediaLetto, b: MediaLetto) =>
-  a.ordine - b.ordine || (a.creatoIl ?? "").localeCompare(b.creatoIl ?? "") || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+/** Tra due media dello stesso slot: prima `ordine`, poi `id`. Mai l'ordine in cui sono arrivati. Una regola sola, nel pubblico e in anteprima. */
+const prima = (a: Media, b: Media) => a.ordine - b.ordine || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+
+type Url = (percorso: string | null) => string | null;
+/** I percorsi del database → indirizzi completi (con `baseMedia`), o com'erano se non c'è. */
+const creaUrl = (baseMedia?: string): Url => {
+  const base = baseMedia ? baseMedia.replace(/\/+$/, "") : "";
+  return (percorso) => (percorso ? (base ? `${base}/${percorso.replace(/^\/+/, "")}` : percorso) : null);
+};
+/** Una foto vale solo con tutte e tre le misure. */
+const creaFoto = (url: Url) => (m: Media): SrcFoto | null => {
+  const w480 = url(m.path480), w960 = url(m.path960), w1600 = url(m.path1600);
+  return w480 && w960 && w1600 ? { w480, w960, w1600 } : null;
+};
 
 interface Costruito {
   id: string;
@@ -58,12 +77,8 @@ interface Costruito {
 export function costruisciPubblico(righe: unknown, opzioni: OpzioniPubblico = {}): ProdottoPubblico[] {
   const r = oggetto(righe);
   if (!r) return [];
-  const base = opzioni.baseMedia ? opzioni.baseMedia.replace(/\/+$/, "") : "";
-  const url = (percorso: string | null): string | null => (percorso ? (base ? `${base}/${percorso.replace(/^\/+/, "")}` : percorso) : null);
-  const foto = (m: MediaLetto): SrcFoto | null => {
-    const w480 = url(m.path480), w960 = url(m.path960), w1600 = url(m.path1600);
-    return w480 && w960 && w1600 ? { w480, w960, w1600 } : null;
-  };
+  const url = creaUrl(opzioni.baseMedia);
+  const foto = creaFoto(url);
 
   const tutteLeVarianti = righeDi(r.varianti).flatMap((x) => varianteDaRiga(x) ?? []);
   const tuttiIMedia = righeDi(r.media).flatMap((x) => mediaDaRiga(x) ?? []);
@@ -90,22 +105,26 @@ export function costruisciPubblico(righe: unknown, opzioni: OpzioniPubblico = {}
     const nome = testo(campi.nome);
     if (!nome) continue;
 
+    // D39: Invisible Derm si riconosce dal nome (anche quello nuovo della bozza), dal nome della riga o dallo slug: senza prezzo, non si compra
+    const senzaPrezzo = eInvisibleDerm(nome) || eInvisibleDerm(prodotto.nome) || eInvisibleDerm(slug);
+
     // le varianti ATTIVE, col prezzo che conta (D25); la giacenza serve solo a dire «disponibile». Quelle spente non contano per niente.
     const varianti = tutteLeVarianti
       .filter((v) => v.prodottoId === id && v.attiva)
       .map((v, i) => ({ v, i }))
       .sort((a, b) => a.v.ordine - b.v.ordine || a.i - b.i)
-      .flatMap(({ v }) => {
+      .flatMap(({ v }): ProdottoPubblico["varianti"] => {
+        if (senzaPrezzo) return [{ sku: v.sku, nome: v.nome || v.sku, opzioni: v.opzioni, prezzoCent: null, disponibile: false }];
         const prezzoCent = prezzoEffettivo(prodotto, v);
         return prezzoCent > 0 ? [{ sku: v.sku, nome: v.nome || v.sku, opzioni: v.opzioni, prezzoCent, disponibile: v.disponibile }] : [];
       });
-    const prezzoDaCent = varianti.length ? Math.min(...varianti.map((v) => v.prezzoCent)) : prodotto.prezzoCent;
-    if (prezzoDaCent <= 0) continue;
+    const prezzoDaCent = senzaPrezzo ? null : varianti.length ? Math.min(...varianti.map((v) => v.prezzoCent ?? 0)) : prodotto.prezzoCent;
+    if (prezzoDaCent !== null && prezzoDaCent <= 0) continue;
 
     // i media: fuori i rimossi e le persone senza liberatoria (D30); per ogni slot ne vince UNO, sempre lo stesso.
     // Il campione è la pallina di un valore (uno per valore), non una foto del prodotto.
     const candidati = tuttiIMedia.filter((m) => m.prodottoId === id && !m.rimossoIl && !(m.ritraePersone && !m.liberatoriaOk)).sort(prima);
-    const scelti = new Map<string, MediaLetto>();
+    const scelti = new Map<string, Media>();
     for (const m of candidati) {
       const chiave = m.slot === "campione" ? `campione:${(m.valoreOpzione ?? "").toLowerCase()}` : m.slot;
       if (!scelti.has(chiave)) scelti.set(chiave, m);
@@ -151,7 +170,7 @@ export function costruisciPubblico(righe: unknown, opzioni: OpzioniPubblico = {}
       caratteristiche: caratteristiche.filter((x) => x.stato === "confermato").map(({ etichetta, valore }) => ({ etichetta, valore })),
       passi: testi(campi.passi), confezione: testi(campi.confezione), avvertenze: testi(campi.avvertenze), faq: faq(campi.faq),
       categorie: categorieDi(riga, id), media, opzioni: opzioniPubbliche, varianti,
-      prezzoDaCent, reso: { consentito: booleano(campi.resoConsentito), giorni: intero(campi.resoGiorni) }, boxConsulenza: campi.boxConsulenza === true,
+      prezzoDaCent, acquistabile: !senzaPrezzo, reso: { consentito: booleano(campi.resoConsentito), giorni: intero(campi.resoGiorni) }, boxConsulenza: campi.boxConsulenza === true,
       correlato: null, seo: { titolo: testo(campi.seoTitolo), descrizione: testo(campi.seoDescrizione), immagine: seoFoto?.w1600 ?? null },
       gtin: prodotto.gtin, aggiornatoIl: prodotto.aggiornatoIl,
     };
@@ -161,6 +180,8 @@ export function costruisciPubblico(righe: unknown, opzioni: OpzioniPubblico = {}
       const daConfermare = caratteristiche.filter((x) => x.stato !== "confermato").length;
       if (daConfermare) nascosti.push({ blocco: "caratteristiche", motivo: `${daConfermare} ${daConfermare === 1 ? "riga" : "righe"} da confermare` });
       if (!principale) nascosti.push({ blocco: "foto principale", motivo: "slot vuoto" });
+      const senzaLiberatoria = tuttiIMedia.filter((m) => m.prodottoId === id && !m.rimossoIl && m.ritraePersone && !m.liberatoriaOk).length;
+      if (senzaLiberatoria) nascosti.push({ blocco: "foto", motivo: `${senzaLiberatoria} foto senza liberatoria` });
       if (!prodotto.classeSpedizione && !((prodotto.pesoG ?? 0) > 0)) nascosti.push({ blocco: "spedizione", motivo: "manca la spedizione" });
       pubblico.anteprima = { nascosti };
     }
@@ -173,4 +194,30 @@ export function costruisciPubblico(righe: unknown, opzioni: OpzioniPubblico = {}
     if (altro) x.p.correlato = { slug: altro.p.slug, nome: altro.p.nome, prezzoDaCent: altro.p.prezzoDaCent, foto: altro.p.media.find((m) => m.slot === "principale")?.src ?? null };
   }
   return costruiti.map((x) => x.p);
+}
+
+/**
+ * Le categorie pubbliche (PIANO §3.1 `CategoriaPubblica`): solo `visibile` e con almeno un prodotto pubblicato (`quanti`,
+ * che calcola la vista `shop_v_categorie`; senza un numero > 0 la categoria non esiste). La foto è la «principale» di quella
+ * categoria (stessa scelta e stessi filtri dei prodotti), solo se ha le tre misure; l'alt è della stessa riga (D36). Ordine: `ordine`, poi nome.
+ */
+export function costruisciCategorie(righe: unknown, opzioni: { baseMedia?: string } = {}): CategoriaPubblica[] {
+  const r = oggetto(righe);
+  if (!r) return [];
+  const foto = creaFoto(creaUrl(opzioni.baseMedia));
+  const media = righeDi(r.media).flatMap((x) => mediaDaRiga(x) ?? []).filter((m) => m.slot === "principale" && !m.rimossoIl && !(m.ritraePersone && !m.liberatoriaOk)).sort(prima);
+  return righeDi(r.categorie)
+    .flatMap((riga) => {
+      const c = categoriaDaRiga(riga), quanti = intero(riga.quanti);
+      return c && c.visibile && quanti !== null && quanti > 0 ? [{ c, quanti }] : [];
+    })
+    .sort((a, b) => a.c.ordine - b.c.ordine || a.c.nome.localeCompare(b.c.nome))
+    .map(({ c, quanti }) => {
+      const m = media.find((x) => x.categoriaId === c.id);
+      const src = m ? foto(m) : null; // foto e alt sono della STESSA riga (D36): senza le tre misure non c'è nessuno dei due
+      return {
+        slug: c.slug, nome: c.nome, tipo: c.tipo, frase: c.frase, foto: src, fotoAlt: src && m ? m.alt : null,
+        seo: { titolo: c.seoTitolo, descrizione: c.seoDescrizione }, ordine: c.ordine, quanti,
+      };
+    });
 }

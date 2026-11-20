@@ -192,11 +192,15 @@ export interface ProdottoPubblico {
     muto: boolean;
   }[];
   opzioni: { nome: string; valori: { valore: string; campione: { w480: string } | null }[] }[];
-  varianti: { sku: string; nome: string; opzioni: Record<string, string>; prezzoCent: number; disponibile: boolean }[];
-  prezzoDaCent: number;
+  /** `prezzoCent` è `null` per Invisible Derm (D39): quel prezzo non lascia mai il server. */
+  varianti: { sku: string; nome: string; opzioni: Record<string, string>; prezzoCent: number | null; disponibile: boolean }[];
+  /** `null` per Invisible Derm (D39): il costo si vede in consulenza. */
+  prezzoDaCent: number | null;
+  /** `false` per Invisible Derm (D39): si mostra la scheda, non si compra. */
+  acquistabile: boolean;
   reso: { consentito: boolean | null; giorni: number | null };
   boxConsulenza: boolean;
-  correlato: { slug: string; nome: string; prezzoDaCent: number; foto: SrcFoto | null } | null;
+  correlato: { slug: string; nome: string; prezzoDaCent: number | null; foto: SrcFoto | null } | null;
   seo: { titolo: string | null; descrizione: string | null; immagine: string | null };
   gtin: string | null;
   aggiornatoIl: string;
@@ -210,6 +214,8 @@ export interface CategoriaPubblica {
   tipo: "categoria" | "collezione";
   frase: string | null;
   foto: SrcFoto | null;
+  /** Il testo alternativo della stessa riga di `shop_v_media` da cui viene `foto` (D36); `null` se non c'è la foto. */
+  fotoAlt: string | null;
   seo: { titolo: string | null; descrizione: string | null };
   ordine: number;
   /** Quanti prodotti pubblicati: una categoria senza prodotti pubblicati non esiste (Design §4.14 n. 11). */
