@@ -74,6 +74,7 @@ export async function prove(mod, { c, gruppo }) {
     [...["image/gif", "application/pdf", "image/heic", "video/mp4", ""].map((mime) => ok({ tipo: "foto", mime, byte: MB })), /JPG, PNG, WebP o AVIF/.test(R.controllaFile({ tipo: "foto", mime: "application/pdf", byte: MB }).frase)]);
   c("foto: 10 MB esatti passano, 10 MB + 1 byte no (con la frase del peso)", [true, false, true], [ok({ tipo: "foto", mime: "image/jpeg", byte: 10 * MB }), ok({ tipo: "foto", mime: "image/jpeg", byte: 10 * MB + 1 }), /10 MB/.test(R.controllaFile({ tipo: "foto", mime: "image/jpeg", byte: 11 * MB }).frase)]);
   c("la copertina del video è una foto: stessi limiti", [true, false, false], [ok({ tipo: "copertina", mime: "image/webp", byte: MB }), ok({ tipo: "copertina", mime: "video/mp4", byte: MB }), ok({ tipo: "copertina", mime: "image/jpeg", byte: 11 * MB })]);
+  c("video di tipo sbagliato: la frase dice «MP4 o MOV» (come il server)", true, /MP4 o MOV/.test(R.controllaFile({ tipo: "video", mime: "video/webm", byte: MB, durataS: 5 }).frase));
   c("video: MP4 e quicktime (l'iPhone) passano; WebM e AVI no", [true, true, false, false], ["video/mp4", "video/quicktime", "video/webm", "video/x-msvideo"].map((mime) => ok({ tipo: "video", mime, byte: 5 * MB, durataS: 10 })));
   c("video: 25 MB esatti sì, oltre no (con la frase)", [true, false, true], [ok({ tipo: "video", mime: "video/mp4", byte: 25 * MB, durataS: 10 }), ok({ tipo: "video", mime: "video/mp4", byte: 25 * MB + 1, durataS: 10 }), /25 MB/.test(R.controllaFile({ tipo: "video", mime: "video/mp4", byte: 30 * MB, durataS: 10 }).frase)]);
   c("video: 15 s esatti sì, 15,1 no («troppo lungo»), durata che non si legge no", [true, false, true, false, false],
@@ -87,13 +88,14 @@ export async function prove(mod, { c, gruppo }) {
       crea(lato) {
         const t = { lato, disegni: [] };
         chiamate.push(t);
-        return { disegna: (sorgente, r) => t.disegni.push({ sorgente, r }), aBlob: async (tipo, qualita) => ({ finto: true, lato, tipo, qualita }) };
+        return { disegna: (sorgente, r, sfondo) => t.disegni.push({ sorgente, r, sfondo }), aBlob: async (tipo, qualita) => ({ finto: true, lato, tipo, qualita }) };
       },
     };
     const piano = R.pianoFoto(4000, 3000, { x: 0, y: 0.5 }).piano;
     const out = await R.disegnaMisure("SORGENTE", piano, porta);
     c("disegnaMisure: un file per misura, ritagliando SEMPRE lo stesso quadrato, in JPEG", [[480, 960, 1600], [[0, 0, 3000], [0, 0, 3000], [0, 0, 3000]], ["image/jpeg", "image/jpeg", "image/jpeg"], [["SORGENTE", "SORGENTE", "SORGENTE"]]],
       [out.map((o) => o.lato), chiamate.map((t) => [t.disegni[0].r.x, t.disegni[0].r.y, t.disegni[0].r.lato]), out.map((o) => o.blob.tipo), [chiamate.map((t) => t.disegni[0].sorgente)]]);
+    c("lo sfondo è bianco: un PNG trasparente non diventa nero nel JPEG (la porta lo dipinge prima di disegnare)", [["#ffffff", "#ffffff", "#ffffff"]], [chiamate.map((t) => t.disegni[0].sfondo)]);
     c("…ogni file porta i nomi (480, 960, 1600) che serve", [[480], [960], [1600]], out.map((o) => o.per));
     const p2 = await R.disegnaMisure("S", R.pianoFoto(800, 600).piano, porta);
     c("una foto piccola: due file, e il 600 serve per 960 e 1600", [[480, 600], [[960, 1600]]], [p2.map((o) => o.lato), [p2[1].per]]);

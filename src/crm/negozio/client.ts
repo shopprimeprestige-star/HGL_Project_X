@@ -63,9 +63,16 @@ export const AZIONI_NEGOZIO = [
   "prodotto_crea", "prodotto_salva", "prodotto_pubblica_modifiche", "prodotto_scarta_modifiche", "prodotto_stato", "prodotto_duplica",
   "prodotto_adotta", "gruppo_stato", "anteprima_chiave", "variante_salva", "varianti_genera", "variante_attiva", "media_registra",
   "media_ordina", "media_alt", "media_flag", "media_rimuovi",
-  "giacenza_muovi", "giacenza_imposta", "prodotto_categorie", "categoria_salva", "categoria_ordina", "categoria_visibile", "interruttore_imposta",
+  "giacenza_muovi", "giacenza_imposta", "prodotto_categorie", "categoria_salva", "categoria_ordina", "categoria_visibile", "categoria_foto", "interruttore_imposta",
 ] as const;
 export type AzioneNegozio = (typeof AZIONI_NEGOZIO)[number];
+
+/** Le azioni che modificano ciò che la scheda ha già visto vogliono la `versione` (l'`aggiornato_il` letto): senza, il server non può dire 409.
+ *  Il client non le fa partire nemmeno. (`categoria_salva` la vuole solo se la categoria esiste già, cioè se c'è l'`id`.) */
+function mancaVersione(azione: string, dati: Record<string, unknown>): boolean {
+  const richiesta = ["prodotto_salva", "categoria_visibile", "categoria_foto", "prodotto_categorie"].includes(azione) || (azione === "categoria_salva" && dati.id != null);
+  return richiesta && !(typeof dati.versione === "string" && dati.versione !== "");
+}
 
 /* ══ GLI ERRORI ═════════════════════════════════════════════════════════════ */
 
@@ -79,13 +86,23 @@ export type TipoErrore =
   | "valore" //            400: la richiesta non è valida
   | "non_trovato" //       404
   | "chiave" //            503: manca la chiave di servizio (anteprima)
+  | "cancello" //          409: lo shop non si può aprire (porta le condizioni, riga per riga)
+  | "slug_bloccato" //     409: l'indirizzo di una categoria già pubblicata non si cambia
+  | "giacenza_negativa" // 409: il movimento porterebbe le scorte sotto zero
+  | "variante_inesistente" // 404: la variante non c'è più
+  | "categoria_inesistente" // 404: una delle categorie scelte non c'è più
+  | "categoria_mancante" // 409: un prodotto pubblicato deve avere almeno una categoria
   | "server" //            500, o una risposta che non si capisce
   | "rete"; //             la richiesta non è arrivata
 export interface ErroreNegozio {
   tipo: TipoErrore;
   messaggio: string;
+  /** Solo per «cancello»: ciò che il server risponde in più (le righe delle condizioni di uscita, D26). */
+  condizioni?: unknown;
   /** Solo per «non_pubblicabile»: cosa manca, campo per campo (il pannello «Prima di pubblicare» li usa). */
   bloccanti?: Voce[];
+  /** Solo per «conflitto» su un interruttore: il valore che c'è ora sul server (la schermata lo mostra senza rileggere). */
+  valore?: unknown;
 }
 
 const FRASI: Record<TipoErrore, string> = {
@@ -98,6 +115,12 @@ const FRASI: Record<TipoErrore, string> = {
   valore: "La richiesta non è valida: controlla i dati e riprova.",
   non_trovato: "Prodotto non trovato.",
   chiave: "L'anteprima non è disponibile in questo momento.",
+  cancello: "Lo shop non si può ancora aprire: mancano delle condizioni.",
+  slug_bloccato: "L'indirizzo di una categoria già pubblicata non si cambia: i link già condivisi smetterebbero di funzionare.",
+  giacenza_negativa: "Non ci sono abbastanza pezzi in magazzino per questo movimento: controlla la quantità.",
+  variante_inesistente: "Questa variante non esiste più: aggiorna la pagina.",
+  categoria_inesistente: "Una delle categorie scelte non esiste più: aggiorna la pagina e scegli di nuovo.",
+  categoria_mancante: "Un prodotto pubblicato deve avere almeno una categoria: scegline una oppure mettilo in bozza.",
   server: "Qualcosa non ha funzionato: riprova tra un momento.",
   rete: "Non riesco a collegarmi al server: controlla la connessione e riprova.",
 };
@@ -105,11 +128,18 @@ const FRASI: Record<TipoErrore, string> = {
 const DA_MOTIVO: Record<string, TipoErrore> = {
   conflitto: "conflitto",
   duplicato: "duplicato",
+  slug_occupato: "duplicato", // T09: l'indirizzo di una categoria già usato (per il prodotto T08 dice «duplicato»)
+  slug_bloccato: "slug_bloccato",
+  giacenza_negativa: "giacenza_negativa",
+  variante_inesistente: "variante_inesistente",
+  categoria_inesistente: "categoria_inesistente",
+  categoria_mancante: "categoria_mancante",
   migrazione: "migrazione",
   non_pubblicabile: "non_pubblicabile",
   valore: "valore",
   non_trovato: "non_trovato",
   chiave: "chiave",
+  cancello: "cancello",
 };
 
 const eOggetto = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
@@ -123,6 +153,8 @@ function erroreDaRisposta(stato: number, corpo: Record<string, unknown> | null):
   const e = errore(tipo, typeof frase === "string" && frase.trim() ? frase.trim().slice(0, MAX_MESSAGGIO) : FRASI[tipo]);
   if (tipo === "non_pubblicabile" && Array.isArray(corpo?.bloccanti))
     e.bloccanti = (corpo.bloccanti as unknown[]).flatMap((b) => (eOggetto(b) && typeof b.campo === "string" && typeof b.frase === "string" ? [{ campo: b.campo, frase: b.frase }] : []));
+  if (tipo === "cancello" && corpo?.condizioni !== undefined) e.condizioni = corpo.condizioni;
+  if (tipo === "conflitto" && corpo && "valore" in corpo) e.valore = corpo.valore;
   return e;
 }
 
@@ -130,7 +162,7 @@ function erroreDaRisposta(stato: number, corpo: Record<string, unknown> | null):
 
 /** La `fetch` della pagina (`fetchCRM`): stessa firma di `fetch`. */
 export type FetchRotta = (url: string, init?: RequestInit) => Promise<Response>;
-type Grezza = { corpo: Record<string, unknown> } | { errore: ErroreNegozio };
+type Grezza = { corpo: Record<string, unknown> } | { errore: ErroreNegozio; incerto: boolean };
 
 /** Una richiesta: o il corpo di una risposta buona (`ok: true`), o l'errore già tradotto. Non lancia mai. */
 async function chiama(f: FetchRotta, url: string, init?: RequestInit): Promise<Grezza> {
@@ -139,7 +171,7 @@ async function chiama(f: FetchRotta, url: string, init?: RequestInit): Promise<G
     const tetto = typeof AbortSignal.timeout === "function" ? { signal: AbortSignal.timeout(TETTO_RICHIESTA_MS) } : {};
     r = await f(url, { ...init, ...tetto });
   } catch {
-    return { errore: errore("rete") }; // mai il testo del browser: può nominare l'indirizzo
+    return { errore: errore("rete"), incerto: true }; // mai il testo del browser: può nominare l'indirizzo
   }
   let corpo: unknown = null;
   try {
@@ -149,7 +181,9 @@ async function chiama(f: FetchRotta, url: string, init?: RequestInit): Promise<G
   }
   const o = eOggetto(corpo) ? corpo : null;
   if (r.ok && o && o.ok === true) return { corpo: o };
-  return { errore: erroreDaRisposta(r.ok ? 500 : r.status, o) };
+  //  Un 502/503/504 senza `motivo` (timeout dell'hosting) può arrivare DOPO che il server ha scritto: com'è per la rete caduta.
+  const incerto = !r.ok && [502, 503, 504].includes(r.status) && typeof o?.motivo !== "string";
+  return { errore: erroreDaRisposta(r.ok ? 500 : r.status, o), incerto };
 }
 const senzaOk = (corpo: Record<string, unknown>): Record<string, unknown> => {
   const { ok: _ok, ...resto } = corpo;
@@ -185,14 +219,15 @@ export interface SchedaProdotto {
   controllo: { bloccanti: Voce[]; informativi: Voce[] };
 }
 
-export type RisultatoElenco = { ok: true; prodotti: RigaElenco[] } | { ok: false; errore: ErroreNegozio };
+/** `troncato`: l'elenco ha superato il tetto del server e non è completo (la pagina lo deve dire). */
+export type RisultatoElenco = { ok: true; prodotti: RigaElenco[]; troncato: boolean } | { ok: false; errore: ErroreNegozio };
 export async function leggiElenco(f: FetchRotta, filtri?: FiltriElenco): Promise<RisultatoElenco> {
   const url = urlProdotti(filtri);
   if (!url) return { ok: false, errore: errore("valore") };
   const g = await chiama(f, url);
   if ("errore" in g) return { ok: false, errore: g.errore };
   if (!Array.isArray(g.corpo.prodotti)) return { ok: false, errore: errore("server") };
-  return { ok: true, prodotti: g.corpo.prodotti as RigaElenco[] };
+  return { ok: true, prodotti: g.corpo.prodotti as RigaElenco[], troncato: g.corpo.troncato === true };
 }
 
 export type RisultatoScheda = { ok: true; scheda: SchedaProdotto } | { ok: false; errore: ErroreNegozio };
@@ -221,14 +256,15 @@ export type RisultatoAzione = RisultatoDati;
 
 export async function eseguiAzione(f: FetchRotta, azione: string, dati: Record<string, unknown> = {}): Promise<RisultatoAzione> {
   if (!(AZIONI_NEGOZIO as readonly string[]).includes(azione)) return { ok: false, errore: errore("valore") };
+  if (mancaVersione(azione, dati)) return { ok: false, errore: errore("valore", "Manca la versione di ciò che stai modificando: ricarica la pagina e riprova.") };
   const g = await chiama(f, ROTTA, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(Object.assign({ azione }, dati, { azione })), // i dati non possono cambiare l'azione
   });
   if ("errore" in g) {
-    //  Se la richiesta non è arrivata non si sa se la modifica sia stata scritta: lo si dice.
-    return g.errore.tipo === "rete"
+    //  Se la richiesta non è arrivata, o la risposta no, non si sa se la modifica sia stata scritta: lo si dice.
+    return g.incerto
       ? { ok: false, errore: errore("rete", "Non so se la modifica sia stata salvata: controlla la connessione, ricarica la scheda e ricontrolla.") }
       : { ok: false, errore: g.errore };
   }
@@ -246,6 +282,15 @@ export interface PermessoCaricamento {
 }
 export type RisultatoPermesso = { ok: true; permesso: PermessoCaricamento } | { ok: false; errore: ErroreNegozio };
 
+/** L'indirizzo firmato dello Storage deve essere `https:`. shortcut: in locale (Supabase su http) il caricamento non parte; da allargare solo per lo sviluppo. */
+const eHttps = (u: unknown): boolean => {
+  try {
+    return typeof u === "string" && new URL(u).protocol === "https:";
+  } catch {
+    return false;
+  }
+};
+
 export async function chiediPermesso(f: FetchRotta, file: { tipo: "foto" | "video" | "copertina"; mime: string; peso: number }): Promise<RisultatoPermesso> {
   if (!["foto", "video", "copertina"].includes(file.tipo) || typeof file.mime !== "string" || !Number.isInteger(file.peso) || file.peso <= 0)
     return { ok: false, errore: errore("valore") };
@@ -256,12 +301,13 @@ export async function chiediPermesso(f: FetchRotta, file: { tipo: "foto" | "vide
   });
   if ("errore" in g) return { ok: false, errore: g.errore };
   const { bucket, path, token, url } = g.corpo;
-  if (![bucket, path, token, url].every((x) => typeof x === "string" && x)) return { ok: false, errore: errore("server") };
+  if (![bucket, path, token, url].every((x) => typeof x === "string" && x) || !eHttps(url)) return { ok: false, errore: errore("server") };
   return { ok: true, permesso: { bucket, path, token, url } as PermessoCaricamento };
 }
 
 /** Il file va allo Storage col permesso firmato (stessa forma di `uploadToSignedUrl` di Supabase). `fetchNudo` è la `fetch` del browser, SENZA il gettone del CRM. */
 export async function caricaConPermesso(fetchNudo: FetchRotta, permesso: PermessoCaricamento, file: Blob): Promise<{ ok: true } | { ok: false; errore: ErroreNegozio }> {
+  if (!eHttps(permesso.url)) return { ok: false, errore: errore("server", "Il file non è stato caricato: riprova.") };
   const corpo = new FormData();
   corpo.append("cacheControl", "3600");
   corpo.append("", file);
@@ -286,6 +332,8 @@ export interface StatoNegozio {
   inAggiornamento: boolean;
   /** l'errore dell'ULTIMA lettura; i prodotti sono quelli dell'ultima lettura buona */
   errore: ErroreNegozio | null;
+  /** l'elenco è incompleto (oltre il tetto del server) */
+  troncato: boolean;
   /** quando (ms) è finita l'ultima lettura buona; `oraHHmm` lo scrive */
   ultimoAggiornamento: number | null;
   filtri: FiltriElenco;
@@ -294,12 +342,15 @@ export interface StatoNegozio {
 /** 403, o 401 dopo il tentativo già fatto da `fetchCRM`: riprovare ogni 30 s non serve a niente. */
 const eAccessoNegato = (e: ErroreNegozio): boolean => e.tipo === "permesso" || e.tipo === "sessione";
 /** Errori dopo i quali l'elenco non è più quello che la pagina credeva: si rilegge da soli. */
-const DA_RILEGGERE: readonly TipoErrore[] = ["conflitto", "non_trovato", "migrazione", "permesso", "sessione", "duplicato"];
+const DA_RILEGGERE: readonly TipoErrore[] = [
+  "conflitto", "non_trovato", "migrazione", "permesso", "sessione", "duplicato", "cancello",
+  "variante_inesistente", "categoria_inesistente", "giacenza_negativa", "slug_bloccato",
+];
 
 export function creaArchivioNegozio(opz: { fetch: FetchRotta; porte: PorteTempo; filtri?: FiltriElenco }) {
   const { fetch: f, porte } = opz;
   let stato: StatoNegozio = {
-    prodotti: [], caricato: false, inCaricamento: true, inAggiornamento: false, errore: null, ultimoAggiornamento: null, filtri: opz.filtri ?? {},
+    prodotti: [], caricato: false, inCaricamento: true, inAggiornamento: false, errore: null, troncato: false, ultimoAggiornamento: null, filtri: opz.filtri ?? {},
   };
   let versione = 0; // sale a ogni azione riuscita (e a ogni cambio di filtri)
   let ascoltatori: Array<() => void> = [];
@@ -320,10 +371,10 @@ export function creaArchivioNegozio(opz: { fetch: FetchRotta; porte: PorteTempo;
     if (!r.ok) {
       //  Senza permesso (o senza sessione) i prodotti già letti non devono restare a schermo.
       const negato = eAccessoNegato(r.errore);
-      imposta({ errore: r.errore, inCaricamento: false, inAggiornamento: false, ...(negato && { prodotti: [], caricato: false, ultimoAggiornamento: null }) });
+      imposta({ errore: r.errore, inCaricamento: false, inAggiornamento: false, ...(negato && { prodotti: [], caricato: false, ultimoAggiornamento: null, troncato: false }) });
       return !negato;
     }
-    imposta({ prodotti: r.prodotti, caricato: true, inCaricamento: false, inAggiornamento: false, errore: null, ultimoAggiornamento: porte.adesso() });
+    imposta({ prodotti: r.prodotti, troncato: r.troncato, caricato: true, inCaricamento: false, inAggiornamento: false, errore: null, ultimoAggiornamento: porte.adesso() });
   };
   const lettore = creaLettore({ ogniMs: RILEGGI_PRODOTTI_MS, leggi, porte });
 
