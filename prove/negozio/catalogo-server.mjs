@@ -277,9 +277,14 @@ export async function prove(mod, { c, gruppo, radice }) {
     [await es(nuovo(), "prodotto-in-bozza", Kb), await es(nuovo({ db: { errori: { "shop_prodotti.select": { lancia: new Error("rete") } } } }), "prodotto-in-bozza", Kb), await es(nuovo({ db: { errori: { "shop_v_prodotti.select": { lancia: new Error("rete") } } } }), "prodotto-in-bozza", "1.abc"), await es(nuovo(), "prodotto-in-bozza", "1.abc")]);
   // migrazione non applicata (S1 manca): vista o colonna assente = «non trovato» (come la modalità dà `codice`), non «guasto»
   const mig = (db) => es(nuovo({ db }), "xyz-sconosciuto");
-  c("schedaEsito: migrazione non applicata (42P01, PGRST205, 42703, PGRST204) → «non trovato», mai «guasto»", ["non_trovato", "non_trovato", "non_trovato", "non_trovato", "non_trovato"],
-    [await mig({ mancante: true }), await mig({ mancante: true, codiceMancante: "PGRST205" }), await mig({ mancante: ["shop_v_prodotti"] }),
-      await mig({ errori: { "shop_v_media.select": { error: { code: "42703" } } } }), await mig({ errori: { "shop_v_varianti.select": { error: { code: "PGRST204" } } } })]);
+  c("schedaEsito: migrazione non applicata (tabelle assenti, anche l'interruttore) → «non trovato», mai «guasto»", ["non_trovato", "non_trovato"],
+    [await mig({ mancante: true }), await mig({ mancante: true, codiceMancante: "PGRST205" })]);
+  // T32 (8): con l'interruttore su `cms` (la riga dell'interruttore si legge) una vista o una colonna mancante è un GUASTO: «no-store», mai un 404 cacheabile
+  c("schedaEsito con `cms`: vista o colonna assente (42P01, 42703, PGRST204) → «guasto»", ["guasto", "guasto", "guasto"],
+    [await mig({ mancante: ["shop_v_prodotti"] }), await mig({ errori: { "shop_v_media.select": { error: { code: "42703" } } } }), await mig({ errori: { "shop_v_varianti.select": { error: { code: "PGRST204" } } } })]);
+  const migCodice = (db) => es(nuovo({ modalita: "codice", db }), "xyz-sconosciuto");
+  c("schedaEsito con `codice`: vista o colonna assente → «non trovato» (la migrazione non c'è ancora)", ["non_trovato", "non_trovato", "non_trovato"],
+    [await migCodice({ mancante: ["shop_v_prodotti"] }), await migCodice({ errori: { "shop_v_media.select": { error: { code: "42703" } } } }), await migCodice({ errori: { "shop_v_varianti.select": { error: { code: "PGRST204" } } } })]);
   c("…anche con la chiave d'anteprima valida (tabelle assenti), e la categoria/elenco restano vuoti", ["non_trovato", []],
     [await es(nuovo({ db: { mancante: true } }), "prodotto-in-bozza", Kb), await nuovo({ db: { mancante: true } }).catalogo.elenco()]);
   c("…ma un codice che non è di migrazione resta «guasto» (non si nasconde un guasto vero)", ["guasto", "guasto"],

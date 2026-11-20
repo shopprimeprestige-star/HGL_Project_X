@@ -34,6 +34,9 @@ export interface PorteScheda {
   scheda: (slug: string, chiave: string) => Promise<EsitoScheda>;
   /** Il vecchio catalogo conosce questo indirizzo? */
   nelCodice: (slug: string) => boolean;
+  /** `modalitaCertaDelServer()`: `codice`, `cms` o `incerto` (mai un errore). Serve quando `modalita()` dice `codice` ma il catalogo CMS ha il prodotto:
+   *  la lettura può aver fallito una volta sola e il vero interruttore essere su `cms`. Senza questa porta non si verifica (come prima). */
+  modalitaCerta?: () => Promise<"codice" | "cms" | "incerto">;
 }
 
 export async function cercaScheda(porte: PorteScheda, slug: string, chiave: string): Promise<Scheda> {
@@ -49,6 +52,13 @@ export async function cercaScheda(porte: PorteScheda, slug: string, chiave: stri
     const r = await porte.scheda(slug, modo === "cms" ? chiave : "");
     if (r.esito === "guasto") return { tipo: "temporaneo" };
     if (modo === "cms" && r.esito === "trovato") return { tipo: "cms", prodotto: r.prodotto };
+    // `codice` (forse per un guasto) e il prodotto CMS esiste: un 404 sarebbe un errore per Google. Si decide con la modalità CERTA:
+    // `cms` → la scheda; `codice` → non trovato (l'interruttore è davvero chiuso); `incerto` o errore → guasto (500, no-store, «Riprova»).
+    if (modo === "codice" && r.esito === "trovato" && porte.modalitaCerta) {
+      const certa = await porte.modalitaCerta();
+      if (certa === "cms") return { tipo: "cms", prodotto: r.prodotto };
+      return { tipo: certa === "codice" ? "non_trovato" : "temporaneo" };
+    }
     return { tipo: "non_trovato" };
   } catch {
     return { tipo: "temporaneo" };

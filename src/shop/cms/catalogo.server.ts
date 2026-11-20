@@ -187,8 +187,10 @@ export function creaCatalogo(porte: PorteCatalogo) {
       return prodotto ? { esito: "trovato", prodotto } : { esito: "non_trovato" };
     } catch (e) {
       segnala(e);
-      // S1 non applicata (vista o colonna assente): come per la modalità (`codice`), è «non trovato», non un guasto
-      return { esito: MIGRAZIONE_ASSENTE.has(String((e as { code?: unknown } | null)?.code)) ? "non_trovato" : "guasto" };
+      // S1 non applicata (vista o colonna assente): come per la modalità (`codice`), è «non trovato», non un guasto.
+      // MA con l'interruttore su `cms` una vista o una colonna che manca è un guasto vero: «non trovato» sarebbe un 404 (e un `public` in memoria).
+      const mancante = MIGRAZIONE_ASSENTE.has(String((e as { code?: unknown } | null)?.code));
+      return { esito: mancante && (await modalita()) !== "cms" ? "non_trovato" : "guasto" };
     }
   }
   /** Come `schedaEsito`, ma con `null` per tutto ciò che non è un prodotto trovato (anche un guasto). */

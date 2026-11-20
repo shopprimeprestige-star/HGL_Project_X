@@ -50,6 +50,41 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("`codice`, indirizzo sconosciuto, database sano → «non trovato»: un prodotto del CMS NON si espone con l'interruttore su `codice`", "non_trovato", (await S.cercaScheda(porte(catalogoDi("codice")), "prodotto-di-prova", "")).tipo);
   c("la modalità che non risponde (rete) vale `codice`: il sito di oggi", "codice", (await S.cercaScheda({ modalita: async () => { throw new Error("rete"); }, scheda: async () => ({ esito: "guasto" }), nelCodice: () => true }, "parrucca-t01", "")).tipo);
 
+  // ── T32 (25): un prodotto del CMS non dà MAI 404 per una lettura della modalità fallita una volta sola ──
+  const MC = mod["shop/cms/modalita-certa"];
+  const modalitaGuasta = { errori: { "shop_impostazioni.maybeSingle": { error: { code: "57P01" } }, "shop_impostazioni.select": { error: { code: "57P01" } } } };
+  {
+    const k = catalogoDi("cms");
+    const base = { modalita: async () => "codice", scheda: (s, ch) => k.schedaEsito(s, ch), nelCodice: () => false };
+    const con = (esito) => S.cercaScheda({ ...base, modalitaCerta: async () => { if (esito === "lancia") throw new Error("rete"); return esito; } }, "prodotto-di-prova", "");
+    c("modalità letta `codice` per un guasto, prodotto del CMS in memoria, modalità certa «incerto» → «temporaneo» (500 no-store), MAI «non trovato»", "temporaneo", (await con("incerto")).tipo);
+    c("…la verifica che lancia → «temporaneo»", "temporaneo", (await con("lancia")).tipo);
+    c("…la verifica dice `cms` → la scheda del prodotto", ["cms", "prodotto-di-prova"], ((r) => [r.tipo, r.prodotto?.slug])(await con("cms")));
+    c("…la verifica dice `codice` (shop davvero chiuso) → «non trovato»: il CMS non si espone", "non_trovato", (await con("codice")).tipo);
+    let chiamate = 0;
+    const nonEsiste = await S.cercaScheda({ ...base, modalitaCerta: async () => (chiamate++, "incerto") }, "non-esiste", "");
+    c("slug che nel CMS non c'è: «non trovato» senza chiedere la modalità certa", ["non_trovato", 0], [nonEsiste.tipo, chiamate]);
+    // con il catalogo vero: la lettura della modalità fallisce, le viste sono sane
+    const tg = negozio("cms");
+    const dbg = fintoDb({ tabelle: { ...tg, ...viste(tg) }, ...modalitaGuasta });
+    const kg = CAT.creaCatalogo({ db: dbg, adesso: () => T0, baseMedia: "https://m.prova.test/shop", chiaveServizio: CHIAVE });
+    const rg = await S.cercaScheda({ modalita: () => kg.modalita(), scheda: (s, ch) => kg.schedaEsito(s, ch), nelCodice: () => false, modalitaCerta: () => MC.leggiModalitaCerta({ db: dbg }) }, "prodotto-di-prova", "");
+    c("catalogo vero, modalità illeggibile e viste sane: «temporaneo» (la modalità certa risponde «incerto»)", "temporaneo", rg.tipo);
+    c("la rotta della scheda collega `modalitaCerta` a `modalitaCertaDelServer`", true, /modalitaCerta:\s*\(\)\s*=>\s*modalitaCertaDelServer\(\)/.test(readFileSync(join(radice, "src/routes/shop.prodotto.$slug.tsx"), "utf8")));
+    c("senza la porta `modalitaCerta` il comportamento di prima non cambia (compatibilità)", "non_trovato", (await S.cercaScheda({ ...base }, "prodotto-di-prova", "")).tipo);
+  }
+
+  // ── T32 (8): in `cms`, una vista o una colonna mancante NON è «non trovato» ma guasto (la risposta esce `no-store`); in `codice` sì ──
+  {
+    const guastoViste = { errori: { "shop_v_prodotti.select": { error: { code: "42P01" } } } };
+    const cmsMancante = await catalogoDi("cms", { db: guastoViste }).schedaEsito("prodotto-di-prova", "");
+    const codiceMancante = await catalogoDi("codice", { db: guastoViste }).schedaEsito("prodotto-di-prova", "");
+    c("`cms` con la vista assente (42P01): esito «guasto» (no-store), mai «non_trovato» cacheabile", "guasto", cmsMancante.esito);
+    c("`codice` con la vista assente (migrazione non applicata): «non_trovato»", "non_trovato", codiceMancante.esito);
+    const colonna = await catalogoDi("cms", { db: { errori: { "shop_v_media.select": { error: { code: "42703" } } } } }).schedaEsito("prodotto-di-prova", "");
+    c("`cms` con una colonna assente (42703): «guasto»", "guasto", colonna.esito);
+  }
+
   // ── anteprima: solo con chiave valida ──
   const slugBozza = "prodotto-in-bozza";
   const chiaveBozza = await AN.emettiChiaveAnteprima(CHIAVE, slugBozza, T0);

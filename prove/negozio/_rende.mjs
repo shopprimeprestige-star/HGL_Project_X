@@ -25,6 +25,7 @@ const FINTI = {
   "@/shop/useRivalidaCarrello": `export const useRivalidaCarrello = () => globalThis.__pagina.rivalida;`,
   "@/shop/cms/catalogo.functions": `const no = async () => { throw new Error("server finto"); };
     export const modalitaCatalogo = no, schedaProdotto = no, righeCarrello = no, elencoProdotti = no, elencoCategorie = no, vociSitemap = no;`,
+  "@/shop/cms/modalita-certa.functions": `export const modalitaCertaDelServer = async () => "incerto";`,
   "@/lib/tracciamento/api": `export const emettiEvento = (n, d) => (globalThis.__pagina.eventi.push([n, d]), "id"); export const emettiSoloContatore = () => {};`,
   "@/landing/consulenza/eventi": `export const traccia = () => {};`,
   "@/integrations/supabase/client": `export const supabase = { from: () => ({ insert: async (riga) => (globalThis.__pagina.righe.push(riga), { error: null }) }) };`,

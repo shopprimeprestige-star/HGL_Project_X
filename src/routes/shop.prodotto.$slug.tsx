@@ -11,6 +11,7 @@ import { PopupUscita } from "@/components/landing/consulenza/PopupUscita";
 import { SITO } from "@/seo/regole";
 import { emettiEvento } from "@/lib/tracciamento/api";
 import { modalitaCatalogo, schedaProdotto } from "@/shop/cms/catalogo.functions";
+import { modalitaCertaDelServer } from "@/shop/cms/modalita-certa.functions";
 import { daPubblicoAProdotto, varianteDaOpzioni } from "@/shop/cms/adattatore";
 import { cercaScheda, datiEventoCodice, datiEventoScheda, intestazioniScheda, primaVolta, senzaPrezzo, testataScheda, type Scheda } from "@/shop/cms/scheda";
 
@@ -24,6 +25,7 @@ export const Route = createFileRoute("/shop/prodotto/$slug")({
     const scheda = await cercaScheda(
       {
         modalita: () => modalitaCatalogo(),
+        modalitaCerta: () => modalitaCertaDelServer(),
         scheda: (slug, chiave) => schedaProdotto({ data: { slug, chiave } }),
         nelCodice: (slug) => Boolean(getProduct(slug)),
       },
