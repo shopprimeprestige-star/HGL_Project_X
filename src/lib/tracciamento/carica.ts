@@ -30,7 +30,7 @@ export type ConfigPubblica = {
 };
 
 export type PorteCarica = {
-  documento: { cookie: string; referrer?: string; createElement(tag: string): any; head: { appendChild(n: any): unknown } };
+  documento: { cookie: string; referrer?: string; createElement(tag: string): any; querySelector?(selettore: string): any; head: { appendChild(n: any): unknown } };
   finestra: {
     location: { hostname: string; pathname: string; search: string; origin?: string; reload(): void; assign?(url: string): void };
     localStorage?: { removeItem(k: string): void };
@@ -213,6 +213,28 @@ export function creaCaricatore(porte: PorteCarica): Caricatore {
     }
   }
 
+  /** Su una pagina non ammessa il referrer completo non deve uscire verso altri siti (è una pagina con codici
+   *  nell'indirizzo): un `<meta name="referrer" content="no-referrer">` messo e tolto secondo la pagina. Non c'è bisogno
+   *  di consenso né di script: il provider lo richiama a ogni cambio di rotta (dentro `applicaConsenso`). */
+  function proteggiReferrer() {
+    try {
+      let meta = documento.querySelector?.("#hgl-referrer");
+      if (!paginaAmmessa()) {
+        if (!meta) {
+          meta = documento.createElement("meta");
+          meta.id = "hgl-referrer";
+          meta.name = "referrer";
+          documento.head.appendChild(meta);
+        }
+        meta.content = "no-referrer";
+      } else if (meta) {
+        meta.remove?.();
+      }
+    } catch {
+      /* il documento non lo permette: niente */
+    }
+  }
+
   /** Guardia del router: `pushState` e `replaceState` verso una pagina non ammessa, con script caricati, → si spegne tutto e
    *  si naviga con una pagina nuova (senza script) PRIMA che l'indirizzo cambi sotto i pixel. */
   function installaGuardia() {
@@ -269,6 +291,7 @@ export function creaCaricatore(porte: PorteCarica): Caricatore {
 
   return {
     applicaConsenso(c, config) {
+      proteggiReferrer(); // a ogni cambio di rotta, anche senza consenso e senza script
       if (sospeso || !c || !config || porte.admin?.()) return;
       if (!paginaAmmessa()) {
         // in navigazione interna verso una pagina non ammessa con gli script già dentro: si spegne e si ricarica
@@ -296,12 +319,12 @@ export function creaCaricatore(porte: PorteCarica): Caricatore {
     sospendi,
 
     revoca() {
-      sospeso = true;
+      sospendi(); // prima di tutto: gli script già dentro smettono di mandare, poi si ripulisce e si ricarica
       const nomi = new Set(COOKIE_NOTI);
       try {
         for (const parte of String(documento.cookie || "").split(";")) {
           const nome = parte.split("=")[0].trim();
-          if (/^(_ga_|_gcl_)/.test(nome)) nomi.add(nome);
+          if (/^(_ga_|_gcl_|_gac_)/.test(nome)) nomi.add(nome); // anche i `_gac_<ID>` di Google Ads
         }
       } catch {
         /* cookie illeggibili: si cancellano comunque quelli noti */

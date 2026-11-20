@@ -6,18 +6,21 @@
  *  non riesce, risponde tutto `null`: il sito semplicemente non carica pixel. */
 import { createFileRoute } from "@tanstack/react-router";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { creaLettoreConfig } from "@/lib/tracciamento/config-pubblica";
+import { creaLettoreConfigConEsito } from "@/lib/tracciamento/config-pubblica";
 
-const leggi = creaLettoreConfig(supabaseAdmin as unknown as Parameters<typeof creaLettoreConfig>[0], () => Date.now());
+const leggi = creaLettoreConfigConEsito(supabaseAdmin as unknown as Parameters<typeof creaLettoreConfigConEsito>[0], () => Date.now());
 
 export const Route = createFileRoute("/api/public/tracking-config")({
   server: {
     handlers: {
-      GET: async () =>
-        new Response(JSON.stringify(await leggi()), {
+      GET: async () => {
+        const { config, errore } = await leggi();
+        // una lettura fallita (tabelle assenti, rete) non si fa tenere in memoria a nessuno: al prossimo giro si riprova
+        return new Response(JSON.stringify(config), {
           status: 200,
-          headers: { "Content-Type": "application/json", "Cache-Control": "public, max-age=300" },
-        }),
+          headers: { "Content-Type": "application/json", "Cache-Control": errore ? "no-store" : "public, max-age=300" },
+        });
+      },
     },
   },
 });

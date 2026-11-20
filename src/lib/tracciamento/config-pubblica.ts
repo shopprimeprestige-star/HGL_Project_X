@@ -57,14 +57,20 @@ export async function leggiConfigPubblica(db: DbLettura): Promise<ConfigPubblica
   return (await leggi(db)).config;
 }
 
-/** Come `leggiConfigPubblica`, con memoria di 5 minuti. Un errore di lettura NON resta in memoria. */
-export function creaLettoreConfig(db: DbLettura, adesso: () => number): () => Promise<ConfigPubblica> {
+/** Come `leggiConfigPubblica`, con memoria di 5 minuti, e dice anche se l'ultima lettura è fallita (la rotta, in quel caso,
+ *  non la fa tenere in memoria a nessuno: `no-store`). Un errore di lettura NON resta in memoria. */
+export function creaLettoreConfigConEsito(db: DbLettura, adesso: () => number): () => Promise<{ config: ConfigPubblica; errore: boolean }> {
   let memoria: { finoA: number; config: ConfigPubblica } | null = null;
   return async () => {
     const ora = adesso();
-    if (memoria && ora < memoria.finoA) return memoria.config;
+    if (memoria && ora < memoria.finoA) return { config: memoria.config, errore: false };
     const { config, errore } = await leggi(db);
     memoria = errore ? null : { finoA: ora + TENUTA_MS, config };
-    return config;
+    return { config, errore };
   };
+}
+
+export function creaLettoreConfig(db: DbLettura, adesso: () => number): () => Promise<ConfigPubblica> {
+  const lettore = creaLettoreConfigConEsito(db, adesso);
+  return async () => (await lettore()).config;
 }

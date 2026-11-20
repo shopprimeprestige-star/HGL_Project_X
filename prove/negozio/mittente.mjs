@@ -334,6 +334,12 @@ export async function prove(mod, { c, gruppo, radice }) {
   const leggiE = CP.creaLettoreConfig(dbe, () => ora);
   await leggiE(); await leggiE();
   c("un errore di lettura non resta in memoria per 5 minuti (si riprova alla chiamata dopo)", 2, lett(dbe));
+  // l'esito della lettura: la rotta non fa tenere in memoria a nessuno una lettura fallita
+  const esitoOk = CP.creaLettoreConfigConEsito(fintoDb({ config: [PROP] }), () => ora);
+  const esitoVuoto = CP.creaLettoreConfigConEsito(fintoDb({ config: [PROP], proprietari: [] }), () => ora);
+  const esitoKo = CP.creaLettoreConfigConEsito(fintoDb({ tabellaConfigMancante: true }), () => ora);
+  const esitoKo2 = CP.creaLettoreConfigConEsito(fintoDb({ tabellaProprietarioMancante: true }), () => ora);
+  c("creaLettoreConfigConEsito: lettura riuscita → errore falso (anche in memoria alla seconda), senza proprietario → falso (è una risposta, non un guasto), tabelle illeggibili → vero", [false, false, false, true, true], [(await esitoOk()).errore, (await esitoOk()).errore, (await esitoVuoto()).errore, (await esitoKo()).errore, (await esitoKo2()).errore]);
   const dbp = fintoDb({ tabellaProprietarioMancante: true });
   const leggiP = CP.creaLettoreConfig(dbp, () => ora);
   await leggiP(); await leggiP();
@@ -349,5 +355,6 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("la rotta della configurazione non nomina token, segreti né codici di prova, e non risponde con errori dettagliati", [false, false], [/access_token|secret|test_event/.test(rotte.config), /error\.message|e\.message|String\(e\)/.test(rotte.config)]);
   c("nessuna rotta scrive un token o una chiave in un registro (console.*)", [], Object.entries(rotte).filter(([, s]) => /console\.\w+\([^)]*(token|chiave|KEY|process\.env)/i.test(s)).map(([k]) => k));
   c("le rotte rispondono senza cache condivisa dove c'è un permesso o un evento", [true, true], [/no-store/.test(rotte.evento), /no-store/.test(rotte.permesso)]);
+  c("tracking-config: 5 minuti di cache solo a lettura riuscita, `no-store` se la lettura è fallita", [true, true, true], [/errore\s*\?\s*"no-store"\s*:\s*"public, max-age=300"/.test(rotte.config), /creaLettoreConfigConEsito/.test(rotte.config), /const \{ config, errore \} = await leggi\(\)/.test(rotte.config)]);
   c("il sorgente del mittente non scrive mai un token in un indirizzo (access_token nel corpo o in intestazione, non in `?access_token=`)", false, /\?access_token=|access_token=\$\{/.test(readFileSync(join(radice, "src/lib/tracciamento/mittente.ts"), "utf8")));
 }

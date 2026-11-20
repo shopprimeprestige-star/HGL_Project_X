@@ -19,14 +19,15 @@ const TUTTO_NEGATO = { analytics_storage: "denied", ad_storage: "denied", ad_use
 
 /** Il mondo finto: documento, finestra, e il registro di quel che succede. */
 function mondo({ host = "www.sito.test", path = "/shop", search = "", cookie = "", admin = false, cornice = false, referrer = "", tiktok = true } = {}) {
-  const m = { scripts: [], cookieScritti: [], reloads: 0, cookie, localStorage: {}, rimossi: [], pushate: [], sostituite: [], navigazioni: [], ascoltatori: [] };
+  const m = { scripts: [], cookieScritti: [], reloads: 0, cookie, localStorage: {}, rimossi: [], pushate: [], sostituite: [], navigazioni: [], ascoltatori: [], meta: null };
   m.documento = {
     referrer,
     get cookie() { return m.cookie; },
     set cookie(v) { m.cookieScritti.push(String(v)); },
-    createElement: (tag) => ({ tag }),
+    createElement: (tag) => (tag === "meta" ? { tag, remove() { m.meta = null; } } : { tag }),
+    querySelector: (sel) => (sel === "#hgl-referrer" ? m.meta : null),
     head: {
-      appendChild: (n) => m.scripts.push({ src: n.src, async: n.async, dl: (m.finestra.dataLayer ?? []).length, fq: m.finestra.fbq?.queue?.length ?? -1, dp: m.finestra.fbq?.disablePushState }),
+      appendChild: (n) => n.tag === "meta" ? void (m.meta = n) : m.scripts.push({ src: n.src, async: n.async, dl: (m.finestra.dataLayer ?? []).length, fq: m.finestra.fbq?.queue?.length ?? -1, dp: m.finestra.fbq?.disablePushState }),
     },
   };
   m.finestra = {
@@ -231,6 +232,41 @@ export async function prove(mod, { c, gruppo }) {
   dip.finestra.location.pathname = "/CRM";
   dip.car.applicaConsenso(STATISTICHE, CONFIG);
   c("anche con solo Google caricato, andare in /CRM sospende e ricarica", [true, 1], [dip.car.sospeso(), dip.reloads]);
+
+  /* ── la revoca: prima si sospende, poi si ripulisce (anche i `_gac_` di Google Ads) ── */
+  const rv = nuovo({ host: "www.sito.test", cookie: "_gac_UA-123=1; _gac_gb_G-TEST1234=2; _gaxyz=no; sessione=tienimi" });
+  rv.car.applicaConsenso(MARKETING, CONFIG);
+  rv.cookieScritti.length = 0;
+  rv.car.revoca();
+  c("revoca: cancella anche i cookie `_gac_*` di Google Ads (e non quelli che gli somigliano)", [true, true, false, false], [rv.cookieScritti.some((x) => x.startsWith("_gac_UA-123=;")), rv.cookieScritti.some((x) => x.startsWith("_gac_gb_G-TEST1234=;")), rv.cookieScritti.some((x) => x.startsWith("_gaxyz=")), rv.cookieScritti.some((x) => x.startsWith("sessione="))]);
+  c("revoca chiama `sospendi()` all'inizio: Meta `consent revoke`, Google tutto negato e `ga-disable`, e non si emette più niente", [true, true, true, true], [fq(rv).some((x) => x[0] === "consent" && x[1] === "revoke"), JSON.stringify(dl(rv).filter((x) => x[1] === "update").at(-1)?.[2]) === JSON.stringify(TUTTO_NEGATO), rv.finestra["ga-disable-G-TEST1234"] === true, rv.car.sospeso()]);
+  const rvOrdine = nuovo({ cookie: "_fbp=x" });
+  rvOrdine.car.applicaConsenso(MARKETING, CONFIG);
+  const eventiPrima = rvOrdine.cookieScritti.length;
+  rvOrdine.car.revoca();
+  c("revoca: la sospensione precede la cancellazione dei cookie (il `consent revoke` è già in coda e i cookie si scrivono dopo)", [true, true], [fq(rvOrdine).some((x) => x[0] === "consent" && x[1] === "revoke"), rvOrdine.cookieScritti.length > eventiPrima]);
+
+  /* ── su una pagina non ammessa il referrer completo non esce ── */
+  const rf = nuovo({ path: "/shop/ordine/HG-1", search: "?t=abc" });
+  rf.car.applicaConsenso(NIENTE, CONFIG);
+  c("pagina non ammessa: c'è `<meta name=\"referrer\" content=\"no-referrer\">` (anche senza consenso e senza script)", [true, "referrer", "no-referrer", 0], [!!rf.meta, rf.meta?.name, rf.meta?.content, rf.scripts.length]);
+  rf.car.applicaConsenso(NIENTE, CONFIG);
+  c("…una volta sola, non si duplica", true, !!rf.meta);
+  rf.finestra.location.pathname = "/shop";
+  rf.finestra.location.search = "";
+  rf.car.applicaConsenso(NIENTE, CONFIG);
+  c("tornando in una pagina ammessa il meta si toglie", null, rf.meta);
+  const rfa = nuovo({ path: "/shop" });
+  rfa.car.applicaConsenso(MARKETING, CONFIG);
+  c("pagina ammessa: nessun meta", null, rfa.meta);
+  const rfc = nuovo({ path: "/shop", cornice: true });
+  rfc.car.applicaConsenso(NIENTE, CONFIG);
+  c("in una cornice (non ammessa) c'è", true, !!rfc.meta);
+  const rfd = nuovo({ path: "/CRM/leads" });
+  delete rfd.documento.querySelector;
+  let er = null;
+  try { rfd.car.applicaConsenso(NIENTE, CONFIG); } catch (e) { er = String(e); }
+  c("documento senza querySelector: non lancia", null, er);
 
   /* ── la revoca ── */
   const COOKIE = "_fbp=fb.1.2; _fbc=fb.1.3; _ga=GA1.2; _ga_ABC123=GS1; _gid=GA1.3; _gcl_au=1.1; _gcl_aw=2; _ttp=tt; lp_external_id=x; sessione=tienimi; _gatto=non_mio";
