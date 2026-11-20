@@ -48,7 +48,7 @@ import {
   type FiltriElenco,
   type RigaElenco,
 } from "@/crm/negozio/client";
-import { skuValido, type Variante } from "@/shop/cms/modello";
+import { skuValido, slugDa, type Variante } from "@/shop/cms/modello";
 import {
   ETICHETTE_SEGMENTO,
   MAX_GRUPPO,
@@ -56,7 +56,7 @@ import {
   cercaRighe,
   ordinaRighe,
   prezzoDaCent,
-  proponiSkuCopia,
+  proponiCopia,
   riepilogoDuplica,
   riepilogoGruppo,
   type Colonna,
@@ -202,7 +202,8 @@ export function ElencoProdotti({ negozio, apri, categorieAggiornate = 0 }: Props
 
   const duplica = () =>
     lavora(async () => {
-      const usati = new Set(prodotti.map((r) => r.sku));
+      const skuUsati = new Set(prodotti.map((r) => r.sku));
+      const slugUsati = new Set(prodotti.map((r) => r.slug));
       const esiti: { id: string; ok: boolean; frase?: string }[] = [];
       let fermo: string | null = null;
       for (const riga of selezionati) {
@@ -211,11 +212,12 @@ export function ElencoProdotti({ negozio, apri, categorieAggiornate = 0 }: Props
           continue;
         }
         let esitoRiga: { id: string; ok: boolean; frase?: string } = { id: riga.id, ok: false };
-        //  Lo SKU lo conosciamo solo per i prodotti che si vedono: se è occupato da uno che non si vede, il server lo dice e si prova col numero dopo.
+        //  SKU e indirizzo li conosciamo solo per i prodotti che si vedono: se uno è occupato da un prodotto che non si vede, il server lo dice e si prova col numero dopo.
         for (let prova = 0; prova < 3; prova++) {
-          const sku = proponiSkuCopia(riga.sku, usati);
-          const r = await esegui("prodotto_duplica", { prodottoId: riga.id, sku });
-          usati.add(sku);
+          const { sku, slug } = proponiCopia(riga.sku, riga.slug, skuUsati, slugUsati);
+          const r = await esegui("prodotto_duplica", { prodottoId: riga.id, sku, slug });
+          skuUsati.add(sku);
+          slugUsati.add(slug);
           if (r.ok) {
             esitoRiga = { id: riga.id, ok: true };
             break;
@@ -951,7 +953,6 @@ function RigaGiacenza({ variante, esegui }: { variante: Variante; esegui: Negozi
   const [invio, setInvio] = useState(false);
   const numero = /^\d{1,7}$/.test(valore.trim()) ? Number(valore.trim()) : null;
   const valido = numero !== null && numero <= MAX_PEZZI;
-  const invariato = numero === attuale;
 
   const imposta = async () => {
     if (!valido || invio) return;
@@ -1004,7 +1005,7 @@ function RigaGiacenza({ variante, esegui }: { variante: Variante; esegui: Negozi
           size="sm"
           variant="outline"
           className="h-11 text-[12px] md:h-8"
-          disabled={!valido || invariato || invio}
+          disabled={!valido || invio}
         >
           {invio ? "Salvo…" : "Imposta"}
         </Button>
@@ -1051,10 +1052,19 @@ function FinestraNuovo({
       );
     setInvio(true);
     setErrore(null);
-    const r = await crea({ nome: nome.trim(), tipo, sku: pulito });
+    const dati = { nome: nome.trim(), tipo, sku: pulito };
+    let r = await crea({ ...dati, slug: slugDa(dati.nome) || slugDa(`${dati.nome} ${pulito}`) });
+    // Due prodotti con lo stesso nome (due colori) hanno lo stesso indirizzo: una sola riprova, con nome e SKU.
+    if (!r.ok && r.errore.tipo === "duplicato")
+      r = await crea({ ...dati, slug: slugDa(`${dati.nome} ${pulito}`) });
     setInvio(false);
     const id = r.ok ? (r.dati.prodotto as { id?: unknown } | undefined)?.id : null;
-    if (!r.ok) return setErrore(r.errore.messaggio);
+    if (!r.ok)
+      return setErrore(
+        r.errore.tipo === "duplicato"
+          ? "Esiste già un prodotto con questo SKU o con questo nome. Cambia lo SKU e riprova."
+          : r.errore.messaggio,
+      );
     if (typeof id !== "string")
       return setErrore(
         "Il prodotto è stato creato ma non riesco ad aprirlo: lo trovi nell'elenco.",

@@ -1,6 +1,6 @@
 /** ── L'ELENCO DEI PRODOTTI: LE REGOLE SENZA SCHERMO (elenco-puro.ts) ───────────
  *  Commessa 2026-11-20-shop-completo, T14 (Design §4.10.1). Niente React e niente rete: ricerca, ordine delle colonne, chip
- *  di stato con la PRIMA ragione scritta, lo SKU proposto per una copia e le frasi di riepilogo delle azioni di gruppo.
+ *  di stato con la PRIMA ragione scritta, SKU e indirizzo proposti per una copia e le frasi di riepilogo delle azioni di gruppo.
  *  Si prova in `prove/negozio/pagina-negozio.mjs` (compilato con esbuild: per questo nessun import di codice, solo tipi). */
 import type { RigaElenco, Segmento } from "@/crm/negozio/client";
 
@@ -83,15 +83,29 @@ export function chipProdotto(r: RigaElenco): ChipProdotto {
 /* ══ LA COPIA ═══════════════════════════════════════════════════════════════ */
 
 const MAX_SKU = 40;
+const MAX_SLUG = 80;
 
-/** Lo SKU del duplicato: quello vecchio più «-COPIA» (poi «-COPIA2», «-COPIA3»…), mai uno già usato, mai oltre 40 segni. */
-export function proponiSkuCopia(sku: string, usati: Iterable<string>): string {
-  const occupati = new Set(usati);
-  occupati.add(sku);
+/**
+ * SKU e indirizzo della copia, con lo stesso numero: «-COPIA» e «-copia», poi «-COPIA2» e «-copia2»… Si ferma al primo numero
+ * in cui sono liberi tutti e due. `shop_prodotti.slug` è UNIQUE: senza un indirizzo nuovo la seconda copia dello stesso prodotto
+ * darebbe «duplicato». Resta dentro i tetti di modello.ts (SKU 40, indirizzo 80, senza «--» né trattino finale).
+ */
+export function proponiCopia(
+  sku: string,
+  slug: string,
+  skuUsati: Iterable<string>,
+  slugUsati: Iterable<string>,
+): { sku: string; slug: string } {
+  const skuOccupati = new Set(skuUsati).add(sku);
+  const slugOccupati = new Set(slugUsati).add(slug);
   for (let n = 1; ; n++) {
-    const coda = n === 1 ? "-COPIA" : `-COPIA${n}`;
-    const candidato = sku.slice(0, MAX_SKU - coda.length) + coda;
-    if (!occupati.has(candidato)) return candidato;
+    const numero = n === 1 ? "" : String(n);
+    const codaSku = `-COPIA${numero}`;
+    const codaSlug = `-copia${numero}`;
+    const candidatoSku = sku.slice(0, MAX_SKU - codaSku.length) + codaSku;
+    const candidatoSlug = slug.slice(0, MAX_SLUG - codaSlug.length).replace(/-+$/, "") + codaSlug;
+    if (!skuOccupati.has(candidatoSku) && !slugOccupati.has(candidatoSlug))
+      return { sku: candidatoSku, slug: candidatoSlug };
   }
 }
 

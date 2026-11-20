@@ -45,7 +45,7 @@ export async function prove(_mod, { c, gruppo, radice }) {
   // ── le regole pure ──
   const P = existsSync(puroPath) ? await caricaTs(puroPath) : {};
   const ok = (f) => typeof f === "function";
-  c("elenco-puro.ts esporta le funzioni che l'elenco usa", true, ["cercaRighe", "ordinaRighe", "chipProdotto", "proponiSkuCopia", "riepilogoGruppo", "riepilogoDuplica", "prezzoDaCent"].every((n) => ok(P[n])) && P.MAX_GRUPPO === 20);
+  c("elenco-puro.ts esporta le funzioni che l'elenco usa", true, ["cercaRighe", "ordinaRighe", "chipProdotto", "proponiCopia", "riepilogoGruppo", "riepilogoDuplica", "prezzoDaCent"].every((n) => ok(P[n])) && P.MAX_GRUPPO === 20);
 
   if (ok(P.cercaRighe)) {
     const r = [riga("a1", { nome: "Patch Rosa", sku: "HG-T01" }), riga("a2", { nome: "Cura notte", sku: "HG-C02" }), riga("a3", { nome: "Kit ROSA", sku: "HG-K03" })];
@@ -73,14 +73,24 @@ export async function prove(_mod, { c, gruppo, radice }) {
     c("vecchio catalogo: «Vecchio catalogo», senza ragione", ["Vecchio catalogo", null], [chip({ origine: "codice", motivo: "x" }).etichetta, chip({ origine: "codice", motivo: "x" }).ragione]);
     c("modifiche non pubblicate: il chip lo dice", true, chip({ stato: "pubblicato", haModifiche: true }).modifiche === true && chip({ stato: "pubblicato" }).modifiche === false);
   }
-  if (ok(P.proponiSkuCopia)) {
+  if (ok(P.proponiCopia)) {
+    const reSlug = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
     const reSku = /^[A-Z0-9][A-Z0-9._-]{1,39}$/;
-    c("lo SKU della copia: quello vecchio più «-COPIA»", "HG-T01-COPIA", P.proponiSkuCopia("HG-T01", []));
-    c("se è occupato aggiunge un numero", "HG-T01-COPIA2", P.proponiSkuCopia("HG-T01", ["HG-T01-COPIA"]));
-    c("…e va avanti finché trova un posto libero", "HG-T01-COPIA4", P.proponiSkuCopia("HG-T01", new Set(["HG-T01-COPIA", "HG-T01-COPIA2", "HG-T01-COPIA3"])));
-    const lungo = P.proponiSkuCopia("A".repeat(40), ["A".repeat(34) + "-COPIA"]);
-    c("con uno SKU di 40 segni la copia resta di 40 al massimo e valida (la regola di modello.ts)", [true, true], [lungo.length <= 40, reSku.test(lungo)]);
-    c("la copia non è mai uguale all'originale né a uno occupato", true, lungo !== "A".repeat(40) && lungo !== "A".repeat(34) + "-COPIA");
+    c("la copia porta SKU e indirizzo con lo stesso suffisso: «-COPIA» e «-copia»", { sku: "HG-T01-COPIA", slug: "patch-rosa-copia" }, P.proponiCopia("HG-T01", "patch-rosa", [], []));
+    c("seconda copia dello stesso prodotto: «-COPIA2» e «-copia2» (non la stessa della prima)", { sku: "HG-T01-COPIA2", slug: "patch-rosa-copia2" }, P.proponiCopia("HG-T01", "patch-rosa", ["HG-T01-COPIA"], ["patch-rosa-copia"]));
+    c("due copie di fila dello stesso prodotto: due indirizzi e due SKU diversi, tutti validi", [4, true], (() => {
+      const sku = new Set(), slug = new Set();
+      for (let i = 0; i < 2; i++) { const x = P.proponiCopia("HG-T01", "patch-rosa", sku, slug); sku.add(x.sku); slug.add(x.slug); }
+      return [sku.size + slug.size, [...sku].every((s) => reSku.test(s)) && [...slug].every((s) => reSlug.test(s))];
+    })());
+    c("se è occupato solo lo SKU «-COPIA» e solo l'indirizzo «-copia2», va al primo numero libero per tutti e due", { sku: "HG-T01-COPIA3", slug: "patch-rosa-copia3" }, P.proponiCopia("HG-T01", "patch-rosa", ["HG-T01-COPIA"], ["patch-rosa-copia", "patch-rosa-copia2"]));
+    const lungo = P.proponiCopia("A".repeat(40), "a".repeat(80), [], []);
+    c("indirizzo di 80 segni: la copia resta di 80 al massimo e valida (modello.ts)", [true, true, true], [lungo.slug.length <= 80, reSlug.test(lungo.slug), lungo.slug !== "a".repeat(80)]);
+    const trattino = P.proponiCopia("HG-T01", "a".repeat(73) + "-bcd", [], []);
+    c("tagliato a metà di un trattino: niente «--» e niente trattino finale", [true, false], [reSlug.test(trattino.slug), /--/.test(trattino.slug)]);
+    const sku40 = P.proponiCopia("A".repeat(40), "a", ["A".repeat(34) + "-COPIA"], []);
+    c("con uno SKU di 40 segni la copia resta di 40 al massimo e valida (la regola di modello.ts)", [true, true, true], [sku40.sku.length <= 40, reSku.test(sku40.sku), sku40.sku !== "A".repeat(40)]);
+    c("l'originale non è mai l'esito, anche se l'elenco dei già usati non lo contiene", true, P.proponiCopia("X1", "x1", [], []).slug !== "x1");
   }
   if (ok(P.riepilogoGruppo)) {
     const nomi = { a: "Patch Rosa", b: "Cura notte", c: "Kit" };
@@ -183,4 +193,34 @@ export async function prove(_mod, { c, gruppo, radice }) {
   c("nessuna cancellazione, nessun prezzo barrato, nessuna stella, nessun «best seller»", false, /\bdelete\b|Elimina|compareAt|barrato|sconto|rating|reviews|stelle|best.?seller/i.test(el));
   c("le colonne si ordinano (`aria-sort`) e le caselle hanno un nome per chi non vede", true, /aria-sort/.test(el) && /aria-label/.test(el));
   c("nessun log: i prodotti non vanno in console", false, /console\./.test(el));
+
+  // ── il sorgente delle azioni: i nomi dei campi sono quelli del server ──
+  /** I nomi delle chiavi dell'oggetto passato a `esegui("azione", {…})`. */
+  const campiDi = (src, azione) => {
+    const i = src.indexOf(`"${azione}"`);
+    if (i < 0) return null;
+    const a = src.indexOf("{", i);
+    let n = 0, k = a;
+    for (; k < src.length; k++) { if (src[k] === "{") n++; else if (src[k] === "}" && --n === 0) break; }
+    const pezzi = []; // le chiavi: si divide sulle virgole fuori da parentesi, graffe e apici
+    let prof = 0, inizio = 0;
+    const corpo = src.slice(a + 1, k);
+    for (let q = 0; q <= corpo.length; q++) {
+      const ch = corpo[q];
+      if ("({[".includes(ch ?? "")) prof++;
+      else (")}]".includes(ch ?? "")) && prof--;
+      if (q === corpo.length || (ch === "," && prof === 0)) { pezzi.push(corpo.slice(inizio, q)); inizio = q + 1; }
+    }
+    return pezzi.map((x) => x.trim().match(/^([A-Za-z_]\w*)\s*(?::|$)/)?.[1]).filter(Boolean);
+  };
+  const imposta = campiDi(el, "giacenza_imposta") ?? [];
+  c("`giacenza_imposta` manda `varianteId`, `valore` e `motivo` (i campi del server) e nient'altro", ["motivo", "valore", "varianteId"], [...new Set(imposta)].sort());
+  const duplicaCampi = campiDi(el, "prodotto_duplica") ?? [];
+  c("`prodotto_duplica` manda `prodottoId`, `sku` e `slug`", ["prodottoId", "sku", "slug"], [...new Set(duplicaCampi)].sort());
+  c("`prodotto_crea` riceve anche l'indirizzo (`slug`) e, se è «duplicato», riprova UNA volta con nome e SKU", true,
+    /slug:\s*slugDa\(/.test(el) && /"duplicato"[\s\S]{0,160}slugDa\(`\$\{[^}]*\}\s+\$\{[^}]*\}`\)/.test(corpoDi(el, "FinestraNuovo") ?? ""));
+  const impostaTasto = el.slice(el.indexOf('type="submit"', el.indexOf("pezzi-${variante.id}")), el.indexOf("Imposta</Button>"));
+  c("il tasto «Imposta» non si spegne se il numero è uguale all'ultimo letto (un ordine può aver cambiato i pezzi)", [true, false], [/disabled=\{/.test(impostaTasto), /invariato/.test(el) || /disabled=\{[^}]*attuale/.test(impostaTasto)]);
+  const tutti = ["ApriShop", "Categorie", "EditorMedia", "EditorVarianti", "ElencoProdotti", "SchedaProdotto"].map((n) => join(dir, `${n}.tsx`)).filter(existsSync).map((p) => readFileSync(p, "utf8")).join("\n");
+  c("nessun `dangerouslySetInnerHTML` né `innerHTML` nella cartella `prodotti/`: i testi passano da React", false, /dangerouslySetInnerHTML|innerHTML|outerHTML|insertAdjacentHTML/.test(tutti));
 }
