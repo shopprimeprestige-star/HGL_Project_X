@@ -97,6 +97,8 @@ export async function prove(_mod, { c, gruppo, radice }) {
   c("nessun colore scritto a mano (esadecimale) nella schermata", false, /#[0-9a-fA-F]{3,8}\b/.test(ed));
   let toccati = null;
   try {
+    //  Sul ramo di integrazione `shop-r1` il diff da BASE contiene i compiti di tutti: il perimetro di T16 vale solo sul suo ramo di compito (T32, fase 1).
+    if (execFileSync("git", ["-C", radice, "rev-parse", "--abbrev-ref", "HEAD"], { encoding: "utf8" }).trim() === "shop-r1") throw new Error("integrazione");
     toccati = [
       ...execFileSync("git", ["-C", radice, "diff", "--name-only", BASE], { encoding: "utf8" }).split("\n"),
       ...execFileSync("git", ["-C", radice, "ls-files", "--others", "--exclude-standard"], { encoding: "utf8" }).split("\n"),
