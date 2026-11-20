@@ -15,6 +15,7 @@
  *  `mod`: i moduli impacchettati da `prove/prove.mjs` (qui non serve). `aiuti`: `{ c, gruppo, radice }`. */
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
+import { delNegozio } from "../_migrazioni-negozio.mjs";
 
 const A = "20261031120000_ponte_media_tipi.sql";
 const B = "20261031130000_ponte_media_archivio.sql";
@@ -91,7 +92,7 @@ export async function provePonteMediaMigrazione(_mod, { c, gruppo, radice }) {
   const tutto = vivo.A + vivo.B + vivo.C;
 
   //  ── Ordine e transazione ──
-  const altre = readdirSync(cartella).filter((n) => n.endsWith(".sql") && ![A, B, C].includes(n) && !n.includes("messaggi_automatici") && !n.includes("whatsapp_chiavi_server") && !n.includes("chiamate_numeri_senza_scheda") && !n.includes("ponte_chat_flag") && !n.includes("ecommerce_ordini")); // gli interruttori (31/10, 16:00) e il segno ha_messaggio_ponte (ponte-chat-flag, 13/11) vengono dopo: hanno il loro ordine
+  const altre = readdirSync(cartella).filter((n) => n.endsWith(".sql") && ![A, B, C].includes(n) && !n.includes("messaggi_automatici") && !n.includes("whatsapp_chiavi_server") && !n.includes("chiamate_numeri_senza_scheda") && !n.includes("ponte_chat_flag") && !n.includes("ecommerce_ordini") && !delNegozio(n)); // gli interruttori (31/10, 16:00) e il segno ha_messaggio_ponte (ponte-chat-flag, 13/11) vengono dopo: hanno il loro ordine
   c("A, B, C vengono in quest'ordine e dopo tutte le altre", [true, true], [A < B && B < C, altre.every((n) => n < A)]);
   for (const k of ["A", "B", "C"]) {
     const righe = vivo[k].split("\n").map((r) => r.trim()).filter(Boolean);
