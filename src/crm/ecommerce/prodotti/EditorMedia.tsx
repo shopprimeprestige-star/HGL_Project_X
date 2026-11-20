@@ -106,6 +106,8 @@ interface Bozza {
   /** Il caricamento a passi: ricorda cosa è già salito, per riprendere da dove si è fermato. */
   lavoro: Lavoro | null;
   fase: "pronta" | "in_corso" | "fallita";
+  /** Il file è già registrato sul server (anche se il lavoro è fallito): si chiude, non si ricarica. */
+  salvata: boolean;
   passo: { fatti: number; totale: number };
   frase: string | null;
   definitivo: boolean;
@@ -198,6 +200,7 @@ export function EditorMedia({ prodotto, media, esegui, aggiorna }: PropsEditorMe
         copertinaUrl: null,
         lavoro: null,
         fase: "pronta",
+        salvata: false,
         passo: { fatti: 0, totale: 0 },
         frase: null,
         definitivo: false,
@@ -270,6 +273,7 @@ export function EditorMedia({ prodotto, media, esegui, aggiorna }: PropsEditorMe
         copertinaUrl: v.copertina ? URL.createObjectURL(v.copertina) : null,
         lavoro: null,
         fase: "pronta",
+        salvata: false,
         passo: { fatti: 0, totale: 0 },
         frase: null,
         definitivo: false,
@@ -380,8 +384,17 @@ export function EditorMedia({ prodotto, media, esegui, aggiorna }: PropsEditorMe
     const esito = await eseguiLavoro(lavoro, porte(esegui), (fatti, totale) =>
       agg(b.id, { passo: { fatti, totale } }),
     );
-    if (!esito.ok)
-      return agg(b.id, { fase: "fallita", frase: esito.frase, definitivo: esito.definitivo });
+    if (!esito.ok) {
+      //  La foto può essere già registrata (e magari già ritirata): la scheda si rilegge comunque.
+      if (esito.cambiato) await aggiorna();
+      if (esito.avviso) setMessaggio({ tono: "avviso", testo: esito.avviso });
+      return agg(b.id, {
+        fase: "fallita",
+        frase: esito.frase,
+        definitivo: esito.definitivo,
+        salvata: esito.cambiato && !esito.ritirata,
+      });
+    }
     scarta(b.id);
     setMessaggio(
       esito.avviso
@@ -702,6 +715,8 @@ function PannelloBozza({
   const verifica = controllaAlt(b.alt);
   const altOk = verifica.ok;
   const inCorso = b.fase === "in_corso";
+  //  Un lavoro già avviato ricorda descrizione e segni di prima: da lì in poi la bozza non si modifica (per cambiare qualcosa: Annulla e si sceglie di nuovo il file).
+  const fermo = inCorso || b.lavoro !== null;
   const asse = b.larghezza > b.altezza ? "x" : b.altezza > b.larghezza ? "y" : null;
   const p = b.punto;
   const pct = b.passo.totale ? Math.round((b.passo.fatti / b.passo.totale) * 100) : 0;
@@ -750,7 +765,7 @@ function PannelloBozza({
                   type="button"
                   variant="outline"
                   className="min-h-11"
-                  disabled={inCorso}
+                  disabled={fermo}
                   onClick={cambiaCopertina}
                 >
                   Cambia copertina
@@ -775,7 +790,7 @@ function PannelloBozza({
                 min={0}
                 max={100}
                 value={Math.round(p[asse] * 100)}
-                disabled={inCorso}
+                disabled={fermo}
                 className="h-11 w-full touch-pan-y accent-sky-600"
                 onChange={(e) => agg({ punto: { ...p, [asse]: Number(e.target.value) / 100 } })}
               />
@@ -809,7 +824,7 @@ function PannelloBozza({
               id={`${id}-alt`}
               value={b.alt}
               rows={2}
-              disabled={inCorso}
+              disabled={fermo}
               aria-invalid={!altOk}
               aria-describedby={`${id}-alt-errore`}
               className={CAMPO}
@@ -828,7 +843,7 @@ function PannelloBozza({
               <select
                 id={`${id}-ruolo`}
                 value={b.sottoRuolo ?? ""}
-                disabled={inCorso}
+                disabled={fermo}
                 className={cn(CAMPO, "min-h-11")}
                 onChange={(e) => {
                   //  Se la descrizione è ancora quella proposta, segue il ruolo; se l'ha scritta lui, non si tocca.
@@ -856,7 +871,7 @@ function PannelloBozza({
                 id={`${id}-muto`}
                 etichetta="È muto"
                 valore={b.muto}
-                spento={inCorso}
+                spento={fermo}
                 cambia={(v) => agg({ muto: v })}
               />
               {!b.muto && (
@@ -865,7 +880,7 @@ function PannelloBozza({
                     id={`${id}-sott`}
                     etichetta="Ho messo i sottotitoli nel video"
                     valore={b.sottotitoliOk}
-                    spento={inCorso}
+                    spento={fermo}
                     cambia={(v) => agg({ sottotitoliOk: v })}
                   />
                   {!b.sottotitoliOk && (
@@ -878,7 +893,7 @@ function PannelloBozza({
                       id={`${id}-parlato`}
                       value={b.testoParlato}
                       rows={3}
-                      disabled={inCorso}
+                      disabled={fermo}
                       className={CAMPO}
                       onChange={(e) => agg({ testoParlato: e.target.value })}
                     />
@@ -892,7 +907,7 @@ function PannelloBozza({
             persone={b.ritraePersone}
             liberatoria={b.liberatoriaOk}
             id={id}
-            spento={inCorso}
+            spento={fermo}
             cambia={agg}
           />
         </div>
@@ -921,14 +936,16 @@ function PannelloBozza({
       {b.fase === "fallita" && b.frase && (
         <Avviso errore>
           {b.frase}
-          {b.definitivo ? "" : ` Puoi riprovare: al massimo ${MAX_TENTATIVI} tentativi in tutto.`}
+          {b.definitivo
+            ? ""
+            : ` Puoi riprovare: al massimo ${MAX_TENTATIVI} tentativi in tutto. Per cambiare qualcosa, annulla e scegli di nuovo il file.`}
         </Avviso>
       )}
 
       <div className="flex flex-wrap gap-2">
         {b.fase === "fallita" && b.definitivo ? (
           <Button type="button" className="min-h-11" onClick={scarta}>
-            Scarta e scegli di nuovo
+            {b.salvata ? "Chiudi" : "Scarta e scegli di nuovo"}
           </Button>
         ) : (
           <Button type="button" className="min-h-11" disabled={!altOk || inCorso} onClick={salva}>

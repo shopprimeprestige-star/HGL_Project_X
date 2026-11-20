@@ -43,6 +43,16 @@ export async function prove(_mod, { c, gruppo, radice }) {
   c("`video-pulito.ts` è puro: nessun import, nessun browser (`window`, `document`, `fetch`, `Blob`)", false, /^\s*import\s/m.test(vp) || /\b(window|document|fetch|Blob|FileReader)\b/.test(vp));
   c("`video-pulito.ts` lavora con una LISTA BIANCA: tiene ftyp, moov, mdat, le tracce vide e soun, e corregge stco e co64", true, ["ftyp", "moov", "mdat", "mvhd", "trak", "stco", "co64", "stsc", "stsz", "vide", "soun"].every((a) => vp.includes(`"${a}"`)));
 
+  // ── dopo un fallimento: la scheda si rilegge, i campi non si cambiano più ──
+  c("se il lavoro fallisce ma la foto è già registrata (`cambiato`) si rilegge la scheda con `aggiorna()`", true, /esito\.cambiato[\s\S]{0,200}await aggiorna\(\)/.test(ed));
+  c("l'avviso del ritiro (prodotto tornato in bozza) si mostra", true, /esito\.avviso/.test(ed));
+  c("una bozza con un lavoro già avviato NON si modifica più (`fermo`): descrizione, ruolo, ritaglio, persone, muto, sottotitoli, testo parlato, copertina", [true, true], [
+    /const fermo = inCorso \|\| b\.lavoro !== null/.test(ed),
+    (ed.match(/disabled=\{fermo\}|spento=\{fermo\}/g) ?? []).length >= 8,
+  ]);
+  c("…e niente più `disabled={inCorso}` nei campi della bozza (resta solo il tasto Annulla)", true, (ed.match(/disabled=\{inCorso\}/g) ?? []).length <= 1);
+  c("«Riprova» rimanda lo STESSO lavoro (descrizione e segni di prima): la frase dice che per cambiare qualcosa si sceglie di nuovo il file", true, /scegli di nuovo il file/.test(ed));
+
   // ── alt obbligatorio ──
   c("la descrizione si controlla con `controllaAlt` e il contatore `contaAlt` (0/125)", [true, true, true], [/controllaAlt\(/.test(ed), /contaAlt\(/.test(ed), /maxLength|MAX_ALT/.test(ed)]);
   c("«Salva» è spento (`disabled`) finché la descrizione non è valida", true, /disabled=\{[^}]*(altOk|!alt\.ok|!verifica\.ok|!ok)/.test(ed.replace(/\s+/g, " ")) || /disabled=\{!?[A-Za-z.]*alt[A-Za-z.]*/.test(ed));
