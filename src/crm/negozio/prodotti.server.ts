@@ -716,8 +716,8 @@ const media_registra: Azione = async (c, corpo) => {
   }
   // uno slot ha UNA sola foto attiva: la nuova prende il posto di quelle che c'erano (tutte, così il risultato non dipende dall'ordine)
   const vecchie = s.media.filter((m) => m.slot === slot && (slot !== "campione" || m.valoreOpzione === riga.valore_opzione));
-  //  `rimosso_il` è una colonna di filtro (T07): una riga che non la porta vale come rimossa. La foto nuova non lo è.
-  const nuova = mediaDaRiga({ ...riga, id: "nuova", rimosso_il: null });
+  //  Le colonne di filtro (T07) chiudono la riga se mancano: la foto nuova porta i valori di S1 (non rimossa, non ritrae persone), come la restituirà il database.
+  const nuova = mediaDaRiga({ ...riga, id: "nuova", rimosso_il: null, ritrae_persone: false });
   if (!nuova) throw valore("La foto non è valida.");
   const tutti = await skuNoti(c.d, skusDi(s));
   nonPeggiora(s, { ...s, media: [...s.media.filter((m) => !vecchie.includes(m)), nuova] }, tutti);
