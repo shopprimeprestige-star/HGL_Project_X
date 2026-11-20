@@ -24,12 +24,44 @@
  *  ⚠️ Nessun log da qui, mai.
  *  shortcut: gli SKU degli altri prodotti per il controllo «già usato» sono quelli dell'elenco caricato (le varianti di altri
  *  prodotti le controlla il server al momento di pubblicare); si cambia quando l'elenco porterà anche gli SKU delle varianti. */
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
-import { AlertTriangle, ArrowRight, CheckCircle2, ChevronDown, Copy, Eye, Info, MoreHorizontal, Plus, RefreshCw, X } from "lucide-react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type ReactNode,
+} from "react";
+import {
+  AlertTriangle,
+  ArrowRight,
+  CheckCircle2,
+  ChevronDown,
+  Copy,
+  Eye,
+  Info,
+  MoreHorizontal,
+  Plus,
+  RefreshCw,
+  X,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Chip } from "@/crm/ui";
 import { cn } from "@/lib/utils";
 import { Avviso } from "@/crm/ecommerce/Avviso";
@@ -74,7 +106,10 @@ const campo =
 const tastoGrande = "h-11 text-[13px] md:h-9 md:text-[12px]";
 
 type Esito = { tono: "ok" | "errore"; testo: string } | null;
-type Lettura = { stato: "carico" } | { stato: "errore"; errore: ErroreNegozio } | { stato: "ok"; scheda: DatiScheda };
+type Lettura =
+  | { stato: "carico" }
+  | { stato: "errore"; errore: ErroreNegozio }
+  | { stato: "ok"; scheda: DatiScheda };
 
 /* ══ LA LETTURA ═════════════════════════════════════════════════════════════ */
 
@@ -86,7 +121,10 @@ export function SchedaProdotto({ id, negozio, apri }: PropsSchedaProdotto) {
     let vivo = true;
     setLettura({ stato: "carico" });
     void leggi(id).then((r) => {
-      if (vivo) setLettura(r.ok ? { stato: "ok", scheda: r.scheda } : { stato: "errore", errore: r.errore });
+      if (vivo)
+        setLettura(
+          r.ok ? { stato: "ok", scheda: r.scheda } : { stato: "errore", errore: r.errore },
+        );
     });
     return () => {
       vivo = false;
@@ -109,11 +147,21 @@ export function SchedaProdotto({ id, negozio, apri }: PropsSchedaProdotto) {
         errore
         azione={
           nonTrovato ? (
-            <Button type="button" variant="outline" className={tastoGrande} onClick={() => apri(null)}>
+            <Button
+              type="button"
+              variant="outline"
+              className={tastoGrande}
+              onClick={() => apri(null)}
+            >
               Torna ai prodotti
             </Button>
           ) : (
-            <Button type="button" variant="outline" className={tastoGrande} onClick={() => setGiro((g) => g + 1)}>
+            <Button
+              type="button"
+              variant="outline"
+              className={tastoGrande}
+              onClick={() => setGiro((g) => g + 1)}
+            >
               Riprova
             </Button>
           )
@@ -123,7 +171,15 @@ export function SchedaProdotto({ id, negozio, apri }: PropsSchedaProdotto) {
       </Avviso>
     );
   }
-  return <SchedaAperta key={`${id}-${giro}`} scheda={lettura.scheda} negozio={negozio} apri={apri} ricarica={() => setGiro((g) => g + 1)} />;
+  return (
+    <SchedaAperta
+      key={`${id}-${giro}`}
+      scheda={lettura.scheda}
+      negozio={negozio}
+      apri={apri}
+      ricarica={() => setGiro((g) => g + 1)}
+    />
+  );
 }
 
 /* ══ LA SCHEDA APERTA ═══════════════════════════════════════════════════════ */
@@ -135,7 +191,17 @@ interface DatiVivi {
   categorie: string[];
 }
 
-function SchedaAperta({ scheda, negozio, apri, ricarica }: { scheda: DatiScheda; negozio: Negozio; apri: (id: string | null) => void; ricarica: () => void }) {
+function SchedaAperta({
+  scheda,
+  negozio,
+  apri,
+  ricarica,
+}: {
+  scheda: DatiScheda;
+  negozio: Negozio;
+  apri: (id: string | null) => void;
+  ricarica: () => void;
+}) {
   const prodotto0 = scheda.prodotto as unknown as Prodotto;
   const id = prodotto0.id;
   const [dati, setDati] = useState<DatiVivi>({
@@ -147,7 +213,9 @@ function SchedaAperta({ scheda, negozio, apri, ricarica }: { scheda: DatiScheda;
   const [modulo, setModulo] = useState<Modulo>(() => moduloDaProdotto(prodotto0));
   const [stato, setStato] = useState(prodotto0.stato);
   const [origine, setOrigine] = useState(prodotto0.origine);
-  const [conBozza, setConBozza] = useState(prodotto0.stato === "pubblicato" && haBozza(prodotto0.bozzaModifiche));
+  const [conBozza, setConBozza] = useState(
+    prodotto0.stato === "pubblicato" && haBozza(prodotto0.bozzaModifiche),
+  );
   const [conflitto, setConflitto] = useState(false);
   const [occupato, setOccupato] = useState(false);
   const [esito, setEsito] = useState<Esito>(null);
@@ -157,10 +225,15 @@ function SchedaAperta({ scheda, negozio, apri, ricarica }: { scheda: DatiScheda;
   const [aperte, setAperte] = useState<ReadonlySet<SezioneId>>(new Set<SezioneId>(["identita"]));
   const [pannello, setPannello] = useState(false);
   const [vai, setVai] = useState<{ id: string; sezione: SezioneId; n: number } | null>(null);
-  const [anteprima, setAnteprima] = useState<{ url: string; vista: "telefono" | "computer" } | null>(null);
+  const [anteprima, setAnteprima] = useState<{
+    url: string;
+    vista: "telefono" | "computer";
+  } | null>(null);
   const [link, setLink] = useState<string | null>(null);
   const [archivia, setArchivia] = useState(false);
-  const [elencoCategorie, setElencoCategorie] = useState<{ id: string; nome: string }[] | null>(null);
+  const [elencoCategorie, setElencoCategorie] = useState<{ id: string; nome: string }[] | null>(
+    null,
+  );
   const [categorieErrore, setCategorieErrore] = useState<string | null>(null);
   const [salvandoCategorie, setSalvandoCategorie] = useState(false);
 
@@ -202,7 +275,11 @@ function SchedaAperta({ scheda, negozio, apri, ricarica }: { scheda: DatiScheda;
           const pubblicato = statoRef.current === "pubblicato";
           const patch = patchCampi(salvati.current, campiDaModulo(m).campi, { pubblicato });
           if (Object.keys(patch).length === 0) return true;
-          const r = await negozioRef.current.esegui("prodotto_salva", { prodottoId: id, versione: versione.current, campi: patch });
+          const r = await negozioRef.current.esegui("prodotto_salva", {
+            prodottoId: id,
+            versione: versione.current,
+            campi: patch,
+          });
           if (!r.ok) {
             riferisci(r.errore, setErroreSalva);
             return false;
@@ -224,7 +301,12 @@ function SchedaAperta({ scheda, negozio, apri, ricarica }: { scheda: DatiScheda;
     [auto],
   );
   useEffect(() => {
-    if (statoAuto.fase !== "in_attesa" && statoAuto.fase !== "salvando" && statoAuto.fase !== "errore") return;
+    if (
+      statoAuto.fase !== "in_attesa" &&
+      statoAuto.fase !== "salvando" &&
+      statoAuto.fase !== "errore"
+    )
+      return;
     const f = (e: BeforeUnloadEvent) => e.preventDefault();
     window.addEventListener("beforeunload", f);
     return () => window.removeEventListener("beforeunload", f);
@@ -246,7 +328,12 @@ function SchedaAperta({ scheda, negozio, apri, ricarica }: { scheda: DatiScheda;
     const p = r.scheda.prodotto as unknown as Prodotto;
     //  Un ritiro per liberatoria ha riportato il prodotto in bozza (e cambiato la sua versione): si riparte da quello che c'è.
     if (p.stato !== statoRef.current) return ricarica();
-    setDati((d) => ({ ...d, varianti: r.scheda.varianti as unknown as Variante[], media: r.scheda.media as unknown as Media[], categorie: r.scheda.categorie }));
+    setDati((d) => ({
+      ...d,
+      varianti: r.scheda.varianti as unknown as Variante[],
+      media: r.scheda.media as unknown as Media[],
+      categorie: r.scheda.categorie,
+    }));
   }, [id, ricarica]);
 
   /* ── le categorie ── */
@@ -254,11 +341,14 @@ function SchedaAperta({ scheda, negozio, apri, ricarica }: { scheda: DatiScheda;
     let vivo = true;
     void negozioRef.current.categorie().then((r) => {
       if (!vivo) return;
-      if (!r.ok || !Array.isArray(r.dati.categorie)) return setCategorieErrore(r.ok ? "Non riesco a leggere le categorie." : r.errore.messaggio);
+      if (!r.ok || !Array.isArray(r.dati.categorie))
+        return setCategorieErrore(r.ok ? "Non riesco a leggere le categorie." : r.errore.messaggio);
       setElencoCategorie(
         (r.dati.categorie as unknown[]).flatMap((k) => {
           const o = k as { id?: unknown; nome?: unknown } | null;
-          return o && typeof o.id === "string" && typeof o.nome === "string" ? [{ id: o.id, nome: o.nome }] : [];
+          return o && typeof o.id === "string" && typeof o.nome === "string"
+            ? [{ id: o.id, nome: o.nome }]
+            : [];
         }),
       );
     });
@@ -268,10 +358,18 @@ function SchedaAperta({ scheda, negozio, apri, ricarica }: { scheda: DatiScheda;
   }, []);
   const scegliCategoria = async (categoriaId: string, acceso: boolean) => {
     if (salvandoCategorie || conflitto) return;
-    const nuove = acceso ? [...dati.categorie, categoriaId] : dati.categorie.filter((x) => x !== categoriaId);
+    const nuove = acceso
+      ? [...dati.categorie, categoriaId]
+      : dati.categorie.filter((x) => x !== categoriaId);
     setSalvandoCategorie(true);
     setCategorieErrore(null);
-    const r = await serializza(() => negozioRef.current.esegui("prodotto_categorie", { prodottoId: id, categorie: nuove, versione: versione.current }));
+    const r = await serializza(() =>
+      negozioRef.current.esegui("prodotto_categorie", {
+        prodottoId: id,
+        categorie: nuove,
+        versione: versione.current,
+      }),
+    );
     setSalvandoCategorie(false);
     if (!r.ok) return riferisci(r.errore, setCategorieErrore);
     nuovaVersione(r.dati);
@@ -282,9 +380,22 @@ function SchedaAperta({ scheda, negozio, apri, ricarica }: { scheda: DatiScheda;
   const pubblicato = stato === "pubblicato";
   const { campi, errori } = useMemo(() => campiDaModulo(modulo), [modulo]);
   const avvisi = useMemo(() => avvisiCampi(modulo), [modulo]);
-  const altriSku = useMemo<SkuUsato[]>(() => negozio.prodotti.map((r) => ({ sku: r.sku, prodottoId: r.id })), [negozio.prodotti]);
+  const altriSku = useMemo<SkuUsato[]>(
+    () => negozio.prodotti.map((r) => ({ sku: r.sku, prodottoId: r.id })),
+    [negozio.prodotti],
+  );
   const live = useMemo(
-    () => controlloLive({ base: dati.prodotto, campi, errori, varianti: dati.varianti, media: dati.media, categorie: dati.categorie, altriSku, pubblicato }),
+    () =>
+      controlloLive({
+        base: dati.prodotto,
+        campi,
+        errori,
+        varianti: dati.varianti,
+        media: dati.media,
+        categorie: dati.categorie,
+        altriSku,
+        pubblicato,
+      }),
     [dati, campi, errori, altriSku, pubblicato],
   );
   const bloccanti = useMemo(() => {
@@ -293,11 +404,15 @@ function SchedaAperta({ scheda, negozio, apri, ricarica }: { scheda: DatiScheda;
   }, [live.bloccanti, rifiutoServer]);
   const informativi = live.informativi;
   const ctx = { nome: modulo.nome, sku: dati.prodotto.sku };
-  const conti = useMemo(() => conteggiPerSezione(bloccanti, informativi, ctx), [bloccanti, informativi, modulo.nome, dati.prodotto.sku]); // eslint-disable-line react-hooks/exhaustive-deps
+  const conti = useMemo(
+    () => conteggiPerSezione(bloccanti, informativi, ctx),
+    [bloccanti, informativi, modulo.nome, dati.prodotto.sku],
+  ); // eslint-disable-line react-hooks/exhaustive-deps
 
   const vecchio = origine === "codice";
   const archiviato = stato === "archiviato";
-  const modificheInCorso = conBozza || (pubblicato && (statoAuto.fase === "in_attesa" || statoAuto.fase === "salvando"));
+  const modificheInCorso =
+    conBozza || (pubblicato && (statoAuto.fase === "in_attesa" || statoAuto.fase === "salvando"));
   const nonPubblicabile = bloccanti.length > 0 || conflitto || vecchio || archiviato;
   const senzaModifiche = pubblicato && !modificheInCorso;
   const spento = occupato || conflitto;
@@ -318,7 +433,8 @@ function SchedaAperta({ scheda, negozio, apri, ricarica }: { scheda: DatiScheda;
     const diretto = /^(INPUT|TEXTAREA|SELECT|BUTTON)$/.test(el.tagName) || el.tabIndex >= 0;
     (diretto ? el : document.getElementById(`sez-${vai.sezione}`))?.focus({ preventScroll: true });
   }, [vai]);
-  const alternaSezione = (s: SezioneId) => setAperte((a) => (a.has(s) ? new Set([...a].filter((x) => x !== s)) : new Set(a).add(s)));
+  const alternaSezione = (s: SezioneId) =>
+    setAperte((a) => (a.has(s) ? new Set([...a].filter((x) => x !== s)) : new Set(a).add(s)));
 
   /* ── le azioni ── */
   const lavora = async (f: () => Promise<void>) => {
@@ -331,12 +447,24 @@ function SchedaAperta({ scheda, negozio, apri, ricarica }: { scheda: DatiScheda;
       setOccupato(false);
     }
   };
-  const nonSalvato = (cosa: string): Esito => ({ tono: "errore", testo: `Non sono riuscito a salvare le ultime modifiche: controlla la connessione e riprova. ${cosa}` });
+  const nonSalvato = (cosa: string): Esito => ({
+    tono: "errore",
+    testo: `Non sono riuscito a salvare le ultime modifiche: controlla la connessione e riprova. ${cosa}`,
+  });
 
   const salvaOra = () =>
     lavora(async () => {
       const ok = await auto.subito();
-      setEsito(ok ? { tono: "ok", testo: pubblicato ? "Salvato: le modifiche restano in bozza finché non le pubblichi." : "Bozza salvata." } : nonSalvato("Premi di nuovo «Salva»."));
+      setEsito(
+        ok
+          ? {
+              tono: "ok",
+              testo: pubblicato
+                ? "Salvato: le modifiche restano in bozza finché non le pubblichi."
+                : "Bozza salvata.",
+            }
+          : nonSalvato("Premi di nuovo «Salva»."),
+      );
     });
 
   async function pubblica() {
@@ -345,16 +473,26 @@ function SchedaAperta({ scheda, negozio, apri, ricarica }: { scheda: DatiScheda;
     setEsito(null);
     setRifiutoServer([]);
     try {
-      if (!(await auto.subito())) return setEsito(nonSalvato("Non ho pubblicato niente: premi di nuovo «Pubblica»."));
+      if (!(await auto.subito()))
+        return setEsito(nonSalvato("Non ho pubblicato niente: premi di nuovo «Pubblica»."));
       const sulSito = statoRef.current === "pubblicato";
       const r = await serializza(() =>
-        negozioRef.current.esegui(sulSito ? "prodotto_pubblica_modifiche" : "prodotto_stato", { prodottoId: id, versione: versione.current, ...(sulSito ? {} : { stato: "pubblicato" }) }),
+        negozioRef.current.esegui(sulSito ? "prodotto_pubblica_modifiche" : "prodotto_stato", {
+          prodottoId: id,
+          versione: versione.current,
+          ...(sulSito ? {} : { stato: "pubblicato" }),
+        }),
       );
       if (!r.ok) return riferisci(r.errore, (testo) => setEsito({ tono: "errore", testo }));
       nuovaVersione(r.dati);
       setStato("pubblicato");
       setConBozza(false);
-      setEsito({ tono: "ok", testo: sulSito ? "Modifiche pubblicate: sul sito entro un minuto." : "Pubblicato: lo vedi sul sito entro un minuto." });
+      setEsito({
+        tono: "ok",
+        testo: sulSito
+          ? "Modifiche pubblicate: sul sito entro un minuto."
+          : "Pubblicato: lo vedi sul sito entro un minuto.",
+      });
       await rileggi();
     } finally {
       setOccupato(false);
@@ -364,7 +502,12 @@ function SchedaAperta({ scheda, negozio, apri, ricarica }: { scheda: DatiScheda;
   const scarta = () =>
     lavora(async () => {
       if (!(await auto.subito())) return setEsito(nonSalvato("Non ho scartato niente."));
-      const r = await serializza(() => negozioRef.current.esegui("prodotto_scarta_modifiche", { prodottoId: id, versione: versione.current }));
+      const r = await serializza(() =>
+        negozioRef.current.esegui("prodotto_scarta_modifiche", {
+          prodottoId: id,
+          versione: versione.current,
+        }),
+      );
       if (!r.ok) return riferisci(r.errore, (testo) => setEsito({ tono: "errore", testo }));
       ricarica(); // il modulo riparte da ciò che è sul sito
     });
@@ -372,8 +515,18 @@ function SchedaAperta({ scheda, negozio, apri, ricarica }: { scheda: DatiScheda;
   const applicaPrezzo = () =>
     lavora(async () => {
       const cent = campi.prezzoCent;
-      if (cent === undefined || errori.prezzo) return setEsito({ tono: "errore", testo: errori.prezzo ?? "Scrivi il prezzo in euro, per esempio 19,90." });
-      const r = await serializza(() => negozioRef.current.esegui("prodotto_salva", { prodottoId: id, versione: versione.current, campi: { prezzoCent: cent } }));
+      if (cent === undefined || errori.prezzo)
+        return setEsito({
+          tono: "errore",
+          testo: errori.prezzo ?? "Scrivi il prezzo in euro, per esempio 19,90.",
+        });
+      const r = await serializza(() =>
+        negozioRef.current.esegui("prodotto_salva", {
+          prodottoId: id,
+          versione: versione.current,
+          campi: { prezzoCent: cent },
+        }),
+      );
       if (!r.ok) return riferisci(r.errore, (testo) => setEsito({ tono: "errore", testo }));
       nuovaVersione(r.dati);
       salvati.current = { ...salvati.current, prezzoCent: cent };
@@ -384,7 +537,13 @@ function SchedaAperta({ scheda, negozio, apri, ricarica }: { scheda: DatiScheda;
   const cambiaStato = (nuovo: "bozza" | "archiviato") =>
     lavora(async () => {
       if (!(await auto.subito())) return setEsito(nonSalvato("Non ho cambiato lo stato."));
-      const r = await serializza(() => negozioRef.current.esegui("prodotto_stato", { prodottoId: id, stato: nuovo, versione: versione.current }));
+      const r = await serializza(() =>
+        negozioRef.current.esegui("prodotto_stato", {
+          prodottoId: id,
+          stato: nuovo,
+          versione: versione.current,
+        }),
+      );
       setArchivia(false);
       if (!r.ok) return riferisci(r.errore, (testo) => setEsito({ tono: "errore", testo }));
       if (nuovo === "archiviato") return apri(null);
@@ -412,11 +571,16 @@ function SchedaAperta({ scheda, negozio, apri, ricarica }: { scheda: DatiScheda;
 
   const adotta = () =>
     lavora(async () => {
-      const r = await serializza(() => negozioRef.current.esegui("prodotto_adotta", { prodottoId: id }));
+      const r = await serializza(() =>
+        negozioRef.current.esegui("prodotto_adotta", { prodottoId: id }),
+      );
       if (!r.ok) return riferisci(r.errore, (testo) => setEsito({ tono: "errore", testo }));
       nuovaVersione(r.dati);
       setOrigine(null);
-      setEsito({ tono: "ok", testo: "Ora è un tuo prodotto. Completalo e pubblicalo quando è pronto." });
+      setEsito({
+        tono: "ok",
+        testo: "Ora è un tuo prodotto. Completalo e pubblicalo quando è pronto.",
+      });
     });
 
   /** Un link di anteprima (24 ore) per QUESTA bozza, già salvata. `null` se qualcosa non va (e dice cosa). */
@@ -431,7 +595,11 @@ function SchedaAperta({ scheda, negozio, apri, ricarica }: { scheda: DatiScheda;
       return null;
     }
     const url = indirizzoAnteprima(window.location.origin, r.dati.url);
-    if (!url) setEsito({ tono: "errore", testo: "Non riesco a preparare l'indirizzo dell'anteprima: riprova." });
+    if (!url)
+      setEsito({
+        tono: "errore",
+        testo: "Non riesco a preparare l'indirizzo dell'anteprima: riprova.",
+      });
     return url;
   };
   const apriAnteprima = () =>
@@ -446,7 +614,10 @@ function SchedaAperta({ scheda, negozio, apri, ricarica }: { scheda: DatiScheda;
       try {
         await navigator.clipboard.writeText(url);
         setLink(null);
-        setEsito({ tono: "ok", testo: "Link copiato: vale 24 ore e mostra la bozza. Incollalo nel telefono." });
+        setEsito({
+          tono: "ok",
+          testo: "Link copiato: vale 24 ore e mostra la bozza. Incollalo nel telefono.",
+        });
       } catch {
         setLink(url); // la pagina non può scrivere negli appunti: si mostra il link da copiare a mano
       }
@@ -461,40 +632,101 @@ function SchedaAperta({ scheda, negozio, apri, ricarica }: { scheda: DatiScheda;
   const sezione = (s: SezioneId, children: ReactNode, subito?: boolean) => {
     const def = SEZIONI.find((x) => x.id === s)!;
     return (
-      <Sezione key={s} id={s} titolo={def.titolo} segno={statoSezione(conti[s])} aperta={aperte.has(s)} alterna={() => alternaSezione(s)} subito={subito && pubblicato}>
+      <Sezione
+        key={s}
+        id={s}
+        titolo={def.titolo}
+        segno={statoSezione(conti[s])}
+        aperta={aperte.has(s)}
+        alterna={() => alternaSezione(s)}
+        subito={subito && pubblicato}
+      >
         {children}
       </Sezione>
     );
   };
   const mostra = (k: CampoModulo) => ({ errore: errori[k], avvisi: avvisi[k]?.avvisi ?? [] });
-  const testo = (k: "nome" | "marca" | "rigaPresentazione" | "descrizioneBreve" | "descrizioneLunga" | "perChi" | "seoTitolo" | "seoDescrizione", etichetta: string, extra?: { aiuto?: string; max?: number; area?: boolean; righe?: number; disabilitato?: boolean }) => (
-    <Campo k={k} etichetta={etichetta} aiuto={extra?.aiuto} contatore={extra?.max ? { n: modulo[k].length, max: extra.max } : undefined} {...mostra(k)}>
+  const testo = (
+    k:
+      | "nome"
+      | "marca"
+      | "rigaPresentazione"
+      | "descrizioneBreve"
+      | "descrizioneLunga"
+      | "perChi"
+      | "seoTitolo"
+      | "seoDescrizione",
+    etichetta: string,
+    extra?: {
+      aiuto?: string;
+      max?: number;
+      area?: boolean;
+      righe?: number;
+      disabilitato?: boolean;
+    },
+  ) => (
+    <Campo
+      k={k}
+      etichetta={etichetta}
+      aiuto={extra?.aiuto}
+      contatore={extra?.max ? { n: modulo[k].length, max: extra.max } : undefined}
+      {...mostra(k)}
+    >
       {(p) =>
         extra?.area ? (
-          <textarea {...p} rows={extra.righe ?? 3} value={modulo[k]} onChange={(e) => cambia({ [k]: e.target.value })} className={cn(campo, "py-2")} />
+          <textarea
+            {...p}
+            rows={extra.righe ?? 3}
+            value={modulo[k]}
+            onChange={(e) => cambia({ [k]: e.target.value })}
+            className={cn(campo, "py-2")}
+          />
         ) : (
-          <input {...p} value={modulo[k]} disabled={extra?.disabilitato} onChange={(e) => cambia({ [k]: e.target.value })} className={campo} />
+          <input
+            {...p}
+            value={modulo[k]}
+            disabled={extra?.disabilitato}
+            onChange={(e) => cambia({ [k]: e.target.value })}
+            className={campo}
+          />
         )
       }
     </Campo>
   );
   const lista = (k: "passi" | "confezione" | "avvertenze", etichetta: string, aiuto: string) => (
     <Campo k={k} etichetta={etichetta} aiuto={aiuto} {...mostra(k)}>
-      {(p) => <textarea {...p} rows={4} value={modulo[k]} onChange={(e) => cambia({ [k]: e.target.value })} className={cn(campo, "py-2")} />}
+      {(p) => (
+        <textarea
+          {...p}
+          rows={4}
+          value={modulo[k]}
+          onChange={(e) => cambia({ [k]: e.target.value })}
+          className={cn(campo, "py-2")}
+        />
+      )}
     </Campo>
   );
   const bloccoServer = erroreSalva ? (
-    <Avviso errore>
-      {erroreSalva} Le altre modifiche sono salve; questa no.
-    </Avviso>
+    <Avviso errore>{erroreSalva} Premi «Salva» per riprovare.</Avviso>
   ) : null;
 
   const barra = (
     <>
-      <Button type="button" variant="outline" className={cn(tastoGrande, "flex-1 md:flex-none")} disabled={spento} onClick={() => void salvaOra()}>
+      <Button
+        type="button"
+        variant="outline"
+        className={cn(tastoGrande, "flex-1 md:flex-none")}
+        disabled={spento}
+        onClick={() => void salvaOra()}
+      >
         {tastoSalva}
       </Button>
-      <Button type="button" className={cn(tastoGrande, "flex-1 md:flex-none")} disabled={nonPubblicabile || senzaModifiche || spento} onClick={() => void pubblica()}>
+      <Button
+        type="button"
+        className={cn(tastoGrande, "flex-1 md:flex-none")}
+        disabled={nonPubblicabile || senzaModifiche || spento}
+        onClick={() => void pubblica()}
+      >
         {tastoPubblica}
       </Button>
     </>
@@ -506,11 +738,17 @@ function SchedaAperta({ scheda, negozio, apri, ricarica }: { scheda: DatiScheda;
       <header className="flex flex-col gap-2">
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div className="min-w-0">
-            <h1 className="truncate text-[17px] font-semibold leading-tight">{dati.prodotto.nome}</h1>
+            <h1 className="truncate text-[17px] font-semibold leading-tight">
+              {dati.prodotto.nome}
+            </h1>
             <div className="mt-1 flex flex-wrap items-center gap-2">
-              <Chip tono={archiviato ? "chiusa" : pubblicato ? "vinta" : "neutro"}>{testoStato}</Chip>
+              <Chip tono={archiviato ? "chiusa" : pubblicato ? "vinta" : "neutro"}>
+                {testoStato}
+              </Chip>
               <span className="text-[12px] text-muted-foreground" role="status" aria-live="polite">
-                {conflitto ? "Non salvato: qualcun altro ha modificato il prodotto." : statoAuto.testo || (statoAuto.fase === "fermo" ? "Si salva da solo." : "")}
+                {conflitto
+                  ? "Non salvato: qualcun altro ha modificato il prodotto."
+                  : statoAuto.testo || (statoAuto.fase === "fermo" ? "Si salva da solo." : "")}
               </span>
             </div>
           </div>
@@ -518,21 +756,38 @@ function SchedaAperta({ scheda, negozio, apri, ricarica }: { scheda: DatiScheda;
             <div className="hidden items-center gap-2 md:flex">{barra}</div>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button type="button" variant="outline" className="h-11 w-11 p-0 md:h-9 md:w-9" aria-label="Altre azioni">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-11 w-11 p-0 md:h-9 md:w-9"
+                  aria-label="Altre azioni"
+                >
                   <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="crm-theme bg-white text-foreground">
-                <DropdownMenuItem className="min-h-11 md:min-h-8" disabled={spento} onSelect={() => void duplica()}>
+                <DropdownMenuItem
+                  className="min-h-11 md:min-h-8"
+                  disabled={spento}
+                  onSelect={() => void duplica()}
+                >
                   <Copy className="mr-2 h-4 w-4" aria-hidden="true" />
                   Duplica
                 </DropdownMenuItem>
                 {archiviato ? (
-                  <DropdownMenuItem className="min-h-11 md:min-h-8" disabled={spento} onSelect={() => void cambiaStato("bozza")}>
+                  <DropdownMenuItem
+                    className="min-h-11 md:min-h-8"
+                    disabled={spento}
+                    onSelect={() => void cambiaStato("bozza")}
+                  >
                     Rimetti in bozza
                   </DropdownMenuItem>
                 ) : (
-                  <DropdownMenuItem className="min-h-11 md:min-h-8" disabled={spento} onSelect={() => setArchivia(true)}>
+                  <DropdownMenuItem
+                    className="min-h-11 md:min-h-8"
+                    disabled={spento}
+                    onSelect={() => setArchivia(true)}
+                  >
                     Archivia
                   </DropdownMenuItem>
                 )}
@@ -541,11 +796,23 @@ function SchedaAperta({ scheda, negozio, apri, ricarica }: { scheda: DatiScheda;
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button type="button" variant="outline" className={tastoGrande} disabled={spento} onClick={() => void apriAnteprima()}>
+          <Button
+            type="button"
+            variant="outline"
+            className={tastoGrande}
+            disabled={spento}
+            onClick={() => void apriAnteprima()}
+          >
             <Eye className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
             Anteprima
           </Button>
-          <Button type="button" variant="outline" className={tastoGrande} disabled={spento} onClick={() => void copiaLink()}>
+          <Button
+            type="button"
+            variant="outline"
+            className={tastoGrande}
+            disabled={spento}
+            onClick={() => void copiaLink()}
+          >
             <Copy className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
             Copia il link per il telefono
           </Button>
@@ -555,7 +822,13 @@ function SchedaAperta({ scheda, negozio, apri, ricarica }: { scheda: DatiScheda;
             <label htmlFor="link-anteprima" className="font-medium">
               Copia questo link a mano (vale 24 ore)
             </label>
-            <input id="link-anteprima" readOnly value={link} onFocus={(e) => e.currentTarget.select()} className={campo} />
+            <input
+              id="link-anteprima"
+              readOnly
+              value={link}
+              onFocus={(e) => e.currentTarget.select()}
+              className={campo}
+            />
           </div>
         )}
       </header>
@@ -571,37 +844,61 @@ function SchedaAperta({ scheda, negozio, apri, ricarica }: { scheda: DatiScheda;
             </Button>
           }
         >
-          Qualcun altro ha modificato questo prodotto mentre lo guardavi. Ricarica per vedere la sua versione: le tue ultime modifiche non
-          salvate andranno perse. Finché non ricarichi non salvo niente.
+          Qualcun altro ha modificato questo prodotto mentre lo guardavi. Ricarica per vedere la sua
+          versione: le tue ultime modifiche non salvate andranno perse. Finché non ricarichi non
+          salvo niente.
         </Avviso>
       )}
       {vecchio && (
         <Avviso
           azione={
-            <Button type="button" variant="outline" className={tastoGrande} disabled={spento} onClick={() => void adotta()}>
+            <Button
+              type="button"
+              variant="outline"
+              className={tastoGrande}
+              disabled={spento}
+              onClick={() => void adotta()}
+            >
               Usa questo prodotto
             </Button>
           }
         >
-          Questo articolo viene dal vecchio catalogo: per pubblicarlo devi prima farne un tuo prodotto.
+          Questo articolo viene dal vecchio catalogo: per pubblicarlo devi prima farne un tuo
+          prodotto.
         </Avviso>
       )}
-      {letturaFallita && <Avviso>Non riesco a rileggere la scheda: i numeri che vedi potrebbero essere indietro. Ricarica la pagina se qualcosa non torna.</Avviso>}
+      {letturaFallita && (
+        <Avviso>
+          Non riesco a rileggere la scheda: i numeri che vedi potrebbero essere indietro. Ricarica
+          la pagina se qualcosa non torna.
+        </Avviso>
+      )}
       {bloccoServer}
-      {esito && (
-        <Avviso errore={esito.tono === "errore"}>
-          {esito.testo}
-        </Avviso>
-      )}
+      {esito && <Avviso errore={esito.tono === "errore"}>{esito.testo}</Avviso>}
       {pubblicato && modificheInCorso && (
-        <div role="status" className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[12.5px] text-amber-900">
+        <div
+          role="status"
+          className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[12.5px] text-amber-900"
+        >
           <p className="min-w-0 flex-1">
-            <strong className="font-semibold">Hai modifiche non pubblicate.</strong> Il sito resta com'è finché non le pubblichi.
+            <strong className="font-semibold">Hai modifiche non pubblicate.</strong> Il sito resta
+            com'è finché non le pubblichi.
           </p>
-          <Button type="button" className={tastoGrande} disabled={nonPubblicabile || spento} onClick={() => void pubblica()}>
+          <Button
+            type="button"
+            className={tastoGrande}
+            disabled={nonPubblicabile || spento}
+            onClick={() => void pubblica()}
+          >
             Pubblica le modifiche
           </Button>
-          <Button type="button" variant="outline" className={tastoGrande} disabled={spento} onClick={() => void scarta()}>
+          <Button
+            type="button"
+            variant="outline"
+            className={tastoGrande}
+            disabled={spento}
+            onClick={() => void scarta()}
+          >
             Scarta
           </Button>
         </div>
@@ -609,7 +906,10 @@ function SchedaAperta({ scheda, negozio, apri, ricarica }: { scheda: DatiScheda;
 
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start">
         {/* ── Prima di pubblicare ── */}
-        <aside aria-label="Prima di pubblicare" className="rounded-xl border border-border bg-card lg:sticky lg:top-3 lg:col-start-2 lg:row-start-1">
+        <aside
+          aria-label="Prima di pubblicare"
+          className="rounded-xl border border-border bg-card lg:sticky lg:top-3 lg:col-start-2 lg:row-start-1"
+        >
           <button
             type="button"
             aria-expanded={pannello}
@@ -619,16 +919,33 @@ function SchedaAperta({ scheda, negozio, apri, ricarica }: { scheda: DatiScheda;
           >
             <span>
               Prima di pubblicare ·{" "}
-              {bloccanti.length === 0 ? "tutto a posto" : bloccanti.length === 1 ? "manca 1 cosa" : `mancano ${bloccanti.length} cose`}
+              {bloccanti.length === 0
+                ? "tutto a posto"
+                : bloccanti.length === 1
+                  ? "manca 1 cosa"
+                  : `mancano ${bloccanti.length} cose`}
             </span>
-            <ChevronDown className={cn("h-4 w-4 transition-transform motion-reduce:transition-none", pannello && "rotate-180")} aria-hidden="true" />
+            <ChevronDown
+              className={cn(
+                "h-4 w-4 transition-transform motion-reduce:transition-none",
+                pannello && "rotate-180",
+              )}
+              aria-hidden="true"
+            />
           </button>
-          <div id="prima-di-pubblicare" className={cn("flex flex-col gap-3 p-3 lg:block", !pannello && "hidden lg:flex lg:flex-col")}>
+          <div
+            id="prima-di-pubblicare"
+            className={cn("flex flex-col gap-3 p-3", !pannello && "hidden lg:flex")}
+          >
             <h2 className="hidden text-[13px] font-semibold lg:block">Prima di pubblicare</h2>
             {bloccanti.length === 0 ? (
               <p className="flex items-start gap-2 text-[12.5px] text-emerald-900">
                 <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-                {archiviato ? "Il prodotto è archiviato: rimettilo in bozza per pubblicarlo." : vecchio ? "Prima usa questo prodotto dal vecchio catalogo." : "Tutto a posto: puoi pubblicare."}
+                {archiviato
+                  ? "Il prodotto è archiviato: rimettilo in bozza per pubblicarlo."
+                  : vecchio
+                    ? "Prima usa questo prodotto dal vecchio catalogo."
+                    : "Tutto a posto: puoi pubblicare."}
               </p>
             ) : (
               <ul className="flex flex-col gap-1.5" aria-label="Cose da sistemare">
@@ -641,7 +958,9 @@ function SchedaAperta({ scheda, negozio, apri, ricarica }: { scheda: DatiScheda;
             )}
             {informativi.length > 0 && (
               <div className="mt-2 flex flex-col gap-1.5">
-                <h3 className="text-[12px] font-semibold text-muted-foreground">Da sapere (non ferma la pubblicazione)</h3>
+                <h3 className="text-[12px] font-semibold text-muted-foreground">
+                  Da sapere (non ferma la pubblicazione)
+                </h3>
                 <ul className="flex flex-col gap-1.5">
                   {informativi.map((v, k) => (
                     <li key={`${v.campo}-${k}`}>
@@ -662,7 +981,12 @@ function SchedaAperta({ scheda, negozio, apri, ricarica }: { scheda: DatiScheda;
               <div className="md:col-span-2">{testo("nome", "Nome", { max: 120 })}</div>
               <Campo k="tipo" etichetta="Tipo" {...mostra("tipo")}>
                 {(p) => (
-                  <select {...p} value={modulo.tipo} onChange={(e) => cambia({ tipo: e.target.value as Modulo["tipo"] })} className={campo}>
+                  <select
+                    {...p}
+                    value={modulo.tipo}
+                    onChange={(e) => cambia({ tipo: e.target.value as Modulo["tipo"] })}
+                    className={campo}
+                  >
                     <option value="patch">Patch</option>
                     <option value="cura">Cura</option>
                     <option value="kit">Kit</option>
@@ -670,20 +994,53 @@ function SchedaAperta({ scheda, negozio, apri, ricarica }: { scheda: DatiScheda;
                 )}
               </Campo>
               {testo("marca", "Marca")}
-              <Campo k="sku" etichetta="SKU" aiuto={dati.prodotto.pubblicatoIl ? "Già pubblicato: lo SKU non si cambia più." : "Maiuscolo, senza spazi (per esempio HG-T01). È il codice che usano le vendite e le piattaforme."} {...mostra("sku")}>
-                {(p) => <input {...p} value={modulo.sku} disabled={!!dati.prodotto.pubblicatoIl} autoCapitalize="characters" onChange={(e) => cambia({ sku: e.target.value.toUpperCase() })} className={campo} />}
+              <Campo
+                k="sku"
+                etichetta="SKU"
+                aiuto={
+                  dati.prodotto.pubblicatoIl
+                    ? "Già pubblicato: lo SKU non si cambia più."
+                    : "Maiuscolo, senza spazi (per esempio HG-T01). È il codice che usano le vendite e le piattaforme."
+                }
+                {...mostra("sku")}
+              >
+                {(p) => (
+                  <input
+                    {...p}
+                    value={modulo.sku}
+                    disabled={!!dati.prodotto.pubblicatoIl}
+                    autoCapitalize="characters"
+                    onChange={(e) => cambia({ sku: e.target.value.toUpperCase() })}
+                    className={campo}
+                  />
+                )}
               </Campo>
               <Campo
                 k="slug"
                 etichetta="Indirizzo"
-                aiuto={dati.prodotto.pubblicatoIl ? "Già pubblicato: l'indirizzo non si cambia più, i link condivisi funzionano." : `Nel sito: /shop/prodotto/${modulo.slug || "…"}`}
+                aiuto={
+                  dati.prodotto.pubblicatoIl
+                    ? "Già pubblicato: l'indirizzo non si cambia più, i link condivisi funzionano."
+                    : `Nel sito: /shop/prodotto/${modulo.slug || "…"}`
+                }
                 {...mostra("slug")}
               >
                 {(p) => (
                   <div className="flex gap-2">
-                    <input {...p} value={modulo.slug} disabled={!!dati.prodotto.pubblicatoIl} onChange={(e) => cambia({ slug: e.target.value.toLowerCase() })} className={campo} />
+                    <input
+                      {...p}
+                      value={modulo.slug}
+                      disabled={!!dati.prodotto.pubblicatoIl}
+                      onChange={(e) => cambia({ slug: e.target.value.toLowerCase() })}
+                      className={campo}
+                    />
                     {!dati.prodotto.pubblicatoIl && (
-                      <Button type="button" variant="outline" className={cn(tastoGrande, "shrink-0")} onClick={() => cambia({ slug: slugDa(modulo.nome) })}>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className={cn(tastoGrande, "shrink-0")}
+                        onClick={() => cambia({ slug: slugDa(modulo.nome) })}
+                      >
                         Dal nome
                       </Button>
                     )}
@@ -694,13 +1051,35 @@ function SchedaAperta({ scheda, negozio, apri, ricarica }: { scheda: DatiScheda;
           )}
           {sezione(
             "categorie",
-            <fieldset id={idCampo("categoria")} tabIndex={-1} className="flex flex-col gap-1 outline-none">
-              <legend className="mb-1 text-[12.5px] text-muted-foreground">Scegli almeno una categoria: il prodotto si trova lì nel sito.</legend>
-              {categorieErrore && <p role="alert" className="text-[12.5px] text-rose-800">{categorieErrore}</p>}
-              {elencoCategorie === null && !categorieErrore && <p role="status" className="text-[12.5px] text-muted-foreground">Carico le categorie…</p>}
-              {elencoCategorie?.length === 0 && <p className="text-[12.5px]">Non c'è ancora nessuna categoria: creala sotto l'elenco dei prodotti, in «Categorie».</p>}
+            <fieldset
+              id={idCampo("categoria")}
+              tabIndex={-1}
+              className="flex flex-col gap-1 outline-none"
+            >
+              <legend className="mb-1 text-[12.5px] text-muted-foreground">
+                Scegli almeno una categoria: il prodotto si trova lì nel sito.
+              </legend>
+              {categorieErrore && (
+                <p role="alert" className="text-[12.5px] text-rose-800">
+                  {categorieErrore}
+                </p>
+              )}
+              {elencoCategorie === null && !categorieErrore && (
+                <p role="status" className="text-[12.5px] text-muted-foreground">
+                  Carico le categorie…
+                </p>
+              )}
+              {elencoCategorie?.length === 0 && (
+                <p className="text-[12.5px]">
+                  Non c'è ancora nessuna categoria: creala sotto l'elenco dei prodotti, in
+                  «Categorie».
+                </p>
+              )}
               {elencoCategorie?.map((k) => (
-                <label key={k.id} className="flex min-h-11 items-center gap-3 rounded-md px-1 text-[13px] md:min-h-9">
+                <label
+                  key={k.id}
+                  className="flex min-h-11 items-center gap-3 rounded-md px-1 text-[13px] md:min-h-9"
+                >
                   <input
                     type="checkbox"
                     className="h-5 w-5 accent-[color:var(--primary)]"
@@ -716,31 +1095,70 @@ function SchedaAperta({ scheda, negozio, apri, ricarica }: { scheda: DatiScheda;
           {sezione(
             "descrizione",
             <div className="flex flex-col gap-3">
-              {testo("rigaPresentazione", "Riga di presentazione", { max: 90, aiuto: "Una frase sotto il nome." })}
-              {testo("descrizioneBreve", "Descrizione breve (obbligatoria)", { max: 300, area: true, righe: 3, aiuto: "Si legge in elenco e nella scheda." })}
+              {testo("rigaPresentazione", "Riga di presentazione", {
+                max: 90,
+                aiuto: "Una frase sotto il nome.",
+              })}
+              {testo("descrizioneBreve", "Descrizione breve (obbligatoria)", {
+                max: 300,
+                area: true,
+                righe: 3,
+                aiuto: "Si legge in elenco e nella scheda.",
+              })}
               {testo("descrizioneLunga", "Descrizione lunga", { area: true, righe: 6 })}
               {testo("perChi", "Per chi è", { max: 200 })}
             </div>,
           )}
           {sezione(
             "caratteristiche",
-            <Caratteristiche modulo={modulo} cambia={cambia} errore={errori.caratteristiche} avvisi={avvisi.caratteristiche?.avvisi ?? []} />,
+            <Caratteristiche
+              modulo={modulo}
+              cambia={cambia}
+              errore={errori.caratteristiche}
+              avvisi={avvisi.caratteristiche?.avvisi ?? []}
+            />,
           )}
           {sezione(
             "prezzo",
             senzaPrezzo ? (
-              <p className="text-[13px]">Invisible Derm non ha un prezzo nello shop: il costo si vede in consulenza.</p>
+              <p className="text-[13px]">
+                Invisible Derm non ha un prezzo nello shop: il costo si vede in consulenza.
+              </p>
             ) : (
               <div className="flex flex-col gap-3">
-                <Campo k="prezzo" etichetta="Prezzo in euro" aiuto="Il prezzo di ogni variante, se è diverso, si scrive nelle varianti. Vuoto = vale questo." {...mostra("prezzo")}>
-                  {(p) => <input {...p} inputMode="decimal" value={modulo.prezzo} onChange={(e) => cambia({ prezzo: e.target.value })} placeholder="19,90" className={cn(campo, "md:max-w-48")} />}
+                <Campo
+                  k="prezzo"
+                  etichetta="Prezzo in euro"
+                  aiuto="Il prezzo di ogni variante, se è diverso, si scrive nelle varianti. Vuoto = vale questo."
+                  {...mostra("prezzo")}
+                >
+                  {(p) => (
+                    <input
+                      {...p}
+                      inputMode="decimal"
+                      value={modulo.prezzo}
+                      onChange={(e) => cambia({ prezzo: e.target.value })}
+                      placeholder="19,90"
+                      className={cn(campo, "md:max-w-48")}
+                    />
+                  )}
                 </Campo>
                 {pubblicato && (
                   <div className="flex flex-wrap items-center gap-3">
                     <p className="text-[12.5px] text-muted-foreground">
-                      Sul sito ora: <strong className="text-foreground">€ {prezzoInTesto(prezzoVivo) || "0,00"}</strong>
+                      Sul sito ora:{" "}
+                      <strong className="text-foreground">
+                        € {prezzoInTesto(prezzoVivo) || "0,00"}
+                      </strong>
                     </p>
-                    <Button type="button" className={tastoGrande} disabled={spento || centDaEuro(modulo.prezzo) === prezzoVivo || !!errori.prezzo} onClick={() => void applicaPrezzo()}>
+                    <Button
+                      type="button"
+                      className={tastoGrande}
+                      disabled={
+                        spento || centDaEuro(modulo.prezzo) === prezzoVivo || !!errori.prezzo
+                      }
+                      onClick={() => void applicaPrezzo()}
+                    >
                       Applica il nuovo prezzo
                     </Button>
                   </div>
@@ -752,7 +1170,14 @@ function SchedaAperta({ scheda, negozio, apri, ricarica }: { scheda: DatiScheda;
           {sezione(
             "varianti",
             <EditorVarianti
-              prodotto={{ id, sku: dati.prodotto.sku, nome: modulo.nome, prezzoCent: prezzoPerVarianti, pubblicato, versione: versione.current }}
+              prodotto={{
+                id,
+                sku: dati.prodotto.sku,
+                nome: modulo.nome,
+                prezzoCent: prezzoPerVarianti,
+                pubblicato,
+                versione: versione.current,
+              }}
               varianti={dati.varianti}
               esegui={negozio.esegui}
               aggiorna={rileggi}
@@ -761,7 +1186,12 @@ function SchedaAperta({ scheda, negozio, apri, ricarica }: { scheda: DatiScheda;
           )}
           {sezione(
             "foto",
-            <EditorMedia prodotto={{ id, nome: modulo.nome, pubblicato }} media={dati.media} esegui={negozio.esegui} aggiorna={rileggi} />,
+            <EditorMedia
+              prodotto={{ id, nome: modulo.nome, pubblicato }}
+              media={dati.media}
+              esegui={negozio.esegui}
+              aggiorna={rileggi}
+            />,
             true,
           )}
           {sezione(
@@ -770,7 +1200,12 @@ function SchedaAperta({ scheda, negozio, apri, ricarica }: { scheda: DatiScheda;
               {lista("passi", "Come si usa", "Un passo per riga.")}
               {lista("confezione", "Nella confezione", "Una voce per riga.")}
               {lista("avvertenze", "Avvertenze", "Una per riga.")}
-              <Domande modulo={modulo} cambia={cambia} errore={errori.faq} avvisi={avvisi.faq?.avvisi ?? []} />
+              <Domande
+                modulo={modulo}
+                cambia={cambia}
+                errore={errori.faq}
+                avvisi={avvisi.faq?.avvisi ?? []}
+              />
             </div>,
           )}
           {sezione(
@@ -778,7 +1213,12 @@ function SchedaAperta({ scheda, negozio, apri, ricarica }: { scheda: DatiScheda;
             <div className="grid gap-3 md:grid-cols-2">
               <Campo k="reso" etichetta="Reso" {...mostra("reso")}>
                 {(p) => (
-                  <select {...p} value={modulo.reso} onChange={(e) => cambia({ reso: e.target.value as Modulo["reso"] })} className={campo}>
+                  <select
+                    {...p}
+                    value={modulo.reso}
+                    onChange={(e) => cambia({ reso: e.target.value as Modulo["reso"] })}
+                    className={campo}
+                  >
                     <option value="">Non deciso</option>
                     <option value="si">Si può rendere</option>
                     <option value="no">Non si rende</option>
@@ -786,25 +1226,56 @@ function SchedaAperta({ scheda, negozio, apri, ricarica }: { scheda: DatiScheda;
                 )}
               </Campo>
               <Campo k="resoGiorni" etichetta="Giorni per il reso" {...mostra("resoGiorni")}>
-                {(p) => <input {...p} inputMode="numeric" disabled={modulo.reso !== "si"} value={modulo.resoGiorni} onChange={(e) => cambia({ resoGiorni: e.target.value })} className={campo} />}
+                {(p) => (
+                  <input
+                    {...p}
+                    inputMode="numeric"
+                    disabled={modulo.reso !== "si"}
+                    value={modulo.resoGiorni}
+                    onChange={(e) => cambia({ resoGiorni: e.target.value })}
+                    className={campo}
+                  />
+                )}
               </Campo>
               <div className="md:col-span-2">
-                <Campo k="boxConsulenza" etichetta="Box «consulenza»" aiuto="Si mostra solo sulle patch." {...mostra("boxConsulenza")}>
+                <Campo
+                  k="boxConsulenza"
+                  etichetta="Box «consulenza»"
+                  aiuto="Si mostra solo sulle patch."
+                  {...mostra("boxConsulenza")}
+                >
                   {(p) => (
                     <label className="flex min-h-11 items-center gap-3 text-[13px] md:min-h-9">
-                      <Switch id={p.id} aria-describedby={p["aria-describedby"]} checked={modulo.boxConsulenza} onCheckedChange={(x) => cambia({ boxConsulenza: x })} />
+                      <Switch
+                        id={p.id}
+                        aria-describedby={p["aria-describedby"]}
+                        checked={modulo.boxConsulenza}
+                        onCheckedChange={(x) => cambia({ boxConsulenza: x })}
+                      />
                       {modulo.boxConsulenza ? "Acceso" : "Spento"}
                     </label>
                   )}
                 </Campo>
               </div>
               <div className="md:col-span-2">
-                <Campo k="correlatoId" etichetta="«Ti serve anche»" aiuto="Un altro prodotto da proporre insieme (al massimo uno)." {...mostra("correlatoId")}>
+                <Campo
+                  k="correlatoId"
+                  etichetta="«Ti serve anche»"
+                  aiuto="Un altro prodotto da proporre insieme (al massimo uno)."
+                  {...mostra("correlatoId")}
+                >
                   {(p) => (
-                    <select {...p} value={modulo.correlatoId} onChange={(e) => cambia({ correlatoId: e.target.value })} className={campo}>
+                    <select
+                      {...p}
+                      value={modulo.correlatoId}
+                      onChange={(e) => cambia({ correlatoId: e.target.value })}
+                      className={campo}
+                    >
                       <option value="">Nessuno</option>
                       {negozio.prodotti
-                        .filter((r) => r.id !== id && r.stato !== "archiviato" && r.origine !== "codice")
+                        .filter(
+                          (r) => r.id !== id && r.stato !== "archiviato" && r.origine !== "codice",
+                        )
                         .map((r) => (
                           <option key={r.id} value={r.id}>
                             {r.nome}
@@ -814,15 +1285,25 @@ function SchedaAperta({ scheda, negozio, apri, ricarica }: { scheda: DatiScheda;
                   )}
                 </Campo>
               </div>
-              <p id={idCampo("spedizione")} className="text-[12.5px] text-muted-foreground md:col-span-2">
-                Costo e tempi di spedizione si impostano insieme alla cassa: non servono per pubblicare adesso.
+              <p
+                id={idCampo("spedizione")}
+                className="text-[12.5px] text-muted-foreground md:col-span-2"
+              >
+                Costo e tempi di spedizione si impostano insieme alla cassa: non servono per
+                pubblicare adesso.
               </p>
             </div>,
           )}
           {sezione(
             "canali",
-            <fieldset id={idCampo("canali")} tabIndex={-1} className="flex flex-col gap-1 outline-none">
-              <legend className="mb-1 text-[12.5px] text-muted-foreground">Accendi almeno un canale.</legend>
+            <fieldset
+              id={idCampo("canali")}
+              tabIndex={-1}
+              className="flex flex-col gap-1 outline-none"
+            >
+              <legend className="mb-1 text-[12.5px] text-muted-foreground">
+                Accendi almeno un canale.
+              </legend>
               {(
                 [
                   ["sito", "Sito"],
@@ -831,9 +1312,16 @@ function SchedaAperta({ scheda, negozio, apri, ricarica }: { scheda: DatiScheda;
                   ["tiktok", "TikTok"],
                 ] as const
               ).map(([c, nome]) => (
-                <label key={c} className="flex min-h-11 items-center justify-between gap-3 rounded-md px-1 text-[13px] md:min-h-9">
+                <label
+                  key={c}
+                  className="flex min-h-11 items-center justify-between gap-3 rounded-md px-1 text-[13px] md:min-h-9"
+                >
                   {nome}
-                  <Switch checked={modulo.canali[c]} onCheckedChange={(x) => cambia({ canali: { ...modulo.canali, [c]: x } })} aria-label={nome} />
+                  <Switch
+                    checked={modulo.canali[c]}
+                    onCheckedChange={(x) => cambia({ canali: { ...modulo.canali, [c]: x } })}
+                    aria-label={nome}
+                  />
                 </label>
               ))}
             </fieldset>,
@@ -841,26 +1329,49 @@ function SchedaAperta({ scheda, negozio, apri, ricarica }: { scheda: DatiScheda;
           {sezione(
             "ricerca",
             <div className="flex flex-col gap-3">
-              {testo("seoTitolo", "Titolo per Google", { max: 60, aiuto: "Oltre 60 segni Google lo taglia. Vuoto = si usa il nome." })}
-              {testo("seoDescrizione", "Descrizione per Google", { max: 155, area: true, righe: 3, aiuto: "Oltre 155 segni Google la taglia." })}
+              {testo("seoTitolo", "Titolo per Google", {
+                max: 60,
+                aiuto: "Oltre 60 segni Google lo taglia. Vuoto = si usa il nome.",
+              })}
+              {testo("seoDescrizione", "Descrizione per Google", {
+                max: 155,
+                area: true,
+                righe: 3,
+                aiuto: "Oltre 155 segni Google la taglia.",
+              })}
             </div>,
           )}
         </div>
       </div>
 
       {/* ── Telefono: la barra fissa ── */}
-      <div className="fixed inset-x-0 bottom-0 z-30 flex gap-2 border-t border-border bg-background px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 md:hidden">{barra}</div>
+      <div className="fixed inset-x-0 bottom-0 z-30 flex gap-2 border-t border-border bg-background px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 md:hidden">
+        {barra}
+      </div>
 
       {/* ── Anteprima ── */}
       <Dialog open={anteprima !== null} onOpenChange={(v) => !v && setAnteprima(null)}>
         <DialogContent className="crm-theme max-h-[92vh] max-w-[96vw] overflow-auto bg-white text-foreground md:max-w-4xl">
           <DialogHeader>
             <DialogTitle>Anteprima della bozza</DialogTitle>
-            <DialogDescription>Mostra ciò che hai salvato, come lo vedrebbe un cliente. Non è ancora sul sito.</DialogDescription>
+            <DialogDescription>
+              Mostra ciò che hai salvato, come lo vedrebbe un cliente. Non è ancora sul sito.
+            </DialogDescription>
           </DialogHeader>
-          {anteprima && <AnteprimaVista url={anteprima.url} vista={anteprima.vista} cambia={(vista) => setAnteprima({ ...anteprima, vista })} />}
+          {anteprima && (
+            <AnteprimaVista
+              url={anteprima.url}
+              vista={anteprima.vista}
+              cambia={(vista) => setAnteprima({ ...anteprima, vista })}
+            />
+          )}
           <DialogFooter>
-            <Button type="button" variant="outline" className={tastoGrande} onClick={() => setAnteprima(null)}>
+            <Button
+              type="button"
+              variant="outline"
+              className={tastoGrande}
+              onClick={() => setAnteprima(null)}
+            >
               <X className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
               Chiudi
             </Button>
@@ -874,14 +1385,26 @@ function SchedaAperta({ scheda, negozio, apri, ricarica }: { scheda: DatiScheda;
           <DialogHeader>
             <DialogTitle>Archiviare «{dati.prodotto.nome}»?</DialogTitle>
             <DialogDescription>
-              Sparisce dal sito e dall'elenco normale. Non si cancella niente: lo ritrovi in «Tutti» e lo puoi rimettere in bozza.
+              Sparisce dal sito e dall'elenco normale. Non si cancella niente: lo ritrovi in «Tutti»
+              e lo puoi rimettere in bozza.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2">
-            <Button type="button" variant="outline" className={tastoGrande} disabled={occupato} onClick={() => setArchivia(false)}>
+            <Button
+              type="button"
+              variant="outline"
+              className={tastoGrande}
+              disabled={occupato}
+              onClick={() => setArchivia(false)}
+            >
               Annulla
             </Button>
-            <Button type="button" className={tastoGrande} disabled={occupato} onClick={() => void cambiaStato("archiviato")}>
+            <Button
+              type="button"
+              className={tastoGrande}
+              disabled={occupato}
+              onClick={() => void cambiaStato("archiviato")}
+            >
               Archivia
             </Button>
           </DialogFooter>
@@ -910,7 +1433,8 @@ function Sezione({
   subito?: boolean;
   children: ReactNode;
 }) {
-  const Icona = segno.tono === "ok" ? CheckCircle2 : segno.tono === "da_sistemare" ? AlertTriangle : Info;
+  const Icona =
+    segno.tono === "ok" ? CheckCircle2 : segno.tono === "da_sistemare" ? AlertTriangle : Info;
   return (
     <section className="rounded-xl border border-border bg-card">
       <h2 className="m-0">
@@ -924,7 +1448,11 @@ function Sezione({
         >
           <span className="min-w-0">
             {titolo}
-            {subito && <span className="ml-2 rounded-full bg-sky-50 px-2 py-0.5 text-[11px] font-medium text-sky-900">si applica subito</span>}
+            {subito && (
+              <span className="ml-2 rounded-full bg-sky-50 px-2 py-0.5 text-[11px] font-medium text-sky-900">
+                si applica subito
+              </span>
+            )}
           </span>
           <span className="flex shrink-0 items-center gap-2">
             <span
@@ -938,7 +1466,13 @@ function Sezione({
               <Icona className="h-3 w-3" aria-hidden="true" />
               {segno.testo}
             </span>
-            <ChevronDown className={cn("h-4 w-4 transition-transform motion-reduce:transition-none", aperta && "rotate-180")} aria-hidden="true" />
+            <ChevronDown
+              className={cn(
+                "h-4 w-4 transition-transform motion-reduce:transition-none",
+                aperta && "rotate-180",
+              )}
+              aria-hidden="true"
+            />
           </span>
         </button>
       </h2>
@@ -956,10 +1490,16 @@ function VoceLink({ voce, tono, vai }: { voce: Voce; tono: "blocco" | "info"; va
       onClick={vai}
       className={cn(
         "flex min-h-11 w-full items-start gap-2 rounded-md border px-2.5 py-2 text-left text-[12.5px] leading-snug focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-        tono === "blocco" ? "border-rose-200 bg-rose-50 text-rose-900" : "border-amber-200 bg-amber-50 text-amber-900",
+        tono === "blocco"
+          ? "border-rose-200 bg-rose-50 text-rose-900"
+          : "border-amber-200 bg-amber-50 text-amber-900",
       )}
     >
-      {tono === "blocco" ? <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" /> : <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />}
+      {tono === "blocco" ? (
+        <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+      ) : (
+        <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+      )}
       <span className="min-w-0 flex-1">{voce.frase}</span>
       <span className="flex shrink-0 items-center gap-0.5 font-medium">
         Vai
@@ -985,10 +1525,17 @@ function Campo({
   contatore?: { n: number; max: number };
   errore?: string;
   avvisi?: string[];
-  children: (p: { id: string; "aria-describedby": string | undefined; "aria-invalid": boolean }) => ReactNode;
+  children: (p: {
+    id: string;
+    "aria-describedby": string | undefined;
+    "aria-invalid": boolean;
+  }) => ReactNode;
 }) {
   const id = idCampo(k);
-  const descr = [aiuto && `${id}-aiuto`, errore && `${id}-errore`, avvisi?.length && `${id}-avvisi`].filter(Boolean).join(" ") || undefined;
+  const descr =
+    [aiuto && `${id}-aiuto`, errore && `${id}-errore`, avvisi?.length && `${id}-avvisi`]
+      .filter(Boolean)
+      .join(" ") || undefined;
   const troppo = contatore ? contatore.n > contatore.max : false;
   return (
     <div className="flex min-w-0 flex-col gap-1">
@@ -997,7 +1544,12 @@ function Campo({
           {etichetta}
         </label>
         {contatore && (
-          <span className={cn("text-[11.5px] tabular-nums", troppo ? "font-semibold text-rose-800" : "text-muted-foreground")}>
+          <span
+            className={cn(
+              "text-[11.5px] tabular-nums",
+              troppo ? "font-semibold text-rose-800" : "text-muted-foreground",
+            )}
+          >
             {contatore.n}/{contatore.max}
           </span>
         )}
@@ -1009,7 +1561,11 @@ function Campo({
         </p>
       )}
       {errore && (
-        <p id={`${id}-errore`} role="alert" className="flex items-start gap-1.5 text-[12.5px] text-rose-800">
+        <p
+          id={`${id}-errore`}
+          role="alert"
+          className="flex items-start gap-1.5 text-[12.5px] text-rose-800"
+        >
           <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
           {errore}
         </p>
@@ -1028,56 +1584,127 @@ function Campo({
   );
 }
 
-function Caratteristiche({ modulo, cambia, errore, avvisi }: { modulo: Modulo; cambia: (p: Partial<Modulo>) => void; errore?: string; avvisi: string[] }) {
+function Caratteristiche({
+  modulo,
+  cambia,
+  errore,
+  avvisi,
+}: {
+  modulo: Modulo;
+  cambia: (p: Partial<Modulo>) => void;
+  errore?: string;
+  avvisi: string[];
+}) {
   const righe = modulo.caratteristiche;
-  const imposta = (k: number, p: Partial<Modulo["caratteristiche"][number]>) => cambia({ caratteristiche: righe.map((r, i) => (i === k ? { ...r, ...p } : r)) });
+  const imposta = (k: number, p: Partial<Modulo["caratteristiche"][number]>) =>
+    cambia({ caratteristiche: righe.map((r, i) => (i === k ? { ...r, ...p } : r)) });
   return (
     <div id={idCampo("caratteristiche")} tabIndex={-1} className="flex flex-col gap-3 outline-none">
-      <p className="text-[12.5px] text-muted-foreground">Le righe «da confermare» non si mostrano mai ai clienti. Per confermarne una serve la fonte (la scheda del fornitore).</p>
-      {righe.length === 0 && <p className="text-[12.5px]">Non c'è ancora nessuna caratteristica.</p>}
+      <p className="text-[12.5px] text-muted-foreground">
+        Le righe «da confermare» non si mostrano mai ai clienti. Per confermarne una serve la fonte
+        (la scheda del fornitore).
+      </p>
+      {righe.length === 0 && (
+        <p className="text-[12.5px]">Non c'è ancora nessuna caratteristica.</p>
+      )}
       {righe.map((r, k) => (
-        <div key={k} className="grid grid-cols-1 gap-2 rounded-lg border border-border p-2.5 md:grid-cols-[1fr_1fr_11rem_1fr_auto] md:items-end">
+        <div
+          key={k}
+          className="grid grid-cols-1 gap-2 rounded-lg border border-border p-2.5 md:grid-cols-[1fr_1fr_11rem_1fr_auto] md:items-end"
+        >
           <label className="flex flex-col gap-1 text-[12px] font-medium">
             Nome
-            <input value={r.etichetta} onChange={(e) => imposta(k, { etichetta: e.target.value })} className={campo} />
+            <input
+              value={r.etichetta}
+              onChange={(e) => imposta(k, { etichetta: e.target.value })}
+              className={campo}
+            />
           </label>
           <label className="flex flex-col gap-1 text-[12px] font-medium">
             Valore
-            <input value={r.valore} onChange={(e) => imposta(k, { valore: e.target.value })} className={campo} />
+            <input
+              value={r.valore}
+              onChange={(e) => imposta(k, { valore: e.target.value })}
+              className={campo}
+            />
           </label>
           <label className="flex flex-col gap-1 text-[12px] font-medium">
             Stato
-            <select value={r.stato} onChange={(e) => imposta(k, { stato: e.target.value as "confermato" | "da_confermare" })} className={campo}>
+            <select
+              value={r.stato}
+              onChange={(e) =>
+                imposta(k, { stato: e.target.value as "confermato" | "da_confermare" })
+              }
+              className={campo}
+            >
               <option value="da_confermare">Da confermare</option>
               <option value="confermato">Confermata</option>
             </select>
           </label>
           <label className="flex flex-col gap-1 text-[12px] font-medium">
             Fonte
-            <input value={r.fonte ?? ""} onChange={(e) => imposta(k, { fonte: e.target.value })} className={campo} />
+            <input
+              value={r.fonte ?? ""}
+              onChange={(e) => imposta(k, { fonte: e.target.value })}
+              className={campo}
+            />
           </label>
-          <Button type="button" variant="outline" className={tastoGrande} onClick={() => cambia({ caratteristiche: righe.filter((_, i) => i !== k) })}>
+          <Button
+            type="button"
+            variant="outline"
+            className={tastoGrande}
+            onClick={() => cambia({ caratteristiche: righe.filter((_, i) => i !== k) })}
+          >
             Togli la riga
           </Button>
         </div>
       ))}
       <div>
-        <Button type="button" variant="outline" className={tastoGrande} onClick={() => cambia({ caratteristiche: [...righe, { etichetta: "", valore: "", stato: "da_confermare", fonte: null }] })}>
+        <Button
+          type="button"
+          variant="outline"
+          className={tastoGrande}
+          onClick={() =>
+            cambia({
+              caratteristiche: [
+                ...righe,
+                { etichetta: "", valore: "", stato: "da_confermare", fonte: null },
+              ],
+            })
+          }
+        >
           <Plus className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
           Aggiungi una caratteristica
         </Button>
       </div>
-      {errore && <p role="alert" className="text-[12.5px] text-rose-800">{errore}</p>}
+      {errore && (
+        <p role="alert" className="text-[12.5px] text-rose-800">
+          {errore}
+        </p>
+      )}
       {avvisi.map((a) => (
-        <p key={a} className="text-[12.5px] text-amber-900">{a}</p>
+        <p key={a} className="text-[12.5px] text-amber-900">
+          {a}
+        </p>
       ))}
     </div>
   );
 }
 
-function Domande({ modulo, cambia, errore, avvisi }: { modulo: Modulo; cambia: (p: Partial<Modulo>) => void; errore?: string; avvisi: string[] }) {
+function Domande({
+  modulo,
+  cambia,
+  errore,
+  avvisi,
+}: {
+  modulo: Modulo;
+  cambia: (p: Partial<Modulo>) => void;
+  errore?: string;
+  avvisi: string[];
+}) {
   const righe = modulo.faq;
-  const imposta = (k: number, p: Partial<{ d: string; r: string }>) => cambia({ faq: righe.map((f, i) => (i === k ? { ...f, ...p } : f)) });
+  const imposta = (k: number, p: Partial<{ d: string; r: string }>) =>
+    cambia({ faq: righe.map((f, i) => (i === k ? { ...f, ...p } : f)) });
   return (
     <div id={idCampo("faq")} tabIndex={-1} className="flex flex-col gap-3 outline-none">
       <h3 className="text-[12.5px] font-medium">Domande frequenti</h3>
@@ -1085,35 +1712,68 @@ function Domande({ modulo, cambia, errore, avvisi }: { modulo: Modulo; cambia: (
         <div key={k} className="flex flex-col gap-2 rounded-lg border border-border p-2.5">
           <label className="flex flex-col gap-1 text-[12px] font-medium">
             Domanda
-            <input value={f.d} onChange={(e) => imposta(k, { d: e.target.value })} className={campo} />
+            <input
+              value={f.d}
+              onChange={(e) => imposta(k, { d: e.target.value })}
+              className={campo}
+            />
           </label>
           <label className="flex flex-col gap-1 text-[12px] font-medium">
             Risposta
-            <textarea rows={3} value={f.r} onChange={(e) => imposta(k, { r: e.target.value })} className={cn(campo, "py-2")} />
+            <textarea
+              rows={3}
+              value={f.r}
+              onChange={(e) => imposta(k, { r: e.target.value })}
+              className={cn(campo, "py-2")}
+            />
           </label>
           <div>
-            <Button type="button" variant="outline" className={tastoGrande} onClick={() => cambia({ faq: righe.filter((_, i) => i !== k) })}>
+            <Button
+              type="button"
+              variant="outline"
+              className={tastoGrande}
+              onClick={() => cambia({ faq: righe.filter((_, i) => i !== k) })}
+            >
               Togli la domanda
             </Button>
           </div>
         </div>
       ))}
       <div>
-        <Button type="button" variant="outline" className={tastoGrande} onClick={() => cambia({ faq: [...righe, { d: "", r: "" }] })}>
+        <Button
+          type="button"
+          variant="outline"
+          className={tastoGrande}
+          onClick={() => cambia({ faq: [...righe, { d: "", r: "" }] })}
+        >
           <Plus className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
           Aggiungi una domanda
         </Button>
       </div>
-      {errore && <p role="alert" className="text-[12.5px] text-rose-800">{errore}</p>}
+      {errore && (
+        <p role="alert" className="text-[12.5px] text-rose-800">
+          {errore}
+        </p>
+      )}
       {avvisi.map((a) => (
-        <p key={a} className="text-[12.5px] text-amber-900">{a}</p>
+        <p key={a} className="text-[12.5px] text-amber-900">
+          {a}
+        </p>
       ))}
     </div>
   );
 }
 
 /** L'anteprima: un riquadro a 390 px (telefono) o a 1440 px rimpicciolito per entrare nella finestra (computer). */
-function AnteprimaVista({ url, vista, cambia }: { url: string; vista: "telefono" | "computer"; cambia: (v: "telefono" | "computer") => void }) {
+function AnteprimaVista({
+  url,
+  vista,
+  cambia,
+}: {
+  url: string;
+  vista: "telefono" | "computer";
+  cambia: (v: "telefono" | "computer") => void;
+}) {
   const larghezza = vista === "telefono" ? 390 : 1440;
   const altezza = vista === "telefono" ? 720 : 900;
   const disponibile = Math.min(typeof window === "undefined" ? 1000 : window.innerWidth, 920) - 64;
@@ -1127,18 +1787,34 @@ function AnteprimaVista({ url, vista, cambia }: { url: string; vista: "telefono"
             ["computer", "Computer (1440 px)"],
           ] as const
         ).map(([v, nome]) => (
-          <Button key={v} type="button" variant={vista === v ? "default" : "outline"} aria-pressed={vista === v} className={tastoGrande} onClick={() => cambia(v)}>
+          <Button
+            key={v}
+            type="button"
+            variant={vista === v ? "default" : "outline"}
+            aria-pressed={vista === v}
+            className={tastoGrande}
+            onClick={() => cambia(v)}
+          >
             {nome}
           </Button>
         ))}
       </div>
-      <div className="mx-auto overflow-hidden rounded-lg border border-border" style={{ width: larghezza * scala, height: altezza * scala }}>
+      <div
+        className="mx-auto overflow-hidden rounded-lg border border-border"
+        style={{ width: larghezza * scala, height: altezza * scala }}
+      >
         <iframe
           key={vista}
           title={`Anteprima della bozza, vista ${vista}`}
           src={url}
           referrerPolicy="no-referrer"
-          style={{ width: larghezza, height: altezza, transform: `scale(${scala})`, transformOrigin: "0 0", border: 0 }}
+          style={{
+            width: larghezza,
+            height: altezza,
+            transform: `scale(${scala})`,
+            transformOrigin: "0 0",
+            border: 0,
+          }}
         />
       </div>
     </div>

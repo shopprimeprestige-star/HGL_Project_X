@@ -67,7 +67,10 @@ const Messaggio = ({ esito }: { esito: Esito }) =>
   esito ? (
     <p
       role={esito.tono === "errore" ? "alert" : "status"}
-      className={cn("text-[12.5px] leading-snug", esito.tono === "errore" ? "text-rose-800" : "text-emerald-800")}
+      className={cn(
+        "text-[12.5px] leading-snug",
+        esito.tono === "errore" ? "text-rose-800" : "text-emerald-800",
+      )}
     >
       {esito.testo}
     </p>
@@ -108,10 +111,16 @@ export function EditorVarianti({ prodotto, varianti, esegui, aggiorna }: PropsEd
 
   /* ── le opzioni ── */
   const [opzioni, setOpzioni] = useState<{ nome: string; valori: string }[]>(() => {
-    const o = opzioniDaVarianti(varianti).map((x) => ({ nome: x.nome, valori: x.valori.join(", ") }));
+    const o = opzioniDaVarianti(varianti).map((x) => ({
+      nome: x.nome,
+      valori: x.valori.join(", "),
+    }));
     return o.length ? o : [{ nome: "Colore", valori: "" }];
   });
-  const scritte: OpzioneInput[] = opzioni.map((o) => ({ nome: o.nome, valori: valoriDa(o.valori) }));
+  const scritte: OpzioneInput[] = opzioni.map((o) => ({
+    nome: o.nome,
+    valori: valoriDa(o.valori),
+  }));
   const anteprima = anteprimaCombinazioni(prodotto.sku, scritte, varianti);
   const cambiaOpzione = (k: number, p: Partial<{ nome: string; valori: string }>) =>
     setOpzioni((o) => o.map((x, i) => (i === k ? { ...x, ...p } : x)));
@@ -122,12 +131,18 @@ export function EditorVarianti({ prodotto, varianti, esegui, aggiorna }: PropsEd
       if (!r.ok) return errore(r.errore);
       await aggiorna();
       const n = Array.isArray(r.dati.create) ? r.dati.create.length : 0;
-      return { tono: "ok", testo: n === 1 ? "Ho creato 1 variante nuova." : `Ho creato ${n} varianti nuove.` };
+      return {
+        tono: "ok",
+        testo: n === 1 ? "Ho creato 1 variante nuova." : `Ho creato ${n} varianti nuove.`,
+      };
     });
 
   const aggiungiUnica = () =>
     lavora(async () => {
-      const r = await esegui("variante_salva", { prodottoId: prodotto.id, variante: { sku: prodotto.sku, nome: "Unica", opzioni: {} } });
+      const r = await esegui("variante_salva", {
+        prodottoId: prodotto.id,
+        variante: { sku: prodotto.sku, nome: "Unica", opzioni: {} },
+      });
       if (!r.ok) return errore(r.errore);
       await aggiorna();
       return { tono: "ok", testo: "Ho aggiunto la variante unica: ora scrivi prezzo e giacenza." };
@@ -148,7 +163,11 @@ export function EditorVarianti({ prodotto, varianti, esegui, aggiorna }: PropsEd
           fuori.push(`${v.nome}: non l'ho provata, l'operazione si è fermata prima`);
           continue;
         }
-        const r = await esegui("giacenza_imposta", { varianteId: v.id, valore: q.n, motivo: motivoTutte });
+        const r = await esegui("giacenza_imposta", {
+          varianteId: v.id,
+          valore: q.n,
+          motivo: motivoTutte,
+        });
         if (r.ok) fatte++;
         else {
           fuori.push(`${v.nome}: ${r.errore.messaggio}`);
@@ -157,7 +176,10 @@ export function EditorVarianti({ prodotto, varianti, esegui, aggiorna }: PropsEd
       }
       await aggiorna();
       return fuori.length
-        ? { tono: "errore", testo: `Fatto per ${fatte} righe su ${varianti.length}. Rimaste fuori: ${fuori.join(" · ")}.` }
+        ? {
+            tono: "errore",
+            testo: `Fatto per ${fatte} righe su ${varianti.length}. Rimaste fuori: ${fuori.join(" · ")}.`,
+          }
         : { tono: "ok", testo: `Giacenza impostata a ${q.n} su tutte le ${fatte} righe.` };
     });
 
@@ -165,9 +187,14 @@ export function EditorVarianti({ prodotto, varianti, esegui, aggiorna }: PropsEd
   return (
     <div className="flex flex-col gap-4">
       <p className="text-[12.5px] leading-snug text-muted-foreground">
-        Al massimo {LIMITI_VARIANTI.opzioni} opzioni e {LIMITI_VARIANTI.combinazioni} combinazioni. Le varianti non si cancellano: si
-        disattivano.
-        {prodotto.pubblicato && <strong className="font-semibold text-foreground"> Il prodotto è sul sito: ogni cambio qui si applica subito.</strong>}
+        Al massimo {LIMITI_VARIANTI.opzioni} opzioni e {LIMITI_VARIANTI.combinazioni} combinazioni.
+        Le varianti non si cancellano: si disattivano.
+        {prodotto.pubblicato && (
+          <strong className="font-semibold text-foreground">
+            {" "}
+            Il prodotto è sul sito: ogni cambio qui si applica subito.
+          </strong>
+        )}
       </p>
 
       {/* ── Le opzioni ── */}
@@ -179,7 +206,10 @@ export function EditorVarianti({ prodotto, varianti, esegui, aggiorna }: PropsEd
           ))}
         </datalist>
         {opzioni.map((o, k) => (
-          <div key={k} className="grid grid-cols-[1fr_auto] items-end gap-2 md:grid-cols-[12rem_1fr_auto]">
+          <div
+            key={k}
+            className="grid grid-cols-[1fr_auto] items-end gap-2 md:grid-cols-[12rem_1fr_auto]"
+          >
             <Etichetta testo={`Opzione ${k + 1}`}>
               <input
                 list="nomi-opzione"
@@ -235,7 +265,9 @@ export function EditorVarianti({ prodotto, varianti, esegui, aggiorna }: PropsEd
             disabled={occupato || !anteprima.ok || anteprima.nuove === 0}
             onClick={() => void genera()}
           >
-            {anteprima.ok && anteprima.nuove > 0 ? `Crea ${anteprima.nuove} ${anteprima.nuove === 1 ? "variante" : "varianti"}` : "Crea le varianti"}
+            {anteprima.ok && anteprima.nuove > 0
+              ? `Crea ${anteprima.nuove} ${anteprima.nuove === 1 ? "variante" : "varianti"}`
+              : "Crea le varianti"}
           </Button>
         </div>
       </fieldset>
@@ -245,8 +277,16 @@ export function EditorVarianti({ prodotto, varianti, esegui, aggiorna }: PropsEd
       {/* ── Le righe ── */}
       {varianti.length === 0 ? (
         <div className="flex flex-col items-start gap-2 rounded-lg border border-dashed border-border p-3">
-          <p className="text-[12.5px]">Non c'è ancora nessuna variante. Per pubblicare ne serve almeno una attiva.</p>
-          <Button type="button" variant="outline" className="h-11 text-[13px] md:h-8 md:text-[12px]" disabled={occupato} onClick={() => void aggiungiUnica()}>
+          <p className="text-[12.5px]">
+            Non c'è ancora nessuna variante. Per pubblicare ne serve almeno una attiva.
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            className="h-11 text-[13px] md:h-8 md:text-[12px]"
+            disabled={occupato}
+            onClick={() => void aggiungiUnica()}
+          >
             Il prodotto non ha opzioni: aggiungi la variante unica
           </Button>
         </div>
@@ -263,7 +303,11 @@ export function EditorVarianti({ prodotto, varianti, esegui, aggiorna }: PropsEd
               />
             </Etichetta>
             <Etichetta testo="Motivo">
-              <select value={motivoTutte} onChange={(e) => setMotivoTutte(e.target.value as Motivo)} className={cn(campo, "md:w-56")}>
+              <select
+                value={motivoTutte}
+                onChange={(e) => setMotivoTutte(e.target.value as Motivo)}
+                className={cn(campo, "md:w-56")}
+              >
                 {MOTIVI.map((m) => (
                   <option key={m.valore} value={m.valore}>
                     {m.nome}
@@ -271,7 +315,13 @@ export function EditorVarianti({ prodotto, varianti, esegui, aggiorna }: PropsEd
                 ))}
               </select>
             </Etichetta>
-            <Button type="button" variant="outline" className="h-11 text-[13px] md:h-9 md:text-[12px]" disabled={occupato || stockTutte.trim() === ""} onClick={() => void impostaTutte()}>
+            <Button
+              type="button"
+              variant="outline"
+              className="h-11 text-[13px] md:h-9 md:text-[12px]"
+              disabled={occupato || stockTutte.trim() === ""}
+              onClick={() => void impostaTutte()}
+            >
               Imposta su tutte
             </Button>
           </div>
@@ -349,24 +399,39 @@ function RigaVariante({
   const salva = () =>
     esegueRiga(async () => {
       if (!nome.trim()) return { tono: "errore", testo: "Scrivi il nome della variante." };
-      if (!p.ok) return { tono: "errore", testo: "Scrivi il prezzo in euro, per esempio 19,90, oppure lascialo vuoto." };
+      if (!p.ok)
+        return {
+          tono: "errore",
+          testo: "Scrivi il prezzo in euro, per esempio 19,90, oppure lascialo vuoto.",
+        };
       if (!pesoOk) return { tono: "errore", testo: "Il peso è un numero intero di grammi." };
       const campi: Record<string, unknown> = { id: v.id };
       if (nome.trim() !== v.nome) campi.nome = nome.trim();
       if (sku.trim() !== v.sku) campi.sku = sku.trim();
       if (!senzaPrezzo && prezzo.trim() !== prezzoSalvato) campi.prezzoCent = p.cent;
-      if (peso.trim() !== (v.pesoG === null ? "" : String(v.pesoG))) campi.pesoG = peso.trim() === "" ? null : Number(peso.trim());
+      if (peso.trim() !== (v.pesoG === null ? "" : String(v.pesoG)))
+        campi.pesoG = peso.trim() === "" ? null : Number(peso.trim());
       const r = await esegui("variante_salva", { prodottoId: prodotto.id, variante: campi });
       if (!r.ok) return { tono: "errore", testo: r.errore.messaggio };
       await aggiorna();
-      return { tono: "ok", testo: prodotto.pubblicato ? "Salvata: si vede già sul sito." : "Salvata." };
+      return {
+        tono: "ok",
+        testo: prodotto.pubblicato ? "Salvata: si vede già sul sito." : "Salvata.",
+      };
     });
   const attiva = (valore: boolean) =>
     esegueRiga(async () => {
-      const r = await esegui("variante_attiva", { prodottoId: prodotto.id, varianteId: v.id, attiva: valore });
+      const r = await esegui("variante_attiva", {
+        prodottoId: prodotto.id,
+        varianteId: v.id,
+        attiva: valore,
+      });
       if (!r.ok) return { tono: "errore", testo: r.errore.messaggio };
       await aggiorna();
-      return { tono: "ok", testo: valore ? "Variante attiva." : "Variante disattivata: non si vende." };
+      return {
+        tono: "ok",
+        testo: valore ? "Variante attiva." : "Variante disattivata: non si vende.",
+      };
     });
   const impostaStock = () =>
     esegueRiga(async () => {
@@ -380,7 +445,12 @@ function RigaVariante({
 
   const spento = lavoro || bloccata;
   return (
-    <li className={cn("flex flex-col gap-3 rounded-lg border border-border bg-card p-3", !v.attiva && "opacity-80")}>
+    <li
+      className={cn(
+        "flex flex-col gap-3 rounded-lg border border-border bg-card p-3",
+        !v.attiva && "opacity-80",
+      )}
+    >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">
           <p className="truncate text-[13px] font-semibold">{v.nome}</p>
@@ -389,16 +459,37 @@ function RigaVariante({
           </Chip>
         </div>
         <label className="flex min-h-11 items-center gap-2 text-[12.5px] md:min-h-9">
-          <Switch checked={v.attiva} disabled={spento} onCheckedChange={(x) => void attiva(x)} aria-label={`Variante ${v.nome} attiva`} />
+          <Switch
+            checked={v.attiva}
+            disabled={spento}
+            onCheckedChange={(x) => void attiva(x)}
+            aria-label={`Variante ${v.nome} attiva`}
+          />
           Attiva
         </label>
       </div>
-      <div className={cn("grid grid-cols-1 gap-2 sm:grid-cols-2", senzaPrezzo ? "md:grid-cols-3" : "md:grid-cols-4")}>
+      <div
+        className={cn(
+          "grid grid-cols-1 gap-2 sm:grid-cols-2",
+          senzaPrezzo ? "md:grid-cols-3" : "md:grid-cols-4",
+        )}
+      >
         <Etichetta testo="Nome">
-          <input value={nome} onChange={(e) => setNome(e.target.value)} maxLength={120} className={campo} />
+          <input
+            value={nome}
+            onChange={(e) => setNome(e.target.value)}
+            maxLength={120}
+            className={campo}
+          />
         </Etichetta>
         <Etichetta testo="SKU">
-          <input value={sku} onChange={(e) => setSku(e.target.value.toUpperCase())} maxLength={40} className={campo} autoCapitalize="characters" />
+          <input
+            value={sku}
+            onChange={(e) => setSku(e.target.value.toUpperCase())}
+            maxLength={40}
+            className={campo}
+            autoCapitalize="characters"
+          />
         </Etichetta>
         {!senzaPrezzo && (
           <Etichetta testo="Prezzo in euro">
@@ -406,27 +497,50 @@ function RigaVariante({
               inputMode="decimal"
               value={prezzo}
               onChange={(e) => setPrezzo(e.target.value)}
-              placeholder={prezzoProdotto ? `${prezzoProdotto} (come il prodotto)` : "come il prodotto"}
+              placeholder={
+                prezzoProdotto ? `${prezzoProdotto} (come il prodotto)` : "come il prodotto"
+              }
               aria-invalid={!p.ok}
               className={cn(campo, !p.ok && "border-rose-400")}
             />
           </Etichetta>
         )}
         <Etichetta testo="Peso in grammi">
-          <input inputMode="numeric" value={peso} onChange={(e) => setPeso(e.target.value)} aria-invalid={!pesoOk} className={cn(campo, !pesoOk && "border-rose-400")} />
+          <input
+            inputMode="numeric"
+            value={peso}
+            onChange={(e) => setPeso(e.target.value)}
+            aria-invalid={!pesoOk}
+            className={cn(campo, !pesoOk && "border-rose-400")}
+          />
         </Etichetta>
       </div>
       <div className="flex flex-wrap items-end gap-2">
-        <Button type="button" className="h-11 text-[13px] md:h-9 md:text-[12px]" disabled={spento || !sporca} onClick={() => void salva()}>
+        <Button
+          type="button"
+          className="h-11 text-[13px] md:h-9 md:text-[12px]"
+          disabled={spento || !sporca}
+          onClick={() => void salva()}
+        >
           {prodotto.pubblicato ? "Applica subito" : "Salva la riga"}
         </Button>
       </div>
       <div className="flex flex-col gap-2 border-t border-border pt-3 md:flex-row md:items-end">
         <Etichetta testo={`Giacenza (ora ${v.giacenza})`}>
-          <input inputMode="numeric" value={stock} onChange={(e) => setStock(e.target.value)} placeholder="Nuovo numero di pezzi" className={cn(campo, "md:w-44")} />
+          <input
+            inputMode="numeric"
+            value={stock}
+            onChange={(e) => setStock(e.target.value)}
+            placeholder="Nuovo numero di pezzi"
+            className={cn(campo, "md:w-44")}
+          />
         </Etichetta>
         <Etichetta testo="Motivo">
-          <select value={motivo} onChange={(e) => setMotivo(e.target.value as Motivo)} className={cn(campo, "md:w-56")}>
+          <select
+            value={motivo}
+            onChange={(e) => setMotivo(e.target.value as Motivo)}
+            className={cn(campo, "md:w-56")}
+          >
             {MOTIVI.map((m) => (
               <option key={m.valore} value={m.valore}>
                 {m.nome}
@@ -434,7 +548,13 @@ function RigaVariante({
             ))}
           </select>
         </Etichetta>
-        <Button type="button" variant="outline" className="h-11 text-[13px] md:h-9 md:text-[12px]" disabled={spento || stock.trim() === ""} onClick={() => void impostaStock()}>
+        <Button
+          type="button"
+          variant="outline"
+          className="h-11 text-[13px] md:h-9 md:text-[12px]"
+          disabled={spento || stock.trim() === ""}
+          onClick={() => void impostaStock()}
+        >
           Imposta
         </Button>
       </div>

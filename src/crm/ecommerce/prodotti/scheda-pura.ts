@@ -108,11 +108,14 @@ export type Errori = Partial<Record<CampoModulo, string>>;
 
 /** Centesimi → «19,90». Zero = campo vuoto (un prodotto nuovo non ha ancora un prezzo). */
 export const prezzoInTesto = (cent: number): string =>
-  Number.isSafeInteger(cent) && cent > 0 ? `${Math.floor(cent / 100)},${String(cent % 100).padStart(2, "0")}` : "";
+  Number.isSafeInteger(cent) && cent > 0
+    ? `${Math.floor(cent / 100)},${String(cent % 100).padStart(2, "0")}`
+    : "";
 
 /** Dal prodotto al modulo. Un PUBBLICATO mostra la bozza di modifica sopra i valori vivi (D27): è ciò che il titolare ha scritto. */
 export function moduloDaProdotto(p: Prodotto): Modulo {
-  const e: Prodotto = p.stato === "pubblicato" && p.bozzaModifiche ? { ...p, ...p.bozzaModifiche } : p;
+  const e: Prodotto =
+    p.stato === "pubblicato" && p.bozzaModifiche ? { ...p, ...p.bozzaModifiche } : p;
   const righe = (x: string[] | null | undefined) => (Array.isArray(x) ? x.join("\n") : "");
   return {
     nome: e.nome,
@@ -124,7 +127,9 @@ export function moduloDaProdotto(p: Prodotto): Modulo {
     descrizioneBreve: e.descrizioneBreve ?? "",
     descrizioneLunga: e.descrizioneLunga ?? "",
     perChi: e.perChi ?? "",
-    caratteristiche: Array.isArray(e.caratteristiche) ? e.caratteristiche.map((r) => ({ ...r })) : [],
+    caratteristiche: Array.isArray(e.caratteristiche)
+      ? e.caratteristiche.map((r) => ({ ...r }))
+      : [],
     prezzo: prezzoInTesto(p.prezzoCent),
     passi: righe(e.passi),
     confezione: righe(e.confezione),
@@ -134,14 +139,20 @@ export function moduloDaProdotto(p: Prodotto): Modulo {
     resoGiorni: e.resoGiorni === null || e.resoGiorni === undefined ? "" : String(e.resoGiorni),
     boxConsulenza: e.boxConsulenza === true,
     correlatoId: e.correlatoId ?? "",
-    canali: { sito: e.canali?.sito === true, meta: e.canali?.meta === true, google: e.canali?.google === true, tiktok: e.canali?.tiktok === true },
+    canali: {
+      sito: e.canali?.sito === true,
+      meta: e.canali?.meta === true,
+      google: e.canali?.google === true,
+      tiktok: e.canali?.tiktok === true,
+    },
     seoTitolo: e.seoTitolo ?? "",
     seoDescrizione: e.seoDescrizione ?? "",
   };
 }
 
 /** Ha una bozza di modifica (D27)? Un oggetto vuoto non è una bozza. */
-export const haBozza = (b: unknown): boolean => !!b && typeof b === "object" && !Array.isArray(b) && Object.keys(b).length > 0;
+export const haBozza = (b: unknown): boolean =>
+  !!b && typeof b === "object" && !Array.isArray(b) && Object.keys(b).length > 0;
 
 /* ══ DAL MODULO AI CAMPI ════════════════════════════════════════════════════ */
 
@@ -152,23 +163,42 @@ const FAQ_MAX = 20;
 const GIORNI_RESO_MAX = 365;
 const MAX_SEO = { titolo: 300, descrizione: 500 } as const;
 
-const righeDi = (t: string): string[] => t.split("\n").map((x) => x.trim()).filter(Boolean);
+const righeDi = (t: string): string[] =>
+  t
+    .split("\n")
+    .map((x) => x.trim())
+    .filter(Boolean);
 const uguali = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 
 /** Il testo di un campo, tutto in una stringa, per cercare ciò che non si può scrivere (stessa cosa che fa il server). */
 function testoDi(m: Modulo, k: CampoModulo): string {
-  if (k === "caratteristiche") return m.caratteristiche.map((r) => `${r.etichetta}\n${r.valore}\n${r.fonte ?? ""}`).join("\n");
+  if (k === "caratteristiche")
+    return m.caratteristiche.map((r) => `${r.etichetta}\n${r.valore}\n${r.fonte ?? ""}`).join("\n");
   if (k === "faq") return m.faq.map((f) => `${f.d}\n${f.r}`).join("\n");
   const v = m[k];
   return typeof v === "string" ? v : "";
 }
 /** I campi di testo libero, quelli su cui si cercano parole da non usare e frasi vietate. */
 const CAMPI_TESTO: readonly CampoModulo[] = [
-  "nome", "marca", "rigaPresentazione", "descrizioneBreve", "descrizioneLunga", "perChi", "caratteristiche", "passi", "confezione", "avvertenze", "faq", "seoTitolo", "seoDescrizione",
+  "nome",
+  "marca",
+  "rigaPresentazione",
+  "descrizioneBreve",
+  "descrizioneLunga",
+  "perChi",
+  "caratteristiche",
+  "passi",
+  "confezione",
+  "avvertenze",
+  "faq",
+  "seoTitolo",
+  "seoDescrizione",
 ];
 
 /** Accanto a ogni campo di testo: i BLOCCHI (non si scrive) e gli AVVISI (parole da non usare). Un campo pulito non compare. */
-export function avvisiCampi(m: Modulo): Partial<Record<CampoModulo, { bloccanti: string[]; avvisi: string[] }>> {
+export function avvisiCampi(
+  m: Modulo,
+): Partial<Record<CampoModulo, { bloccanti: string[]; avvisi: string[] }>> {
   const fuori: Partial<Record<CampoModulo, { bloccanti: string[]; avvisi: string[] }>> = {};
   for (const k of CAMPI_TESTO) {
     const esito = controllaTesto(testoDi(m, k));
@@ -193,20 +223,33 @@ export function campiDaModulo(m: Modulo): { campi: Partial<CampiScheda>; errori:
   else if (nome.length > 120) errore("nome", "Il nome può avere al massimo 120 segni.");
   else campi.nome = nome;
 
-  if (!slugValido(m.slug)) errore("slug", "L'indirizzo ha solo minuscole, numeri e trattini (per esempio lace-front).");
+  if (!slugValido(m.slug))
+    errore("slug", "L'indirizzo ha solo minuscole, numeri e trattini (per esempio lace-front).");
   else campi.slug = m.slug;
-  if (!skuValido(m.sku)) errore("sku", "Lo SKU è maiuscolo, senza spazi, da 2 a 40 segni (per esempio HG-T01).");
+  if (!skuValido(m.sku))
+    errore("sku", "Lo SKU è maiuscolo, senza spazi, da 2 a 40 segni (per esempio HG-T01).");
   else campi.sku = m.sku;
   campi.tipo = m.tipo;
 
-  const opz = (k: CampoModulo, t: string, max: number, nomeCampo: string): string | null | undefined => {
+  const opz = (
+    k: CampoModulo,
+    t: string,
+    max: number,
+    nomeCampo: string,
+  ): string | null | undefined => {
     const v = t.trim();
-    if (v.length > max) return void errore(k, `${nomeCampo}: al massimo ${max} segni (ora ${v.length}).`);
+    if (v.length > max)
+      return void errore(k, `${nomeCampo}: al massimo ${max} segni (ora ${v.length}).`);
     return v || null;
   };
   const marca = opz("marca", m.marca, 80, "La marca");
   if (marca !== undefined) campi.marca = marca;
-  const riga = opz("rigaPresentazione", m.rigaPresentazione, TETTI.riga, "La riga di presentazione");
+  const riga = opz(
+    "rigaPresentazione",
+    m.rigaPresentazione,
+    TETTI.riga,
+    "La riga di presentazione",
+  );
   if (riga !== undefined) campi.rigaPresentazione = riga;
   const breve = opz("descrizioneBreve", m.descrizioneBreve, TETTI.breve, "La descrizione breve");
   if (breve !== undefined) campi.descrizioneBreve = breve;
@@ -224,32 +267,67 @@ export function campiDaModulo(m: Modulo): { campi: Partial<CampiScheda>; errori:
   if (!prezzo) campi.prezzoCent = 0;
   else {
     const cent = centDaEuro(prezzo);
-    if (cent === null) errore("prezzo", "Scrivi il prezzo in euro, per esempio 19,90 (al massimo due cifre dopo la virgola).");
+    if (cent === null)
+      errore(
+        "prezzo",
+        "Scrivi il prezzo in euro, per esempio 19,90 (al massimo due cifre dopo la virgola).",
+      );
     else campi.prezzoCent = cent;
   }
 
   // liste, una voce per riga
-  for (const [k, nomeLista] of [["passi", "Come si usa"], ["confezione", "Nella confezione"], ["avvertenze", "Avvertenze"]] as const) {
+  for (const [k, nomeLista] of [
+    ["passi", "Come si usa"],
+    ["confezione", "Nella confezione"],
+    ["avvertenze", "Avvertenze"],
+  ] as const) {
     const voci = righeDi(m[k]);
     if (voci.length > RIGHE_MAX) errore(k, `${nomeLista}: al massimo ${RIGHE_MAX} voci.`);
-    else if (voci.some((v) => v.length > RIGA_MAX)) errore(k, `${nomeLista}: una voce è troppo lunga (al massimo ${RIGA_MAX} segni).`);
+    else if (voci.some((v) => v.length > RIGA_MAX))
+      errore(k, `${nomeLista}: una voce è troppo lunga (al massimo ${RIGA_MAX} segni).`);
     else campi[k] = voci;
   }
 
   // caratteristiche: una riga tutta vuota si scarta; una a metà è un errore; «confermata» vuole la fonte
-  const righeCar = m.caratteristiche.map((r) => ({ etichetta: r.etichetta.trim(), valore: r.valore.trim(), stato: r.stato, fonte: (r.fonte ?? "").trim() || null }));
+  const righeCar = m.caratteristiche.map((r) => ({
+    etichetta: r.etichetta.trim(),
+    valore: r.valore.trim(),
+    stato: r.stato,
+    fonte: (r.fonte ?? "").trim() || null,
+  }));
   const piene = righeCar.filter((r) => r.etichetta || r.valore || r.fonte);
-  if (piene.some((r) => !r.etichetta || !r.valore)) errore("caratteristiche", "Una caratteristica è a metà: scrivi sia il nome sia il valore, oppure togli la riga.");
-  else if (piene.some((r) => r.stato === "confermato" && !r.fonte)) errore("caratteristiche", "Una caratteristica «confermata» ha bisogno della fonte (la scheda del fornitore o il file).");
-  else if (piene.length > CARATTERISTICHE_MAX) errore("caratteristiche", `Le caratteristiche sono al massimo ${CARATTERISTICHE_MAX}.`);
-  else if (piene.some((r) => r.etichetta.length > 80 || r.valore.length > 300)) errore("caratteristiche", "Una caratteristica è troppo lunga (nome 80 segni, valore 300).");
-  else campi.caratteristiche = piene.map((r) => ({ etichetta: r.etichetta, valore: r.valore, stato: r.stato, fonte: r.fonte }));
+  if (piene.some((r) => !r.etichetta || !r.valore))
+    errore(
+      "caratteristiche",
+      "Una caratteristica è a metà: scrivi sia il nome sia il valore, oppure togli la riga.",
+    );
+  else if (piene.some((r) => r.stato === "confermato" && !r.fonte))
+    errore(
+      "caratteristiche",
+      "Una caratteristica «confermata» ha bisogno della fonte (la scheda del fornitore o il file).",
+    );
+  else if (piene.length > CARATTERISTICHE_MAX)
+    errore("caratteristiche", `Le caratteristiche sono al massimo ${CARATTERISTICHE_MAX}.`);
+  else if (piene.some((r) => r.etichetta.length > 80 || r.valore.length > 300))
+    errore("caratteristiche", "Una caratteristica è troppo lunga (nome 80 segni, valore 300).");
+  else
+    campi.caratteristiche = piene.map((r) => ({
+      etichetta: r.etichetta,
+      valore: r.valore,
+      stato: r.stato,
+      fonte: r.fonte,
+    }));
 
   // domande frequenti
   const faq = m.faq.map((f) => ({ d: f.d.trim(), r: f.r.trim() })).filter((f) => f.d || f.r);
-  if (faq.some((f) => !f.d || !f.r)) errore("faq", "Una domanda frequente è a metà: scrivi la domanda e la risposta, oppure togli la riga.");
+  if (faq.some((f) => !f.d || !f.r))
+    errore(
+      "faq",
+      "Una domanda frequente è a metà: scrivi la domanda e la risposta, oppure togli la riga.",
+    );
   else if (faq.length > FAQ_MAX) errore("faq", `Le domande frequenti sono al massimo ${FAQ_MAX}.`);
-  else if (faq.some((f) => f.d.length > 300 || f.r.length > 1500)) errore("faq", "Una domanda frequente è troppo lunga (domanda 300 segni, risposta 1500).");
+  else if (faq.some((f) => f.d.length > 300 || f.r.length > 1500))
+    errore("faq", "Una domanda frequente è troppo lunga (domanda 300 segni, risposta 1500).");
   else campi.faq = faq;
 
   // reso
@@ -257,17 +335,24 @@ export function campiDaModulo(m: Modulo): { campi: Partial<CampiScheda>; errori:
     campi.resoConsentito = true;
     const g = m.resoGiorni.trim();
     if (!g) campi.resoGiorni = null;
-    else if (!/^\d{1,3}$/.test(g) || Number(g) > GIORNI_RESO_MAX) errore("resoGiorni", `I giorni per il reso sono un numero intero da 0 a ${GIORNI_RESO_MAX}.`);
+    else if (!/^\d{1,3}$/.test(g) || Number(g) > GIORNI_RESO_MAX)
+      errore("resoGiorni", `I giorni per il reso sono un numero intero da 0 a ${GIORNI_RESO_MAX}.`);
     else campi.resoGiorni = Number(g);
   } else {
     campi.resoConsentito = m.reso === "no" ? false : null;
     campi.resoGiorni = null;
   }
 
-  if (m.boxConsulenza && m.tipo !== "patch") errore("boxConsulenza", "Il box consulenza si mostra solo sulle patch.");
+  if (m.boxConsulenza && m.tipo !== "patch")
+    errore("boxConsulenza", "Il box consulenza si mostra solo sulle patch.");
   else campi.boxConsulenza = m.boxConsulenza;
   campi.correlatoId = m.correlatoId.trim() || null;
-  campi.canali = { sito: m.canali.sito, meta: m.canali.meta, google: m.canali.google, tiktok: m.canali.tiktok };
+  campi.canali = {
+    sito: m.canali.sito,
+    meta: m.canali.meta,
+    google: m.canali.google,
+    tiktok: m.canali.tiktok,
+  };
 
   // ciò che non si può scrivere: il campo resta com'era (non parte) e l'errore sta accanto
   for (const [k, a] of Object.entries(avvisiCampi(m)) as [CampoModulo, { bloccanti: string[] }][]) {
@@ -279,7 +364,11 @@ export function campiDaModulo(m: Modulo): { campi: Partial<CampiScheda>; errori:
 }
 
 /** Quali campi vanno al server: solo quelli cambiati. Su un pubblicato SKU, indirizzo e prezzo non partono da soli. */
-export function patchCampi(salvati: Partial<CampiScheda>, nuovi: Partial<CampiScheda>, o: { pubblicato: boolean }): Partial<CampiScheda> {
+export function patchCampi(
+  salvati: Partial<CampiScheda>,
+  nuovi: Partial<CampiScheda>,
+  o: { pubblicato: boolean },
+): Partial<CampiScheda> {
   const fuori: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(nuovi)) {
     if (o.pubblicato && (k === "sku" || k === "slug" || k === "prezzoCent")) continue;
@@ -291,24 +380,45 @@ export function patchCampi(salvati: Partial<CampiScheda>, nuovi: Partial<CampiSc
 /* ══ «PRIMA DI PUBBLICARE», IN TEMPO REALE ══════════════════════════════════ */
 
 const CAMPO_A_SEZIONE: Record<string, SezioneId> = {
-  nome: "identita", slug: "identita", sku: "identita", tipo: "identita", marca: "identita",
-  categoria: "categorie", categorie: "categorie",
-  rigaPresentazione: "descrizione", descrizioneBreve: "descrizione", descrizioneLunga: "descrizione", perChi: "descrizione",
+  nome: "identita",
+  slug: "identita",
+  sku: "identita",
+  tipo: "identita",
+  marca: "identita",
+  categoria: "categorie",
+  categorie: "categorie",
+  rigaPresentazione: "descrizione",
+  descrizioneBreve: "descrizione",
+  descrizioneLunga: "descrizione",
+  perChi: "descrizione",
   caratteristiche: "caratteristiche",
   prezzo: "prezzo",
   varianti: "varianti",
-  fotoPrincipale: "foto", alt: "foto", video: "foto", media: "foto",
-  passi: "uso", confezione: "uso", avvertenze: "uso", faq: "uso",
-  reso: "reso", resoGiorni: "reso", boxConsulenza: "reso", correlatoId: "reso", spedizione: "reso",
+  fotoPrincipale: "foto",
+  alt: "foto",
+  video: "foto",
+  media: "foto",
+  passi: "uso",
+  confezione: "uso",
+  avvertenze: "uso",
+  faq: "uso",
+  reso: "reso",
+  resoGiorni: "reso",
+  boxConsulenza: "reso",
+  correlatoId: "reso",
+  spedizione: "reso",
   canali: "canali",
-  seoTitolo: "ricerca", seoDescrizione: "ricerca",
+  seoTitolo: "ricerca",
+  seoDescrizione: "ricerca",
 };
 
 /** A quale sezione porta una voce. Lo «sku» è ambiguo (il prodotto o una sua variante): si capisce dalla frase. Un campo che non conosco porta in cima. */
 export function sezioneDi(voce: Voce, ctx: { nome: string; sku: string }): SezioneId {
   if (voce.campo === "sku") {
     if (voce.frase.includes("due varianti")) return "varianti";
-    return voce.frase.includes(`“${ctx.sku}”`) || voce.frase.includes(`“${ctx.nome}”`) ? "identita" : "varianti";
+    return voce.frase.includes(`“${ctx.sku}”`) || voce.frase.includes(`“${ctx.nome}”`)
+      ? "identita"
+      : "varianti";
   }
   return Object.hasOwn(CAMPO_A_SEZIONE, voce.campo) ? CAMPO_A_SEZIONE[voce.campo] : "identita";
 }
@@ -337,11 +447,23 @@ export function controlloLive(o: {
   pubblicato: boolean;
 }): ControlloLive {
   const { prezzoCent, ...resto } = o.campi;
-  const prodotto = { ...o.base, ...resto, ...(!o.pubblicato && prezzoCent !== undefined ? { prezzoCent } : {}) } as Prodotto;
-  const esito = controllaPubblicazione(prodotto, o.varianti, o.media, o.categorie, { spedizioneImpostata: null, tuttiGliSku: o.altriSku });
-  const daiCampi: Voce[] = Object.entries(o.errori).map(([campo, frase]) => ({ campo, frase: frase as string }));
+  const prodotto = {
+    ...o.base,
+    ...resto,
+    ...(!o.pubblicato && prezzoCent !== undefined ? { prezzoCent } : {}),
+  } as Prodotto;
+  const esito = controllaPubblicazione(prodotto, o.varianti, o.media, o.categorie, {
+    spedizioneImpostata: null,
+    tuttiGliSku: o.altriSku,
+  });
+  const daiCampi: Voce[] = Object.entries(o.errori).map(([campo, frase]) => ({
+    campo,
+    frase: frase as string,
+  }));
   const visti = new Set<string>();
-  const bloccanti = [...daiCampi, ...esito.bloccanti].filter((v) => (visti.has(v.frase) ? false : (visti.add(v.frase), true)));
+  const bloccanti = [...daiCampi, ...esito.bloccanti].filter((v) =>
+    visti.has(v.frase) ? false : (visti.add(v.frase), true),
+  );
   return { bloccanti, informativi: esito.informativi };
 }
 
@@ -349,8 +471,14 @@ export interface ConteggioSezione {
   bloccanti: number;
   informativi: number;
 }
-export function conteggiPerSezione(bloccanti: readonly Voce[], informativi: readonly Voce[], ctx: { nome: string; sku: string }): Record<SezioneId, ConteggioSezione> {
-  const conti = Object.fromEntries(SEZIONI.map((s) => [s.id, { bloccanti: 0, informativi: 0 }])) as Record<SezioneId, ConteggioSezione>;
+export function conteggiPerSezione(
+  bloccanti: readonly Voce[],
+  informativi: readonly Voce[],
+  ctx: { nome: string; sku: string },
+): Record<SezioneId, ConteggioSezione> {
+  const conti = Object.fromEntries(
+    SEZIONI.map((s) => [s.id, { bloccanti: 0, informativi: 0 }]),
+  ) as Record<SezioneId, ConteggioSezione>;
   for (const v of bloccanti) conti[sezioneDi(v, ctx)].bloccanti++;
   for (const v of informativi) conti[sezioneDi(v, ctx)].informativi++;
   return conti;
@@ -360,20 +488,26 @@ export type TonoSezione = "ok" | "da_sistemare" | "da_controllare";
 /** Il segno accanto al titolo della sezione. Sempre testo (mai solo il colore). */
 export function statoSezione(c: ConteggioSezione): { tono: TonoSezione; testo: string } {
   if (c.bloccanti > 0) return { tono: "da_sistemare", testo: `da sistemare (${c.bloccanti})` };
-  if (c.informativi > 0) return { tono: "da_controllare", testo: `da controllare (${c.informativi})` };
+  if (c.informativi > 0)
+    return { tono: "da_controllare", testo: `da controllare (${c.informativi})` };
   return { tono: "ok", testo: "a posto" };
 }
 
 /* ══ INVISIBLE DERM (D39) ═══════════════════════════════════════════════════ */
 
 /** Invisible Derm non ha un prezzo pubblico: la scheda non mostra il campo. shortcut: stessa regola (`/invisible[\s\-_]*derm/i`) di `eInvisibleDerm` in `shop/cms/pubblico.ts` (D39, ramo e): ricopiata qui perché in questo ramo non c'è; da importare all'integrazione (T32). */
-export const eInvisibleDerm = (nome: unknown): boolean => typeof nome === "string" && /invisible[\s\-_]*derm/i.test(nome);
+export const eInvisibleDerm = (nome: unknown): boolean =>
+  typeof nome === "string" && /invisible[\s\-_]*derm/i.test(nome);
 
 /* ══ L'ANTEPRIMA ════════════════════════════════════════════════════════════ */
 
 /** `/shop/prodotto/<slug>?anteprima=<scadenza>.<firma>` (D31) → indirizzo assoluto. Qualunque altra forma → `null`: non si copia mai un indirizzo che non è nostro. */
 export function indirizzoAnteprima(origine: string, url: unknown): string | null {
-  if (typeof url !== "string" || !/^\/shop\/prodotto\/[a-z0-9]+(?:-[a-z0-9]+)*\?anteprima=\d{1,16}\.[0-9a-f]{64}$/.test(url)) return null;
+  if (
+    typeof url !== "string" ||
+    !/^\/shop\/prodotto\/[a-z0-9]+(?:-[a-z0-9]+)*\?anteprima=\d{1,16}\.[0-9a-f]{64}$/.test(url)
+  )
+    return null;
   return `${origine.replace(/\/+$/, "")}${url}`;
 }
 
@@ -392,7 +526,9 @@ export function opzioniDaVarianti(varianti: readonly Variante[]): OpzioneInput[]
 }
 
 /** Il prezzo di una variante: vuoto = vale quello del prodotto (D25, `null`); altrimenti euro validi. */
-export function prezzoVarianteDaTesto(t: string): { ok: true; cent: number | null } | { ok: false } {
+export function prezzoVarianteDaTesto(
+  t: string,
+): { ok: true; cent: number | null } | { ok: false } {
   if (!t.trim()) return { ok: true, cent: null };
   const cent = centDaEuro(t);
   return cent === null ? { ok: false } : { ok: true, cent };
