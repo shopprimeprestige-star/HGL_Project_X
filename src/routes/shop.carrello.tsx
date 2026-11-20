@@ -1,20 +1,55 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useEffect, useRef } from "react";
 import { Minus, Plus, Trash2, ShoppingBag, ArrowRight } from "lucide-react";
 import { PRODUCTS, formatPrice } from "@/shop/catalog";
 import { ShopVisual } from "@/shop/ShopVisual";
-import { useCart } from "@/shop/CartContext";
+import { useCart, type CartLine } from "@/shop/CartContext";
+import { modalitaCatalogo } from "@/shop/cms/catalogo.functions";
+import { MSG_NON_VERIFICABILE, SPEDIZIONE_CMS_CENT, datiEventoRighe } from "@/shop/cms/cassa";
+import { useRivalidaCarrello } from "@/shop/useRivalidaCarrello";
+import { emettiEvento } from "@/lib/tracciamento/api";
 
 export const Route = createFileRoute("/shop/carrello")({
+  //  Il catalogo del sito: se non risponde si pensa `codice`, cioè il carrello di oggi.
+  loader: async () => ({ modo: await modalitaCatalogo().catch(() => "codice" as const) }),
   component: CartPage,
 });
+
+const prezzoCodice = (id: string) => PRODUCTS.find((pr) => pr.id === id)?.price;
+
+/** La foto di una riga CMS (la 480 dello `snap`); senza foto un riquadro vuoto. */
+function FotoRigaCms({ line, className }: { line: CartLine; className: string }) {
+  const src = line.snap?.foto?.w480;
+  return src ? <img src={src} alt={line.snap?.nome ?? ""} className={`${className} rounded-xl object-cover`} loading="lazy" /> : <div className={`${className} rounded-xl bg-white/5`} />;
+}
 
 const SHIPPING_THRESHOLD = 59;
 const SHIPPING_COST = 4.9;
 
 function CartPage() {
   const { lines, setQty, remove, subtotal, count } = useCart();
-  const shipping = subtotal >= SHIPPING_THRESHOLD || subtotal === 0 ? 0 : SHIPPING_COST;
+  const { modo } = Route.useLoaderData();
+  const { stato, avviso } = useRivalidaCarrello(modo);
+  const cms = modo === "cms";
+  //  CMS (D37): tariffa fissa, nessuna soglia. `codice`: come oggi (gratis da 59 €).
+  const shipping = cms ? SPEDIZIONE_CMS_CENT / 100 : subtotal >= SHIPPING_THRESHOLD || subtotal === 0 ? 0 : SHIPPING_COST;
   const total = subtotal + shipping;
+
+  //  ViewCart: una volta per apertura, a controllo finito (il valore è quello del server)
+  const viste = useRef(lines);
+  viste.current = lines;
+  const emessa = useRef(false);
+  useEffect(() => {
+    if (stato !== "ok" || emessa.current || viste.current.length === 0) return;
+    emessa.current = true;
+    const dati = datiEventoRighe(viste.current, prezzoCodice);
+    if (dati) emettiEvento("ViewCart", dati);
+  }, [stato, count]);
+  const togli = (line: CartLine) => {
+    const dati = datiEventoRighe([line], prezzoCodice);
+    if (dati) emettiEvento("RemoveFromCart", dati);
+    remove(line.key);
+  };
 
   if (count === 0) {
     return (
@@ -35,10 +70,56 @@ function CartPage() {
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">Carrello <span className="text-white/40">({count})</span></h1>
+      {avviso && (
+        <p role="status" className="rounded-lg border border-amber-400/40 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">
+          {avviso}
+        </p>
+      )}
+      {stato === "non_verificabile" && (
+        <p role="alert" className="rounded-lg border border-red-400/40 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+          {MSG_NON_VERIFICABILE}
+        </p>
+      )}
       <div className="grid gap-8 lg:grid-cols-[1fr_340px]">
         {/* righe */}
         <div className="space-y-3">
           {lines.map((line) => {
+            //  riga del catalogo CMS (ha lo SKU): si disegna da ciò che il server ha detto (`snap`); solo per MOSTRARE, la cassa ricalcola
+            if (line.sku) {
+              if (!cms || !line.snap) return null;
+              return (
+                <div key={line.key} className="flex gap-4 rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+                  <Link to="/shop/prodotto/$slug" params={{ slug: line.snap.slug }} className="shrink-0">
+                    <FotoRigaCms line={line} className="h-24 w-24" />
+                  </Link>
+                  <div className="flex flex-1 flex-col">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <Link to="/shop/prodotto/$slug" params={{ slug: line.snap.slug }} className="font-medium text-white hover:text-brand">
+                          {line.snap.nome}
+                        </Link>
+                        {line.snap.varianteNome && <p className="mt-0.5 text-xs text-white/45">{line.snap.varianteNome}</p>}
+                      </div>
+                      <button onClick={() => togli(line)} aria-label={`Togli ${line.snap.nome}`} className="text-white/40 transition hover:text-destructive">
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                    <div className="mt-auto flex items-center justify-between pt-2">
+                      <div className="flex items-center rounded-lg border border-white/15 bg-white/5">
+                        <button onClick={() => setQty(line.key, line.qty - 1)} className="px-2.5 py-2 text-white/70 hover:text-white">
+                          <Minus className="h-3.5 w-3.5" />
+                        </button>
+                        <span className="w-7 text-center text-sm">{line.qty}</span>
+                        <button onClick={() => setQty(line.key, line.qty + 1)} className="px-2.5 py-2 text-white/70 hover:text-white">
+                          <Plus className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                      <span className="font-semibold">{formatPrice((line.snap.prezzoCent * line.qty) / 100)}</span>
+                    </div>
+                  </div>
+                </div>
+              );
+            }
             const p = PRODUCTS.find((pr) => pr.id === line.productId);
             if (!p) return null;
             return (
@@ -58,7 +139,7 @@ function CartPage() {
                         </p>
                       )}
                     </div>
-                    <button onClick={() => remove(line.key)} className="text-white/40 transition hover:text-destructive">
+                    <button onClick={() => togli(line)} className="text-white/40 transition hover:text-destructive">
                       <Trash2 className="h-4 w-4" />
                     </button>
                   </div>
@@ -94,7 +175,7 @@ function CartPage() {
                 {shipping === 0 ? "Gratuita" : formatPrice(shipping)}
               </span>
             </div>
-            {shipping > 0 && (
+            {shipping > 0 && !cms && (
               <p className="text-xs text-white/45">
                 Aggiungi {formatPrice(SHIPPING_THRESHOLD - subtotal)} per la spedizione gratuita.
               </p>
