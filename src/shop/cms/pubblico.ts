@@ -40,8 +40,9 @@ export interface OpzioniPubblico {
 export const eInvisibleDerm = (nome: unknown): boolean => typeof nome === "string" && /invisible[\s\-_]*derm/i.test(nome);
 
 const SLOT_PRODOTTO = SLOT.filter((s) => s !== "campione");
-/** Come si ordinano le foto nella scheda (Design §4.4.3): la principale, la foto di scala come seconda, le altre, il video. */
-const POSTO: Record<string, number> = { principale: 0, scala: 1, foto2: 2, foto3: 3, foto4: 4, foto5: 5, video: 6, confezione: 7 };
+/** Come si ordinano le foto nella scheda (Design §4.4.3): la principale, la foto di scala come seconda, le foto 2-5, il video.
+ *  Le foto 2-5 stanno TUTTE nello stesso posto: fra loro conta `ordine` (poi `id`), non lo slot, perché il CRM le riordina cambiando solo `ordine`. */
+const POSTO: Record<string, number> = { principale: 0, scala: 1, foto2: 2, foto3: 2, foto4: 2, foto5: 2, video: 6, confezione: 7 };
 /** Le opzioni si mostrano in quest'ordine: le chiavi di un JSON del database non hanno un ordine affidabile. */
 const OPZIONI_NOTE = ["Colore", "Lunghezza", "Misura"];
 
@@ -131,7 +132,7 @@ export function costruisciPubblico(righe: unknown, opzioni: OpzioniPubblico = {}
     }
     const media = [...scelti.values()]
       .filter((m) => SLOT_PRODOTTO.includes(m.slot as (typeof SLOT_PRODOTTO)[number]))
-      .sort((a, b) => POSTO[a.slot] - POSTO[b.slot])
+      .sort((a, b) => POSTO[a.slot] - POSTO[b.slot] || prima(a, b))
       .flatMap((m) => {
         const video = m.slot === "video";
         const src = video ? null : foto(m);

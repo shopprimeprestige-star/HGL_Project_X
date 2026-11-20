@@ -186,6 +186,28 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("una foto rimossa o di persona senza liberatoria non vince nemmeno se ha l'`ordine` più basso", [["gara-2"], ["gara-2"]],
     gara([{ ordine: 0, rimosso_il: ISTANTE }, { ordine: 0, ritrae_persone: true, liberatoria_ok: false }, { ordine: 3 }]));
 
+  // le foto 2-5 si ordinano per `ordine` e poi per `id`, NON per lo slot (il riordino fatto dal CRM con `media_ordina` cambia solo `ordine`):
+  // lo slot serve solo a riconoscere la principale (sempre prima), la foto di scala (seconda), il video e la confezione (in fondo)
+  const riordino = (righe, o = opz) => {
+    const r = righeTabelle();
+    r.media = righe.map((x, i) => mediaProva({ id: uuid(0x700 + i), prodotto_id: uuid(0x200), alt: `m-${i}`, ...x }));
+    const alt = (m) => PUB.costruisciPubblico(m, o)[0].media.map((x) => x.alt);
+    return [alt(r), alt({ ...r, media: [...r.media].reverse() })];
+  };
+  const ATTESO = ["principale", "scala", "ordine-2", "id-basso", "id-alto", "ordine-7", "video"];
+  const FOTO_IN_DISORDINE = [
+    { slot: "video", alt: "video", ...pf("v"), path_video: "prova/v.mp4", path_copertina: "prova/c.webp", ordine: 0 },
+    { slot: "foto2", alt: "ordine-7", ordine: 7 },
+    { slot: "foto3", alt: "ordine-2", ordine: 2 },
+    { slot: "foto5", alt: "id-alto", ordine: 5, id: uuid(0x7f9) },
+    { slot: "foto4", alt: "id-basso", ordine: 5, id: uuid(0x7f1) },
+    { slot: "scala", alt: "scala", ordine: 99 },
+    { slot: "principale", alt: "principale", ordine: 50 },
+  ];
+  c("foto 2-5: nell'ordine di `ordine`, poi `id`, qualunque sia lo slot; principale e scala in testa, il video in fondo (in qualunque ordine arrivino)",
+    [ATTESO, ATTESO], riordino(FOTO_IN_DISORDINE));
+  c("la stessa regola in anteprima (dalle tabelle)", [ATTESO, ATTESO], riordino(FOTO_IN_DISORDINE, { ...opz, anteprima: { slug: "prodotto-di-prova" } }));
+
   // ── LE COLONNE DI FILTRO DIMENTICATE FANNO CHIUDERE (le viste di S1 le hanno tutte; se una sparisse non deve uscire niente di più) ──
   const senza = (tabella, colonna) => {
     const v = righeViste();
