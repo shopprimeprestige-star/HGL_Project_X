@@ -108,7 +108,7 @@ function porteFinte(guasti = {}) {
       async esegui(azione, dati) {
         log.push(["esegui", azione, dati]);
         if (guasta(azione)) return { ok: false, errore: { tipo: "server", messaggio: "Il server non risponde." } };
-        return { ok: true, dati: azione === "media_registra" ? { media: { id: "nuovo" } } : azione === "media_flag" ? { avviso: guasti.avviso } : {} };
+        return { ok: true, dati: azione === "media_registra" ? { media: { id: "nuovo" } } : azione === "media_flag" ? { avviso: guasti.avviso } : azione === "media_rimuovi" ? { avviso: guasti.avvisoRitiro } : {} };
       },
     },
   };
@@ -202,12 +202,49 @@ async function caricamento(M, c) {
   await M.eseguiLavoro(l10, f10.porte);
   c("media_flag fallito: la foto c'è già; la ripresa rifà SOLO media_flag, non un secondo registro", [false, ["esegui"], "media_flag"], [e10.ok, f10.log.map((x) => x[0]), f10.log[0][1]]);
 
-  // ── il video ──
   const video = {
     prodottoId: "p1", slot: "video", sottoRuolo: null, alt: "Patch Rosa, video breve", tipo: "video", muto: false, testoParlato: "Ciao, sono io", durataS: 11.2,
     ritraePersone: false, liberatoriaOk: false, sottotitoliOk: true,
     file: [{ chiave: "video", tipo: "video", blob: blob(900), mime: "video/mp4" }, { chiave: "copertina", tipo: "copertina", blob: blob(40), mime: "image/jpeg", per: [960] }],
   };
+
+  // ── media_flag che non riesce: una persona senza il suo segno NON resta in linea ──
+  const persona = () => foto({ ritraePersone: true, liberatoriaOk: true });
+  const FRASE_RITIRATA = "La foto non è stata pubblicata: riprova a caricarla.";
+  const fl_g1 = porteFinte({ media_flag: 99, avvisoRitiro: "Senza foto principale il prodotto è tornato in bozza." });
+  const fl_lg1 = M.nuovoLavoro(persona());
+  const fl_r1 = [];
+  for (let i = 0; i < 3; i++) fl_r1.push(await M.eseguiLavoro(fl_lg1, fl_g1.porte));
+  c("flag fallito 1ª e 2ª volta: non definitivo, ma la foto è già salvata → `cambiato: true` (chi chiama deve rileggere)", [[true, true], [false, false]], [fl_r1.slice(0, 2).map((e) => e.ok === false && e.definitivo === false && e.cambiato === true), fl_r1.slice(0, 2).map((e) => !!e.ritirata)]);
+  const fl_rit = fl_g1.log.filter((x) => x[1] === "media_rimuovi");
+  c("flag fallito 3 volte con `ritraePersone`: il media si RITIRA con `media_rimuovi` e `liberatoriaRevocata: true`", [1, { prodottoId: "p1", mediaId: "nuovo", liberatoriaRevocata: true }], [fl_rit.length, fl_rit[0]?.[2]]);
+  c("…l'esito dice che la foto non è stata pubblicata, che è definitivo, che l'archivio è cambiato, e porta l'avviso del server", [false, true, true, true, FRASE_RITIRATA, "Senza foto principale il prodotto è tornato in bozza."], [fl_r1[2].ok, fl_r1[2].definitivo, fl_r1[2].cambiato, fl_r1[2].ritirata, fl_r1[2].frase, fl_r1[2].avviso]);
+  c("…la frase NON dice che la foto «non è stata salvata» né «scegli di nuovo» in modo falso", false, /scegli di nuovo/.test(fl_r1[2].frase));
+  const fl_dopo = await M.eseguiLavoro(fl_lg1, fl_g1.porte);
+  c("rilanciare un lavoro già ritirato: stesso esito, nessuna nuova chiamata", [true, fl_g1.log.filter((x) => x[1] === "media_rimuovi").length], [fl_dopo.ok === false && fl_dopo.frase === FRASE_RITIRATA, 1]);
+  const fl_g2 = porteFinte({ media_flag: 99, media_rimuovi: 99 });
+  const fl_lg2 = M.nuovoLavoro(persona());
+  let fl_r2;
+  for (let i = 0; i < 3; i++) fl_r2 = await M.eseguiLavoro(fl_lg2, fl_g2.porte);
+  c("flag e ritiro falliti entrambi: la foto È in linea e lo si dice (senza «Scarta» falso), l'archivio è cambiato", [false, true, true, false, "La foto è salvata, ma non sono riuscito a registrare che ritrae una persona né a toglierla: aprila con Modifica e correggila subito."], [fl_r2.ok, fl_r2.definitivo, fl_r2.cambiato, !!fl_r2.ritirata, fl_r2.frase]);
+  const fl_g3 = porteFinte({ media_flag: 99 });
+  const fl_lg3 = M.nuovoLavoro(foto({ ritraePersone: false, sottotitoliOk: true }));
+  let fl_r3;
+  for (let i = 0; i < 3; i++) fl_r3 = await M.eseguiLavoro(fl_lg3, fl_g3.porte);
+  c("flag fallito senza `ritraePersone`: NESSUN ritiro (non serve), solo una frase vera e `cambiato`", [0, false, true, true, "La foto è salvata, ma una sua impostazione non è stata registrata: aprila con Modifica e controllala."], [fl_g3.log.filter((x) => x[1] === "media_rimuovi").length, fl_r3.ok, fl_r3.definitivo, fl_r3.cambiato, fl_r3.frase]);
+  const fl_g4 = porteFinte({ media_flag: 99 });
+  const fl_lg4 = M.nuovoLavoro({ ...video, ritraePersone: false, sottotitoliOk: true });
+  let fl_r4;
+  for (let i = 0; i < 3; i++) fl_r4 = await M.eseguiLavoro(fl_lg4, fl_g4.porte);
+  c("lo stesso per un video: la frase parla del video", "Il video è salvato, ma una sua impostazione non è stata registrata: aprilo con Modifica e controllala.", fl_r4.frase);
+  const fl_g5 = porteFinte({ permesso: 99 });
+  const fl_r5 = await M.eseguiLavoro(M.nuovoLavoro(persona()), fl_g5.porte);
+  c("un fallimento PRIMA del registro non cambia niente sul server: `cambiato` falso", [false, false], [fl_r5.ok, fl_r5.cambiato]);
+  const fl_g6 = porteFinte({ media_registra: 99 });
+  const fl_r6 = await M.eseguiLavoro(M.nuovoLavoro(persona()), fl_g6.porte);
+  c("registro fallito: `cambiato` falso e nessun ritiro", [false, 0], [fl_r6.cambiato, fl_g6.log.filter((x) => x[1] === "media_rimuovi").length]);
+
+  // ── il video ──
   const f11 = porteFinte();
   const e11 = await M.eseguiLavoro(M.nuovoLavoro(video), f11.porte);
   const rv = f11.log.find((x) => x[1] === "media_registra");
