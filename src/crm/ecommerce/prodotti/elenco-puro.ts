@@ -80,6 +80,19 @@ export function chipProdotto(r: RigaElenco): ChipProdotto {
   return { etichetta: "Bozza", tono: "neutro", ragione: r.motivo, modifiche };
 }
 
+/** I canali accesi, in italiano («Sito, Meta»). Nessuno acceso, o un valore illeggibile: «Nessun canale». */
+export function etichettaCanali(canali: RigaElenco["canali"] | null | undefined): string {
+  const nomi = [["sito", "Sito"], ["meta", "Meta"], ["google", "Google"], ["tiktok", "TikTok"]] as const;
+  const accesi = nomi.filter(([k]) => canali?.[k] === true).map(([, n]) => n);
+  return accesi.length ? accesi.join(", ") : "Nessun canale";
+}
+
+/** La giacenza della riga: il numero, «Esaurito» a zero, «—» se non si legge. */
+export function etichettaGiacenza(n: unknown): string {
+  if (typeof n !== "number" || !Number.isFinite(n)) return "—";
+  return n <= 0 ? "Esaurito" : String(n);
+}
+
 /* ══ LA COPIA ═══════════════════════════════════════════════════════════════ */
 
 const MAX_SKU = 40;

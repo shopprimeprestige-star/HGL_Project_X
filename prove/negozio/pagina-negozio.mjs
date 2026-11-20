@@ -45,7 +45,7 @@ export async function prove(_mod, { c, gruppo, radice }) {
   // ── le regole pure ──
   const P = existsSync(puroPath) ? await caricaTs(puroPath) : {};
   const ok = (f) => typeof f === "function";
-  c("elenco-puro.ts esporta le funzioni che l'elenco usa", true, ["cercaRighe", "ordinaRighe", "chipProdotto", "proponiCopia", "riepilogoGruppo", "riepilogoDuplica", "prezzoDaCent"].every((n) => ok(P[n])) && P.MAX_GRUPPO === 20);
+  c("elenco-puro.ts esporta le funzioni che l'elenco usa", true, ["cercaRighe", "ordinaRighe", "chipProdotto", "proponiCopia", "riepilogoGruppo", "riepilogoDuplica", "prezzoDaCent", "etichettaCanali", "etichettaGiacenza"].every((n) => ok(P[n])) && P.MAX_GRUPPO === 20);
 
   if (ok(P.cercaRighe)) {
     const r = [riga("a1", { nome: "Patch Rosa", sku: "HG-T01" }), riga("a2", { nome: "Cura notte", sku: "HG-C02" }), riga("a3", { nome: "Kit ROSA", sku: "HG-K03" })];
@@ -183,6 +183,12 @@ export async function prove(_mod, { c, gruppo, radice }) {
   const elencoPath = join(dir, "ElencoProdotti.tsx");
   const testoElenco = existsSync(elencoPath) ? readFileSync(elencoPath, "utf8") : "";
   const el = senzaCommenti(testoElenco);
+  // T32 (17): canali e giacenza per riga
+  c("etichettaCanali: i canali accesi in italiano, «Nessun canale» se spenti o illeggibili", ["Sito", "Sito, Meta, Google, TikTok", "Nessun canale", "Nessun canale"],
+    [{ sito: true, meta: false, google: false, tiktok: false }, { sito: true, meta: true, google: true, tiktok: true }, { sito: false, meta: false, google: false, tiktok: false }, null].map((x) => P.etichettaCanali?.(x)));
+  c("etichettaGiacenza: il numero; 0 = «Esaurito»; un valore illeggibile = «—»", ["12", "Esaurito", "—"], [12, 0, undefined].map((x) => P.etichettaGiacenza?.(x)));
+  c("ogni riga dell'elenco mostra canali e giacenza (colonne e riga del telefono)", [true, true, true], [/etichettaCanali\(/.test(el), /etichettaGiacenza\(/.test(el), /Giacenza<\/Intestazione>|>\s*Canali\s*</.test(el) || /Canali/.test(el)]);
+  c("il client conosce `canali` e `giacenza` della riga", true, /canali:\s*\{/.test(readFileSync(join(radice, "src/crm/negozio/client.ts"), "utf8")) && /giacenza:\s*number/.test(readFileSync(join(radice, "src/crm/negozio/client.ts"), "utf8")));
   c("ElencoProdotti.tsx esiste ed esporta `ElencoProdotti`", true, /export function ElencoProdotti\(/.test(el));
   c("i cinque segmenti del Design (Tutti, Pubblicati, Bozze, Da sistemare, Vecchio catalogo) si leggono dal client", true,
     /SEGMENTI\.map/.test(el) && /ETICHETTE_SEGMENTO\[/.test(el));

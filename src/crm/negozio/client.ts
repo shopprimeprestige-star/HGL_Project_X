@@ -215,6 +215,10 @@ export interface RigaElenco {
   haModifiche: boolean;
   /** Il primo motivo per cui non è pubblicabile (frase), o `null`. */
   motivo: string | null;
+  /** Dove il prodotto è acceso (T32): solo le quattro chiavi note. */
+  canali: { sito: boolean; meta: boolean; google: boolean; tiktok: boolean };
+  /** La somma della giacenza delle varianti attive (T32). */
+  giacenza: number;
 }
 export interface SchedaProdotto {
   prodotto: Record<string, unknown>;

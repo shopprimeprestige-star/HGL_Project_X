@@ -825,7 +825,11 @@ async function elencoProdotti(d: DipendenzeProdotti, p: URLSearchParams) {
     if (!prodotto) return [];
     const categorie = cs.filter((x) => x.prodotto_id === prodotto.id).flatMap((x) => (typeof x.categoria_id === "string" ? [x.categoria_id] : []));
     const esito = controllaPubblicazione(prodotto, vs.filter((v) => v.prodottoId === prodotto.id), ms.filter((m) => m.prodottoId === prodotto.id), categorie, { spedizioneImpostata: null, tuttiGliSku: tutti });
-    return [{ prodotto, categorie, motivo: esito.bloccanti[0]?.frase ?? null }];
+    // giacenza = la somma delle varianti ATTIVE (una variante spenta non si vende, quindi non conta); canali = solo le quattro chiavi note
+    const giacenza = vs.filter((v) => v.prodottoId === prodotto.id && v.attiva).reduce((s, v) => s + (typeof v.giacenza === "number" && Number.isFinite(v.giacenza) ? v.giacenza : 0), 0);
+    const k = (prodotto.canali ?? {}) as Partial<Record<"sito" | "meta" | "google" | "tiktok", unknown>>;
+    const canali = { sito: k.sito === true, meta: k.meta === true, google: k.google === true, tiktok: k.tiktok === true };
+    return [{ prodotto, categorie, motivo: esito.bloccanti[0]?.frase ?? null, giacenza, canali }];
   });
   const righeOut = lista
     .filter(({ prodotto: x, categorie, motivo }) => {
@@ -839,9 +843,9 @@ async function elencoProdotti(d: DipendenzeProdotti, p: URLSearchParams) {
       if (segmento === "da_sistemare") return x.stato !== "archiviato" && motivo !== null;
       return true;
     })
-    .map(({ prodotto: x, motivo }) => ({
+    .map(({ prodotto: x, motivo, giacenza, canali }) => ({
       id: x.id, sku: x.sku, slug: x.slug, nome: x.nome, tipo: x.tipo, stato: x.stato, origine: x.origine, prezzoCent: x.prezzoCent,
-      versione: x.aggiornatoIl, haModifiche: x.bozzaModifiche !== null, motivo,
+      versione: x.aggiornatoIl, haModifiche: x.bozzaModifiche !== null, motivo, canali, giacenza,
     }));
   return { prodotti: righeOut, troncato };
 }

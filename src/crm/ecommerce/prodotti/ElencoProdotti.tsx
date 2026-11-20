@@ -54,6 +54,8 @@ import {
   MAX_GRUPPO,
   chipProdotto,
   cercaRighe,
+  etichettaCanali,
+  etichettaGiacenza,
   ordinaRighe,
   prezzoDaCent,
   proponiCopia,
@@ -494,6 +496,12 @@ export function ElencoProdotti({ negozio, apri, categorieAggiornate = 0 }: Props
                   <Intestazione colonna="prezzo" ordine={ordine} ordinaPer={ordinaPer} destra>
                     Prezzo
                   </Intestazione>
+                  <th scope="col" className="px-3 py-2 font-medium">
+                    Canali
+                  </th>
+                  <th scope="col" className="px-3 py-2 text-right font-medium">
+                    Giacenza
+                  </th>
                   <th scope="col" className="px-3 py-2 text-right font-medium">
                     <span className="sr-only">Azioni</span>
                   </th>
@@ -534,6 +542,12 @@ export function ElencoProdotti({ negozio, apri, categorieAggiornate = 0 }: Props
                         <td className="px-3 py-2.5 text-right tabular-nums">
                           {prezzoDaCent(r.prezzoCent)}
                         </td>
+                        <td className="px-3 py-2.5 text-[12px] text-muted-foreground">
+                          {etichettaCanali(r.canali)}
+                        </td>
+                        <td className="px-3 py-2.5 text-right text-[12px] tabular-nums">
+                          {etichettaGiacenza(r.giacenza)}
+                        </td>
                         <td className="px-3 py-2.5 text-right">
                           <AzioniRiga
                             riga={r}
@@ -547,7 +561,7 @@ export function ElencoProdotti({ negozio, apri, categorieAggiornate = 0 }: Props
                       {aperta && (
                         <tr className="bg-muted/30">
                           <td />
-                          <td colSpan={5} className="px-3 pb-3 pt-1">
+                          <td colSpan={7} className="px-3 pb-3 pt-1">
                             <PannelloGiacenza
                               id={r.id}
                               negozio={negozio}
@@ -596,6 +610,9 @@ export function ElencoProdotti({ negozio, apri, categorieAggiornate = 0 }: Props
                       </button>
                       <p className="mt-0.5 text-[12px] tabular-nums text-muted-foreground">
                         {r.sku} · {prezzoDaCent(r.prezzoCent)}
+                      </p>
+                      <p className="text-[12px] text-muted-foreground">
+                        {etichettaCanali(r.canali)} · Giacenza: {etichettaGiacenza(r.giacenza)}
                       </p>
                       <div className="mt-1.5">
                         <StatoRiga riga={r} />

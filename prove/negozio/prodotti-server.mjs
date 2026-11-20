@@ -332,6 +332,13 @@ export async function prove(mod, { c, gruppo, radice }) {
     c("ricerca per nome o SKU (maiuscole non contano), filtro per categoria", [["PROVA-002"], ["PROVA-001"], 400], [await nomi("?prodotti&q=BOZZA"), await nomi(`?prodotti&categoria=${uuid(0x100)}`), (await GET(fintoDb({ tabelle: t() }), "?prodotti&segmento=boh")).stato]);
     const el = (await GET(fintoDb({ tabelle: t() }), "?prodotti")).json.prodotti;
     c("ogni riga porta il PRIMO motivo per cui non è pubblicabile (null se lo è) e la versione", [null, FRASE_FOTO, ISTANTE], [el[0].motivo, el[1].motivo, el[0].versione]);
+    // T32 (17): `canali` e `giacenza` per riga; la giacenza è la somma delle varianti ATTIVE (le spente non contano)
+    c("ogni riga porta i canali (solo i quattro) e la giacenza (somma delle varianti attive)", [{ sito: true, meta: false, google: false, tiktok: false }, 5, 0], [el[0].canali, el[0].giacenza, el[1].giacenza]);
+    const piu = (await GET(fintoDb({ tabelle: tab((t) => {
+      t.shop_varianti.push(varianteProva({ id: uuid(0x3a0), prodotto_id: P1, sku: "PROVA-001-B", giacenza: 3 }), varianteProva({ id: uuid(0x3a1), prodotto_id: P1, sku: "PROVA-001-C", giacenza: 100, attiva: false }));
+      t.shop_prodotti.find((p) => p.id === P1).canali = { sito: true, meta: true, google: false, tiktok: false, segreto: "x" };
+    }) }), "?prodotti")).json.prodotti[0];
+    c("più varianti: 5 + 3 (la spenta da 100 non conta); i canali escono solo con le quattro chiavi note", [8, { sito: true, meta: true, google: false, tiktok: false }], [piu.giacenza, piu.canali]);
     const s = (await GET(fintoDb({ tabelle: tab() }), `?prodotto=${P1}`)).json;
     c("la scheda: prodotto, versione, varianti con la giacenza e «disponibile», media, esito dei controlli, storico", [true, ISTANTE, 5, "disponibile", 1, { bloccanti: [], informativi: [] }, []],
       [s.ok, s.versione, s.varianti[0].giacenza, s.varianti[0].disponibilita, s.media.length, s.controllo, s.storico]);
