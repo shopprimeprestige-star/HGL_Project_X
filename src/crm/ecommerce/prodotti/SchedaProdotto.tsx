@@ -1113,6 +1113,15 @@ function SchedaAperta({
           {sezione(
             "descrizione",
             <div className="flex flex-col gap-3">
+              {senzaPrezzo && (
+                <p
+                  role="note"
+                  className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[12.5px] text-amber-900"
+                >
+                  Non scrivere prezzi nelle descrizioni: Invisible Derm non ha un prezzo nello shop,
+                  e il testo libero il sistema non lo può controllare del tutto.
+                </p>
+              )}
               {testo("rigaPresentazione", "Riga di presentazione", {
                 max: 90,
                 aiuto: "Una frase sotto il nome.",

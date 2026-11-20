@@ -134,6 +134,11 @@ export async function prove(_mod, { c, gruppo, radice }) {
     /eInvisibleDerm\(/.test(codice.SchedaProdotto),
   );
   c(
+    "Invisible Derm (D40): la scheda avvisa «Non scrivere prezzi nelle descrizioni» solo se senzaPrezzo",
+    true,
+    /senzaPrezzo\s*&&[\s\S]{0,400}Non scrivere prezzi nelle descrizioni/.test(codice.SchedaProdotto),
+  );
+  c(
     "il salvataggio automatico passa da creaAutosalva (T13)",
     true,
     /creaAutosalva(<[^>]*>)?\(/.test(codice.SchedaProdotto),
