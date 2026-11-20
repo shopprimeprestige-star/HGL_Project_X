@@ -148,7 +148,7 @@ function BarraShop({ modalita }: { modalita: Modalita }) {
     if (modalita !== "cms" || !slugLetto) return;
     let vivo = true;
     schedaProdotto({ data: { slug: slugLetto } })
-      .then((p) => vivo && setNomeCms(nomeProtesiPerBarra(p)))
+      .then((r) => vivo && setNomeCms(nomeProtesiPerBarra(r.esito === "trovato" ? r.prodotto : null)))
       .catch(() => {});
     return () => {
       vivo = false;
