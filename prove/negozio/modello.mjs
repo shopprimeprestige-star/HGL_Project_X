@@ -42,6 +42,9 @@ export async function prove(mod, { c, gruppo }) {
   c("centDaEuro: il numero si può anche calcolare (19.9 * 3 → 5970)", 5970, M.centDaEuro(19.9 * 3));
   c("centDaEuro: frazioni di centesimo, negativi, testo, vuoti → null (mai un prezzo inventato)", Array(9).fill(null),
     ["1.005", 1.005, "-3", -3, "abc", "", NaN, Infinity, null].map(M.centDaEuro));
+  c("centDaEuro: il tetto è l'integer di Postgres (2.147.483.647 centesimi): sopra → null", [2147483647, null, null, null],
+    [M.centDaEuro("21474836,47"), M.centDaEuro("21474836,48"), M.centDaEuro(1e12), M.centDaEuro("99999999999999")]);
+  c("MAX_CENT = 2147483647", 2147483647, M.MAX_CENT);
   c("euroDaCent: gli euro che vanno alle piattaforme", [289, 19.9, 28.9, 0, 0.05], [28900, 1990, 2890, 0, 5].map(M.euroDaCent));
   let sbagliati = 0;
   for (let k = 0; k <= 30000; k++) if (M.centDaEuro(M.euroDaCent(k)) !== k) sbagliati++;
@@ -91,6 +94,10 @@ export async function prove(mod, { c, gruppo }) {
   c("combinazioni: due opzioni con lo stesso nome", "opzione_doppia", M.combinazioni("HG-X", [{ nome: "Colore", valori: ["1"] }, { nome: "colore", valori: ["2"] }]).motivo);
   c("combinazioni: SKU del prodotto non valido", "sku_non_valido", M.combinazioni("hg x", base).motivo);
   c("combinazioni: ogni rifiuto ha la sua frase in italiano", [], [sessantaquattro, quattro, M.combinazioni("HG-X", []), M.combinazioni("HG-X", [{ nome: " ", valori: ["1"] }]), M.combinazioni("hg x", base)].filter((r) => !r.frase || r.frase.length < 15));
+  c("combinazioni: nome o valori nulli o mancanti → rifiuto con la frase, mai un errore", ["opzione_senza_nome", "opzione_senza_nome", "opzione_senza_valori", "opzione_senza_valori", "valore_vuoto", "valore_vuoto", "nessuna_opzione", "nessuna_opzione"],
+    [M.combinazioni("HG-X", [{ nome: null, valori: ["1"] }]), M.combinazioni("HG-X", [{ valori: ["1"] }]), M.combinazioni("HG-X", [{ nome: "Colore", valori: null }]), M.combinazioni("HG-X", [{ nome: "Colore" }]),
+      M.combinazioni("HG-X", [{ nome: "Colore", valori: ["Nero", null] }]), M.combinazioni("HG-X", [{ nome: "Colore", valori: [7] }]), M.combinazioni("HG-X", null), M.combinazioni("HG-X", undefined)].map((r) => r.motivo));
+  c("…e la riga dell'opzione nulla (null) nell'elenco non fa lanciare", "opzione_senza_nome", M.combinazioni("HG-X", [null]).motivo);
   const congelata = Object.freeze(base.map((o) => Object.freeze({ nome: o.nome, valori: Object.freeze([...o.valori]) })));
   c("combinazioni: non tocca quello che riceve", true, M.combinazioni("HG-X", congelata).ok);
 
