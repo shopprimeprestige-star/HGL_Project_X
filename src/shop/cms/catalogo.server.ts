@@ -104,10 +104,15 @@ export function creaCatalogo(porte: PorteCatalogo) {
   /* ── il catalogo pubblico: dalle quattro viste, una volta ogni 30 s ── */
   async function carica(): Promise<Caricato> {
     const [prodotti, varianti, media, categorie] = await Promise.all(["shop_v_prodotti", "shop_v_varianti", "shop_v_media", "shop_v_categorie"].map(leggi));
+    const pubblici = costruisciPubblico({ prodotti, varianti, media }, { baseMedia });
+    const pubbliche = costruisciCategorie({ categorie, media }, { baseMedia });
+    // la sitemap elenca SOLO ciò che le pagine mostrano davvero: un pubblicato che `costruisciPubblico` scarta (prezzo 0…) non c'è
+    const mostrati = new Set(pubblici.map((p) => p.slug));
+    const mostrate = new Set(pubbliche.map((c) => c.slug));
     return {
-      prodotti: costruisciPubblico({ prodotti, varianti, media }, { baseMedia }),
-      categorie: costruisciCategorie({ categorie, media }, { baseMedia }),
-      righe: { prodotti, categorie },
+      prodotti: pubblici,
+      categorie: pubbliche,
+      righe: { prodotti: prodotti.filter((r) => mostrati.has(String(r.slug))), categorie: categorie.filter((r) => mostrate.has(String(r.slug))) },
     };
   }
   let mem: { t: number; p: Promise<Caricato> } | null = null;

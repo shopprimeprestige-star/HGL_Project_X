@@ -65,8 +65,9 @@ export async function prove(mod, { c, gruppo, radice }) {
   gruppo("NEGOZIO · LE LETTURE PUBBLICHE: SOLO DALLE VISTE, CON MEMORIA BREVE (20/11/2026)");
 
   let ora = T0;
-  const nuovo = ({ modalita = "cms", extra = {}, db: opzDb = {}, porte = {} } = {}) => {
+  const nuovo = ({ modalita = "cms", extra = {}, db: opzDb = {}, porte = {}, modifica = null } = {}) => {
     const t = negozio(modalita);
+    modifica?.(t);
     const db = fintoDb({ tabelle: { ...t, ...viste(t), ...extra }, ...opzDb });
     const catalogo = CAT.creaCatalogo({ db, adesso: () => ora, baseMedia: BASE, chiaveServizio: CHIAVE, ...porte });
     return { db, catalogo, t };
@@ -159,6 +160,15 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("sitemap (modalità cms): i pubblicati e la categoria con prodotti; con modalità «codice» è vuota (non si promettono pagine che il sito non serve)", [["/shop/prodotto/prodotto-di-prova", "/shop/prodotto/altro-prodotto", "/shop/c/categoria-prova"], []],
     [(await catalogo.vociSitemap()).map((x) => x.percorso), await nuovo({ modalita: "codice" }).catalogo.vociSitemap()]);
 
+  // un pubblicato che `costruisciPubblico` scarta (prezzo 0) non è in elenco e NON è in sitemap
+  const zero = nuovo({ modifica: (t) => {
+    t.shop_prodotti.push(prodottoProva({ id: uuid(0x2f1), sku: "PROVA-ZERO", slug: "prezzo-zero", nome: "Prezzo zero", prezzo_cent: 0 }));
+    t.shop_varianti.push(varianteProva({ id: uuid(0x3f1), prodotto_id: uuid(0x2f1), sku: "PROVA-ZERO-A", prezzo_cent: null, giacenza: 3 }));
+  } });
+  c("pubblicato con prezzo 0: fuori dall'elenco, dalla scheda, dal carrello e dalla sitemap (che elenca solo ciò che si mostra)", [false, null, [{ sku: "PROVA-ZERO-A", nonPiuDisponibile: true }], false],
+    [slugs(await zero.catalogo.elenco()).includes("prezzo-zero"), await zero.catalogo.scheda("prezzo-zero"), await zero.catalogo.righeCarrello(["PROVA-ZERO-A"]), (await zero.catalogo.vociSitemap()).some((x) => x.percorso.includes("prezzo-zero"))]);
+  c("…e la sitemap ha comunque gli altri", true, (await zero.catalogo.vociSitemap()).some((x) => x.percorso === "/shop/prodotto/prodotto-di-prova"));
+
   // ── il carrello ──
   const rc = await catalogo.righeCarrello(["PROVA-001-A", "PROVA-004-A", "PROVA-001-OFF", "NON-ESISTE", "PROVA-002-A"]);
   c("righeCarrello: nome, prezzo, disponibile, foto e indirizzo per ogni SKU, nell'ordine chiesto", [
@@ -234,6 +244,11 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("fuori dal percorso dell'anteprima il server pubblico nomina solo le 4 viste e `shop_impostazioni`", ["shop_impostazioni", "shop_v_categorie", "shop_v_media", "shop_v_prodotti", "shop_v_varianti"], fuori);
   c("dentro il percorso dell'anteprima nomina le tabelle (il segnaposto delimita davvero qualcosa)", true, ["shop_prodotti", "shop_varianti", "shop_media"].every((t) => nomi(dentro).includes(t)));
   c("il percorso dell'anteprima è raggiunto solo dopo `verificaChiaveAnteprima`", true, /verificaChiaveAnteprima[\s\S]{0,400}leggiPerAnteprima/.test(codice(server)));
+  c("`anteprima: {slug}` si passa in UN solo punto (dentro il percorso delle tabelle) e `leggiPerAnteprima` si chiama in UN solo punto, dopo `verificaChiaveAnteprima`", [1, 2],
+    [(codice(server).match(/anteprima:\s*\{/g) ?? []).length, (codice(server).match(/leggiPerAnteprima\(/g) ?? []).length]);
+  c("l'`anteprima: {slug}` sta dentro il segnaposto delle tabelle", true, /anteprima:\s*\{/.test(codice(dentro)));
+  c("`baseMedia` si passa SEMPRE: ogni costruisciPubblico e costruisciCategorie del server la riceve", true,
+    codice(server).split(/costruisci(?:Pubblico|Categorie)\(/).slice(1).every((resto) => /^[^;]{0,260}baseMedia/.test(resto)));
   c("le tabelle non si scrivono mai: nessun insert, update, upsert, delete né rpc", false, /\.(insert|update|upsert|delete|rpc)\(/.test(codice(server)));
   const funzioni = sorg("src/shop/cms/catalogo.functions.ts");
   c("l'involucro delle funzioni non nomina nessuna tabella", [], nomi(funzioni));
