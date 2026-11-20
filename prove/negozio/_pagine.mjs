@@ -43,7 +43,7 @@ const S = () => (globalThis.__PROVA_PAGINA__ ?? {}).server ?? {};
 export const modalitaCatalogo = async () => S().modalita ?? "codice";
 export const schedaProdotto = async ({ data }) => (S().scheda ? S().scheda(data) : null);
 export const elencoProdotti = async ({ data }) => (S().elenco ? S().elenco(data) : []);
-export const elencoCategorie = async () => (S().categorie ?? []);
+export const elencoCategorie = async () => { const c = S().categorie; return typeof c === "function" ? c() : (c ?? []); };
 `;
 
 /** @param {string} radice  la radice del progetto
