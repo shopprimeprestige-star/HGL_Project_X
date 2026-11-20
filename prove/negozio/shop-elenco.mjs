@@ -103,8 +103,8 @@ export async function prove(mod, { c, gruppo, radice }) {
     c("lista vista: archivio che lancia, o assente, non rompe niente e l'evento parte lo stesso", [1, 1], [(() => { let k = 0; E.emettiUnaVolta({ getItem: () => { throw new Error("no"); }, setItem: () => { throw new Error("no"); } }, "x", () => (k++, "id")); return k; })(), (() => { let k = 0; E.emettiUnaVolta(null, "x", () => (k++, "id")); return k; })()]);
   }
   if (E?.eInvisibleDerm) {
-    c("Invisible Derm si riconosce dal nome (anche «Protocol®», maiuscole, spazi doppi); «Silk Top Invisible Knots» no", [true, true, true, false, false, false],
-      ["Invisible Derm Protocol®", "INVISIBLE DERM", "invisible   derm", "Silk Top Invisible Knots", "Derm", ""].map((x) => E.eInvisibleDerm(x)));
+    c("Invisible Derm si riconosce dal nome (anche «Protocol®», maiuscole, spazi doppi); «Silk Top Invisible Knots» e «Solvente per Invisible Derm» no (D40: ancorato all'inizio)", [true, true, true, false, false, false, false],
+      ["Invisible Derm Protocol®", "INVISIBLE DERM", "invisible   derm", "Silk Top Invisible Knots", "Derm", "", "Solvente per Invisible Derm"].map((x) => E.eInvisibleDerm(x)));
     c("Invisible Derm: anche «Invisible-Derm», «InvisibleDerm», «invisible_derm» (come la funzione di T11, D39)", [true, true, true], ["Invisible-Derm Protocol", "InvisibleDerm", "invisible_derm"].map((x) => E.eInvisibleDerm(x)));
   }
   if (E?.etichettaArticoli) {

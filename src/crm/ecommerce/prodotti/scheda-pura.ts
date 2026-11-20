@@ -29,6 +29,7 @@ import {
   type Variante,
 } from "@/shop/cms/modello";
 import { controllaPubblicazione, type SkuUsato, type Voce } from "@/shop/cms/pubblicazione";
+import { eInvisibleDerm } from "@/shop/cms/pubblico";
 import { controllaTesto } from "@/shop/cms/testi";
 
 /* ══ LE SEZIONI ═════════════════════════════════════════════════════════════ */
@@ -495,9 +496,8 @@ export function statoSezione(c: ConteggioSezione): { tono: TonoSezione; testo: s
 
 /* ══ INVISIBLE DERM (D39) ═══════════════════════════════════════════════════ */
 
-/** Invisible Derm non ha un prezzo pubblico: la scheda non mostra il campo. shortcut: stessa regola (`/invisible[\s\-_]*derm/i`) di `eInvisibleDerm` in `shop/cms/pubblico.ts` (D39, ramo e): ricopiata qui perché in questo ramo non c'è; da importare all'integrazione (T32). */
-export const eInvisibleDerm = (nome: unknown): boolean =>
-  typeof nome === "string" && /invisible[\s\-_]*derm/i.test(nome);
+/** Invisible Derm non ha un prezzo pubblico: la scheda non mostra il campo. La funzione è una sola, quella di `shop/cms/pubblico.ts` (D39/D40): qui si riesporta. */
+export { eInvisibleDerm };
 
 /* ══ L'ANTEPRIMA ════════════════════════════════════════════════════════════ */
 

@@ -107,7 +107,7 @@ function SchedaVista({ slug }: { slug: string }) {
   const fuoriVendita = Boolean(cms && (anteprima || cms.anteprima)); // una bozza vista con la chiave non si compra
   //  Il prezzo che si vede: quello della variante scelta, altrimenti il «da» del prodotto. `null` = il server non lo manda (D39).
   const prezzoCent = cms ? (scelta ? scelta.prezzoCent : cms.prezzoDaCent) : null;
-  const senzaCifra = Boolean(cms && (!cms.acquistabile || prezzoCent === null || senzaPrezzo(cms.nome) || senzaPrezzo(cms.slug)));
+  const senzaCifra = Boolean(cms && (!cms.acquistabile || prezzoCent === null || senzaPrezzo(cms.nome, cms.slug)));
 
   //  Una scheda vista: solo un conteggio, con il nome pubblico del prodotto (non in anteprima).
   useEffect(() => {
@@ -376,7 +376,7 @@ function SchedaVista({ slug }: { slug: string }) {
             {cms.correlato.foto && <img src={cms.correlato.foto.w480} alt="" className="h-20 w-20 rounded-xl object-cover" loading="lazy" />}
             <div>
               <span className="line-clamp-2 text-sm font-medium text-white transition group-hover:text-brand">{cms.correlato.nome}</span>
-              {cms.correlato.prezzoDaCent !== null && !senzaPrezzo(cms.correlato.nome) && !senzaPrezzo(cms.correlato.slug) && <span className="text-sm font-bold text-white/80">{formatPrice(cms.correlato.prezzoDaCent / 100)}</span>}
+              {cms.correlato.prezzoDaCent !== null && !senzaPrezzo(cms.correlato.nome, cms.correlato.slug) && <span className="text-sm font-bold text-white/80">{formatPrice(cms.correlato.prezzoDaCent / 100)}</span>}
             </div>
           </Link>
         </section>

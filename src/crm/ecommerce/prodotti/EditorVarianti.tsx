@@ -40,6 +40,7 @@ export interface PropsEditorVarianti {
     id: string;
     sku: string;
     nome: string;
+    slug: string;
     prezzoCent: number;
     pubblicato: boolean;
     versione: string;
@@ -91,7 +92,7 @@ const valoriDa = (t: string): string[] =>
     .filter(Boolean);
 
 export function EditorVarianti({ prodotto, varianti, esegui, aggiorna }: PropsEditorVarianti) {
-  const senzaPrezzo = eInvisibleDerm(prodotto.nome);
+  const senzaPrezzo = eInvisibleDerm(prodotto.nome, prodotto.slug);
   const [occupato, setOccupato] = useState(false);
   const [esito, setEsito] = useState<Esito>(null);
 

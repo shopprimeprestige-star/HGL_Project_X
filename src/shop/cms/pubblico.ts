@@ -35,9 +35,14 @@ export interface OpzioniPubblico {
   anteprima?: { slug: string };
 }
 
-/** D39: Invisible Derm è sempre senza prezzo. Una funzione sola, per nome (anche «Invisible-Derm», «InvisibleDerm», «invisible_derm»):
- *  da qui in poi il prezzo non esiste più nei dati che escono dal server. */
-export const eInvisibleDerm = (nome: unknown): boolean => typeof nome === "string" && /invisible[\s\-_]*derm/i.test(nome);
+/** D39/D40: Invisible Derm è sempre senza prezzo. LA funzione sola che lo riconosce (elenco, scheda, carrello, CRM e «Prima di pubblicare» la
+ *  importano da qui): da qui in poi il prezzo non esiste più nei dati che escono dal server.
+ *  Il NOME deve cominciare così (anche «Invisibile Derm», «Invisible-Derm», «InvisibleDerm», «invisible_derm», «Invisible & Derm»), quindi
+ *  «Solvente per Invisible Derm» conserva il suo prezzo; oppure lo SLUG comincia con `invisible-derm`.
+ *  ⚠️ `invisibi?l[ei]` e non `invisibil[ei]` (come scritto in D40): quest'ultima non riconosce l'inglese «Invisible» (b-l-e, senza la «i»). */
+const NOME_INVISIBLE_DERM = /^\s*invisibi?l[ei][\s\-_.\/&]*derm\b(?!atolog)/i;
+export const eInvisibleDerm = (nome: unknown, slug?: unknown): boolean =>
+  (typeof nome === "string" && NOME_INVISIBLE_DERM.test(nome)) || (typeof slug === "string" && /^\s*invisible-derm/i.test(slug));
 
 const SLOT_PRODOTTO = SLOT.filter((s) => s !== "campione");
 /** Come si ordinano le foto nella scheda (Design §4.4.3): la principale, la foto di scala come seconda, le foto 2-5, il video.
@@ -107,7 +112,7 @@ export function costruisciPubblico(righe: unknown, opzioni: OpzioniPubblico = {}
     if (!nome) continue;
 
     // D39: Invisible Derm si riconosce dal nome (anche quello nuovo della bozza), dal nome della riga o dallo slug: senza prezzo, non si compra
-    const senzaPrezzo = eInvisibleDerm(nome) || eInvisibleDerm(prodotto.nome) || eInvisibleDerm(slug);
+    const senzaPrezzo = eInvisibleDerm(nome, slug) || eInvisibleDerm(prodotto.nome);
 
     // le varianti ATTIVE, col prezzo che conta (D25); la giacenza serve solo a dire «disponibile». Quelle spente non contano per niente.
     const varianti = tutteLeVarianti

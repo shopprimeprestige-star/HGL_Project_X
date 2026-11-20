@@ -61,6 +61,12 @@ export async function prove(mod, { c, gruppo }) {
   c("una sola variante attiva a 0 su due → rifiutato, e la frase la nomina", [["prezzo"], true], [campi(unaVuota), /Nera/.test(frasi(unaVuota)[0])]);
   c("una variante NON attiva a 0 non blocca", [], campi(vai({ varianti: [variante(), variante({ sku: "PROVA-001-B", prezzoCent: 0, attiva: false })] })));
   c("prezzo negativo o non intero → rifiutato", ["prezzo", "prezzo"], [campi(vai({ varianti: [variante({ prezzoCent: -5 })] }))[0], campi(vai({ varianti: [variante({ prezzoCent: 12.5 })] }))[0]]);
+  // ── D40: Invisible Derm non ha prezzo, e deve poter essere pubblicato ──
+  const derm = (extra = {}) => prodotto({ nome: "Invisible Derm", slug: "invisible-derm", prezzoCent: 0, ...extra });
+  c("Invisible Derm a 0 e senza prezzo sulla variante → si può pubblicare (nessun bloccante sul prezzo)", [], campi(vai({ prodotto: derm() })));
+  c("Invisible Derm: l'esenzione vale anche se lo riconosce solo lo slug o solo il nome", [[], []], [campi(vai({ prodotto: derm({ nome: "Sistema su misura" }) })), campi(vai({ prodotto: derm({ slug: "sistema" }) }))]);
+  c("Invisible Derm: restano gli altri bloccanti (nessuna variante attiva → rifiutato)", ["varianti"], campi(vai({ prodotto: derm(), varianti: [] })));
+  c("«Solvente per Invisible Derm» a 0 NON è esente: rifiutato sul prezzo", ["prezzo"], campi(vai({ prodotto: derm({ nome: "Solvente per Invisible Derm", slug: "solvente" }) })));
 
   // ── varianti attive ──
   const nessunaAttiva = vai({ varianti: [variante({ attiva: false })] });

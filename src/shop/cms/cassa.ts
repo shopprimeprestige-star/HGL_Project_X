@@ -57,7 +57,7 @@ export async function rivalida<T extends RigaCarrello>(porte: PorteRivalida, rig
     const skus = [...new Set(cms.map((l) => l.sku as string))].slice(0, MAX_SKU);
     const letto = skus.length ? await porte.chiediRighe(skus) : [];
     // Invisible Derm non ha un prezzo nello shop: se mai finisse nel carrello, si toglie
-    const server = letto.map((r): RigaCarrelloServer => ("nonPiuDisponibile" in r || !(senzaPrezzo(r.nome) || senzaPrezzo(r.slug)) ? r : { sku: r.sku, nonPiuDisponibile: true }));
+    const server = letto.map((r): RigaCarrelloServer => ("nonPiuDisponibile" in r || !senzaPrezzo(r.nome, r.slug) ? r : { sku: r.sku, nonPiuDisponibile: true }));
     // «non più disponibile» per tutti: vero, o è il database che non risponde? (la risposta è la stessa)
     if (skus.length && server.every((r) => "nonPiuDisponibile" in r)) {
       const slug = cms.find((l) => l.snap?.slug)?.snap?.slug;

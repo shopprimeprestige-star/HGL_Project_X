@@ -5,13 +5,14 @@
  *  ⚠️ Gli eventi di navigazione non portano dati personali: il testo cercato esce SOLO se non somiglia a un'email o a un
  *   telefono (`testoDaCercare`), e non entra mai nell'indirizzo della pagina (la ricerca è nella pagina, non nell'URL).
  *  ⚠️ Invisible Derm non ha mai un prezzo nello shop (decisione del titolare, 20/11, D39): il server lo manda già con `prezzoCent: null`;
- *   qui `senzaPrezzo` copre sia il prezzo nullo sia il nome (`eInvisibleDerm`). All'integrazione (T32) il nome lo riconosce la
- *   funzione di `pubblico.ts`. */
+ *   qui `senzaPrezzo` copre sia il prezzo nullo sia il nome (`eInvisibleDerm`). Il nome lo riconosce la
+ *   funzione di `pubblico.ts` (D40). */
 import type { CategoryKey, Product } from "../catalog";
 import type { DatiEvento } from "../../lib/tracciamento/eventi";
 import { daPubblicoAProdotto, skuDaCodice } from "./adattatore";
 import type { SnapRiga } from "./carrello";
 import type { ProdottoPubblico } from "./modello";
+import { eInvisibleDerm } from "./pubblico";
 
 /** Quanto si aspetta, dopo l'ultimo tasto, prima di contare la ricerca. */
 export const PAUSA_RICERCA_MS = 1000;
@@ -40,14 +41,14 @@ export function filtraVoci(voci: readonly VoceElenco[], categoria: CategoryKey |
   });
 }
 
-/** Il nome «Invisible Derm» (anche «Protocol®», maiuscole e spazi doppi): per lui lo shop non mostra mai un prezzo. */
-export const eInvisibleDerm = (nome: unknown): boolean => typeof nome === "string" && /invisible[\s\-_]*derm/i.test(nome);
+/** Il nome «Invisible Derm»: per lui lo shop non mostra mai un prezzo. La funzione è una sola, quella di `pubblico.ts` (D40): qui si riesporta. */
+export { eInvisibleDerm };
 
 /** Il prezzo arriva come numero? (Il server, per Invisible Derm, manda `null`.) */
 const eNumero = (n: unknown): n is number => typeof n === "number" && Number.isFinite(n);
 
 /** Questa scheda non mostra un prezzo: Invisible Derm (per nome) o un prodotto del CMS a cui il server non ha dato nessun prezzo. */
-export const senzaPrezzo = (v: VoceElenco): boolean => eInvisibleDerm(v.product.name) || (!!v.pubblico && !(eNumero(v.pubblico.prezzoDaCent) && v.pubblico.varianti.some((x) => eNumero(x.prezzoCent))));
+export const senzaPrezzo = (v: VoceElenco): boolean => eInvisibleDerm(v.product.name, v.product.slug) || (!!v.pubblico && !(eNumero(v.pubblico.prezzoDaCent) && v.pubblico.varianti.some((x) => eNumero(x.prezzoCent))));
 
 /** Il conteggio sopra la griglia: «1 articolo», «5 articoli». */
 export const etichettaArticoli = (n: number): string => `${n} ${n === 1 ? "articolo" : "articoli"}`;

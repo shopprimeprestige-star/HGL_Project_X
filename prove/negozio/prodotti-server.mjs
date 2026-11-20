@@ -76,6 +76,13 @@ export async function prove(mod, { c, gruppo, radice }) {
     const zero = fintoDb({ tabelle: tab(completo(4, { prezzo_cent: 0 })) });
     const rz = await POST(zero, { azione: "prodotto_stato", prodottoId: P4, stato: "pubblicato" });
     c("pubblicare con prezzo 0 → rifiutato, nessuna scrittura", [false, ["prezzo"], 0], [rz.json.ok, rz.json.bloccanti?.map((b) => b.campo), zero.scritture.length]);
+    // D40: Invisible Derm non ha prezzo e si pubblica lo stesso (il server usa la stessa `controllaPubblicazione`); un prodotto qualunque a 0, no
+    const derm0 = fintoDb({ tabelle: tab(completo(4, { prezzo_cent: 0, nome: "Invisible Derm", slug: "invisible-derm" })) });
+    const rd0 = await POST(derm0, { azione: "prodotto_stato", prodottoId: P4, stato: "pubblicato" });
+    c("D40: Invisible Derm a prezzo 0 → si pubblica (mai «il prezzo deve essere maggiore di zero»)", [true, "pubblicato"], [rd0.json.ok, riga(derm0, P4).stato]);
+    const solv0 = fintoDb({ tabelle: tab(completo(4, { prezzo_cent: 0, nome: "Solvente per Invisible Derm", slug: "solvente-per-invisible-derm" })) });
+    const rs0 = await POST(solv0, { azione: "prodotto_stato", prodottoId: P4, stato: "pubblicato" });
+    c("D40: «Solvente per Invisible Derm» a prezzo 0 → rifiutato sul prezzo, nessuna scrittura", [false, ["prezzo"], 0], [rs0.json.ok, rs0.json.bloccanti?.map((b) => b.campo), solv0.scritture.length]);
     const tanti = await POST(fintoDb({ tabelle: tab() }), { azione: "prodotto_stato", prodottoId: P2, stato: "pubblicato" });
     c("con più cose mancanti la frase dice quante", true, /^Mancano \d+ cose: /.test(tanti.json.frase));
     const vecchio = fintoDb({ tabelle: tab(completo(4, { origine: "codice", id_codice: "v" })) });

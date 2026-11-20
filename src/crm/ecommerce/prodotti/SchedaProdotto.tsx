@@ -425,7 +425,7 @@ function SchedaAperta({
   const nonPubblicabile = bloccanti.length > 0 || conflitto || vecchio || archiviato;
   const senzaModifiche = pubblicato && !modificheInCorso;
   const spento = occupato || conflitto;
-  const senzaPrezzo = eInvisibleDerm(modulo.nome);
+  const senzaPrezzo = eInvisibleDerm(modulo.nome, modulo.slug);
 
   /* ── andare al campo ── */
   const vaiA = (v: Voce) => {
@@ -1195,6 +1195,7 @@ function SchedaAperta({
                 id,
                 sku: dati.prodotto.sku,
                 nome: modulo.nome,
+                slug: modulo.slug,
                 prezzoCent: prezzoPerVarianti,
                 pubblicato,
                 versione: versione.current,

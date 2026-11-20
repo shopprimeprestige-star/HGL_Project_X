@@ -4,6 +4,8 @@
  *  Prova: un Invisible Derm col prezzo «strano» 4731 centesimi (sul prodotto e su una variante) attraversa elenco, scheda,
  *  anteprima, categorie, carrello, sitemap, JSON-LD e adattatore; ogni forma del numero (4731, 47.31, 47,31) deve mancare.
  *  Con il catalogo `codice` non cambia niente (non si tocca qui). Dati inventati. */
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { fintoDb } from "./_finto-db.mjs";
 import { viste, negozio } from "./catalogo-server.mjs";
 import { ISTANTE, mediaProva, prodottoProva, uuid, varianteProva } from "./dati.mjs";
@@ -15,7 +17,7 @@ const SITO = "https://sito.prova.test";
 /** Tutte le forme in cui 4731 centesimi potrebbero uscire. */
 const PREZZO = /4731|47[.,]31/;
 
-export async function prove(mod, { c, gruppo }) {
+export async function prove(mod, { c, gruppo, radice }) {
   const PUB = mod["shop/cms/pubblico"];
   const CAT = mod["shop/cms/catalogo.server"];
   const LD = mod["shop/cms/json-ld"];
@@ -23,11 +25,27 @@ export async function prove(mod, { c, gruppo }) {
   const AN = mod["shop/cms/anteprima"];
   gruppo("NEGOZIO · D39: IL PREZZO DI INVISIBLE DERM NON ESCE DAL SERVER (20/11/2026)");
 
-  // ── il riconoscimento ──
+  // ── il riconoscimento (D40: ancorato all'inizio del nome, oppure lo slug comincia con `invisible-derm`) ──
   const E = PUB.eInvisibleDerm;
-  c("eInvisibleDerm: riconosce le scritture del nome (spazi, trattini, trattini bassi, maiuscole, attaccato)", [true, true, true, true, true, true],
-    ["Invisible Derm", "INVISIBLE-DERM", "invisible_derm", "InvisibleDerm", "Sistema Invisible  Derm 30 ml", "invisible - derm"].map(E));
-  c("eInvisibleDerm: altri nomi, vuoto, nullo o non testo → no", [false, false, false, false, false, false], ["Invisible", "Derm", "Prodotto di prova", "", null, 42].map(E));
+  c("eInvisibleDerm: riconosce le scritture del nome (spazi, trattini, trattini bassi, punto, «&», barra, maiuscole, attaccato, «Invisibile»)", Array(10).fill(true),
+    ["Invisible Derm", "INVISIBLE-DERM", "invisible_derm", "InvisibleDerm", "invisible - derm", "Invisibile Derm", "  Invisible Derm Protocol®", "Invisible.Derm", "Invisible & Derm", "Invisible/Derm"].map((n) => E(n)));
+  c("eInvisibleDerm: il nome deve COMINCIARE così: «Solvente per Invisible Derm» e «Sistema Invisible Derm 30 ml» conservano il loro prezzo", [false, false],
+    ["Solvente per Invisible Derm", "Sistema Invisible Derm 30 ml"].map((n) => E(n)));
+  c("eInvisibleDerm: «Invisible Dermatologico» non è Invisible Derm", false, E("Invisible Dermatologico"));
+  c("eInvisibleDerm: altri nomi, vuoto, nullo o non testo → no", Array(6).fill(false), ["Invisible", "Derm", "Prodotto di prova", "", null, 42].map((n) => E(n)));
+  c("eInvisibleDerm: anche lo SLUG che comincia con `invisible-derm` basta (con qualunque nome); uno slug che lo contiene soltanto, no",
+    [true, true, false, false, false], [E("Kit", "invisible-derm"), E(null, "invisible-derm-kit"), E("Kit", "solvente-per-invisible-derm"), E("Kit", "kit"), E("Kit", 7)]);
+
+  // ── UNA funzione sola: nessun'altra regex del nome nel codice (elenco, scheda, CRM, carrello la importano da `pubblico.ts`) ──
+  {
+    const letto = (f) => readFileSync(join(radice, f), "utf8").replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+    const CHI = ["src/shop/cms/elenco.ts", "src/shop/cms/scheda.ts", "src/shop/cms/cassa.ts", "src/shop/cms/catalogo.server.ts", "src/shop/cms/adattatore.ts", "src/shop/cms/json-ld.ts",
+      "src/shop/cms/pubblicazione.ts", "src/crm/ecommerce/prodotti/scheda-pura.ts", "src/crm/negozio/prodotti.server.ts", "src/routes/shop.prodotto.$slug.tsx"];
+    // una regex del nome ha «invisib…» seguito da una classe `[` o da `\s`: nelle stringhe e nei percorsi non c'è mai
+    const copie = (f) => /invisib[a-z?]{0,4}(?:\[|\\)/i.test(letto(f));
+    c("nessuna copia della regex di Invisible Derm fuori da `pubblico.ts`", [], CHI.filter(copie));
+    c("`pubblico.ts` ha la regex del nome una volta sola", 1, (letto("src/shop/cms/pubblico.ts").match(/invisib[a-z?]{0,4}(?:\[|\\)/gi) ?? []).length);
+  }
 
   // ── il negozio di prova: Invisible Derm a 4731 (prodotto e una variante), più un prodotto che lo ha come «Ti serve anche» ──
   const ID = uuid(0x250), ID_BOZZA = uuid(0x251), ID_RIGA = uuid(0x252), ID_SLUG = uuid(0x253), ID_ZERO = uuid(0x254);

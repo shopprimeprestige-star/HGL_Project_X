@@ -15,6 +15,7 @@ import { skuDaCodice } from "./adattatore";
 import type { EsitoScheda } from "./catalogo.server";
 import { datiStrutturatiProdotto, serializzaJsonLd } from "./json-ld";
 import type { ProdottoPubblico } from "./modello";
+import { eInvisibleDerm } from "./pubblico";
 
 const MARCHIO = "Hair Genius";
 
@@ -126,5 +127,6 @@ export function primaVolta(archivio: Pick<Storage, "getItem" | "setItem"> | null
 
 /* ── una regola del titolare ── */
 
-/** Invisible Derm non ha MAI un prezzo nello shop (decisione 20/11): nome o indirizzo che lo nominano → niente cifra e niente «Aggiungi». */
-export const senzaPrezzo = (testo: string | null | undefined): boolean => /invisible[\s_-]*derm/i.test(testo ?? "");
+/** Invisible Derm non ha MAI un prezzo nello shop (decisione 20/11): il nome comincia così o l'indirizzo comincia con `invisible-derm` (D40, `pubblico.ts`)
+ *  → niente cifra e niente «Aggiungi». */
+export const senzaPrezzo = (nome: string | null | undefined, slug?: string | null): boolean => eInvisibleDerm(nome, slug);

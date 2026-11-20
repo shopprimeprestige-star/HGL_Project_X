@@ -7,6 +7,7 @@
  *   · INFORMATIVI: si pubblica, ma il titolare deve saperlo.
  *  Ogni voce ha un `campo` (a cui il pannello porta con un clic) e una `frase` per il titolare. */
 import { TETTI, skuValido, prezzoEffettivo, type Prodotto, type Variante, type Media } from "./modello";
+import { eInvisibleDerm } from "./pubblico";
 import { controllaTesto } from "./testi";
 
 export interface Voce {
@@ -32,7 +33,7 @@ export interface ContestoPubblicazione {
 
 type ProdottoIn = Pick<
   Prodotto,
-  | "id" | "sku" | "nome" | "prezzoCent" | "rigaPresentazione" | "descrizioneBreve" | "descrizioneLunga" | "perChi"
+  | "id" | "sku" | "nome" | "slug" | "prezzoCent" | "rigaPresentazione" | "descrizioneBreve" | "descrizioneLunga" | "perChi"
   | "caratteristiche" | "passi" | "confezione" | "avvertenze" | "faq" | "canali" | "seoTitolo" | "seoDescrizione"
 >;
 type VarianteIn = Pick<Variante, "sku" | "nome" | "prezzoCent" | "attiva">;
@@ -75,7 +76,8 @@ export function controllaPubblicazione(
 
   // Varianti e prezzo: il prezzo che conta è quello effettivo (variante, o prodotto se la variante non ne ha).
   if (attive.length === 0) b("varianti", "Serve almeno una variante attiva.");
-  const senzaPrezzo = attive.filter((v) => {
+  // D40: Invisible Derm non ha un prezzo (D39: non lascia mai il server): senza questa esenzione non si potrebbe mai pubblicare.
+  const senzaPrezzo = eInvisibleDerm(prodotto.nome, prodotto.slug) ? [] : attive.filter((v) => {
     const p = prezzoEffettivo(prodotto, v);
     return !Number.isInteger(p) || p <= 0;
   });

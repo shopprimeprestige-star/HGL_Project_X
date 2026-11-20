@@ -565,17 +565,20 @@ export async function prove(_mod, { c, gruppo, radice }) {
 
   // ── Invisible Derm (D39): niente prezzo pubblico ──
   c(
-    "Invisible Derm si riconosce dal nome, in qualunque scrittura",
-    [true, true, true, true, false],
+    "Invisible Derm si riconosce dal nome, in qualunque scrittura (D40: ancorato all'inizio; «Kit Invisible Derm» e «Solvente per Invisible Derm» no)",
+    [true, true, true, true, false, false, false],
     [
       "Invisible Derm",
       "invisible-derm su misura",
       "INVISIBLE_DERM",
+      "Invisibile  Derm",
       "Kit Invisible  Derm",
+      "Solvente per Invisible Derm",
       "Patch lace",
-    ].map(S.eInvisibleDerm),
+    ].map((n) => S.eInvisibleDerm(n)),
   );
   c("un nome che non è una stringa non è Invisible Derm", false, S.eInvisibleDerm(null));
+  c("D40: lo slug che comincia con `invisible-derm` basta, con qualunque nome (la scheda non mostra il campo prezzo)", [true, false], [S.eInvisibleDerm("Kit", "invisible-derm-kit"), S.eInvisibleDerm("Kit", "kit-invisible-derm")]);
 
   // ── l'anteprima ──
   const chiave = `${Date.now() + 86400000}.${"a1".repeat(32)}`;
