@@ -287,66 +287,28 @@ export type EsitoLavoro =
 const FRASE_DEFINITIVA = `Ho riprovato ${MAX_TENTATIVI} volte senza riuscirci: scegli di nuovo la foto.`;
 const FRASE_IMPREVISTA = "Qualcosa è andato storto durante il caricamento: riprova.";
 
+/** Dopo il registro restano da dire solo i sottotitoli del video: la persona e la liberatoria vanno NEL registro (T32, D30),
+ *  così una foto con una persona non è mai in linea senza il suo segno. */
 function flagDa(l: Lavoro): Record<string, boolean> | null {
-  const f: Record<string, boolean> = {};
-  if (l.ritraePersone) {
-    f.ritraePersone = true;
-    f.liberatoriaOk = l.liberatoriaOk;
-  }
-  if (l.sottotitoliOk) f.sottotitoliOk = true;
-  return Object.keys(f).length ? f : null;
+  return l.sottotitoliOk ? { sottotitoliOk: true } : null;
 }
 const pathDi = (l: Lavoro, n: number): string | null => {
   const f = l.file.find((x) => x.per?.includes(n));
   return f ? (l.caricati[f.chiave] ?? null) : null;
 };
 
-/** Ciò che resta da dire quando i tentativi sono finiti DOPO che il file è già registrato (manca solo `media_flag`).
- *  Una foto con una persona NON può restare in linea senza il segno «ritrae persone»: si ritira (`media_rimuovi` con
- *  `liberatoriaRevocata`, che se serve riporta il prodotto in bozza e lo dice). Se nemmeno il ritiro riesce, lo si dice. */
-async function esitoDopoRegistro(l: Lavoro, porte: PorteCarico): Promise<EsitoLavoro> {
+/** Ciò che resta da dire quando i tentativi sono finiti DOPO che il file è già registrato (manca solo `media_flag`, cioè i sottotitoli).
+ *  La persona e la liberatoria sono già nel registro (T32): la foto è in linea CON il suo segno, quindi non c'è niente da ritirare. */
+function esitoDopoRegistro(l: Lavoro): EsitoLavoro {
   const cosa =
     l.tipo === "video"
-      ? { il: "Il video", lo: "lo", la: "aprilo", ctrl: "controllalo" }
-      : { il: "La foto", lo: "la", la: "aprila", ctrl: "controllala" };
-  if (!l.ritraePersone)
-    return {
-      ok: false,
-      definitivo: true,
-      cambiato: true,
-      frase: `${cosa.il} è salv${l.tipo === "video" ? "ato" : "ata"}, ma una sua impostazione non è stata registrata: ${cosa.la} con Modifica e ${cosa.ctrl}.`,
-    };
-  try {
-    const r = await porte.esegui("media_rimuovi", {
-      prodottoId: l.prodottoId,
-      mediaId: l.mediaId,
-      liberatoriaRevocata: true,
-    });
-    if (r.ok) {
-      const avviso = typeof r.dati.avviso === "string" ? r.dati.avviso : undefined;
-      return {
-        ok: false,
-        definitivo: true,
-        cambiato: true,
-        ritirata: true,
-        frase:
-          l.tipo === "video"
-            ? "Il video non è stato pubblicato: riprova a caricarlo."
-            : "La foto non è stata pubblicata: riprova a caricarla.",
-        ...(avviso ? { avviso } : {}),
-      };
-    }
-  } catch {
-    //  si dice sotto: la foto è ancora in linea
-  }
+      ? { il: "Il video", ato: "ato", la: "aprilo", ctrl: "controllalo" }
+      : { il: "La foto", ato: "ata", la: "aprila", ctrl: "controllala" };
   return {
     ok: false,
     definitivo: true,
     cambiato: true,
-    frase:
-      l.tipo === "video"
-        ? "Il video è salvato, ma non sono riuscito a registrare che ritrae una persona né a toglierlo: aprilo con Modifica e correggilo subito."
-        : "La foto è salvata, ma non sono riuscito a registrare che ritrae una persona né a toglierla: aprila con Modifica e correggila subito.",
+    frase: `${cosa.il} è salv${cosa.ato}, ma una sua impostazione non è stata registrata: ${cosa.la} con Modifica e ${cosa.ctrl}.`,
   };
 }
 
@@ -365,7 +327,7 @@ export async function eseguiLavoro(
     if (l.tentativi < MAX_TENTATIVI)
       return { ok: false, frase, definitivo: false, cambiato: !!l.mediaId };
     l.finale = l.mediaId
-      ? await esitoDopoRegistro(l, porte)
+      ? esitoDopoRegistro(l)
       : { ok: false, frase: FRASE_DEFINITIVA, definitivo: true, cambiato: false };
     return l.finale;
   };
@@ -395,6 +357,8 @@ export async function eseguiLavoro(
               durataS: Math.ceil(l.durataS ?? 0),
               muto: l.muto,
               testoParlato: l.testoParlato?.trim() || null,
+              ritraePersone: l.ritraePersone,
+              liberatoriaOk: l.ritraePersone && l.liberatoriaOk,
             }
           : {
               prodottoId: l.prodottoId,
@@ -404,6 +368,8 @@ export async function eseguiLavoro(
               path480: pathDi(l, 480),
               path960: pathDi(l, 960),
               path1600: pathDi(l, 1600),
+              ritraePersone: l.ritraePersone,
+              liberatoriaOk: l.ritraePersone && l.liberatoriaOk,
             };
       const r = await porte.esegui("media_registra", dati);
       if (!r.ok) return manca(r.errore.messaggio);

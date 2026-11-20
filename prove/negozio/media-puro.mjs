@@ -130,7 +130,7 @@ async function caricamento(M, c) {
   c("…tre permessi (uno per misura), tre invii, un registro: in quest'ordine", ["permesso", "carica", "permesso", "carica", "permesso", "carica", "esegui"], f1.log.map((x) => x[0]));
   c("…il permesso dice tipo, mime e peso di OGNI misura (mai l'originale)", [["permesso", "foto", "image/jpeg", 10], ["permesso", "foto", "image/jpeg", 20], ["permesso", "foto", "image/jpeg", 30]], f1.log.filter((x) => x[0] === "permesso"));
   const reg = f1.log.find((x) => x[0] === "esegui");
-  c("…il registro è media_registra con slot, alt e i tre percorsi che ha deciso il server", ["media_registra", { prodottoId: "p1", slot: "principale", alt: "Patch Rosa", sottoRuolo: null, path480: "foto/p1.jpg", path960: "foto/p2.jpg", path1600: "foto/p3.jpg" }], [reg[1], reg[2]]);
+  c("…il registro è media_registra con slot, alt, i tre percorsi e i segni della persona che ha deciso il server", ["media_registra", { prodottoId: "p1", slot: "principale", alt: "Patch Rosa", sottoRuolo: null, path480: "foto/p1.jpg", path960: "foto/p2.jpg", path1600: "foto/p3.jpg", ritraePersone: false, liberatoriaOk: false }], [reg[1], reg[2]]);
   c("…l'avanzamento sale da 0 a «tutti i passi» (4), senza saltare indietro", [[0, 4], [1, 4], [2, 4], [3, 4], [4, 4]], passi);
   c("…nel registro non c'è nessun nome di file né dato del file", false, /\.(heic|jpe?g|png)\b.*nome|nomeFile|name/i.test(JSON.stringify(reg[2])));
 
@@ -186,21 +186,20 @@ async function caricamento(M, c) {
   const e7b = await M.eseguiLavoro(l7, f7.porte);
   c("ripresa dopo un registro fallito: nessun nuovo permesso né invio, solo il registro", [true, ["esegui"]], [e7b.ok, f7.log.map((x) => x[0])]);
 
-  // ── i caratteri della persona: dopo il registro, con media_flag ──
-  const f8 = porteFinte({ avviso: "La foto è stata ritirata perché manca la liberatoria." });
+  // ── i caratteri della persona: NEL registro (T32, 23), così la foto non è mai in linea senza il suo segno ──
+  const f8 = porteFinte();
   const e8 = await M.eseguiLavoro(M.nuovoLavoro(foto({ ritraePersone: true, liberatoriaOk: false })), f8.porte);
-  const fl = f8.log.find((x) => x[1] === "media_flag");
-  c("foto con una persona: dopo il registro parte media_flag con l'id nuovo", ["media_flag", { mediaId: "nuovo", flag: { ritraePersone: true, liberatoriaOk: false } }], [fl[1], fl[2]]);
-  c("…l'avviso del server arriva a chi ha chiamato", "La foto è stata ritirata perché manca la liberatoria.", e8.avviso);
+  const reg8 = f8.log.find((x) => x[1] === "media_registra")[2];
+  c("foto con una persona: `media_registra` porta ritraePersone e liberatoriaOk, e NON parte nessun media_flag", [true, false, true, false], [reg8.ritraePersone, reg8.liberatoriaOk, e8.ok, f8.log.some((x) => x[1] === "media_flag")]);
   const f9 = porteFinte();
   await M.eseguiLavoro(M.nuovoLavoro(foto()), f9.porte);
-  c("foto senza persone, senza sottotitoli: nessun media_flag", false, f9.log.some((x) => x[1] === "media_flag"));
+  c("foto senza persone, senza sottotitoli: nessun media_flag, e i segni nel registro sono falsi", [false, false, false], [f9.log.some((x) => x[1] === "media_flag"), f9.log.find((x) => x[1] === "media_registra")[2].ritraePersone, f9.log.find((x) => x[1] === "media_registra")[2].liberatoriaOk]);
   const f10 = porteFinte({ media_flag: 1 });
-  const l10 = M.nuovoLavoro(foto({ ritraePersone: true, liberatoriaOk: true }));
+  const l10 = M.nuovoLavoro(foto({ sottotitoliOk: true }));
   const e10 = await M.eseguiLavoro(l10, f10.porte);
   f10.log.length = 0;
   await M.eseguiLavoro(l10, f10.porte);
-  c("media_flag fallito: la foto c'è già; la ripresa rifà SOLO media_flag, non un secondo registro", [false, ["esegui"], "media_flag"], [e10.ok, f10.log.map((x) => x[0]), f10.log[0][1]]);
+  c("media_flag fallito (sottotitoli): la foto c'è già; la ripresa rifà SOLO media_flag, non un secondo registro", [false, ["esegui"], "media_flag"], [e10.ok, f10.log.map((x) => x[0]), f10.log[0][1]]);
 
   const video = {
     prodottoId: "p1", slot: "video", sottoRuolo: null, alt: "Patch Rosa, video breve", tipo: "video", muto: false, testoParlato: "Ciao, sono io", durataS: 11.2,
@@ -208,25 +207,18 @@ async function caricamento(M, c) {
     file: [{ chiave: "video", tipo: "video", blob: blob(900), mime: "video/mp4" }, { chiave: "copertina", tipo: "copertina", blob: blob(40), mime: "image/jpeg", per: [960] }],
   };
 
-  // ── media_flag che non riesce: una persona senza il suo segno NON resta in linea ──
+  // ── media_flag che non riesce: una persona ha già il suo segno (è nel registro), quindi NIENTE ritiro ──
   const persona = () => foto({ ritraePersone: true, liberatoriaOk: true });
-  const FRASE_RITIRATA = "La foto non è stata pubblicata: riprova a caricarla.";
-  const fl_g1 = porteFinte({ media_flag: 99, avvisoRitiro: "Senza foto principale il prodotto è tornato in bozza." });
+  const fl_g1 = porteFinte({ media_flag: 99 });
   const fl_lg1 = M.nuovoLavoro(persona());
   const fl_r1 = [];
   for (let i = 0; i < 3; i++) fl_r1.push(await M.eseguiLavoro(fl_lg1, fl_g1.porte));
-  c("flag fallito 1ª e 2ª volta: non definitivo, ma la foto è già salvata → `cambiato: true` (chi chiama deve rileggere)", [[true, true], [false, false]], [fl_r1.slice(0, 2).map((e) => e.ok === false && e.definitivo === false && e.cambiato === true), fl_r1.slice(0, 2).map((e) => !!e.ritirata)]);
-  const fl_rit = fl_g1.log.filter((x) => x[1] === "media_rimuovi");
-  c("flag fallito 3 volte con `ritraePersone`: il media si RITIRA con `media_rimuovi` e `liberatoriaRevocata: true`", [1, { prodottoId: "p1", mediaId: "nuovo", liberatoriaRevocata: true }], [fl_rit.length, fl_rit[0]?.[2]]);
-  c("…l'esito dice che la foto non è stata pubblicata, che è definitivo, che l'archivio è cambiato, e porta l'avviso del server", [false, true, true, true, FRASE_RITIRATA, "Senza foto principale il prodotto è tornato in bozza."], [fl_r1[2].ok, fl_r1[2].definitivo, fl_r1[2].cambiato, fl_r1[2].ritirata, fl_r1[2].frase, fl_r1[2].avviso]);
-  c("…la frase NON dice che la foto «non è stata salvata» né «scegli di nuovo» in modo falso", false, /scegli di nuovo/.test(fl_r1[2].frase));
-  const fl_dopo = await M.eseguiLavoro(fl_lg1, fl_g1.porte);
-  c("rilanciare un lavoro già ritirato: stesso esito, nessuna nuova chiamata", [true, fl_g1.log.filter((x) => x[1] === "media_rimuovi").length], [fl_dopo.ok === false && fl_dopo.frase === FRASE_RITIRATA, 1]);
+  c("persona + flag mai chiamato: la foto è registrata con i segni, il lavoro riesce al primo giro, nessun ritiro", [true, 0, 0], [fl_r1[0].ok, fl_g1.log.filter((x) => x[1] === "media_flag").length, fl_g1.log.filter((x) => x[1] === "media_rimuovi").length]);
   const fl_g2 = porteFinte({ media_flag: 99, media_rimuovi: 99 });
-  const fl_lg2 = M.nuovoLavoro(persona());
+  const fl_lg2 = M.nuovoLavoro({ ...persona(), sottotitoliOk: true });
   let fl_r2;
   for (let i = 0; i < 3; i++) fl_r2 = await M.eseguiLavoro(fl_lg2, fl_g2.porte);
-  c("flag e ritiro falliti entrambi: la foto È in linea e lo si dice (senza «Scarta» falso), l'archivio è cambiato", [false, true, true, false, "La foto è salvata, ma non sono riuscito a registrare che ritrae una persona né a toglierla: aprila con Modifica e correggila subito."], [fl_r2.ok, fl_r2.definitivo, fl_r2.cambiato, !!fl_r2.ritirata, fl_r2.frase]);
+  c("persona + sottotitoli con flag guasto: la persona è già segnata, NESSUN ritiro (la foto con persona resta com'è), frase vera sull'impostazione", [0, false, true, true, false, "La foto è salvata, ma una sua impostazione non è stata registrata: aprila con Modifica e controllala."], [fl_g2.log.filter((x) => x[1] === "media_rimuovi").length, fl_r2.ok, fl_r2.definitivo, fl_r2.cambiato, !!fl_r2.ritirata, fl_r2.frase]);
   const fl_g3 = porteFinte({ media_flag: 99 });
   const fl_lg3 = M.nuovoLavoro(foto({ ritraePersone: false, sottotitoliOk: true }));
   let fl_r3;

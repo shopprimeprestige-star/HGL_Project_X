@@ -695,6 +695,10 @@ const media_registra: Azione = async (c, corpo) => {
   const riga: Record<string, unknown> = {
     prodotto_id: s.prodotto.id, slot, tipo: video ? "video" : "foto", sotto_ruolo: corpo.sottoRuolo ?? null, alt: alt ?? "",
     ordine: s.media.length + 1, creato_il: c.ora,
+    // I segni della persona nascono CON la riga (T32, D30): una foto con una persona non è mai in linea senza il suo segno, nemmeno per un istante.
+    // Non detti = nessuna persona (il default di S1).
+    ritrae_persone: corpo.ritraePersone == null ? false : bool("Ritrae persone")(corpo.ritraePersone),
+    liberatoria_ok: corpo.liberatoriaOk == null ? false : bool("Liberatoria")(corpo.liberatoriaOk),
   };
   if (video) {
     riga.path_video = percorso("video")(corpo.pathVideo);
@@ -717,7 +721,7 @@ const media_registra: Azione = async (c, corpo) => {
   // uno slot ha UNA sola foto attiva: la nuova prende il posto di quelle che c'erano (tutte, così il risultato non dipende dall'ordine)
   const vecchie = s.media.filter((m) => m.slot === slot && (slot !== "campione" || m.valoreOpzione === riga.valore_opzione));
   //  Le colonne di filtro (T07) chiudono la riga se mancano: la foto nuova porta i valori di S1 (non rimossa, non ritrae persone), come la restituirà il database.
-  const nuova = mediaDaRiga({ ...riga, id: "nuova", rimosso_il: null, ritrae_persone: false });
+  const nuova = mediaDaRiga({ ...riga, id: "nuova", rimosso_il: null });
   if (!nuova) throw valore("La foto non è valida.");
   const tutti = await skuNoti(c.d, skusDi(s));
   nonPeggiora(s, { ...s, media: [...s.media.filter((m) => !vecchie.includes(m)), nuova] }, tutti);

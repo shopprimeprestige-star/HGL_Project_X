@@ -249,6 +249,23 @@ export async function prove(mod, { c, gruppo, radice }) {
     const rp = await POST(pub, { azione: "media_registra", prodottoId: P1, slot: "principale", alt: "", path480: "p/a-480.webp", path960: "p/a-960.webp", path1600: "p/a-1600.webp" });
     c("su un pubblicato, una principale nuova senza testo alternativo → rifiutata, la vecchia resta", [422, null], [rp.stato, pub.tabelle.shop_media[0].rimosso_il]);
   }
+  // ── T32 (23): `media_registra` accetta i segni della persona: una foto con una persona NON è mai in linea senza il suo segno, nemmeno per un istante ──
+  {
+    const db = fintoDb({ tabelle: tab() });
+    const base = { azione: "media_registra", prodottoId: P2, alt: "Una foto", path480: "prova/a-480.webp", path960: "prova/a-960.webp", path1600: "prova/a-1600.webp" };
+    const r1 = await POST(db, { ...base, slot: "foto2", ritraePersone: true, liberatoriaOk: false });
+    const r2 = await POST(db, { ...base, slot: "foto3", ritraePersone: true, liberatoriaOk: true });
+    const r3 = await POST(db, { ...base, slot: "foto4" });
+    const dir = (id) => db.tabelle.shop_media.find((m) => m.id === id);
+    c("media_registra con una persona senza liberatoria: la riga NASCE con ritrae_persone=true e liberatoria_ok=false (mai un istante senza segno)", [true, true, false], [r1.json.ok, dir(r1.json.media.id)?.ritrae_persone, dir(r1.json.media.id)?.liberatoria_ok]);
+    c("…con la liberatoria: entrambi veri; senza i segni: nessuna persona (default di S1)", [[true, true], [false, false]], [[dir(r2.json.media.id)?.ritrae_persone, dir(r2.json.media.id)?.liberatoria_ok], [dir(r3.json.media.id)?.ritrae_persone, dir(r3.json.media.id)?.liberatoria_ok]]);
+    c("…e il media registrato lo dice (`ritraePersone`, `liberatoriaOk`) a chi ha chiamato", [true, false], [r1.json.media.ritraePersone, r1.json.media.liberatoriaOk]);
+    c("segni che non sono booleani → 400, nessuna scrittura", [400, 400, 0], [(await POST(db, { ...base, slot: "foto5", ritraePersone: "si" })).stato, (await POST(db, { ...base, slot: "foto5", liberatoriaOk: 1 })).stato, db.tabelle.shop_media.filter((m) => m.slot === "foto5").length]);
+    // una principale con una persona senza liberatoria, su un pubblicato, non esce mai in linea: il server la rifiuta
+    const pub = fintoDb({ tabelle: tab() });
+    const rp = await POST(pub, { azione: "media_registra", prodottoId: P1, slot: "principale", alt: "Con persona", path480: "p/a-480.webp", path960: "p/a-960.webp", path1600: "p/a-1600.webp", ritraePersone: true, liberatoriaOk: false });
+    c("su un pubblicato, una principale con persona senza liberatoria → rifiutata, la vecchia resta (mai in linea senza segno)", [422, null, 1], [rp.stato, pub.tabelle.shop_media[0].rimosso_il, pub.tabelle.shop_media.filter((m) => m.slot === "principale" && !m.rimosso_il).length]);
+  }
   {
     const db = fintoDb({ tabelle: tab((t) => t.shop_media.push(mediaProva({ id: uuid(0x4e0), prodotto_id: P1, slot: "foto2", ordine: 2 }))) });
     const r = await POST(db, { azione: "media_ordina", prodottoId: P1, ordine: [uuid(0x4e0), uuid(0x400)] });
