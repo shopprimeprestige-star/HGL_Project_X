@@ -485,6 +485,7 @@ function SchedaAperta({
       );
       if (!r.ok) return riferisci(r.errore, (testo) => setEsito({ tono: "errore", testo }));
       nuovaVersione(r.dati);
+      statoRef.current = "pubblicato"; // subito: `rileggi()` qui sotto confronta con questo, non con il prossimo disegno
       setStato("pubblicato");
       setConBozza(false);
       setEsito({
