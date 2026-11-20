@@ -18,7 +18,8 @@
  *     e, per l'interruttore, `true` se ha cambiato e `false` se non ha fatto niente; gli errori sono `ERRORI_SQL`
  *     (messaggio + codice SQLSTATE, gli stessi del `RAISE EXCEPTION`); una funzione che non c'è dà PGRST202;
  *   · una tabella assente risponde 42P01 (o il codice che si sceglie), una colonna assente 42703 in lettura e PGRST204 in scrittura;
- *   · la cancellazione non esiste: nel negozio non si cancella, e chi ci prova lo scopre subito;
+ *   · la cancellazione non esiste: nel negozio non si cancella, e chi ci prova lo scopre subito. UNICA eccezione (T09):
+ *     `shop_prodotti_categorie` (il legame prodotto-categoria, nessun dato storico), e solo con almeno un filtro;
  *   · quello che non è previsto LANCIA (relazioni nella select, filtri strani): mai una risposta inventata.
  *   · le righe nuove prendono i DEFAULT di S1 (giacenza 0, attiva, stato «bozza»…) e `shop_media` ha i suoi CHECK;
  *  ⚠️ Dati sempre inventati (`dati.mjs`). */
@@ -240,7 +241,11 @@ export function fintoDb({ tabelle = {}, mancante = false, codiceMancante = "42P0
         insert(r) { q.op = "insert"; q.righe = Array.isArray(r) ? r : [r]; return b; },
         update(p) { q.op = "update"; q.patch = p; return b; },
         upsert(r, o = {}) { q.op = "upsert"; q.righe = Array.isArray(r) ? r : [r]; q.conflitto = o.onConflict ?? null; q.ignora = Boolean(o.ignoreDuplicates); return b; },
-        delete() { throw new Error("il finto non cancella: nel negozio non si cancella mai (stato, rimosso_il)"); },
+        delete() {
+          if (tab !== "shop_prodotti_categorie") throw new Error("il finto non cancella: nel negozio non si cancella mai (stato, rimosso_il)");
+          q.op = "delete";
+          return b;
+        },
         eq(col, val) { q.filtri.push(["eq", col, val]); return b; },
         neq(col, val) { q.filtri.push(["neq", col, val]); return b; },
         is(col, val) { q.filtri.push(["is", col, val]); return b; },
@@ -291,6 +296,13 @@ export function fintoDb({ tabelle = {}, mancante = false, codiceMancante = "42P0
       if (q.limite != null) trovate = trovate.slice(0, q.limite);
       if (q.opzioni?.head) return { data: null, count: conta };
       return { ...risposta(trovate), count: q.opzioni?.count ? conta : null };
+    }
+
+    if (q.op === "delete") {
+      if (!q.filtri.length) throw new Error("delete senza filtri: il finto non cancella una tabella intera");
+      const tolte = righe(t).filter((r) => passa(r, q.filtri));
+      dati[t] = righe(t).filter((r) => !tolte.includes(r));
+      return { ...(q.indietro ? risposta(tolte) : {}), scrisse: tolte.length > 0 };
     }
 
     const chiaviScritte = q.op === "update" ? Object.keys(q.patch) : q.righe.flatMap((r) => Object.keys(r));
