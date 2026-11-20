@@ -98,7 +98,7 @@ export async function prove(_mod, { c, gruppo, radice }) {
   const file = sorgenti(join(radice, "src"));
   const letterali = (re) => file.flatMap((p) => [...readFileSync(p, "utf8").matchAll(re)].map((m) => ({ nome: m[1], p: p.slice(radice.length + 1) })));
   const viaCapi = letterali(/\bfireCapi\(\s*["'`]([^"'`]+)["'`]/g);
-  c("la scansione trova le chiamate vere a fireCapi (almeno PageView, ViewContent, AddToCart, Lead, HighQualityVisit)", [], ["PageView", "ViewContent", "AddToCart", "Lead", "HighQualityVisit"].filter((n) => !viaCapi.some((x) => x.nome === n)));
+  c("la scansione trova le chiamate vere a fireCapi (almeno ViewContent, Lead, HighQualityVisit; PageView e AddToCart restano fra gli ammessi)", [], ["ViewContent", "Lead", "HighQualityVisit"].filter((n) => !viaCapi.some((x) => x.nome === n)));
   c("ogni nome passato a fireCapi(\"…\") sotto src/ è fra gli ammessi di capi", [], viaCapi.filter((x) => !NOMI_AMMESSI.includes(x.nome)));
   const viaMittente = letterali(/\bemettiEvento\(\s*["'`]([^"'`]+)["'`]/g);
   c("ogni nome passato a emettiEvento(\"…\") è un nome del sito (NOMI_EVENTO di nomi.ts): non passa da capi ma dal mittente del server", [], viaMittente.filter((x) => !nomi.NOMI_EVENTO.includes(x.nome)));
