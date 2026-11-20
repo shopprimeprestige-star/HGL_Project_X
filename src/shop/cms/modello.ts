@@ -23,6 +23,9 @@ export const MAX_COMBINAZIONI = 50;
 const MAX_SLUG = 80;
 const MAX_SKU = 40;
 
+/** Il prezzo sta in un `integer` di Postgres (a 32 bit con segno): oltre non entra. */
+export const MAX_CENT = 2_147_483_647;
+
 /** Quanto può essere lungo ogni testo (Design §4.10): la schermata li mostra, il server li fa rispettare. */
 export const TETTI = { riga: 90, breve: 300, alt: 125, seoTitolo: 60, seoDescrizione: 155 } as const;
 
@@ -255,7 +258,7 @@ export function centDaEuro(valore: unknown): number | null {
   }
   const x = n * 100;
   const r = Math.round(x);
-  return n >= 0 && Number.isSafeInteger(r) && Math.abs(x - r) < 1e-6 ? r : null;
+  return n >= 0 && r <= MAX_CENT && Math.abs(x - r) < 1e-6 ? r : null;
 }
 
 /** Centesimi → euro, come lo vogliono le piattaforme (`value: 28.9`). */
@@ -302,17 +305,17 @@ const sigla = (valore: string) => (senzaAccenti(valore).toUpperCase().replace(/[
  */
 export function combinazioni(skuProdotto: string, opzioni: readonly OpzioneInput[]): EsitoCombinazioni {
   if (!skuValido(skuProdotto)) return rifiuto("sku_non_valido", "Prima serve lo SKU del prodotto: maiuscolo, senza spazi (per esempio HG-T01).");
-  if (opzioni.length === 0) return rifiuto("nessuna_opzione", "Scrivi almeno un'opzione (per esempio Colore) con i suoi valori.");
+  if (!Array.isArray(opzioni) || opzioni.length === 0) return rifiuto("nessuna_opzione", "Scrivi almeno un'opzione (per esempio Colore) con i suoi valori.");
   if (opzioni.length > MAX_OPZIONI)
     return rifiuto("troppe_opzioni", `Si possono usare al massimo ${MAX_OPZIONI} opzioni (per esempio colore, lunghezza e misura).`);
 
   const pulite: { nome: string; valori: string[] }[] = [];
   for (const o of opzioni) {
-    const nome = o.nome.trim();
+    const nome = typeof o?.nome === "string" ? o.nome.trim() : "";
     if (!nome) return rifiuto("opzione_senza_nome", "Un'opzione non ha il nome: scrivilo (per esempio Colore) o toglila.");
     if (pulite.some((p) => chiave(p.nome) === chiave(nome))) return rifiuto("opzione_doppia", `L'opzione «${nome}» è scritta due volte.`);
-    if (o.valori.length === 0) return rifiuto("opzione_senza_valori", `All'opzione «${nome}» manca almeno un valore.`);
-    const valori = o.valori.map((v) => v.trim());
+    if (!Array.isArray(o.valori) || o.valori.length === 0) return rifiuto("opzione_senza_valori", `All'opzione «${nome}» manca almeno un valore.`);
+    const valori: string[] = o.valori.map((v: unknown) => (typeof v === "string" ? v.trim() : ""));
     if (valori.some((v) => !v)) return rifiuto("valore_vuoto", `Nell'opzione «${nome}» c'è un valore vuoto: scrivilo o toglilo.`);
     if (new Set(valori.map(chiave)).size !== valori.length) return rifiuto("valore_doppio", `Nell'opzione «${nome}» c'è un valore scritto due volte.`);
     pulite.push({ nome, valori });

@@ -3,17 +3,24 @@
  *  `select` (con `eq/neq/in/is/or/order/limit/range/single/maybeSingle`), `insert`, `update`, `upsert`, `rpc`.
  *  Niente rete, niente chiavi. Serve a provare le SEQUENZE: ogni chiamata finisce in `registro`.
  *
+ *  ⚠️ COSA IL FINTO NON CONTROLLA (si prova solo sul database vero, dopo S1): il trigger di pubblicazione
+ *  (`shop_controlla_pubblicazione`), le chiavi esterne (REFERENCES), i NOT NULL, i tipi (integer a 32 bit, jsonb),
+ *  i permessi e la protezione per riga, le viste `shop_v_*`. E lavora su UN SOLO FILO: non dimostra le corse fra
+ *  due richieste vere (il blocco di riga `FOR UPDATE` si fida del SQL, non di questa prova).
+ *
  *  Fedeltà che contano (le controlla `finto-db.mjs`: se il finto sbaglia, mentono tutte le prove):
  *   · le regole che nel database vere stanno nel SQL, qui ci sono: valori unici (sku, slug, id_codice…), CHECK su
  *     giacenza e prezzo, motivi dei movimenti. Un update che le viola non cambia niente e risponde con l'errore;
  *   · `update` risponde senza errore anche con 0 righe (come PostgREST);
  *   · le tre funzioni SQL di S1 (`shop_giacenza_muovi`, `shop_giacenza_imposta`, `shop_impostazione_imposta`) hanno la
  *     STESSA logica: giacenza mai sotto zero, movimento scritto insieme, confronto-e-scambio dell'interruttore.
- *     Ciò che restituiscono (⚠️ da allineare con la migrazione S1): la giacenza di dopo (numero) e, per l'interruttore,
- *     `true` se ha cambiato e `false` se non ha fatto niente; gli errori sono `{ message: "giacenza_negativa" | … }`;
+ *     Ciò che restituiscono (come S1, e lo verifica `finto-db.mjs` leggendo il testo di S1): la giacenza di dopo (numero)
+ *     e, per l'interruttore, `true` se ha cambiato e `false` se non ha fatto niente; gli errori sono `ERRORI_SQL`
+ *     (messaggio + codice SQLSTATE, gli stessi del `RAISE EXCEPTION`); una funzione che non c'è dà PGRST202;
  *   · una tabella assente risponde 42P01 (o il codice che si sceglie), una colonna assente 42703 in lettura e PGRST204 in scrittura;
  *   · la cancellazione non esiste: nel negozio non si cancella, e chi ci prova lo scopre subito;
  *   · quello che non è previsto LANCIA (relazioni nella select, filtri strani): mai una risposta inventata.
+ *   · le righe nuove prendono i DEFAULT di S1 (giacenza 0, attiva, stato «bozza»…) e `shop_media` ha i suoi CHECK;
  *  ⚠️ Dati sempre inventati (`dati.mjs`). */
 
 const SENZA_ID = new Set(["shop_impostazioni", "shop_prodotti_categorie"]);
@@ -24,15 +31,46 @@ const UNICI = {
   shop_prodotti_categorie: [["prodotto_id", "categoria_id"]],
   shop_varianti: [["sku"]],
 };
-const MOTIVI = ["carico", "rettifica", "reso", "ordine", "annullo_ordine", "migrazione"];
+export const MOTIVI = ["carico", "rettifica", "reso", "ordine", "annullo_ordine", "migrazione"];
+export const SLOT = ["principale", "foto2", "foto3", "foto4", "foto5", "scala", "video", "confezione", "campione"];
+const SOTTO_RUOLI = ["retro_base", "macro_attaccatura", "colore_luce", "altro"];
+/** Gli errori delle funzioni SQL di S1: messaggio del `RAISE EXCEPTION`, codice SQLSTATE e il suo nome in `USING ERRCODE`. */
+export const ERRORI_SQL = {
+  giacenza_delta_vuoto: { code: "22023", errcode: "invalid_parameter_value" },
+  variante_inesistente: { code: "P0002", errcode: "no_data_found" },
+  giacenza_negativa: { code: "23514", errcode: "check_violation" },
+};
+/** Come S1 scrive «chi»: vuoto → «sconosciuto», al massimo 80 segni. */
+const chiDi = (chi) => (typeof chi === "string" && chi.trim() ? chi.trim() : "sconosciuto").slice(0, 80);
+/** Uguaglianza fra valori JSON come jsonb: l'ordine delle chiavi non conta. */
+const canonico = (v) => (Array.isArray(v) ? v.map(canonico) : v && typeof v === "object" ? Object.fromEntries(Object.keys(v).sort().map((k) => [k, canonico(v[k])])) : v);
 const nonNeg = (v) => v == null || v >= 0;
 const CHECK = {
   shop_prodotti: (r) => nonNeg(r.prezzo_cent) && (r.stato == null || ["bozza", "pubblicato", "archiviato"].includes(r.stato)),
   shop_varianti: (r) => nonNeg(r.giacenza) && nonNeg(r.prezzo_cent),
   shop_giacenza_movimenti: (r) => r.motivo == null || MOTIVI.includes(r.motivo),
+  shop_media: (r) =>
+    SLOT.includes(r.slot) &&
+    (r.sotto_ruolo == null || SOTTO_RUOLI.includes(r.sotto_ruolo)) &&
+    ["foto", "video"].includes(r.tipo) &&
+    nonNeg(r.durata_s) &&
+    (r.prodotto_id != null) !== (r.categoria_id != null) &&
+    (r.variante_id == null || r.slot === "campione"),
 };
 const ERR = (code, message) => ({ code, message, details: null, hint: null });
-const uguali = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+const uguali = (a, b) => JSON.stringify(canonico(a)) === JSON.stringify(canonico(b));
+
+/** I DEFAULT di S1 (solo quelli che servono ai conti). `adesso` serve per i timestamp. */
+const DEFAULT = (t, adesso) =>
+  ({
+    shop_impostazioni: { aggiornato_il: adesso() },
+    shop_categorie: { tipo: "categoria", ordine: 0, visibile: false, creato_il: adesso(), aggiornato_il: adesso() },
+    shop_prodotti: { stato: "bozza", prezzo_cent: 0, caratteristiche: [], contenuto: {}, box_consulenza: false, canali: {}, creato_il: adesso(), aggiornato_il: adesso() },
+    shop_varianti: { nome: "", opzioni: {}, giacenza: 0, attiva: true, ordine: 0, creato_il: adesso(), aggiornato_il: adesso() },
+    shop_media: { tipo: "foto", sottotitoli_ok: false, muto: false, ritrae_persone: false, liberatoria_ok: false, ordine: 0, creato_il: adesso() },
+    shop_giacenza_movimenti: { creato_il: adesso() },
+    shop_storico: { creato_il: adesso() },
+  })[t] ?? {};
 
 /** `a.eq.1,b.in.(x,y)` → [["a","eq","1"], ["b","in","(x,y)"]]: la virgola dentro le parentesi non spezza. */
 function pezziOr(testo) {
@@ -59,7 +97,7 @@ function valutaOr(riga, testo) {
 }
 function passa(riga, filtri) {
   return filtri.every(([tipo, col, val]) => {
-    if (tipo === "eq") return riga[col] === val;
+    if (tipo === "eq") return val != null && riga[col] === val; // `= NULL` non trova mai niente
     if (tipo === "neq") return riga[col] !== val;
     if (tipo === "is") return val === null ? riga[col] == null : riga[col] === val;
     if (tipo === "in") return val.includes(riga[col]);
@@ -103,7 +141,7 @@ export function fintoDb({ tabelle = {}, mancante = false, codiceMancante = "42P0
   function inserisci(t, nuove) {
     const messe = [];
     for (const n of nuove) {
-      const riga = { ...(SENZA_ID.has(t) ? {} : { id: `r-${++seq}` }), ...n };
+      const riga = { ...(SENZA_ID.has(t) ? {} : { id: `r-${++seq}` }), ...DEFAULT(t, adesso), ...Object.fromEntries(Object.entries(n).filter(([, v]) => v !== undefined)) };
       const err = controlla(t, riga, [...righe(t), ...messe]);
       if (err) return { err };
       messe.push(riga);
@@ -122,33 +160,38 @@ export function fintoDb({ tabelle = {}, mancante = false, codiceMancante = "42P0
     return { toccate };
   }
 
-  /* ── le tre funzioni SQL di S1 (stessa logica) ── */
+  /* ── le tre funzioni SQL di S1 (stessa logica, stesso ordine dei controlli) ── */
+  const sql = (nome) => ({ error: ERR(ERRORI_SQL[nome].code, nome) });
   function muovi(variante, delta, motivo, nota, chi, ordineRef) {
+    if (delta != null && !Number.isInteger(delta)) return { error: ERR("22P02", `invalid input syntax for type integer: "${delta}"`) };
+    if (delta == null) return sql("giacenza_delta_vuoto");
     const v = righe("shop_varianti").find((x) => x.id === variante);
-    if (!v) return { error: ERR("P0001", "variante_inesistente") };
-    if (!Number.isInteger(delta)) return { error: ERR("22023", "delta_non_valido") };
-    if (!MOTIVI.includes(motivo)) return { error: ERR("23514", "motivo non ammesso") };
-    if (v.giacenza + delta < 0) return { error: ERR("P0001", "giacenza_negativa") };
+    if (!v) return sql("variante_inesistente");
+    if (v.giacenza + delta < 0) return sql("giacenza_negativa");
+    if (delta === 0) return { data: v.giacenza }; // niente movimento, niente scrittura
+    if (!MOTIVI.includes(motivo)) return { error: ERR("23514", "new row for relation \"shop_giacenza_movimenti\" violates check constraint") };
     v.giacenza += delta;
     v.aggiornato_il = adesso();
-    righe("shop_giacenza_movimenti").push({ id: `r-${++seq}`, variante_id: variante, delta, giacenza_dopo: v.giacenza, motivo, nota: nota ?? null, chi: chi ?? null, ordine_ref: ordineRef ?? null, creato_il: adesso() });
+    righe("shop_giacenza_movimenti").push({ id: `r-${++seq}`, variante_id: variante, delta, giacenza_dopo: v.giacenza, motivo, nota: nota ?? null, chi: chiDi(chi), ordine_ref: ordineRef ?? null, creato_il: adesso() });
     return { data: v.giacenza, scrisse: true };
   }
   const funzioni = {
     shop_giacenza_muovi: (a) => muovi(a.p_variante, a.p_delta, a.p_motivo, a.p_nota, a.p_chi, a.p_ordine_ref),
     shop_giacenza_imposta(a) {
       const v = righe("shop_varianti").find((x) => x.id === a.p_variante);
-      if (!v) return { error: ERR("P0001", "variante_inesistente") };
-      if (!Number.isInteger(a.p_nuovo) || a.p_nuovo < 0) return { error: ERR("P0001", "giacenza_negativa") };
+      if (!v) return sql("variante_inesistente");
+      if (a.p_nuovo == null || a.p_nuovo < 0) return sql("giacenza_negativa");
       return muovi(a.p_variante, a.p_nuovo - v.giacenza, a.p_motivo, null, a.p_chi, null);
     },
     shop_impostazione_imposta(a) {
+      if (a.p_atteso == null || a.p_nuovo == null || uguali(a.p_atteso, a.p_nuovo)) return { data: false };
       const r = righe("shop_impostazioni").find((x) => x.chiave === a.p_chiave);
-      if (!r || !uguali(r.valore, a.p_atteso) || uguali(a.p_atteso, a.p_nuovo)) return { data: false };
+      if (!r || !uguali(r.valore, a.p_atteso)) return { data: false };
+      const chi = chiDi(a.p_chi);
       r.valore = a.p_nuovo;
       r.aggiornato_il = adesso();
-      r.aggiornato_da = a.p_chi ?? null;
-      righe("shop_storico").push({ id: `r-${++seq}`, entita: "impostazione", entita_id: a.p_chiave, campo: "valore", prima: a.p_atteso, dopo: a.p_nuovo, chi: a.p_chi ?? null, creato_il: adesso() });
+      r.aggiornato_da = chi;
+      righe("shop_storico").push({ id: `r-${++seq}`, entita: "impostazione", entita_id: a.p_chiave, campo: "valore", prima: a.p_atteso, dopo: a.p_nuovo, chi, creato_il: adesso() });
       return { data: true, scrisse: true };
     },
   };
@@ -182,8 +225,7 @@ export function fintoDb({ tabelle = {}, mancante = false, codiceMancante = "42P0
     rpc(nome, args = {}) {
       const q = { chiave: `rpc.${nome}`, tab: null, op: "rpc", nome, args, scrisse: false };
       return eseguibile(q, () => {
-        if (mancante === true) return { error: ERR("42883", `function ${nome} does not exist`) };
-        if (!funzioni[nome]) return { error: ERR("42883", `function ${nome} does not exist`) };
+        if (mancante === true || !funzioni[nome]) return { error: ERR("PGRST202", `Could not find the function public.${nome} in the schema cache`) };
         return funzioni[nome](args);
       });
     },
@@ -256,11 +298,11 @@ export function fintoDb({ tabelle = {}, mancante = false, codiceMancante = "42P0
 
     if (q.op === "insert") {
       const { err, messe } = inserisci(t, q.righe);
-      return err ? { error: err } : { ...(q.indietro ? risposta(messe) : {}), scrisse: true };
+      return err ? { error: err } : { ...(q.indietro ? risposta(messe) : {}), scrisse: messe.length > 0 };
     }
     if (q.op === "update") {
       const { err, toccate } = aggiorna(t, righe(t).filter((r) => passa(r, q.filtri)), q.patch);
-      return err ? { error: err } : { ...(q.indietro ? risposta(toccate) : {}), scrisse: true };
+      return err ? { error: err } : { ...(q.indietro ? risposta(toccate) : {}), scrisse: toccate.length > 0 };
     }
     // upsert: per ogni riga, se la chiave c'è già si aggiorna (o si lascia stare), altrimenti si inserisce
     const colonne = q.conflitto ? q.conflitto.split(",").map((c) => c.trim()) : [SENZA_ID.has(t) ? "chiave" : "id"];
