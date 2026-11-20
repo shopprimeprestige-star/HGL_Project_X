@@ -35,27 +35,22 @@ export async function prove(_mod, { c, gruppo, radice }) {
     /^ALTER TABLE public\.tracciamento_proprietario ENABLE ROW LEVEL SECURITY$/.test(s) ||
     /^REVOKE ALL ON (TABLE )?public\.tracciamento_proprietario FROM (PUBLIC, )?anon, authenticated$/.test(s) ||
     /^GRANT SELECT ON (TABLE )?public\.tracciamento_proprietario TO service_role$/.test(s) ||
-    /^INSERT INTO public\.tracciamento_proprietario \(user_id\) SELECT user_id FROM public\.tracking_config WHERE /.test(s) ||
     /^CREATE TABLE IF NOT EXISTS public\.tracciamento_esiti \(/.test(s) ||
     /^ALTER TABLE public\.tracciamento_esiti ENABLE ROW LEVEL SECURITY$/.test(s) ||
     /^REVOKE ALL ON (TABLE )?public\.tracciamento_esiti FROM (PUBLIC, )?anon, authenticated$/.test(s) ||
     /^CREATE INDEX IF NOT EXISTS \w+ ON public\.tracciamento_esiti \(/.test(s) ||
     (/^ALTER TABLE public\.(tracking_config|public_leads) ADD COLUMN IF NOT EXISTS /.test(s) &&
       s.split(/,\s*(?=ADD COLUMN)/).every((p) => /^(ALTER TABLE public\.\w+ )?ADD COLUMN IF NOT EXISTS \w+ [a-z]+( \([^)]*\))?$/i.test(p)));
-  c("ogni istruzione di S3 è tra quelle ammesse (ADD COLUMN IF NOT EXISTS, le due tabelle nuove con RLS e REVOKE, indice, il solo seme del proprietario, NOTIFY)", [], stmt.filter((s) => !ammessa(s)));
+  c("ogni istruzione di S3 è tra quelle ammesse (ADD COLUMN IF NOT EXISTS, le due tabelle nuove con RLS e REVOKE, indice, NOTIFY)", [], stmt.filter((s) => !ammessa(s)));
   c(
-    "nessun DROP, TRUNCATE, DELETE, UPDATE, ALTER COLUMN, RENAME, CREATE POLICY, CREATE OR REPLACE",
-    Array(8).fill(0),
-    [/\bDROP\b/i, /\bTRUNCATE\b/i, /\bDELETE\b/i, /\bUPDATE\b/i, /ALTER\s+COLUMN/i, /\bRENAME\b/i, /\bPOLICY\b/i, /CREATE\s+OR\s+REPLACE/i].map((r) =>
+    "nessun DROP, TRUNCATE, DELETE, UPDATE, INSERT, ALTER COLUMN, RENAME, CREATE POLICY, CREATE OR REPLACE (fuori dai commenti)",
+    Array(9).fill(0),
+    [/\bDROP\b/i, /\bINSERT\b/i, /\bTRUNCATE\b/i, /\bDELETE\b/i, /\bUPDATE\b/i, /ALTER\s+COLUMN/i, /\bRENAME\b/i, /\bPOLICY\b/i, /CREATE\s+OR\s+REPLACE/i].map((r) =>
       r.test(sql) ? 1 : 0,
     ),
   );
-  c("l'unico INSERT è il seme del proprietario, e l'unico GRANT è SELECT a service_role su tracciamento_proprietario", [1, 1, 1, 0], [
-    (sql.match(/\bINSERT\b/gi) || []).length,
-    (sql.match(/INSERT\s+INTO\s+public\.tracciamento_proprietario\b/gi) || []).length,
-    (sql.match(/GRANT\s+SELECT\s+ON\s+public\.tracciamento_proprietario\s+TO\s+service_role/gi) || []).length,
-    (sql.match(/\bGRANT\b/gi) || []).length - 1,
-  ]);
+  c("nessun INSERT su tracciamento_proprietario fuori dai commenti: nessun seme automatico (D35 corretta)", [0, 0], [(sql.match(/INSERT\s+INTO\s+public\.tracciamento_proprietario\b/gi) || []).length, (sql.match(/tracciamento_proprietario[^;]*\bSELECT\b[^;]*tracking_config/gi) || []).length]);
+  c("l'unico GRANT è SELECT a service_role su tracciamento_proprietario", [1, 1], [(sql.match(/\bGRANT\b/gi) || []).length, (sql.match(/GRANT\s+SELECT\s+ON\s+public\.tracciamento_proprietario\s+TO\s+service_role/gi) || []).length]);
   c("nessuna transazione aperta dal file (il SQL Editor ne usa già una) e nessun `SET`", [0, 0], [/\b(BEGIN|COMMIT)\b/i, /^\s*SET\b/im].map((r) => (r.test(sql) ? 1 : 0)));
 
   /* ── le colonne ── */
@@ -110,21 +105,13 @@ export async function prove(_mod, { c, gruppo, radice }) {
     /GRANT SELECT ON public\.tracciamento_proprietario TO service_role/i,
     /CREATE POLICY/i,
   ].map((r) => (r.test(sql) ? 1 : 0)));
-  const seme = piatto(stmt.find((s) => /^INSERT INTO public\.tracciamento_proprietario/.test(s)) ?? "");
-  c("il seme: solo `user_id` dalla riga PIÙ VECCHIA di tracking_config che ha un pixel (Meta o TikTok), solo se la tabella è vuota, rilanciabile", [true, true, true, true, true, true], [
-    /^INSERT INTO public\.tracciamento_proprietario \(user_id\) SELECT user_id FROM public\.tracking_config WHERE /.test(seme),
-    /meta_pixel_id\b.*IS NOT NULL OR .*tiktok_pixel_id\b.*IS NOT NULL/i.test(seme),
-    /AND NOT EXISTS \(SELECT 1 FROM public\.tracciamento_proprietario\)/i.test(seme),
-    /ORDER BY created_at( ASC)? LIMIT 1/i.test(seme),
-    !/ORDER BY created_at DESC/i.test(seme),
-    /ON CONFLICT DO NOTHING$/i.test(seme),
-  ]);
-  c("il seme non copia altro che l'id dell'utente (nessun token, nessun ID dei pixel nella nuova tabella)", false, /(access_token|app_secret|verify_token|meta_pixel_id|tiktok_pixel_id)[^;]*\bINTO\b/i.test(seme));
-  c("l'intestazione dà al titolare la query di controllo (email da auth.users) e dice cosa fare se il proprietario non è lui", [true, true, true], [
+  c("l'intestazione dà al titolare, COMMENTATI, il comando che scrive il proprietario (con l'email come segnaposto) e la query di controllo (email da auth.users)", [true, true, true, true], [
+    /--\s+INSERT INTO public\.tracciamento_proprietario \(user_id\) SELECT id FROM auth\.users WHERE email = 'EMAIL-DEL-TITOLARE' ON CONFLICT DO NOTHING;/.test(grezzo),
     /select u\.email, p\.creato_il\s+--\s+from public\.tracciamento_proprietario p\s+--\s+join auth\.users u on u\.id = p\.user_id/i.test(grezzo),
-    /UNA riga, con la tua email/i.test(grezzo),
+    /NASCE VUOTA/.test(grezzo),
     /NON salvare gli ID/i.test(grezzo),
   ]);
+  c("la tabella nasce vuota: niente istruzione che la riempie, né da tracking_config né da auth.users", false, /tracciamento_proprietario[^;]*\bFROM\s+(public\.tracking_config|auth\.users)/i.test(sql));
 
   /* ── tracking_config e public_leads non cambiano permessi ── */
   c("nessun ENABLE/DISABLE ROW LEVEL SECURITY né REVOKE su tracking_config e public_leads", [], stmt.filter((s) => /(tracking_config|public_leads)/.test(s) && /ROW LEVEL SECURITY|REVOKE/i.test(s)));
