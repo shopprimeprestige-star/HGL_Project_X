@@ -1,10 +1,11 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { CheckCircle2, Lock, ArrowRight, ShoppingBag } from "lucide-react";
 import { PRODUCTS, formatPrice } from "@/shop/catalog";
 import { ShopVisual } from "@/shop/ShopVisual";
 import { useCart } from "@/shop/CartContext";
 import { supabase } from "@/integrations/supabase/client";
+import { MESSAGGIO_ERRORE_ORDINE, firmaOrdine, inviaOrdine, rigaOrdine, tentativoPer, type Tentativo } from "@/shop/invio-ordine";
 
 export const Route = createFileRoute("/shop/checkout")({
   component: CheckoutPage,
@@ -51,6 +52,9 @@ function CheckoutPage() {
   const [form, setForm] = useState<Form>(EMPTY);
   const [submitting, setSubmitting] = useState(false);
   const [orderId, setOrderId] = useState<string | null>(null);
+  const [errore, setErrore] = useState<string | null>(null);
+  // Identificativi dell'ordine: nascono una volta per tentativo e si riusano nei nuovi invii (vedi invio-ordine.ts).
+  const tentativo = useRef<Tentativo | null>(null);
 
   const shipping = subtotal >= SHIPPING_THRESHOLD ? 0 : SHIPPING_COST;
   const total = subtotal + shipping;
@@ -71,35 +75,21 @@ function CheckoutPage() {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
-    const shortId = `HG-${Date.now().toString(36).toUpperCase().slice(-6)}`;
+    setErrore(null);
     try {
-      const { data, error } = await supabase
-        .from("shop_orders")
-        .insert({
-          order_ref: shortId,
-          nome: form.nome,
-          cognome: form.cognome,
-          email: form.email,
-          telefono: form.telefono,
-          indirizzo: form.indirizzo,
-          citta: form.citta,
-          cap: form.cap,
-          note: form.note || null,
-          items: items as never,
-          subtotal,
-          shipping,
-          total,
-          status: "nuovo",
-        } as never)
-        .select("order_ref")
-        .maybeSingle();
-      if (error) throw error;
-      setOrderId((data as { order_ref?: string } | null)?.order_ref ?? shortId);
-      clear();
+      const dati = { form, items, subtotal, shipping, total };
+      tentativo.current = tentativoPer(tentativo.current, firmaOrdine(dati));
+      const t = tentativo.current;
+      const esito = await inviaOrdine(rigaOrdine(t, dati), async (riga) => await supabase.from("shop_orders").insert(riga as never));
+      if (esito === "salvato") {
+        setOrderId(t.orderRef);
+        tentativo.current = null;
+        clear();
+      } else {
+        setErrore(MESSAGGIO_ERRORE_ORDINE);
+      }
     } catch {
-      // Fallback: l'ordine è comunque confermato lato utente (persistenza best-effort)
-      setOrderId(shortId);
-      clear();
+      setErrore(MESSAGGIO_ERRORE_ORDINE);
     } finally {
       setSubmitting(false);
     }
@@ -200,6 +190,11 @@ function CheckoutPage() {
           >
             <Lock className="h-4 w-4" /> {submitting ? "Elaborazione…" : "Conferma ordine"}
           </button>
+          {errore && (
+            <p role="alert" className="mt-3 rounded-lg border border-red-400/40 bg-red-500/10 px-3 py-2 text-sm text-red-200">
+              {errore}
+            </p>
+          )}
           <p className="mt-3 flex items-center justify-center gap-1.5 text-[11px] text-white/40">
             <Lock className="h-3 w-3" /> Pagamento sicuro · Dati protetti
           </p>

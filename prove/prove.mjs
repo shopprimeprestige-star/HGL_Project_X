@@ -91,6 +91,7 @@ import { proveElencoChatBaileys } from "./idee/elenco-chat-baileys.mjs";
 import { proveSelezioneChat } from "./idee/selezione-chat.mjs";
 import { proveDatiFattura } from "./dati-fattura.mjs";
 import { proveFattureBulk } from "./fatture-bulk.mjs";
+import { proveEcommerce } from "./ecommerce.mjs";
 import { provePannelloOggi } from "./pannello-oggi.mjs";
 import { proveSpesaLead } from "./spesa-lead.mjs";
 
@@ -847,6 +848,17 @@ const MODULI = [
   "fatture/bulk/coda",
   "fatture/bulk/immagini",
   "fatture/bulk/usa-lotto",
+  //  ── E-COMMERCE (commessa 2026-11-17-crm-ecommerce, T0) ─────────────────
+  //   ⚠️ Una voce sola per tutta la commessa: i moduli puri `src/crm/ecommerce/*.ts`
+  //   (non i `.tsx`) si trovano da soli; qui si scrive solo ciò che sta fuori da quella cartella.
+  //   Le prove sono in prove/ecommerce/ (trovate da `proveEcommerce`): questo elenco non si tocca più.
+  "shop/invio-ordine",
+  ...(existsSync(join(radice, "src/crm/ecommerce"))
+    ? readdirSync(join(radice, "src/crm/ecommerce"))
+        .filter((f) => f.endsWith(".ts") && !f.endsWith(".d.ts"))
+        .sort()
+        .map((f) => `ecommerce/${f.slice(0, -3)}`)
+    : []),
 ];
 rmSync(dove, { recursive: true, force: true });
 mkdirSync(dove, { recursive: true });
@@ -21639,6 +21651,7 @@ proveElencoChatBaileys(mod, { c, gruppo, radice });
 proveSelezioneChat(mod, { c, gruppo, radice });
 await proveDatiFattura(mod, { c, gruppo, radice });
 await proveFattureBulk(mod, { c, gruppo, radice });
+await proveEcommerce(mod, { c, gruppo, radice });
 provePannelloOggi(mod, { c, gruppo, radice });
 proveSpesaLead(mod, { c, gruppo, radice });
 await proveIdeeAi(mod, { c, gruppo, radice });
