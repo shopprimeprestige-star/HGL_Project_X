@@ -27,24 +27,37 @@ const RIGA_CONFIG = {
 };
 
 /** Un database finto, quanto basta: `from(t).select(cols).order().limit()`, `insert`, `delete().lt()`. */
-function fintoDb({ config = [RIGA_CONFIG], senzaColonneGoogle = false, tabellaConfigMancante = false, esitiRotta = false, deleteRotta = false } = {}) {
+function fintoDb({ config = [RIGA_CONFIG], proprietari = [{ user_id: "u1", creato_il: "2026-11-01T00:00:00Z" }], tabellaProprietarioMancante = false, tabellaConfigMancante = false, esitiRotta = false, deleteRotta = false } = {}) {
   const chiamate = [];
   const esiti = [];
   const db = {
     chiamate, esiti,
     from(t) {
+      if (t === "tracciamento_proprietario") {
+        return {
+          select(cols) {
+            chiamate.push({ t, op: "select", cols });
+            const f = {
+              order: () => f, limit: () => f,
+              then: (ok, ko) => Promise.resolve(tabellaProprietarioMancante
+                ? { data: null, error: { code: "42P01", message: "relation does not exist" } }
+                : { data: [...proprietari].sort((a, b) => String(a.creato_il).localeCompare(String(b.creato_il))).map((r) => ({ user_id: r.user_id })), error: null }).then(ok, ko),
+            };
+            return f;
+          },
+        };
+      }
       if (t === "tracking_config") {
         return {
           select(cols) {
             chiamate.push({ t, op: "select", cols });
             const lista = String(cols).split(",").map((x) => x.trim());
-            const q = { filtri: [] };
+            const filtri = [];
             const esegui = () => {
               if (tabellaConfigMancante) return { data: null, error: { code: "42P01", message: "relation does not exist" } };
-              if (senzaColonneGoogle && lista.some((x) => x.startsWith("google_"))) return { data: null, error: { code: "42703", message: "column does not exist" } };
-              return { data: config.map((r) => Object.fromEntries(lista.map((k) => [k, r[k] ?? null]))), error: null };
+              return { data: config.filter((r) => filtri.every(([k, v]) => r[k] === v)).map((r) => Object.fromEntries(lista.map((k) => [k, r[k] ?? null]))), error: null };
             };
-            const f = { order: () => f, limit: () => f, then: (ok, ko) => Promise.resolve(esegui()).then(ok, ko) };
+            const f = { eq: (k, v) => { filtri.push([k, v]); return f; }, order: () => f, limit: () => f, then: (ok, ko) => Promise.resolve(esegui()).then(ok, ko) };
             return f;
           },
         };
@@ -233,9 +246,19 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("nessuna configurazione: 200, nessuna chiamata, niente nel registro degli esiti", [200, 0, 0], [rn.stato, nessuna.fetches.length, nessuna.db.esiti.length]);
   const dbRotto = mondo({ dbOpz: { tabellaConfigMancante: true } });
   c("tabella delle impostazioni illeggibile: 200, nessuna chiamata, nessuna eccezione", [200, 0], [(await vai(dbRotto, await evento())).stato, dbRotto.fetches.length]);
-  const piuRighe = mondo({ dbOpz: { config: [{ ...RIGA_CONFIG, updated_at: "2026-01-01T00:00:00Z", meta_pixel_id: "111111111", meta_access_token: "VECCHIO" }, { ...RIGA_CONFIG, updated_at: "2026-11-01T00:00:00Z" }, { ...RIGA_CONFIG, updated_at: "2026-12-01T00:00:00Z", meta_pixel_id: "", tiktok_pixel_id: "", google_ga4_id: null, google_ads_id: null, meta_access_token: "SENZA-ID" }] } });
-  await vai(piuRighe, await evento());
-  c("più righe: si usa la più recente CON almeno un ID (D33), non la più recente in assoluto", ["123456789012345", false], [piuRighe.fetches.find((f) => /facebook/.test(f.url))?.url.split("/")[4], JSON.stringify(piuRighe.fetches).includes("SENZA-ID") || JSON.stringify(piuRighe.fetches).includes("VECCHIO")]);
+  const ESTRANEO = { ...RIGA_CONFIG, user_id: "u2", updated_at: "2026-12-01T00:00:00Z", meta_pixel_id: "999999999999", meta_access_token: "TOKEN-ESTRANEO", tiktok_pixel_id: "ESTRANEOPIXEL12345", tiktok_access_token: "TOKEN-ESTRANEO-TT" };
+  const conEstraneo = mondo({ dbOpz: { config: [RIGA_CONFIG, ESTRANEO] } });
+  await vai(conEstraneo, await evento());
+  c("D35: la riga di un estraneo, PIÙ RECENTE e con ID e token diversi, è ignorata: si usano pixel e token del proprietario", ["123456789012345", "C1ABCDEF2GHIJKL3MNOP", false], [conEstraneo.fetches.find((f) => /facebook/.test(f.url))?.url.split("/")[4], conEstraneo.fetches.find((f) => /tiktok/.test(f.url))?.corpo.pixel_code, /ESTRANEO|999999999999/.test(JSON.stringify(conEstraneo.fetches))]);
+  const soloEstraneo = mondo({ dbOpz: { config: [ESTRANEO] } });
+  c("D35: se il proprietario non ha una riga, un estraneo non lo sostituisce: 200, nessuna chiamata", [200, 0], [(await vai(soloEstraneo, await evento())).stato, soloEstraneo.fetches.length]);
+  const senzaProp = mondo({ dbOpz: { proprietari: [] } });
+  c("D35: senza proprietario non parte niente (200, nessuna chiamata, nessun esito), anche se le righe hanno ID e token", [200, 0, 0], [(await vai(senzaProp, await evento())).stato, senzaProp.fetches.length, senzaProp.db.esiti.length]);
+  const senzaTab = mondo({ dbOpz: { tabellaProprietarioMancante: true } });
+  c("D35: tabella del proprietario assente (S3 non applicata): nessun invio, nessuna eccezione", [200, 0], [(await vai(senzaTab, await evento())).stato, senzaTab.fetches.length]);
+  const duePro = mondo({ dbOpz: { config: [ESTRANEO, RIGA_CONFIG], proprietari: [{ user_id: "u2", creato_il: "2026-11-20T00:00:00Z" }, { user_id: "u1", creato_il: "2026-11-01T00:00:00Z" }] } });
+  await vai(duePro, await evento());
+  c("D35: con più proprietari vale il più vecchio (quello del seme)", "123456789012345", duePro.fetches.find((f) => /facebook/.test(f.url))?.url.split("/")[4]);
 
   /* ── il registro degli esiti ── */
   const me = mondo({ risposte: { meta: { ok: false, status: 400 } } });
@@ -274,40 +297,47 @@ export async function prove(mod, { c, gruppo, radice }) {
   for (let i = 0; i < 61; i++) sl.push((await M.gestisciPermesso({ ip: IP }, mpl.deps)).stato);
   c("gestisciPermesso: il 61° del minuto → 429", [200, 429], [sl[59], sl[60]]);
 
-  /* ── tracking-config: la riga più recente con almeno un ID ── */
-  const NUOVA = { updated_at: "2026-11-18T00:00:00Z", meta_pixel_id: "222222222222", tiktok_pixel_id: null, google_ga4_id: "G-NUOVO111", google_ads_id: null, google_ads_label_acquisto: null, meta_access_token: "NON-DEVE-USCIRE", tiktok_access_token: "NON-DEVE-USCIRE", meta_test_event_code: "NON-DEVE-USCIRE", tiktok_test_event_code: "NON-DEVE-USCIRE" };
-  const VECCHIA = { ...RIGA_CONFIG, updated_at: "2026-11-01T00:00:00Z" };
-  const SENZA_ID = { updated_at: "2026-11-19T00:00:00Z", meta_pixel_id: "", tiktok_pixel_id: "   ", google_ga4_id: null, google_ads_id: null, google_ads_label_acquisto: null };
-  const tre = await CP.leggiConfigPubblica(fintoDb({ config: [VECCHIA, SENZA_ID, NUOVA] }));
-  c("tre righe (una senza ID, due con ID e date diverse) → la più recente CON ID", { meta: { pixelId: "222222222222" }, tiktok: null, google: { ga4Id: "G-NUOVO111", adsId: null, adsLabelAcquisto: null } }, tre);
-  c("…non porta mai token né codici di prova", [], [JSON.stringify(tre)].filter((s) => /NON-DEVE|TOKEN|token|test/.test(s)));
-  const dbq = fintoDb({ config: [VECCHIA, NUOVA] });
+  /* ── tracking-config: la riga del PROPRIETARIO (D35) ── */
+  const PROP = { user_id: "u1", updated_at: "2026-11-01T00:00:00Z", meta_pixel_id: "123456789012345", tiktok_pixel_id: "C1ABCDEF2GHIJKL3MNOP", google_ga4_id: "G-TEST1234", google_ads_id: "AW-12345678", google_ads_label_acquisto: "abcDEF123", meta_access_token: "NON-DEVE-USCIRE", tiktok_access_token: "NON-DEVE-USCIRE", meta_test_event_code: "NON-DEVE-USCIRE", tiktok_test_event_code: "NON-DEVE-USCIRE" };
+  const ESTR = { ...PROP, user_id: "u2", updated_at: "2026-12-01T00:00:00Z", meta_pixel_id: "999999999999", tiktok_pixel_id: "ESTRANEOPIXEL12345", google_ga4_id: "G-ESTRANEO1", google_ads_id: null };
+  const SENZA_ID = { user_id: "u1", updated_at: "2026-11-19T00:00:00Z", meta_pixel_id: "", tiktok_pixel_id: "   ", google_ga4_id: null, google_ads_id: null, google_ads_label_acquisto: null };
+  const VUOTO = { meta: null, tiktok: null, google: null };
+  const tre = await CP.leggiConfigPubblica(fintoDb({ config: [PROP, ESTR] }));
+  c("la riga di un estraneo, più recente e con ID diversi, viene ignorata: escono gli ID del proprietario", { meta: { pixelId: "123456789012345" }, tiktok: { pixelId: "C1ABCDEF2GHIJKL3MNOP" }, google: { ga4Id: "G-TEST1234", adsId: "AW-12345678", adsLabelAcquisto: "abcDEF123" } }, tre);
+  c("…e non porta mai token né codici di prova", [], [JSON.stringify(tre)].filter((x) => /NON-DEVE|TOKEN|token|test|ESTRANEO|999999/.test(x)));
+  c("senza proprietario non esce niente (anche se le righe hanno ID), e `tracking_config` non viene nemmeno letta", [VUOTO, 0], await (async () => { const db = fintoDb({ config: [PROP, ESTR], proprietari: [] }); return [await CP.leggiConfigPubblica(db), db.chiamate.filter((x) => x.t === "tracking_config").length]; })());
+  c("tabella del proprietario assente (S3 non applicata) → tutto null, nessuna eccezione", VUOTO, await CP.leggiConfigPubblica(fintoDb({ tabellaProprietarioMancante: true })));
+  c("il proprietario non ha una riga, un estraneo sì → tutto null (l'estraneo non lo sostituisce)", VUOTO, await CP.leggiConfigPubblica(fintoDb({ config: [ESTR] })));
+  c("la riga del proprietario non ha ID → tutto null (anche se un estraneo più recente ne ha)", VUOTO, await CP.leggiConfigPubblica(fintoDb({ config: [SENZA_ID, ESTR] })));
+  c("con più proprietari vale il più vecchio (quello del seme)", "123456789012345", (await CP.leggiConfigPubblica(fintoDb({ config: [ESTR, PROP], proprietari: [{ user_id: "u2", creato_il: "2026-11-20T00:00:00Z" }, { user_id: "u1", creato_il: "2026-11-01T00:00:00Z" }] }))).meta?.pixelId);
+  const dbq = fintoDb({ config: [PROP, ESTR] });
   await CP.leggiConfigPubblica(dbq);
-  const colonne = dbq.chiamate.filter((x) => x.t === "tracking_config").map((x) => String(x.cols));
-  c("la lettura chiede SOLO colonne pubbliche (mai `*`, mai token o codici di prova)", [], colonne.filter((s) => /\*|token|secret|test_event|spend|app_secret|verify/.test(s)));
-  c("zero righe → tutto null, nessun errore", { meta: null, tiktok: null, google: null }, await CP.leggiConfigPubblica(fintoDb({ config: [] })));
-  c("solo righe senza ID → tutto null", { meta: null, tiktok: null, google: null }, await CP.leggiConfigPubblica(fintoDb({ config: [SENZA_ID] })));
-  c("tabella assente → tutto null, nessuna eccezione", { meta: null, tiktok: null, google: null }, await CP.leggiConfigPubblica(fintoDb({ tabellaConfigMancante: true })));
-  const dbv = fintoDb({ config: [VECCHIA], senzaColonneGoogle: true });
-  c("colonne di Google assenti (S3 non applicata): si ripiega sulle colonne vecchie, Meta e TikTok restano, Google null", { meta: { pixelId: "123456789012345" }, tiktok: { pixelId: "C1ABCDEF2GHIJKL3MNOP" }, google: null }, await CP.leggiConfigPubblica(dbv));
-  c("…con due letture, la seconda senza le colonne di Google", [2, true, false], [dbv.chiamate.length, String(dbv.chiamate[0].cols).includes("google_"), String(dbv.chiamate[1].cols).includes("google_")]);
-  c("solo Google Ads (senza GA4): Google c'è, Meta e TikTok no", { meta: null, tiktok: null, google: { ga4Id: null, adsId: "AW-12345678", adsLabelAcquisto: "abc" } }, await CP.leggiConfigPubblica(fintoDb({ config: [{ ...SENZA_ID, updated_at: "2026-11-20T00:00:00Z", google_ads_id: "AW-12345678", google_ads_label_acquisto: "abc" }] })));
-  c("gli ID si ripuliscono dagli spazi", "123456789012345", (await CP.leggiConfigPubblica(fintoDb({ config: [{ ...VECCHIA, meta_pixel_id: "  123456789012345 " }] }))).meta?.pixelId);
+  const colonne = dbq.chiamate.map((x) => String(x.cols));
+  c("la lettura chiede SOLO colonne pubbliche (mai `*`, mai token o codici di prova)", [], colonne.filter((x) => /\*|token|secret|test_event|spend|app_secret|verify/.test(x)));
+  c("zero righe → tutto null, nessun errore", VUOTO, await CP.leggiConfigPubblica(fintoDb({ config: [] })));
+  c("tabella delle impostazioni assente → tutto null, nessuna eccezione", VUOTO, await CP.leggiConfigPubblica(fintoDb({ tabellaConfigMancante: true })));
+  c("solo Google Ads (senza GA4): Google c'è, Meta e TikTok no", { meta: null, tiktok: null, google: { ga4Id: null, adsId: "AW-12345678", adsLabelAcquisto: "abc" } }, await CP.leggiConfigPubblica(fintoDb({ config: [{ ...SENZA_ID, google_ads_id: "AW-12345678", google_ads_label_acquisto: "abc" }] })));
+  c("gli ID si ripuliscono dagli spazi", "123456789012345", (await CP.leggiConfigPubblica(fintoDb({ config: [{ ...PROP, meta_pixel_id: "  123456789012345 " }] }))).meta?.pixelId);
 
   // la memoria di 5 minuti
   let ora = T0;
-  const dbm = fintoDb({ config: [VECCHIA] });
+  const dbm = fintoDb({ config: [PROP] });
   const leggi = CP.creaLettoreConfig(dbm, () => ora);
+  const lett = (db) => db.chiamate.filter((x) => x.t === "tracking_config").length;
   await leggi(); await leggi();
-  c("memoria di 5 minuti: la seconda lettura non interroga il database", 1, dbm.chiamate.length);
+  c("memoria di 5 minuti: la seconda lettura non interroga il database", 1, lett(dbm));
   ora += 4 * MIN; await leggi();
-  c("…a 4 minuti ancora in memoria", 1, dbm.chiamate.length);
+  c("…a 4 minuti ancora in memoria", 1, lett(dbm));
   ora += 2 * MIN; await leggi();
-  c("…a 6 minuti si rilegge", 2, dbm.chiamate.length);
+  c("…a 6 minuti si rilegge", 2, lett(dbm));
   const dbe = fintoDb({ tabellaConfigMancante: true });
   const leggiE = CP.creaLettoreConfig(dbe, () => ora);
   await leggiE(); await leggiE();
-  c("un errore di lettura non resta in memoria per 5 minuti (si riprova alla chiamata dopo)", 2, dbe.chiamate.length);
+  c("un errore di lettura non resta in memoria per 5 minuti (si riprova alla chiamata dopo)", 2, lett(dbe));
+  const dbp = fintoDb({ tabellaProprietarioMancante: true });
+  const leggiP = CP.creaLettoreConfig(dbp, () => ora);
+  await leggiP(); await leggiP();
+  c("anche con la tabella del proprietario assente si riprova (appena il titolare applica S3, i pixel compaiono)", 2, dbp.chiamate.length);
 
   /* ── le rotte sono sottili e non perdono segreti (sul sorgente) ── */
   const leggiF = (p) => readFileSync(join(radice, p), "utf8").replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");

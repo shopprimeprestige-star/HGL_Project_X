@@ -14,11 +14,13 @@
     ⚠️ Il limite di frequenza è IN MEMORIA dell'isolato: su Cloudflare Workers ogni isolato ha la sua memoria, quindi è
        quasi inefficace. È un attrito. La difesa vera è una regola di limite nel pannello Cloudflare su `/api/public/evento*`
        (60 richieste al minuto per indirizzo): da consigliare al titolare.
-    ⚠️ Senza chiave di servizio risponde 503 e non invia (fail closed). */
+    ⚠️ Senza chiave di servizio risponde 503 e non invia (fail closed). Senza un PROPRIETARIO della configurazione
+       (`tracciamento_proprietario`, D35) non invia niente: i pixel e i token sono quelli della sua riga di `tracking_config`,
+       non quelli di chiunque abbia una sessione. */
 import { percorsoAmmesso, urlPulito } from "./ammesse";
 import { costruisciEvento } from "./eventi";
 import { nomeAmmesso } from "./nomi";
-import { rigaPiuRecente, idPulito, type DbLettura } from "./config-pubblica";
+import { idPulito, leggiRigaProprietario, type DbLettura } from "./config-pubblica";
 import { derivaChiave, emettiPermesso, verificaPermesso } from "./permesso";
 
 export type StatoMittente = { finestre: Map<string, number[]>; ultimaPulizia: number };
@@ -63,19 +65,10 @@ function entraNelLimite(stato: StatoMittente, chi: string, ora: number): boolean
   return true;
 }
 
-/** Le impostazioni per inviare: la riga più recente con almeno un pixel di Meta o di TikTok. */
+/** Le impostazioni per inviare: la riga del PROPRIETARIO (D35), mai quella di un altro utente. Senza proprietario, niente. */
 async function leggiConfigInvio(db: DbLettura): Promise<Record<string, unknown> | null> {
-  try {
-    const r = await db
-      .from("tracking_config")
-      .select("meta_pixel_id,meta_access_token,meta_test_event_code,tiktok_pixel_id,tiktok_access_token,tiktok_test_event_code,updated_at")
-      .order("updated_at", { ascending: false })
-      .limit(50);
-    if (r.error || !Array.isArray(r.data)) return null;
-    return rigaPiuRecente(r.data, ["meta_pixel_id", "tiktok_pixel_id"]);
-  } catch {
-    return null;
-  }
+  const { riga } = await leggiRigaProprietario(db, ["meta_pixel_id", "meta_access_token", "meta_test_event_code", "tiktok_pixel_id", "tiktok_access_token", "tiktok_test_event_code"]);
+  return riga;
 }
 
 /** Una chiamata a una piattaforma: restituisce solo un CODICE («ok», «http_400», «errore_rete»). */
