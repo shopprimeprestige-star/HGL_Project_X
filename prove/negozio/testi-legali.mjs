@@ -33,6 +33,7 @@ export async function prove(_mod, { c, gruppo, radice }) {
 
   c("`nuova.tsx`: il piè di pagina ha `<GestisciCookie />` e il link alla cookie policy (chi accetta lì deve poter revocare, come promette la policy)", [true, true, true], [/<GestisciCookie\b/.test(nuova), /from "@\/components\/tracciamento\/GestisciCookie"/.test(nuova), /<Link\b[^>]*to="\/cookie-policy"/.test(nuova)]);
   c("`nuova.tsx`: `<GestisciCookie />` sta DENTRO il `<footer>`", true, /<footer\b[\s\S]*<GestisciCookie\b[\s\S]*<\/footer>/.test(nuova));
+  c("`nuova.tsx`: su telefono il piè di pagina lascia spazio sotto la barra fissa «Prenota» (pb-28, sm:pb-10), così «Gestisci cookie» si può toccare", true, /<footer\b[^>]*\bpb-28\b[^>]*\bsm:pb-10\b/.test(nuova));
 
   /* ── cookie policy: le tre categorie e i fornitori veri ── */
   c("cookie policy: le tre categorie — Necessari, Statistiche, Marketing", [true, true, true], [/Necessari/.test(policy), /Statistiche/.test(policy), /Marketing/.test(policy)]);

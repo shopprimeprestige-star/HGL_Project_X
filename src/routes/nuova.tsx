@@ -567,7 +567,7 @@ function Landing() {
         </div>
       </section>
 
-      <footer className="border-t border-white/[0.06] px-5 py-10 text-center">
+      <footer className="border-t border-white/[0.06] px-5 pt-10 pb-28 text-center sm:pb-10">
         <img src={IMG.logo} alt="Hair Genius Labs" className="mx-auto h-7 w-auto opacity-70" />
         <p className="mt-5 text-[13px] text-white/40">
           Studio a Roma · hairgeniuslabs@gmail.com · +39 379 324 4356
