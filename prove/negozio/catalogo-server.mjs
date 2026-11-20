@@ -16,7 +16,7 @@ const PRIVATE = ["costo", "note_interne", "fornitore", "bozza_modifiche", "bozza
   "peso_g", "classe_spedizione", "scheda_tecnica_path", "nota_titolare", "creato_il"];
 
 /** Le tabelle del negozio di prova: due pubblicati, una bozza, un archiviato; una variante spenta; foto di un prodotto e di una categoria. */
-function negozio(modalita = "cms") {
+export function negozio(modalita = "cms") {
   const t = tabelleProva();
   const P1 = uuid(0x200), P2 = uuid(0x201), P3 = uuid(0x202), P4 = uuid(0x203);
   t.shop_impostazioni = [{ chiave: "catalogo_sito", valore: modalita, aggiornato_il: ISTANTE, aggiornato_da: null }, { chiave: "giacenza_bassa", valore: 3, aggiornato_il: ISTANTE, aggiornato_da: null }];
@@ -42,7 +42,7 @@ function negozio(modalita = "cms") {
 }
 
 /** Le quattro viste di S1, ricavate dalle tabelle (stessa regola del SQL). */
-function viste(t) {
+export function viste(t) {
   const pubblicati = new Set(t.shop_prodotti.filter((p) => p.stato === "pubblicato").map((p) => p.id));
   const cat = new Map(t.shop_categorie.map((c) => [c.id, c]));
   const quanti = (cid) => t.shop_prodotti_categorie.filter((l) => l.categoria_id === cid && pubblicati.has(l.prodotto_id)).length;

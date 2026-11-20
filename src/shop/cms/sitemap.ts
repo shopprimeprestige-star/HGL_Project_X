@@ -24,3 +24,30 @@ export function vociSitemapShop(dati: unknown): VoceShop[] {
   });
   return [...prodotti, ...categorie];
 }
+
+/** Una voce della mappa del sito, nella forma di `VoceMappa` di `src/seo/regole.ts`. */
+export interface VoceMappa {
+  percorso: string;
+  aggiornato?: string | null;
+}
+const voci = (x: unknown): VoceMappa[] => (Array.isArray(x) ? x.filter((v): v is VoceMappa => !!v && typeof (v as VoceMappa).percorso === "string") : []);
+
+/**
+ * La mappa intera: le pagine fisse, poi il blog, poi lo shop CMS (T22). Ogni fonte sta nel suo `try/catch`: se una non
+ * risponde (tabella assente, rete) la mappa esce lo stesso con le altre. Con lo shop `[]` (catalogo `codice`, migrazione
+ * assente) il risultato è quello di prima di T22. Chi la chiama passa `fisse` = `PAGINE_PUBBLICHE`.
+ */
+export async function vociDellaMappa(fonti: {
+  fisse: readonly string[];
+  blog: () => Promise<unknown>;
+  shop: () => Promise<unknown>;
+}): Promise<VoceMappa[]> {
+  const leggi = async (f: () => Promise<unknown>) => {
+    try {
+      return voci(await f());
+    } catch {
+      return [];
+    }
+  };
+  return [...fonti.fisse.map((percorso) => ({ percorso })), ...(await leggi(fonti.blog)), ...(await leggi(fonti.shop))];
+}

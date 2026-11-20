@@ -12,7 +12,8 @@ import { creaCatalogo, type Catalogo, type ClienteDb } from "./catalogo.server";
 
 /** Una per isolato: la memoria breve sta qui. */
 let istanza: Catalogo | null = null;
-async function catalogo(): Promise<Catalogo> {
+/** Anche per le rotte del server (la sitemap): la stessa istanza, quindi la stessa memoria breve. */
+export async function catalogoPubblico(): Promise<Catalogo> {
   if (!istanza) {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const url = process.env.SUPABASE_URL;
@@ -36,7 +37,7 @@ async function letto<T>(vuoto: T, f: (k: Catalogo) => Promise<T>, cache = "publi
     /* fuori da una richiesta (prove, prerender): niente intestazione */
   }
   try {
-    return await f(await catalogo());
+    return await f(await catalogoPubblico());
   } catch {
     return vuoto;
   }
