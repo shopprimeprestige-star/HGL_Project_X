@@ -285,7 +285,7 @@ BEGIN
   END IF;
   SELECT giacenza INTO v_prima FROM public.shop_varianti WHERE id = p_variante FOR UPDATE;
   IF NOT FOUND THEN
-    RAISE EXCEPTION 'variante_non_trovata' USING ERRCODE = 'no_data_found';
+    RAISE EXCEPTION 'variante_inesistente' USING ERRCODE = 'no_data_found';
   END IF;
   v_dopo := v_prima + p_delta;
   IF v_dopo < 0 THEN
@@ -315,7 +315,7 @@ DECLARE
 BEGIN
   SELECT giacenza INTO v_prima FROM public.shop_varianti WHERE id = p_variante FOR UPDATE;
   IF NOT FOUND THEN
-    RAISE EXCEPTION 'variante_non_trovata' USING ERRCODE = 'no_data_found';
+    RAISE EXCEPTION 'variante_inesistente' USING ERRCODE = 'no_data_found';
   END IF;
   IF p_nuovo IS NULL OR p_nuovo < 0 THEN
     RAISE EXCEPTION 'giacenza_negativa' USING ERRCODE = 'check_violation';

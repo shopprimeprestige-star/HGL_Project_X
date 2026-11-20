@@ -340,7 +340,7 @@ SELECT pg_temp.uguale('muovi esattamente fino a zero (-3): permesso, ritorna 0',
 SELECT pg_temp.uguale('un motivo sconosciuto fallisce e NON lascia la giacenza cambiata a metà', '23514|0',
   left(pg_temp.errore($q$SELECT public.shop_giacenza_muovi('00000000-0000-4000-8000-00000000b101', 7, 'regalo', NULL, 'Mario', NULL)$q$), 5) || '|' ||
   (SELECT giacenza FROM public.shop_varianti WHERE id = '00000000-0000-4000-8000-00000000b101'));
-SELECT pg_temp.uguale('delta vuoto e variante inesistente: errori chiari, niente scritto', '22023 giacenza_delta_vuoto|P0002 variante_non_trovata',
+SELECT pg_temp.uguale('delta vuoto e variante inesistente: errori chiari, niente scritto', '22023 giacenza_delta_vuoto|P0002 variante_inesistente',
   pg_temp.errore($q$SELECT public.shop_giacenza_muovi('00000000-0000-4000-8000-00000000b101', NULL, 'carico', NULL, 'Mario', NULL)$q$) || '|' ||
   pg_temp.errore($q$SELECT public.shop_giacenza_muovi('00000000-0000-4000-8000-0000000000ff', 1, 'carico', NULL, 'Mario', NULL)$q$));
 SELECT pg_temp.uguale('muovi +10 (carico): ritorna 10', '10', public.shop_giacenza_muovi('00000000-0000-4000-8000-00000000b101', 10, 'carico', NULL, '   ', NULL)::text);
