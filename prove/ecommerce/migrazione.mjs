@@ -6,6 +6,7 @@
  *  usa-e-getta: mai sul database di produzione. Dati: nessuno, né nomi né numeri. */
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { delNegozio } from "../_migrazioni-negozio.mjs";
 
 const M1 = "20261117120000_ecommerce_ordini.sql";
 const ORIGINALE = "20260722160000_shop_orders.sql";
@@ -195,7 +196,7 @@ export async function prove(_mod, { c, gruppo, radice }) {
     /--\s*DROP POLICY IF EXISTS "anyone can insert shop order"[\s\S]*?--\s*CREATE POLICY "anyone can insert shop order"[\s\S]*?--\s*WITH CHECK \(true\);[\s\S]*?--\s*DROP POLICY IF EXISTS "shop_orders_insert_checkout"[\s\S]*?--\s*COMMIT;/.test(
       grezzo.slice(grezzo.indexOf("NOTIFY pgrst")),
     ));
-  c("il nome di M1 viene dopo l'ultima migrazione già esistente", true, M1 > readdirSync(cartella).filter((f) => f.endsWith(".sql") && f !== M1).sort().at(-1));
+  c("il nome di M1 viene dopo l'ultima migrazione già esistente", true, M1 > readdirSync(cartella).filter((f) => f.endsWith(".sql") && f !== M1 && !delNegozio(f)).sort().at(-1));
   c("le parentesi di M1 e M2 tornano", [0, 0], [sql, sql2].map((t) => [...t].reduce((n, ch) => n + (ch === "(" ? 1 : ch === ")" ? -1 : 0), 0)));
 
   /* ── i tipi a mano (types.ts) ── */

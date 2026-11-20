@@ -92,6 +92,7 @@ import { proveSelezioneChat } from "./idee/selezione-chat.mjs";
 import { proveDatiFattura } from "./dati-fattura.mjs";
 import { proveFattureBulk } from "./fatture-bulk.mjs";
 import { proveEcommerce } from "./ecommerce.mjs";
+import { proveNegozio } from "./negozio.mjs";
 import { provePannelloOggi } from "./pannello-oggi.mjs";
 import { proveSpesaLead } from "./spesa-lead.mjs";
 
@@ -859,6 +860,25 @@ const MODULI = [
         .sort()
         .map((f) => `ecommerce/${f.slice(0, -3)}`)
     : []),
+  //  ── SHOP COMPLETO (commessa 2026-11-20-shop-completo, T01) ──────────────
+  //   ⚠️ Stesso schema: una voce sola per tutta la commessa. I moduli puri (`.ts`, non i `.tsx`, non i
+  //   `*.functions.ts` che sono solo l'involucro del server) di queste cartelle si trovano da soli, con la
+  //   chiave «prefisso/nome»: `shop/cms/modello`, `negozio/prodotti.server`, `tracciamento/…`,
+  //   `lib/tracciamento/nomi`, `lib/consenso`. Le prove sono in prove/negozio/ (trovate da `proveNegozio`).
+  ...[
+    ["src/shop/cms", "shop/cms/"],
+    ["src/crm/negozio", "negozio/"],
+    ["src/crm/tracciamento", "tracciamento/"],
+    ["src/lib/tracciamento", "lib/tracciamento/"],
+  ].flatMap(([cartella, prefisso]) =>
+    existsSync(join(radice, cartella))
+      ? readdirSync(join(radice, cartella))
+          .filter((f) => f.endsWith(".ts") && !f.endsWith(".d.ts") && !f.endsWith(".functions.ts"))
+          .sort()
+          .map((f) => `${prefisso}${f.slice(0, -3)}`)
+      : [],
+  ),
+  ...(existsSync(join(radice, "src/lib/consenso.ts")) ? ["lib/consenso"] : []),
 ];
 rmSync(dove, { recursive: true, force: true });
 mkdirSync(dove, { recursive: true });
@@ -21652,6 +21672,7 @@ proveSelezioneChat(mod, { c, gruppo, radice });
 await proveDatiFattura(mod, { c, gruppo, radice });
 await proveFattureBulk(mod, { c, gruppo, radice });
 await proveEcommerce(mod, { c, gruppo, radice });
+await proveNegozio(mod, { c, gruppo, radice });
 provePannelloOggi(mod, { c, gruppo, radice });
 proveSpesaLead(mod, { c, gruppo, radice });
 await proveIdeeAi(mod, { c, gruppo, radice });
@@ -21976,7 +21997,7 @@ function proveDelleMigrazioniDelPromemoria() {
   const cron = readFileSync(f2, "utf8");
   c("il cron: una sola chiamata, ogni 2 minuti, sulla rotta giusta", 1, (cron.replace(/--.*$/gm, "").match(/SELECT public\.programma_hook_cron\('promemoria-whatsapp-2min', '\*\/2 \* \* \* \*', '\/hooks\/promemoria-whatsapp'\);/g) || []).length);
   c("come si spegne: scritto", true, /cron\.unschedule\('promemoria-whatsapp-2min'\)/.test(cron));
-  const ultime = readdirSync(cartella).filter((n) => n.endsWith(".sql") && !n.includes("promemoria_whatsapp") && !n.includes("manychat_") && !n.includes("sheets_ingresso") && !n.includes("chat_whatsapp_crm") && !n.includes("attesa_da_chiamare") && !n.includes("push_iscrizioni") && !n.includes("ponte_whatsapp") && !n.includes("risposte_ai") && !n.includes("riepilogo_serale") && !n.includes("ponte_invio_manuale") && !n.startsWith("20261030") && !n.startsWith("20261031") && !n.includes("chiamate_numeri_senza_scheda") && !n.includes("ponte_chat_flag") && !n.includes("ecommerce_ordini")).sort();
+  const ultime = readdirSync(cartella).filter((n) => n.endsWith(".sql") && !n.includes("promemoria_whatsapp") && !n.includes("manychat_") && !n.includes("sheets_ingresso") && !n.includes("chat_whatsapp_crm") && !n.includes("attesa_da_chiamare") && !n.includes("push_iscrizioni") && !n.includes("ponte_whatsapp") && !n.includes("risposte_ai") && !n.includes("riepilogo_serale") && !n.includes("ponte_invio_manuale") && !n.startsWith("20261030") && !n.startsWith("20261031") && !n.includes("chiamate_numeri_senza_scheda") && !n.includes("ponte_chat_flag") && !n.includes("ecommerce_ordini") && !n.startsWith("202611")).sort();
   c("vengono dopo l'ultima migrazione esistente", true, "20261022140000" > ultime.at(-1).slice(0, 14));
 }
 
