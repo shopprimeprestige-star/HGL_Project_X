@@ -1,16 +1,22 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { PRODUCTS, type Product } from "./catalog";
+import { subtotaleRighe, type SnapRiga } from "./cms/carrello";
 
 export interface CartLine {
   productId: string;
   qty: number;
   variant?: Record<string, string>; // es. { Colore: "1B", Lunghezza: '8"' }
   key: string; // productId + variant serializzato
+  /** Solo con il catalogo CMS (T12): `productId` è lo SKU della variante e `snap` ciò che serve a disegnare la riga. Le righe vecchie non li hanno. */
+  sku?: string;
+  snap?: SnapRiga;
 }
 
 interface CartContextValue {
   lines: CartLine[];
-  add: (product: Product, qty: number, variant?: Record<string, string>) => void;
+  add: (product: Product, qty: number, variant?: Record<string, string>, cms?: { sku: string; snap: SnapRiga }) => void;
+  /** Sostituisce le righe (dopo `ripulisciRighe`, quando il server dice che qualcosa non c'è più). */
+  replaceLines: (lines: CartLine[]) => void;
   setQty: (key: string, qty: number) => void;
   remove: (key: string) => void;
   clear: () => void;
@@ -52,16 +58,19 @@ export function CartProvider({ children }: { children: ReactNode }) {
     }
   }, [lines, hydrated]);
 
-  const add: CartContextValue["add"] = (product, qty, variant) => {
-    const key = makeKey(product.id, variant);
+  const add: CartContextValue["add"] = (product, qty, variant, cms) => {
+    // catalogo CMS: la riga è la variante (`productId` = SKU); catalogo del codice: come sempre
+    const key = cms ? cms.sku : makeKey(product.id, variant);
     setLines((prev) => {
       const existing = prev.find((l) => l.key === key);
       if (existing) {
-        return prev.map((l) => (l.key === key ? { ...l, qty: Math.min(99, l.qty + qty) } : l));
+        return prev.map((l) => (l.key === key ? { ...l, qty: Math.min(99, l.qty + qty), ...(cms ? { snap: cms.snap } : {}) } : l));
       }
-      return [...prev, { productId: product.id, qty, variant, key }];
+      return [...prev, cms ? { productId: cms.sku, qty, variant, key, sku: cms.sku, snap: cms.snap } : { productId: product.id, qty, variant, key }];
     });
   };
+
+  const replaceLines: CartContextValue["replaceLines"] = (next) => setLines(next);
 
   const setQty: CartContextValue["setQty"] = (key, qty) => {
     setLines((prev) =>
@@ -77,13 +86,11 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const clear = () => setLines([]);
 
   const count = lines.reduce((s, l) => s + l.qty, 0);
-  const subtotal = lines.reduce((s, l) => {
-    const p = PRODUCTS.find((pr) => pr.id === l.productId);
-    return s + (p ? p.price * l.qty : 0);
-  }, 0);
+  // righe vecchie: prezzi di PRODUCTS come sempre; righe CMS (con `sku`): dai centesimi di `snap`
+  const subtotal = subtotaleRighe(lines, (id) => PRODUCTS.find((pr) => pr.id === id)?.price);
 
   return (
-    <CartContext.Provider value={{ lines, add, setQty, remove, clear, count, subtotal }}>
+    <CartContext.Provider value={{ lines, add, replaceLines, setQty, remove, clear, count, subtotal }}>
       {children}
     </CartContext.Provider>
   );
