@@ -77,7 +77,12 @@ export async function prove(mod, { c, gruppo, radice }) {
     c("cms: nel piè di pagina niente «59», niente «Spedizione gratuita» (la cifra non è più vera)", [false, false], [/59/.test(testoVisibile(piede(cms))), /Spedizione gratuita/i.test(testoVisibile(piede(cms)))]);
     c("cms: il piè di pagina ha ancora Privacy, Termini, Cookie, Catalogo, il link «Gestisci cookie» e la ragione sociale", [true, true, true, true, true, true],
       ["Privacy", "Termini", "Cookie", "Catalogo", "Gestisci cookie", `© ${anno} Hair Genius Labs SRLS`].map((t) => testoVisibile(piede(cms)).includes(t)));
-    c("cms: il resto del piè di pagina è identico a oggi (tolta la frase sulla spedizione)", oggi.replace(" · Spedizione gratuita sopra €59", ""), piede(cms).replace(BOTTONE, ""));
+    //  D38: con `cms` la frase non dice «premium» e i link passano da white/45 a white/60 (contrasto); il resto è quello di oggi
+    const oggiCms = oggi.replace(" · Spedizione gratuita sopra €59", "").replace("Protesi e cura di grado premium", "Patch e prodotti per la cura").replace("text-xs text-white/45", "text-xs text-white/60");
+    c("cms: il resto del piè di pagina è quello di oggi, tolta la frase sulla spedizione, con la frase nuova (D38) e i link a white/60", oggiCms, piede(cms).replace(BOTTONE, ""));
+    c("cms: «Gestisci cookie» eredita il colore white/60 dei link vicini (nessun colore suo più scuro)", [true, false], [/text-white\/60/.test(piede(cms).match(/<div class="flex flex-wrap[^"]*"/)?.[0] ?? ""), /text-white\/(30|40|45|50)/.test(piede(cms).match(/<button[^>]*>/)?.[0] ?? "")]);
+    c("cms: nel piè di pagina niente «premium», «indistinguibil…», «Remy»", false, /premium|indistinguibil|Remy/i.test(testoVisibile(piede(cms))));
+    c("codice: il piè di pagina dice ancora «grado premium» (non cambia niente)", true, /grado premium/.test(testoVisibile(piede(co))));
     c("cms e codice: nessun indirizzo dello studio nel piè di pagina né nella testata", false, /Scipioni|Via degli|\bVia\b/.test(testoVisibile(piede(cms) + piede(co) + cms)));
     const cmsRotto = vista(undefined);
     c("un contesto senza modalità (lettura fallita) disegna lo shop di sempre: la frase sulla spedizione c'è", true, testoVisibile(piede(cmsRotto)).includes("Spedizione gratuita sopra €59"));
@@ -87,6 +92,73 @@ export async function prove(mod, { c, gruppo, radice }) {
       [["/shop/ordine/ab12", "?t=1"], ["/shop/prodotto/x", "?anteprima=abc"], ["/shop", "?watch=abc"], ["/shop", "?modifica"]].map(([p, q]) => /Gestisci cookie/.test(vista("cms", p, q))));
     c("sulle pagine dello shop ammesse il link c'è (elenco, categoria, scheda, carrello, cassa)", [true, true, true, true, true],
       ["/shop", "/shop/c/shampoo", "/shop/prodotto/patch-1", "/shop/carrello", "/shop/checkout"].map((p) => /Gestisci cookie/.test(vista("codice", p))));
+  }
+
+  /* ───────────────── 2b · LA DESCRIZIONE IN `head` ───────────────── */
+  //  `head` gira dopo `beforeLoad`: la modalità la legge dal contesto del match (`match.context.modalita`).
+  if (typeof M?.Route?.options?.head === "function") {
+    const descr = (match) => M.Route.options.head({ match, matches: [], params: {} })?.meta?.find((m) => m.name === "description")?.content ?? "";
+    const titolo = (match) => M.Route.options.head({ match })?.meta?.find((m) => m.title)?.title;
+    const DESCRIZIONE_DI_OGGI = "Protesi lace e skin indistinguibili, shampoo, balsami, districanti, solventi e adesivi. Tutto per chi indossa un toupee.";
+    c("head, codice: la descrizione è quella di oggi", DESCRIZIONE_DI_OGGI, descr({ context: { modalita: "codice" } }));
+    c("head, contesto assente o rotto (lettura fallita): quella di oggi, mai un errore", [DESCRIZIONE_DI_OGGI, DESCRIZIONE_DI_OGGI], [descr({}), descr(undefined)]);
+    const dCms = descr({ context: { modalita: "cms" } });
+    c("head, cms: descrizione neutra, senza «premium», «indistinguibil…», «Remy», e non vuota", [true, false], [dCms.length > 20, /premium|indistinguibil|Remy/i.test(dCms)]);
+    c("head, cms: dice quello che dice D38 («Patch e prodotti per la cura»)", true, /Patch e prodotti per la cura/.test(dCms));
+    c("head: il titolo della pagina è lo stesso con i due cataloghi (D38 non lo cambia)", true, titolo({ context: { modalita: "cms" } }) === titolo({ context: { modalita: "codice" } }));
+  } else c("la rotta `/shop` ha `head`", "function", typeof M?.Route?.options?.head);
+
+  /* ───────────────── 2c · LA MODALITÀ DURA TUTTA LA VISITA (nel browser) ───────────────── */
+  //  Nel browser la modalità si tiene in una variabile del modulo: un guasto a metà visita non riporta lo shop su `codice`.
+  //  Sul server si legge a ogni richiesta. Ogni scenario ha un modulo NUOVO (la variabile riparte da zero).
+  const fresca = () => impacchettaPagina(
+    radice,
+    `import { renderToStaticMarkup } from "react-dom/server";
+     import { createElement } from "react";
+     export { Route } from "@/routes/shop";
+     export const disegna = (C) => renderToStaticMarkup(createElement(C));`,
+    "shop-guscio-visita",
+  );
+  const finestraFinta = { localStorage: { getItem: () => null, setItem() {}, removeItem() {} }, sessionStorage: { getItem: () => null, setItem() {}, removeItem() {} }, addEventListener() {}, removeEventListener() {} };
+  const conFinestra = async (nel, f) => {
+    const prima = Object.getOwnPropertyDescriptor(globalThis, "window");
+    if (nel) globalThis.window = finestraFinta;
+    try { return await f(); } finally { if (prima) Object.defineProperty(globalThis, "window", prima); else delete globalThis.window; }
+  };
+  /** Una sequenza di letture del server: ogni valore è «cms», «codice» o un errore (`"errore"`). */
+  const sequenza = (...esiti) => { let i = 0; const n = { chiamate: 0 }; return { n, dai: () => { n.chiamate++; const e = esiti[Math.min(i++, esiti.length - 1)]; if (e === "errore") throw new Error("rete giù"); return e; } }; };
+  const modalitaDi = async (V, ctx = {}) => (await V.Route.options.beforeLoad(ctx)).modalita;
+  try {
+    // browser: la prima lettura è «cms», poi la rete cade → resta «cms», e non si richiede nemmeno
+    const A = await fresca();
+    const sA = sequenza("cms", "errore");
+    impostaPagina({ server: { modalita: sA.dai } });
+    const lettureA = await conFinestra(true, async () => [await modalitaDi(A), await modalitaDi(A), await modalitaDi(A)]);
+    c("browser: letta «cms» una volta, un guasto a metà visita NON riporta su «codice»", ["cms", "cms", "cms"], lettureA);
+    c("browser: dopo la prima lettura la modalità non si richiede più al server", 1, sA.n.chiamate);
+
+    // browser: la pagina è arrivata dal server (beforeLoad non rigira): il componente fissa la modalità del contesto
+    const B = await fresca();
+    const sB = sequenza("errore");
+    impostaPagina({ pathname: "/shop", searchStr: "", context: { modalita: "cms" }, server: { modalita: sB.dai } });
+    const lettureB = await conFinestra(true, async () => { B.disegna(B.Route.options.component); return [await modalitaDi(B)]; });
+    c("browser: la pagina arrivata dal server con «cms»: il primo clic con la rete caduta resta su «cms»", ["cms"], lettureB);
+    c("browser: …e non richiede la modalità al server", 0, sB.n.chiamate);
+
+    // browser: primo guasto, nessuna modalità ancora → «codice», e resta tale per la visita (coerenza: il carrello non cambia catalogo)
+    const C = await fresca();
+    const sC = sequenza("errore", "cms");
+    impostaPagina({ server: { modalita: sC.dai } });
+    c("browser: se la prima lettura fallisce, «codice»; la visita resta coerente (niente salto a «cms» a metà)", ["codice", "codice"], await conFinestra(true, async () => [await modalitaDi(C), await modalitaDi(C)]));
+
+    // server (niente `window`): ogni richiesta rilegge
+    const D = await fresca();
+    const sD = sequenza("cms", "errore", "codice", "cms");
+    impostaPagina({ server: { modalita: sD.dai } });
+    c("server: la modalità si legge a OGNI richiesta (un guasto → «codice» solo per quella richiesta)", ["cms", "codice", "codice", "cms"], await conFinestra(false, async () => [await modalitaDi(D), await modalitaDi(D), await modalitaDi(D), await modalitaDi(D)]));
+    c("server: quattro richieste, quattro letture", 4, sD.n.chiamate);
+  } catch (e) {
+    c("la modalità dura tutta la visita: la prova non deve lanciare", "ok", String(e?.stack ?? e).split("\n").slice(0, 3).join(" | "));
   }
 
   /* ───────────────── 3 · LA PROTESI PER LA BARRA ───────────────── */

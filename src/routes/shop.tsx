@@ -10,23 +10,39 @@ import { GestisciCookie } from "@/components/tracciamento/GestisciCookie";
 import { Toaster } from "@/components/ui/sonner";
 import logo from "@/assets/logo-hair-genius.png";
 
+type Modalita = "codice" | "cms";
+
+/** La modalità di QUESTA visita, nel browser: letta una volta (o arrivata con la pagina del server) e poi ferma. Un guasto di
+ *  rete a metà visita non riporta lo shop su `codice` (catalogo vecchio, 404 sulle categorie, righe CMS nel carrello).
+ *  Sul server resta `undefined`: lì si legge a ogni richiesta, e la variabile non è condivisa fra visitatori. */
+let modalitaVisita: Modalita | undefined;
+
 export const Route = createFileRoute("/shop")({
-  //  La modalità del catalogo (`codice` o `cms`) si legge UNA volta, qui, e scende a tutte le pagine dello shop nel contesto
-  //  della rotta (`modalita`): le pagine figlie non la rileggono. Se la lettura non riesce, lo shop resta quello di oggi.
+  //  La modalità del catalogo (`codice` o `cms`) si legge qui e scende a tutte le pagine dello shop nel contesto della rotta
+  //  (`modalita`): le pagine figlie non la rileggono. Sul server a ogni richiesta; nel browser una volta per visita.
+  //  Se la lettura non riesce, lo shop resta quello di oggi.
   beforeLoad: async () => {
+    if (modalitaVisita) return { modalita: modalitaVisita };
+    let modalita: Modalita;
     try {
-      return { modalita: await modalitaCatalogo() };
+      modalita = await modalitaCatalogo();
     } catch {
-      return { modalita: "codice" as const };
+      modalita = "codice";
     }
+    if (typeof window !== "undefined") modalitaVisita = modalita;
+    return { modalita };
   },
-  head: () => ({
+  //  `head` gira dopo `beforeLoad`: la modalità la trova nel contesto del match. Con il catalogo CMS la descrizione non promette
+  //  niente (D38); senza contesto (lettura fallita) resta quella di oggi.
+  head: ({ match }) => ({
     meta: [
       { title: "Hair Genius Shop — Toupee e prodotti per la cura" },
       {
         name: "description",
         content:
-          "Protesi lace e skin indistinguibili, shampoo, balsami, districanti, solventi e adesivi. Tutto per chi indossa un toupee.",
+          (match?.context as { modalita?: Modalita } | undefined)?.modalita === "cms"
+            ? "Patch e prodotti per la cura, scelti in studio."
+            : "Protesi lace e skin indistinguibili, shampoo, balsami, districanti, solventi e adesivi. Tutto per chi indossa un toupee.",
       },
     ],
   }),
@@ -83,16 +99,19 @@ function Header() {
   );
 }
 
-function ShopFooter({ modalita }: { modalita: "codice" | "cms" }) {
+function ShopFooter({ modalita }: { modalita: Modalita }) {
+  const cms = modalita === "cms";
+  //  Con il catalogo CMS niente «grado premium» (D38) e link più chiari (contrasto: white/60); con `codice` com'è oggi.
+  const colore = cms ? "text-white/60" : "text-white/45";
   return (
     <footer className="bg-footer border-t border-white/10">
       <div className="mx-auto max-w-6xl px-4 py-10">
         <div className="flex flex-col items-center gap-3 text-center">
           <img src={logo} alt="Hair Genius" className="h-9 w-9 rounded-md object-contain" />
           <p className="text-sm text-white/60">
-            Hair Genius Labs · Protesi e cura di grado premium
+            Hair Genius Labs · {cms ? "Patch e prodotti per la cura" : "Protesi e cura di grado premium"}
           </p>
-          <div className="flex flex-wrap justify-center gap-x-5 gap-y-2 text-xs text-white/45">
+          <div className={`flex flex-wrap justify-center gap-x-5 gap-y-2 text-xs ${colore}`}>
             <a href="/privacy-policy" className="hover:text-white/80">Privacy</a>
             <a href="/termini-e-condizioni" className="hover:text-white/80">Termini</a>
             <a href="/cookie-policy" className="hover:text-white/80">Cookie</a>
@@ -103,7 +122,7 @@ function ShopFooter({ modalita }: { modalita: "codice" | "cms" }) {
           <p className="mt-2 text-[11px] text-white/30">
             © {new Date().getFullYear()} Hair Genius Labs SRLS
             {/* Con il catalogo CMS la soglia non c'è più (la cifra non è più vera): la frase si mostra solo con quello del codice. */}
-            {modalita !== "cms" && " · Spedizione gratuita sopra €59"}
+            {!cms && " · Spedizione gratuita sopra €59"}
           </p>
         </div>
       </div>
@@ -112,7 +131,7 @@ function ShopFooter({ modalita }: { modalita: "codice" | "cms" }) {
 }
 
 /** La barra della consulenza: nella scheda di una protesi sa quale protesi si guarda. */
-function BarraShop({ modalita }: { modalita: "codice" | "cms" }) {
+function BarraShop({ modalita }: { modalita: Modalita }) {
   const path = useRouterState({ select: (s) => s.location.pathname });
   const slug = path.match(/^\/shop\/prodotto\/([^/]+)/)?.[1];
   let slugLetto: string | undefined;
@@ -141,6 +160,8 @@ function BarraShop({ modalita }: { modalita: "codice" | "cms" }) {
 
 function ShopLayout() {
   const { modalita } = Route.useRouteContext();
+  //  La pagina arrivata dal server non ripassa da `beforeLoad` nel browser: la sua modalità diventa quella della visita.
+  if (typeof window !== "undefined") modalitaVisita ??= modalita;
   return (
     <CartProvider>
       <div className="bg-blueprint min-h-screen text-white">

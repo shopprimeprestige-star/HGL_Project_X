@@ -57,8 +57,8 @@ export async function prove(mod, { c, gruppo, radice }) {
   const PUB = mod["shop/cms/pubblico"];
 
   /* ───────────────── 1 · LE FUNZIONI PURE ───────────────── */
-  c("`elenco.ts` c'è e dà le funzioni che servono", ["function", "function", "function", "function", "function", "function"],
-    ["testoDaCercare", "eInvisibleDerm", "datiListaVisualizzata", "emettiUnaVolta", "creaEmettitoreRicerca", "frasaSenzaRisultati"].map((n) => typeof E?.[n]));
+  c("`elenco.ts` c'è e dà le funzioni che servono", ["function", "function", "function", "function", "function", "function", "function", "function", "function"],
+    ["testoDaCercare", "eInvisibleDerm", "datiListaVisualizzata", "emettiUnaVolta", "creaEmettitoreRicerca", "frasaSenzaRisultati", "etichettaArticoli", "suScelta", "senzaPrezzo"].map((n) => typeof E?.[n]));
   if (E?.testoDaCercare) {
     c("ricerca: il testo si ripulisce (spazi ai bordi e doppi) e basta", ["colla forte", "colla", "HG-T01"], [E.testoDaCercare("  colla   forte "), E.testoDaCercare("colla"), E.testoDaCercare("HG-T01")]);
     c("ricerca: vuoto, una lettera sola, non testo → niente evento", [null, null, null, null, null, null], ["", "   ", "a", undefined, 42, null].map((x) => E.testoDaCercare(x)));
@@ -105,6 +105,33 @@ export async function prove(mod, { c, gruppo, radice }) {
   if (E?.eInvisibleDerm) {
     c("Invisible Derm si riconosce dal nome (anche «Protocol®», maiuscole, spazi doppi); «Silk Top Invisible Knots» no", [true, true, true, false, false, false],
       ["Invisible Derm Protocol®", "INVISIBLE DERM", "invisible   derm", "Silk Top Invisible Knots", "Derm", ""].map((x) => E.eInvisibleDerm(x)));
+    c("Invisible Derm: anche «Invisible-Derm», «InvisibleDerm», «invisible_derm» (come la funzione di T11, D39)", [true, true, true], ["Invisible-Derm Protocol", "InvisibleDerm", "invisible_derm"].map((x) => E.eInvisibleDerm(x)));
+  }
+  if (E?.etichettaArticoli) {
+    c("conteggio: «0 articoli», «1 articolo» (singolare), «5 articoli»", ["0 articoli", "1 articolo", "5 articoli"], [0, 1, 5].map((n) => E.etichettaArticoli(n)));
+  }
+  if (E?.senzaPrezzo && E?.daAggiungereDalCard && E?.haPrezziDiversi) {
+    //  D39: dal server Invisible Derm arriva con `prezzoCent: null` (e `prezzoDaCent: null`). Nessuna di queste funzioni deve lanciare o inventare un prezzo.
+    const base = (extra, varianti) => ({ sku: "X", slug: "x", nome: "Un prodotto", opzioni: [], media: [], prezzoDaCent: 1000, varianti: varianti ?? [{ sku: "X-A", nome: "Unica", opzioni: {}, prezzoCent: 1000, disponibile: true }], ...extra });
+    const conPrezzo = { product: { name: "Un prodotto" }, pubblico: base({}) };
+    const senza = { product: { name: "Un prodotto" }, pubblico: base({ prezzoDaCent: null }, [{ sku: "X-A", nome: "Unica", opzioni: {}, prezzoCent: null, disponibile: true }]) };
+    const derm = { product: { name: "Invisible Derm Protocol®" }, pubblico: base({}) };
+    c("senza prezzo: un prodotto con prezzo no; uno con `prezzoCent: null` sì; Invisible Derm sì (anche se il prezzo arrivasse)", [false, true, true], [E.senzaPrezzo(conPrezzo), E.senzaPrezzo(senza), E.senzaPrezzo(derm)]);
+    c("senza prezzo: un prodotto del codice (senza `pubblico`) ha sempre il suo prezzo", false, E.senzaPrezzo({ product: { name: "Toupee" } }));
+    c("un prodotto senza prezzo non si aggiunge dalla scheda dell'elenco (niente riga da 0 €)", [null, true], [E.daAggiungereDalCard(senza), !!E.daAggiungereDalCard(conPrezzo)]);
+    c("`haPrezziDiversi` non lancia con prezzi nulli e non dice «Da» per un prezzo solo", [false, false], [E.haPrezziDiversi(senza.pubblico), E.haPrezziDiversi(conPrezzo.pubblico)]);
+  }
+  if (E?.suScelta) {
+    //  dopo la scelta sul banner l'evento si riprova (il banner può essere accettato DOPO il caricamento della pagina)
+    const finto = () => { const a = new Map(); return { a, addEventListener: (n, f) => a.set(n, f), removeEventListener: (n) => a.delete(n), manda: (n) => a.get(n)?.() }; };
+    const orologio = () => { const t = { n: 0, vivi: new Map() }; return { set: (f, ms) => { const id = ++t.n; t.vivi.set(id, { f, ms }); return id; }, clear: (id) => void t.vivi.delete(id), passa: () => { for (const [id, v] of [...t.vivi]) { t.vivi.delete(id); v.f(); } }, vivi: () => t.vivi.size, ms: () => [...t.vivi.values()].at(-1)?.ms }; };
+    const w = finto(); const o = orologio(); let n = 0;
+    const via = E.suScelta(w, "hgl:consenso", () => n++, 2000, { set: o.set, clear: o.clear });
+    c("dopo la scelta: l'ascolto è sul nome dell'evento del consenso e non parte niente subito", [true, 0], [w.a.has("hgl:consenso"), n]);
+    w.manda("hgl:consenso"); c("dopo la scelta: si aspetta (il provider carica i pixel dopo) e poi l'azione parte UNA volta", [2000, 0], [o.ms(), n]);
+    w.manda("hgl:consenso"); o.passa(); c("dopo la scelta: due scelte ravvicinate = un'azione sola", 1, n);
+    w.manda("hgl:consenso"); via();
+    c("dopo la scelta: lasciando la pagina l'ascolto e l'attesa si tolgono (l'azione non parte)", [false, 0, 1], [w.a.has("hgl:consenso"), o.vivi(), (o.passa(), n)]);
   }
   if (E?.frasaSenzaRisultati) {
     c("nessun risultato: con il codice la frase di oggi, con il CMS quella del Copywriter (3.13)", ["Nessun prodotto trovato per «tape».", "Non troviamo “tape”. Prova con un'altra parola, o chiedici aiuto."], [E.frasaSenzaRisultati("tape", false), E.frasaSenzaRisultati("tape", true)]);
@@ -121,6 +148,8 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("nessuna riga con l'indirizzo dello studio", false, /Scipioni|\bVia degli\b/i.test(leggi(F.indice) + leggi(F.categoria) + leggi(F.griglia)));
   c("le pagine non importano il carattere nuovo (D29): niente `lib/carattere`, niente Inter", false, /lib\/carattere|\bInter\b/.test(tutto));
   c("l'elenco legge la modalità dal contesto del guscio (`useRouteContext`), non la rilegge (`modalitaCatalogo`)", [true, false], [/useRouteContext\(\)/.test(src.indice), /modalitaCatalogo/.test(src.indice + src.categoria + src.griglia)]);
+  c("`ViewContent` della lista riparte anche se il banner si accetta DOPO il caricamento della pagina: `useListaVista` ascolta la scelta (EVENTO_CONSENSO) con `suScelta`", [true, true], [/EVENTO_CONSENSO/.test(src.griglia), /suScelta\(/.test(src.griglia)]);
+  c("il conteggio degli articoli passa da `etichettaArticoli` (singolare «1 articolo») in entrambe le pagine", [true, true, false], [/etichettaArticoli\(/.test(src.indice), /etichettaArticoli\(/.test(src.categoria), /articoli<\/span>|\} articoli/.test(src.indice + src.categoria)]);
   c("la categoria: codice → `notFound()`; CMS senza categoria o senza prodotti → `redirect` a /shop", [true, true], [/notFound\(\)/.test(src.categoria), /redirect\(\{\s*to:\s*"\/shop"/.test(src.categoria)]);
 
   /* ───────────────── 3 · IL MARKUP: CODICE E CMS ───────────────── */
@@ -170,8 +199,33 @@ export async function prove(mod, { c, gruppo, radice }) {
     [/line-through|<del|<s>/.test(hCms), /border-brand\/40|rounded-full border border-brand/.test(hCms), /sconto|risparmi|ultimi|best seller|top rated/i.test(tCms)]);
   c("cms: niente soglia di spedizione gratuita (la cifra non è più vera) né il «Remy» non provato", [false, false], [/59|Spedizione gratis/i.test(tCms), /Remy/.test(tCms)]);
   c("cms: nessun indirizzo dello studio", false, /Scipioni|Via degli/i.test(tCms));
-  const [cShampoo, cPatch, cColla, cDerm, cKit] = cardCms;
   const prezzo = (h) => (testoVisibile(h).match(/€\s?[\d.]+,\d{2}|[\d.]+,\d{2}\s?€/g) ?? []);
+  //  D38: con il catalogo CMS il titolo e il sottotitolo non promettono niente; le parole vietate non ci sono
+  const PAROLE_VIETATE = /premium|indistinguibil|\bRemy\b|grado/i;
+  c("cms: il titolo è «Patch e prodotti per la cura, scelti in studio» (D38), un solo h1", [1, "Patch e prodotti per la cura, scelti in studio"], [(hCms.match(/<h1\b/g) ?? []).length, testoVisibile(hCms.match(/<h1[\s\S]*?<\/h1>/)?.[0] ?? "").replace(/\s+,/g, ",")]);
+  c("cms: nel titolo, nel sottotitolo e in tutta la pagina niente «premium», «indistinguibil…», «Remy», «grado»", false, PAROLE_VIETATE.test(tCms));
+  c("cms: il sottotitolo c'è ancora (non vuoto) e nomina i prodotti", true, /<h1[\s\S]*?<\/h1><p class="mx-auto max-w-xl text-white\/60">[^<]{30,}</.test(hCms));
+  c("codice: il titolo e il sottotitolo di oggi restano (premium, indistinguibili): l'impronta lo prova, qui il testo", [true, true], [/Toupee\s*indistinguibili\s*e tutto per curarli/.test(testoVisibile(hCodice)), /grado premium/.test(testoVisibile(hCodice))]);
+  c("cms: «1 articolo» al singolare, mai «1 articoli»", [false], [/\b1 articoli\b/.test(tCms)]);
+  //  Note 5: una categoria senza prodotti (`quanti: 0`) non è un chip (il suo indirizzo rimanda a /shop)
+  const categorieConVuota = [...categorieProva, { slug: "vuota", nome: "Categoria senza prodotti", tipo: "categoria", frase: null, foto: null, seo: { titolo: null, descrizione: null }, ordine: 9, quanti: 0 }];
+  impostaPagina({ pathname: "/shop", searchStr: "", context: { modalita: "cms" }, loaderData: { prodotti: PUBBLICI, categorie: categorieConVuota } });
+  const hVuota = norm(M.disegna(M.Indice.options.component));
+  c("cms: la categoria con 0 prodotti non è un chip; le altre tre sì", [false, false, 3], [/href="\/shop\/c\/vuota"/.test(hVuota), /Categoria senza prodotti/.test(hVuota), (hVuota.match(/href="\/shop\/c\//g) ?? []).length]);
+  impostaPagina({ pathname: "/shop", searchStr: "", context: { modalita: "cms" }, loaderData: { prodotti: PUBBLICI, categorie: [categorieConVuota.at(-1)] } });
+  c("cms: tutte le categorie a 0 → nessuna riga di chip (non un «Tutti» da solo)", [false, false], (() => { const h = norm(M.disegna(M.Indice.options.component)); return [/>Tutti</.test(h), /href="\/shop\/c\//.test(h)]; })());
+  //  D39: il server dà Invisible Derm con `prezzoCent` e `prezzoDaCent` nulli; un prodotto qualunque senza prezzo non si compra
+  const senzaPrezzi = PUBBLICI.map((p) => (/Invisible Derm/.test(p.nome) ? { ...p, prezzoDaCent: null, varianti: p.varianti.map((v) => ({ ...v, prezzoCent: null })) } : p));
+  const stranoSenzaPrezzo = { ...PUBBLICI[0], sku: "PROVA-SP", slug: "senza-prezzo", nome: "Un prodotto senza prezzo", prezzoDaCent: null, varianti: PUBBLICI[0].varianti.map((v) => ({ ...v, prezzoCent: null })) };
+  impostaPagina({ pathname: "/shop", searchStr: "", context: { modalita: "cms" }, loaderData: { prodotti: [...senzaPrezzi, stranoSenzaPrezzo], categorie: categorieProva } });
+  const hNull = (() => { try { return norm(M.disegna(M.Indice.options.component)); } catch (e) { return `LANCIA ${String(e).slice(0, 80)}`; } })();
+  const cNull = schede(hNull);
+  c("D39: con i prezzi nulli la pagina si disegna (6 schede) e non lancia", [6, false], [cNull.length, /^LANCIA/.test(hNull)]);
+  c("D39: Invisible Derm senza prezzo dal server: nessuna cifra, nessun «NaN», nessun «Aggiungi», frase e link alla scheda", [[], false, false, true, true],
+    [prezzo(cNull[3]), /NaN|null|undefined/.test(cNull[3]), /Aggiungi/.test(cNull[3]), /Il costo lo vedi in consulenza\./.test(testoVisibile(cNull[3])), /href="\/shop\/prodotto\/invisible-derm-protocol"/.test(cNull[3])]);
+  c("D39: un prodotto qualunque senza prezzo non mostra «0,00», né «Aggiungi», e manda alla scheda", [[], false, false, true], [prezzo(cNull[5]), /0,00/.test(cNull[5]), /<button|Aggiungi/.test(cNull[5]), /href="\/shop\/prodotto\/senza-prezzo"/.test(cNull[5])]);
+  c("D39: gli altri prodotti restano come prima (prezzi e bottoni)", [["18,90"], ["24,00"], ["45,00"]], [prezzo(cNull[0]), prezzo(cNull[2]), prezzo(cNull[4])].map((l) => l.map((x) => x.replace(/[^\d,]/g, ""))));
+  const [cShampoo, cPatch, cColla, cDerm, cKit] = cardCms;
   c("cms: i prezzi sono quelli del server (centesimi → euro), con «Da» se le varianti costano diverso", [["18,90"], true, ["24,00"], ["45,00"]],
     [prezzo(cShampoo).map((x) => x.replace(/[^\d,]/g, "")), /Da\s/.test(testoVisibile(cPatch)) && /120,00/.test(testoVisibile(cPatch)), prezzo(cColla).map((x) => x.replace(/[^\d,]/g, "")), prezzo(cKit).map((x) => x.replace(/[^\d,]/g, ""))]);
   c("cms: Invisible Derm SENZA prezzo: nessuna cifra, nessun «€», nessun «Aggiungi»; c'è la frase «Il costo lo vedi in consulenza.» e il link alla scheda", [[], false, false, true, true],
@@ -224,6 +278,12 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("categoria: titolo e descrizione della pagina sono quelli SEO della categoria (e il nome del sito)", [true, "Patch pronte da uno studio di Roma."], [/^Patch pronte, scegli colore e misura \| /.test(testa?.meta?.find((m) => m.title)?.title ?? ""), meta("description")]);
   c("categoria: indirizzo canonico /shop/c/<slug> sul dominio del sito", true, /^https:\/\/[^/]+\/shop\/c\/patch-pronte$/.test(testa?.links?.find((l) => l.rel === "canonical")?.href ?? ""));
   c("categoria: i dati strutturati sono un'ItemList con i prodotti, scritti senza `<` (non chiudono il tag)", [true, false], (() => { const t = testa?.scripts?.[0]?.children ?? ""; return [/"ItemList"/.test(t) && /patch-di-prova/.test(t), /</.test(t)]; })());
+  //  Nota 2: un nome con `</script>` NON chiude il tag. Se si scrivesse `JSON.stringify` al posto di `serializzaJsonLd`, questa prova diventa rossa.
+  const NOME_OSTILE = "</script><script>alert(1)</script>";
+  const ostile = { ...caricati, prodotti: caricati.prodotti.map((p, i) => (i === 0 ? { ...p, nome: NOME_OSTILE } : p)) };
+  const testaOstile = K.options.head?.({ loaderData: ostile, params: { slug: "patch-pronte" } });
+  const jsonOstile = testaOstile?.scripts?.[0]?.children ?? "";
+  c("categoria: un nome con `</script>` non apre né chiude un tag nel JSON-LD (nessun `<`, e si rilegge identico con JSON.parse)", [false, NOME_OSTILE], (() => { try { return [/</.test(jsonOstile), JSON.parse(jsonOstile).itemListElement[0].name]; } catch { return ["non si rilegge", null]; } })());
   const sc = (await carica("shampoo-e-balsami")).r;
   const testa2 = K.options.head?.({ loaderData: sc, params: { slug: "shampoo-e-balsami" } });
   c("categoria: senza testi SEO il titolo è il nome della categoria", true, /^Shampoo e balsami \| /.test(testa2?.meta?.find((m) => m.title)?.title ?? ""));
@@ -237,4 +297,11 @@ export async function prove(mod, { c, gruppo, radice }) {
     [(hCat.match(/lucide-star/g) ?? []).length, /recension/i.test(tCat), /line-through/.test(hCat), /border-brand\/40/.test(hCat), prezzo(schede(hCat)[1] ?? "")]);
   c("categoria: un sentiero per tornare (Shop › nome) e le altre categorie come link; quella aperta è evidenziata", [true, true, true], [/href="\/shop"[^>]*>Shop<\/a>/.test(hCat), /href="\/shop\/c\/colle-e-remover"/.test(hCat), /<a [^>]*aria-current="page"[^>]*>Patch pronte<\/a>/.test(hCat)]);
   c("categoria: nessun indirizzo dello studio", false, /Scipioni|Via degli/i.test(tCat));
+  c("categoria: niente «premium», «indistinguibil…», «Remy», «grado» (D38)", false, PAROLE_VIETATE.test(tCat));
+  c("categoria: «2 articoli» (plurale) e una sola con «1 articolo»", [true, true], (() => {
+    impostaPagina({ pathname: "/shop/c/patch-pronte", searchStr: "", params: { slug: "patch-pronte" }, context: ctx("cms"), loaderData: { ...caricati, prodotti: caricati.prodotti.slice(0, 1) } });
+    return [/2 articoli/.test(tCat), />1 articolo</.test(M.disegna(K.options.component))];
+  })());
+  impostaPagina({ pathname: "/shop/c/patch-pronte", searchStr: "", params: { slug: "patch-pronte" }, context: ctx("cms"), loaderData: { ...caricati, categorie: categorieConVuota } });
+  c("categoria: la categoria con 0 prodotti non è un chip nemmeno qui", false, /href="\/shop\/c\/vuota"/.test(M.disegna(K.options.component)));
 }

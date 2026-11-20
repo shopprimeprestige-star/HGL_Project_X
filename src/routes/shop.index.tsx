@@ -5,7 +5,7 @@ import { Search, Star, ShieldCheck, Truck, Sparkles } from "lucide-react";
 import { CATEGORIES, PRODUCTS, type CategoryKey } from "@/shop/catalog";
 import { elencoCategorie, elencoProdotti } from "@/shop/cms/catalogo.functions";
 import { ChipCategorie, GrigliaProdotti, useListaVista } from "@/shop/cms/GrigliaProdotti";
-import { creaEmettitoreRicerca, filtraVoci, frasaSenzaRisultati, vociDaCodice, vociDaPubblici } from "@/shop/cms/elenco";
+import { creaEmettitoreRicerca, etichettaArticoli, filtraVoci, frasaSenzaRisultati, vociDaCodice, vociDaPubblici } from "@/shop/cms/elenco";
 import { emettiEvento } from "@/lib/tracciamento/api";
 import { NOME_PRODOTTO } from "@/landing/testi-sito";
 
@@ -56,11 +56,20 @@ function Storefront() {
           <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-1 text-[11px] uppercase tracking-[0.2em] text-white/70">
             <Sparkles className="h-3.5 w-3.5 text-brand" /> Collezione {NOME_PRODOTTO}
           </span>
+          {/* Con il catalogo CMS testi senza promesse (D38: niente «premium», niente «indistinguibili»); con `codice` quelli di oggi. */}
           <h1 className="text-3xl font-bold leading-tight tracking-tight sm:text-5xl">
-            Toupee <span className="text-brand">indistinguibili</span> e tutto per curarli.
+            {cms ? (
+              <>
+                Patch e prodotti per la <span className="text-brand">cura</span>, scelti in studio
+              </>
+            ) : (
+              <>
+                Toupee <span className="text-brand">indistinguibili</span> e tutto per curarli.
+              </>
+            )}
           </h1>
           <p className="mx-auto max-w-xl text-white/60">
-            Protesi lace e skin di grado premium, più shampoo, balsami, districanti, solventi e adesivi.
+            {cms ? "Protesi lace e skin, più" : "Protesi lace e skin di grado premium, più"} shampoo, balsami, districanti, solventi e adesivi.
             La cura completa per chi indossa un sistema di capelli.
           </p>
           <div className="mx-auto flex max-w-md items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-3 py-2">
@@ -130,7 +139,7 @@ function Storefront() {
           <h2 className="text-lg font-semibold">
             {cat === "all" ? "Tutti i prodotti" : CATEGORIES.find((c) => c.key === cat)?.label}
           </h2>
-          <span className="text-sm text-white/40">{filtered.length} articoli</span>
+          <span className="text-sm text-white/40">{etichettaArticoli(filtered.length)}</span>
         </div>
         {filtered.length === 0 ? (
           <div className="rounded-2xl border border-white/10 bg-white/[0.03] py-16 text-center text-white/50">

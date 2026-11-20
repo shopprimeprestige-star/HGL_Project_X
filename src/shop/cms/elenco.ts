@@ -4,7 +4,9 @@
  *
  *  ⚠️ Gli eventi di navigazione non portano dati personali: il testo cercato esce SOLO se non somiglia a un'email o a un
  *   telefono (`testoDaCercare`), e non entra mai nell'indirizzo della pagina (la ricerca è nella pagina, non nell'URL).
- *  ⚠️ Invisible Derm non ha mai un prezzo nello shop (decisione del titolare, 20/11): `eInvisibleDerm` lo riconosce dal nome. */
+ *  ⚠️ Invisible Derm non ha mai un prezzo nello shop (decisione del titolare, 20/11, D39): il server lo manda già con `prezzoCent: null`;
+ *   qui `senzaPrezzo` copre sia il prezzo nullo sia il nome (`eInvisibleDerm`). All'integrazione (T32) il nome lo riconosce la
+ *   funzione di `pubblico.ts`. */
 import type { CategoryKey, Product } from "../catalog";
 import type { DatiEvento } from "../../lib/tracciamento/eventi";
 import { daPubblicoAProdotto, skuDaCodice } from "./adattatore";
@@ -14,6 +16,8 @@ import type { ProdottoPubblico } from "./modello";
 /** Quanto si aspetta, dopo l'ultimo tasto, prima di contare la ricerca. */
 export const PAUSA_RICERCA_MS = 1000;
 const MAX_TESTO_RICERCA = 80;
+/** Quanto si aspetta, dopo la scelta sul banner, prima di rifare un evento di pagina (vedi `suScelta`). */
+export const ATTESA_DOPO_SCELTA_MS = 2000;
 /** Da quante cifre in poi un testo somiglia a un telefono o a un numero d'ordine, e non esce. */
 const CIFRE_DA_NON_MANDARE = 6;
 
@@ -37,7 +41,16 @@ export function filtraVoci(voci: readonly VoceElenco[], categoria: CategoryKey |
 }
 
 /** Il nome «Invisible Derm» (anche «Protocol®», maiuscole e spazi doppi): per lui lo shop non mostra mai un prezzo. */
-export const eInvisibleDerm = (nome: unknown): boolean => typeof nome === "string" && /invisible\s+derm/i.test(nome);
+export const eInvisibleDerm = (nome: unknown): boolean => typeof nome === "string" && /invisible[\s\-_]*derm/i.test(nome);
+
+/** Il prezzo arriva come numero? (Il server, per Invisible Derm, manda `null`.) */
+const eNumero = (n: unknown): n is number => typeof n === "number" && Number.isFinite(n);
+
+/** Questa scheda non mostra un prezzo: Invisible Derm (per nome) o un prodotto del CMS a cui il server non ha dato nessun prezzo. */
+export const senzaPrezzo = (v: VoceElenco): boolean => eInvisibleDerm(v.product.name) || (!!v.pubblico && !(eNumero(v.pubblico.prezzoDaCent) && v.pubblico.varianti.some((x) => eNumero(x.prezzoCent))));
+
+/** Il conteggio sopra la griglia: «1 articolo», «5 articoli». */
+export const etichettaArticoli = (n: number): string => `${n} ${n === 1 ? "articolo" : "articoli"}`;
 
 /** La frase quando la ricerca non trova niente. Con il catalogo CMS è quella del Copywriter (documento, §3.13). */
 export const frasaSenzaRisultati = (testo: string, cms: boolean): string =>
@@ -49,11 +62,12 @@ export function daAggiungereDalCard(v: VoceElenco): { sku: string; snap: SnapRig
   const p = v.pubblico;
   if (!p || p.opzioni.length > 0 || p.varianti.length !== 1 || !p.varianti[0].disponibile) return null;
   const x = p.varianti[0];
+  if (!eNumero(x.prezzoCent)) return null; // senza prezzo (D39) non si compra dalla scheda dell'elenco
   return { sku: x.sku, snap: { nome: p.nome, slug: p.slug, prezzoCent: x.prezzoCent, foto: p.media.find((m) => m.slot === "principale")?.src ?? null, varianteNome: Object.keys(x.opzioni).length ? x.nome : null } };
 }
 
 /** `true` se questo prodotto del CMS ha più prezzi diversi fra le sue varianti (allora il prezzo mostrato è «Da …»). */
-export const haPrezziDiversi = (p: ProdottoPubblico | undefined): boolean => !!p && new Set(p.varianti.map((v) => v.prezzoCent)).size > 1;
+export const haPrezziDiversi = (p: ProdottoPubblico | undefined): boolean => !!p && new Set(p.varianti.map((v) => v.prezzoCent).filter(eNumero)).size > 1;
 
 /* ── gli eventi ───────────────────────────────────────────────────────── */
 
@@ -95,10 +109,43 @@ interface Orologio<T> {
   clear: (id: T) => void;
 }
 
+const OROLOGIO_VERO: Orologio<ReturnType<typeof setTimeout>> = { set: (f, ms) => setTimeout(f, ms), clear: (id) => clearTimeout(id) };
+
+/** Dopo la scelta sul banner dei cookie il provider carica i pixel (prima legge se è un amministratore e la configurazione):
+ *  si aspetta un poco e poi si rifà `azione`. Così `ViewContent` parte anche se il banner si accetta DOPO il caricamento della pagina.
+ *  Ritorna la funzione che toglie l'ascolto e l'attesa. Due scelte vicine = una sola azione.
+ *  shortcut: attesa fissa di 2 s (il provider non dice «pronto»); se i pixel non sono ancora pronti l'evento va comunque al server
+ *  (il consenso c'è), si cambia se il provider espone un segnale di fine caricamento. */
+export function suScelta<T = ReturnType<typeof setTimeout>>(
+  ascolta: Pick<EventTarget, "addEventListener" | "removeEventListener">,
+  evento: string,
+  azione: () => void,
+  attesaMs = ATTESA_DOPO_SCELTA_MS,
+  orologio: Orologio<T> = OROLOGIO_VERO as unknown as Orologio<T>,
+): () => void {
+  let attesa: T | undefined;
+  const ferma = () => {
+    if (attesa !== undefined) orologio.clear(attesa);
+    attesa = undefined;
+  };
+  const sentito = () => {
+    ferma();
+    attesa = orologio.set(() => {
+      attesa = undefined;
+      azione();
+    }, attesaMs);
+  };
+  ascolta.addEventListener(evento, sentito);
+  return () => {
+    ferma();
+    ascolta.removeEventListener(evento, sentito);
+  };
+}
+
 /** La ricerca da contare: dopo una pausa di 1 secondo dall'ultimo tasto, o subito con Invio. Lo stesso testo non si ripete. */
 export function creaEmettitoreRicerca<T = ReturnType<typeof setTimeout>>(
   emetti: (testo: string) => void,
-  orologio: Orologio<T> = { set: ((f, ms) => setTimeout(f, ms)) as Orologio<T>["set"], clear: ((id) => clearTimeout(id as ReturnType<typeof setTimeout>)) as Orologio<T>["clear"] },
+  orologio: Orologio<T> = OROLOGIO_VERO as unknown as Orologio<T>,
   pausaMs = PAUSA_RICERCA_MS,
 ) {
   let ultimo = "";

@@ -6,6 +6,7 @@
  *   · le immagini diventano `data:` e gli alias `@/…` puntano a `src/`.
  *  La prova imposta lo stato in `globalThis.__PROVA_PAGINA__` PRIMA di disegnare:
  *    { pathname, searchStr, context, loaderData, params, server: { modalita, scheda, elenco, categorie } }
+ *  (`server.modalita` può essere una funzione: una lettura che dà un valore o che lancia)
  *  ⚠️ Il markup è quello che il componente disegna sul server (la prima passata): gli effetti non girano.
  *  Il nome inizia per «_»: non è una prova, `negozio.mjs` non lo chiama. */
 import { mkdtempSync, writeFileSync } from "node:fs";
@@ -40,7 +41,7 @@ export const redirect = (o) => ({ __redirect: o });
 
 const FUNZIONI_FINTE = `
 const S = () => (globalThis.__PROVA_PAGINA__ ?? {}).server ?? {};
-export const modalitaCatalogo = async () => S().modalita ?? "codice";
+export const modalitaCatalogo = async () => { const m = S().modalita; return typeof m === "function" ? m() : (m ?? "codice"); };
 export const schedaProdotto = async ({ data }) => (S().scheda ? S().scheda(data) : null);
 export const elencoProdotti = async ({ data }) => (S().elenco ? S().elenco(data) : []);
 export const elencoCategorie = async () => { const c = S().categorie; return typeof c === "function" ? c() : (c ?? []); };

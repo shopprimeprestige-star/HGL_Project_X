@@ -4,7 +4,7 @@
  *   · stelle e «N recensioni» solo se ci sono davvero (`reviews > 0`): l'adattatore dà 0, quindi con il CMS non compaiono;
  *     con il catalogo del codice sono sempre presenti, e la scheda è identica a oggi;
  *   · badge e prezzo barrato esistono solo se il prodotto li porta (l'adattatore non li dà);
- *   · Invisible Derm non ha mai un prezzo: si legge «Il costo lo vedi in consulenza.» e si va alla scheda;
+ *   · Invisible Derm (o un prodotto senza prezzo dal server, D39) non ha mai un prezzo: si legge «Il costo lo vedi in consulenza.» e si va alla scheda;
  *   · un prodotto esaurito non si aggiunge: «Esaurito»; un prodotto con scelte (colore, misura…) manda alla scheda;
  *   · se le varianti hanno prezzi diversi il prezzo è «Da …». */
 import { useEffect } from "react";
@@ -14,9 +14,10 @@ import { toast } from "sonner";
 import { formatPrice } from "@/shop/catalog";
 import { ShopVisual } from "@/shop/ShopVisual";
 import { useCart } from "@/shop/CartContext";
+import { EVENTO_CONSENSO } from "@/lib/consenso";
 import { emettiEvento } from "@/lib/tracciamento/api";
 import type { CategoriaPubblica } from "./modello";
-import { daAggiungereDalCard, datiListaVisualizzata, eInvisibleDerm, emettiUnaVolta, haPrezziDiversi, type VoceElenco } from "./elenco";
+import { daAggiungereDalCard, datiListaVisualizzata, emettiUnaVolta, haPrezziDiversi, senzaPrezzo, suScelta, type VoceElenco } from "./elenco";
 
 function Stars({ rating }: { rating: number }) {
   return (
@@ -34,7 +35,7 @@ export function ProductCard({ voce }: { voce: VoceElenco }) {
   const { add } = useCart();
   const { product, pubblico } = voce;
   const hasVariants = !!product.variants?.length;
-  const derm = eInvisibleDerm(product.name);
+  const derm = senzaPrezzo(voce);
   const esaurito = !!pubblico && !pubblico.varianti.some((v) => v.disponibile);
   const rapido = daAggiungereDalCard(voce);
   const allaScheda = hasVariants || (!!pubblico && !rapido);
@@ -121,6 +122,9 @@ export function GrigliaProdotti({ voci }: { voci: readonly VoceElenco[] }) {
 
 /** Le categorie del catalogo CMS, come indirizzi veri (`/shop/c/<slug>`): chi arriva da una ricerca o da un link le ritrova. */
 export function ChipCategorie({ categorie, attiva }: { categorie: readonly CategoriaPubblica[]; attiva?: string }) {
+  //  Una categoria senza prodotti pubblicati non esiste (il suo indirizzo rimanda a /shop): non è un chip.
+  const visibili = categorie.filter((c) => c.quanti > 0);
+  if (visibili.length === 0) return null;
   const classe = (on: boolean) =>
     `flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition ${
       on ? "bg-brand text-white" : "border border-white/15 bg-white/5 text-white/70 hover:bg-white/10"
@@ -131,7 +135,7 @@ export function ChipCategorie({ categorie, attiva }: { categorie: readonly Categ
         <Link to="/shop" className={classe(!attiva)} aria-current={!attiva ? "page" : undefined}>
           Tutti
         </Link>
-        {categorie.map((c) => (
+        {visibili.map((c) => (
           <Link key={c.slug} to="/shop/c/$slug" params={{ slug: c.slug }} className={classe(c.slug === attiva)} aria-current={c.slug === attiva ? "page" : undefined}>
             {c.nome}
           </Link>
@@ -142,7 +146,9 @@ export function ChipCategorie({ categorie, attiva }: { categorie: readonly Categ
 }
 
 /** `ViewContent` della lista (product_group), una volta per visita e per lista. Dipende solo da `chiave`: l'elenco di una
- *  pagina non cambia mentre la si guarda (shortcut: se un giorno cambia, la chiave deve cambiare con lui). */
+ *  pagina non cambia mentre la si guarda (shortcut: se un giorno cambia, la chiave deve cambiare con lui).
+ *  `emettiEvento` NON mette in coda: senza consenso non parte e non si segna. Perciò si riprova dopo la scelta sul banner
+ *  (`suScelta`), anche se arriva dopo il caricamento della pagina. */
 export function useListaVista(chiave: string, voci: readonly VoceElenco[], categoria?: string) {
   useEffect(() => {
     const dati = datiListaVisualizzata(voci, categoria);
@@ -153,7 +159,9 @@ export function useListaVista(chiave: string, voci: readonly VoceElenco[], categ
     } catch {
       /* archivio non disponibile */
     }
-    emettiUnaVolta(archivio, chiave, () => emettiEvento("ViewContent", dati));
+    const prova = () => emettiUnaVolta(archivio, chiave, () => emettiEvento("ViewContent", dati));
+    prova();
+    return suScelta(window, EVENTO_CONSENSO, prova);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chiave]);
 }

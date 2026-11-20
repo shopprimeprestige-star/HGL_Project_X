@@ -7,7 +7,7 @@ import { createFileRoute, Link, notFound, redirect } from "@tanstack/react-route
 import { ChevronRight } from "lucide-react";
 import { elencoCategorie, elencoProdotti } from "@/shop/cms/catalogo.functions";
 import { ChipCategorie, GrigliaProdotti, useListaVista } from "@/shop/cms/GrigliaProdotti";
-import { vociDaPubblici } from "@/shop/cms/elenco";
+import { etichettaArticoli, vociDaPubblici } from "@/shop/cms/elenco";
 import { datiStrutturatiLista, serializzaJsonLd } from "@/shop/cms/json-ld";
 import { MARCHIO, SITO } from "@/seo/regole";
 
@@ -66,7 +66,7 @@ function CategoriaShop() {
 
       <section>
         <div className="mb-4 flex items-baseline justify-end">
-          <span className="text-sm text-white/40">{voci.length} articoli</span>
+          <span className="text-sm text-white/40">{etichettaArticoli(voci.length)}</span>
         </div>
         <GrigliaProdotti voci={voci} />
       </section>
