@@ -51,7 +51,7 @@ export function gestore(pagina, tipo, testo = "") {
 }
 
 let numero = 0;
-/** Disegna la pagina `file` (assoluto, o relativo alla radice) con lo stato finto `stato`; restituisce `{ html, route, pagina }` (la rotta serve per provare `head`, `loader`…; `pagina` ha gli `eventi` emessi, le `righe` d'ordine inserite e i `gestori` per `gestore()`). */
+/** Disegna la pagina `file` (assoluto, o relativo alla radice) con lo stato finto `stato`; restituisce `{ html, route, pagina }` (`stato.componente` sceglie quale componente disegnare, di norma `component`; la rotta serve per provare `head`, `loader`…; `pagina` ha gli `eventi` emessi, le `righe` d'ordine inserite e i `gestori` per `gestore()`). */
 export async function rendi(radice, file, stato, nomeExport = "Route") {
   const esbuild = requireQui("esbuild");
   const dir = mkdtempSync(join(tmpdir(), "prova-pagina-"));
@@ -61,7 +61,7 @@ export async function rendi(radice, file, stato, nomeExport = "Route") {
     `import { renderToStaticMarkup } from "react-dom/server";
      import React from "react";
      import { ${nomeExport} as R } from ${JSON.stringify(file.startsWith("/") ? file : join(radice, file))};
-     export const html = () => renderToStaticMarkup(React.createElement(R.component));
+     export const html = () => renderToStaticMarkup(React.createElement(R[globalThis.__pagina.componente ?? "component"]));
      export const route = R;`,
   );
   const r = await esbuild.build({

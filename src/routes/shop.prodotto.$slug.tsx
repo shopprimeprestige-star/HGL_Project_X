@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useNavigate, useRouter } from "@tanstack/react-router";
+import { createFileRoute, Link, notFound, useNavigate, useRouter } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { Star, ShieldCheck, Truck, RotateCcw, Check, Minus, Plus, ChevronRight, ShoppingBag } from "lucide-react";
 import { CATEGORIES, PRODUCTS, formatPrice, getProduct } from "@/shop/catalog";
@@ -14,8 +14,8 @@ import { modalitaCatalogo, schedaProdotto } from "@/shop/cms/catalogo.functions"
 import { daPubblicoAProdotto, varianteDaOpzioni } from "@/shop/cms/adattatore";
 import { cercaScheda, datiEventoCodice, datiEventoScheda, intestazioniScheda, primaVolta, senzaPrezzo, testataScheda, type Scheda } from "@/shop/cms/scheda";
 
-/** Cosa ha deciso il caricamento (T20): la scheda e se l'indirizzo porta `?anteprima=`. Un guasto del database NON arriva qui: è un errore temporaneo. */
-type Caricato = { scheda: Exclude<Scheda, { tipo: "temporaneo" }>; anteprima: boolean };
+/** Cosa ha deciso il caricamento (T20): la scheda e se l'indirizzo porta `?anteprima=`. Un guasto del database NON arriva qui: è un errore temporaneo; «non trovato» nemmeno: è `notFound()` (risposta 404). */
+type Caricato = { scheda: Exclude<Scheda, { tipo: "temporaneo" | "non_trovato" }>; anteprima: boolean };
 
 export const Route = createFileRoute("/shop/prodotto/$slug")({
   validateSearch: (raw: Record<string, unknown>): { anteprima?: string } => ({ anteprima: typeof raw.anteprima === "string" && raw.anteprima ? raw.anteprima.slice(0, 300) : undefined }),
@@ -32,10 +32,16 @@ export const Route = createFileRoute("/shop/prodotto/$slug")({
     );
     // un guasto non è «non trovato»: errore temporaneo (la risposta non si ferma in nessuna memoria)
     if (scheda.tipo === "temporaneo") throw new Error("catalogo-temporaneamente-non-raggiungibile");
+    // un indirizzo che non c'è risponde 404 (prima era una pagina 200 che diceva «non trovato»: per Google è un errore morbido)
+    if (scheda.tipo === "non_trovato") throw notFound();
     return { scheda, anteprima: Boolean(deps.anteprima) };
   },
   // con il catalogo `codice` la testata resta quella di `shop.tsx`; con il CMS: titolo, descrizione, immagine, canonical e JSON-LD (non in anteprima)
-  head: ({ loaderData }) => {
+  head: ({ loaderData, match }) => {
+    if (match?.status === "notFound") {
+      const nt = testataScheda(null, false, SITO);
+      return { meta: nt.meta, links: nt.links, scripts: nt.scripts };
+    }
     if (!loaderData || loaderData.scheda.tipo === "codice") return {};
     const t = testataScheda(loaderData.scheda.tipo === "cms" ? loaderData.scheda.prodotto : null, loaderData.anteprima, SITO);
     return { meta: t.meta, links: t.links, scripts: t.scripts };
@@ -43,11 +49,23 @@ export const Route = createFileRoute("/shop/prodotto/$slug")({
   //  Guasto (loader lanciato: `match.status` «error», nessun `loaderData`) → `no-store`; anteprima → `private, no-store`.
   headers: ({ loaderData, match }) => intestazioniScheda({ anteprima: Boolean(loaderData?.anteprima), errore: match?.status === "error" }),
   errorComponent: ErroreTemporaneo,
+  notFoundComponent: NonTrovato,
   component: ProductDetail,
 });
 
 /** Come si vede un bottone spento (solo con il CMS: con `codice` la pagina resta com'era). */
 const SPENTO = " disabled:cursor-not-allowed disabled:opacity-50";
+
+function NonTrovato() {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/[0.03] py-20 text-center">
+      <p className="text-white/60">Prodotto non trovato.</p>
+      <Link to="/shop" className="mt-4 inline-block text-brand hover:underline">
+        Torna al catalogo
+      </Link>
+    </div>
+  );
+}
 
 function ErroreTemporaneo() {
   const router = useRouter();
@@ -105,16 +123,7 @@ function SchedaVista({ slug }: { slug: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- una volta per prodotto: la variante scelta dopo non rifà l'evento
   }, [slug, anteprima]);
 
-  if (!product) {
-    return (
-      <div className="rounded-2xl border border-white/10 bg-white/[0.03] py-20 text-center">
-        <p className="text-white/60">Prodotto non trovato.</p>
-        <Link to="/shop" className="mt-4 inline-block text-brand hover:underline">
-          Torna al catalogo
-        </Link>
-      </div>
-    );
-  }
+  if (!product) return <NonTrovato />;
 
   const category = CATEGORIES.find((c) => c.key === product.category);
   //  Il box «Non è il prodotto giusto per te?» e il pop-up stanno solo sulle protesi (con il CMS: dove il titolare ha acceso il box).

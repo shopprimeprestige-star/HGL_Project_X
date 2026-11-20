@@ -153,7 +153,12 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("D39, evento senza prezzo: nessun `ViewContent`/`AddToCart` (mai un valore 0 o NaN)", [null, null], [S.datiEventoScheda(senzaCifre, "PROVA-001-A"), S.datiEventoScheda(senzaCifre, "PROVA-001-A", 2)]);
   c("CMS, striscia di fiducia del vecchio catalogo: né «Qualità premium» né «Spedizione gratuita … €59» (neppure sotto il pulsante)", [false, false, false], [/qualit[àa] premium/i.test(hCms), /spedizione gratuita/i.test(hCms), /€\s?59|59\s?€/.test(hCms)]);
 
-  c("«Prodotto non trovato.» è la stessa frase di oggi (bozza o archiviato senza chiave)", true, (await pagina("x-y", { scheda: { tipo: "non_trovato" }, anteprima: false })).html.includes("Prodotto non trovato."));
+  //  «Non trovato» risponde 404 davvero (non una pagina 200 che dice «non trovato»): il loader lancia `notFound()`, la rotta ha il suo `notFoundComponent`.
+  const hNt = (await pagina("x-y", {}, { componente: "notFoundComponent" })).html;
+  c("«Prodotto non trovato.» è la stessa frase di oggi (bozza o archiviato senza chiave), disegnata dal `notFoundComponent` con il link al catalogo", [true, true], [hNt.includes("Prodotto non trovato."), hNt.includes("Torna al catalogo")]);
+  c("rotta, `head` di una scheda non trovata (`match.status` «notFound», nessun `loaderData`): titolo «Prodotto non trovato», `noindex`, nessun JSON-LD", ["Prodotto non trovato | Hair Genius", true, 0],
+    (() => { const x = route.head({ match: { status: "notFound" } }); return [x.meta[0].title, Boolean(meta(x, "name", "robots")), x.scripts.length]; })());
+  c("rotta, `head` di un guasto (nessun `loaderData`, `match.status` «error»): niente di tutto questo", {}, route.head({ match: { status: "error" } }));
   // la `head` e il `loader` della rotta vera
   const hd = route.head({ loaderData: cmsDi(base) });
   c("rotta, `head` con il CMS: titolo, canonical e UN tag JSON-LD; con `codice` nessuna intestazione nuova", [1, "Prodotto di prova | Hair Genius", {}], [hd.scripts.length, hd.meta[0].title, route.head({ loaderData: { scheda: { tipo: "codice" }, anteprima: false } })]);
@@ -173,6 +178,7 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("sorgente: `ViewContent` con `datiEventoScheda`, `AddToCart` con gli stessi dati dello stesso SKU, via `emettiEvento` (nessun pixel a mano)", [true, true, false], [src.includes('emettiEvento("ViewContent"') && src.includes("datiEventoScheda(cms"), src.includes('emettiEvento("AddToCart"'), /fbq|ttq|gtag|fireCapi|firePixel|trackEvent/.test(src)]);
   c("sorgente: nessun evento in anteprima, ViewContent una volta per sessione, la bozza non si compra", [true, true, true], [/if \(dati && !anteprima\) emettiEvento\("AddToCart"/.test(src), src.includes("primaVolta(window.sessionStorage"), src.includes("fuoriVendita")]);
   c("sorgente: variante esaurita → `disabled`; guardia sulle stelle (`reviews > 0`); mai la giacenza a schermo", [true, true, false], [src.includes("disabled={nonAcquistabile}"), src.includes("product.reviews > 0"), /giacenza/i.test(src.replace(/^\s*\/\/.*$/gm, ""))]);
+  c("sorgente: «non trovato» lancia `notFound()` nel loader (risposta 404) e la rotta ha `notFoundComponent`", [true, true], [/scheda\.tipo === "non_trovato"\) throw notFound\(\)/.test(src), /notFoundComponent: NonTrovato/.test(src)]);
   c("sorgente: la rotta non scrive l'indirizzo dello studio", false, /scipioni|via degli/i.test(src));
 
   // ── con `codice` la pagina è IDENTICA a quella di oggi (stesso marchio, byte per byte) ──
