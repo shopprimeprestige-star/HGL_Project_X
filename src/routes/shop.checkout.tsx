@@ -5,7 +5,7 @@ import { PRODUCTS, formatPrice } from "@/shop/catalog";
 import { ShopVisual } from "@/shop/ShopVisual";
 import { useCart } from "@/shop/CartContext";
 import { modalitaCatalogo } from "@/shop/cms/catalogo.functions";
-import { MSG_NON_VERIFICABILE, datiEventoRighe, itemsOrdine } from "@/shop/cms/cassa";
+import { MSG_NON_VERIFICABILE, SPEDIZIONE_CMS_CENT, datiEventoRighe, itemsOrdine } from "@/shop/cms/cassa";
 import { primaVolta } from "@/shop/cms/scheda";
 import { useRivalidaCarrello } from "@/shop/useRivalidaCarrello";
 import { emettiEvento } from "@/lib/tracciamento/api";
@@ -68,7 +68,8 @@ function CheckoutPage() {
   // Identificativi dell'ordine: nascono una volta per tentativo e si riusano nei nuovi invii (vedi invio-ordine.ts).
   const tentativo = useRef<Tentativo | null>(null);
 
-  const shipping = subtotal >= SHIPPING_THRESHOLD ? 0 : SHIPPING_COST;
+  //  CMS (D37): tariffa fissa, nessuna soglia. `codice`: come oggi (gratis da 59 €).
+  const shipping = cms ? SPEDIZIONE_CMS_CENT / 100 : subtotal >= SHIPPING_THRESHOLD ? 0 : SHIPPING_COST;
   const total = subtotal + shipping;
   //  InitiateCheckout: una volta per carrello (stesse righe e quantità) e sessione, a controllo finito
   useEffect(() => {
@@ -109,7 +110,7 @@ function CheckoutPage() {
         // qualcosa è cambiato (prodotto tolto, prezzo nuovo): il cliente rilegge il riepilogo e conferma di nuovo
         if (esito.rimosse > 0 || esito.prezziCambiati) return;
         const { items: righeServer, subtotaleCent } = itemsOrdine(esito.righe, esito.server);
-        const speseCent = subtotaleCent >= SHIPPING_THRESHOLD * 100 ? 0 : Math.round(SHIPPING_COST * 100);
+        const speseCent = SPEDIZIONE_CMS_CENT;
         dati = { form, items: righeServer, subtotal: subtotaleCent / 100, shipping: speseCent / 100, total: (subtotaleCent + speseCent) / 100 };
       }
       tentativo.current = tentativoPer(tentativo.current, firmaOrdine(dati));

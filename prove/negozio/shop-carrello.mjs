@@ -11,9 +11,9 @@ import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fintoDb } from "./_finto-db.mjs";
-import { rendi } from "./_rende.mjs";
+import { gestore, rendi } from "./_rende.mjs";
 import { negozio, viste } from "./catalogo-server.mjs";
-import { ISTANTE } from "./dati.mjs";
+import { ISTANTE, prodottoProva, uuid, varianteProva } from "./dati.mjs";
 
 const T0 = Date.parse(ISTANTE);
 const OGGI = "a55e662";
@@ -22,16 +22,18 @@ export async function prove(mod, { c, gruppo, radice }) {
   const K = mod["shop/cms/cassa"];
   const CA = mod["shop/cms/carrello"];
   const CAT = mod["shop/cms/catalogo.server"];
+  const MC = mod["shop/cms/modalita-certa"];
   const IO = mod["shop/invio-ordine"];
   gruppo("SHOP R1 · T21 · CARRELLO E CASSA SUI DATI CMS (20/11/2026)");
 
   const catalogoDi = (modalita = "cms", { db = {}, modifica = null } = {}) => {
     const t = negozio(modalita);
     modifica?.(t);
-    return CAT.creaCatalogo({ db: fintoDb({ tabelle: { ...t, ...viste(t) }, ...db }), adesso: () => T0, baseMedia: "https://m.prova.test/shop", chiaveServizio: "chiave-di-prova" });
+    const finto = fintoDb({ tabelle: { ...t, ...viste(t) }, ...db });
+    return Object.assign(CAT.creaCatalogo({ db: finto, adesso: () => T0, baseMedia: "https://m.prova.test/shop", chiaveServizio: "chiave-di-prova" }), { __db: finto });
   };
-  /** Le porte di `rivalida` sul catalogo vero: `righeCarrello` (T11) e, come sonda, `schedaEsito`. */
-  const porte = (k, modo = "cms") => ({ modo, chiediRighe: (skus) => k.righeCarrello(skus), sonda: async (slug) => (await k.schedaEsito(slug)).esito !== "guasto" });
+  /** Le porte di `rivalida` sul catalogo vero: `righeCarrello` (T11), come sonda `schedaEsito`, e la lettura «certa» della modalità sullo STESSO database. */
+  const porte = (k, modo = "cms") => ({ modo, chiediRighe: (skus) => k.righeCarrello(skus), sonda: async (slug) => (await k.schedaEsito(slug)).esito !== "guasto", modalitaCerta: () => MC.leggiModalitaCerta({ db: k.__db }) });
   const riga = (sku, slug, prezzoCent, qty = 1, extra = {}) => ({ productId: sku, qty, key: sku, sku, snap: { nome: "Nome vecchio", slug, prezzoCent, foto: null, varianteNome: null }, ...extra });
   const vecchia = (id, qty = 1) => ({ productId: id, qty, key: id });
   const ok = riga("PROVA-001-A", "prodotto-di-prova", 2890, 2);
@@ -73,7 +75,7 @@ export async function prove(mod, { c, gruppo, radice }) {
   const rc = await K.rivalida(porte(kc, "codice"), [ok, vecchia("t01", 2)]);
   c("`codice`: le righe CMS (con SKU) si tolgono, le vecchie restano con la loro quantità; il cliente vede il messaggio", [["t01"], 1, "ok"], [rc.righe.map((l) => l.productId), rc.rimosse, rc.stato]);
   c("il messaggio è quello del piano: «Alcuni prodotti non sono più disponibili…» (mai un errore)", true, /^Alcuni prodotti non sono più disponibili/.test(K.MSG_RIMOSSE) && !/errore/i.test(K.MSG_RIMOSSE));
-  c("`codice` e solo righe vecchie: niente da fare, nemmeno una chiamata alla sonda", [0, 0], await (async () => { let n = 0; const r = await K.rivalida({ modo: "codice", chiediRighe: async () => { n++; return []; }, sonda: async () => { n++; return false; } }, [vecchia("t01")]); return [r.rimosse, n]; })());
+  c("`codice` e solo righe vecchie: niente da fare, nemmeno una chiamata al server", [0, 0], await (async () => { let n = 0; const r = await K.rivalida({ modo: "codice", chiediRighe: async () => { n++; return []; }, sonda: async () => { n++; return false; }, modalitaCerta: async () => { n++; return "incerto"; } }, [vecchia("t01")]); return [r.rimosse, n]; })());
 
   // ── un guasto del database NON svuota il carrello ──
   const giu = catalogoDi("cms", { db: { mancante: true } });
@@ -83,7 +85,7 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("`codice` per un guasto (la modalità non si è letta): le righe CMS NON si tolgono, `non_verificabile`", ["non_verificabile", undefined], [rg2.stato, rg2.righe]);
   c("la rete che lancia (carrello o sonda): `non_verificabile`, mai un'eccezione", ["non_verificabile", "non_verificabile"], [
     (await K.rivalida({ modo: "cms", chiediRighe: async () => { throw new Error("rete"); }, sonda: async () => true }, [ok])).stato,
-    (await K.rivalida({ modo: "codice", chiediRighe: async () => [], sonda: async () => { throw new Error("rete"); } }, [ok])).stato,
+    (await K.rivalida({ modo: "codice", chiediRighe: async () => [], sonda: async () => true, modalitaCerta: async () => { throw new Error("rete"); } }, [ok])).stato,
   ]);
   c("`cms`: se il server riconosce anche UNA sola riga, il database funziona: le altre si tolgono per davvero (nessuna sonda)", [1, 0], await (async () => { let n = 0; const r = await K.rivalida({ ...porte(catalogoDi()), sonda: async () => { n++; return false; } }, [ok, riga("NON-C-E", "x", 5)]); return [r.rimosse, n]; })());
   c("`cms` con righe vecchie (senza SKU): si tolgono senza chiedere niente al server", [1, 0], await (async () => { let n = 0; const r = await K.rivalida({ modo: "cms", chiediRighe: async () => { n++; return []; }, sonda: async () => true }, [vecchia("t01")]); return [r.rimosse, n]; })());
@@ -139,6 +141,98 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("CASSA CMS con il server che non risponde: «Conferma ordine» spento e l'avviso c'è (il carrello resta)", [true, true], [/<button[^>]*\sdisabled=""[^>]*>[^]*Conferma ordine/.test(chkAspetta.html), chkAspetta.html.includes("Non riusciamo a controllare il carrello")]);
   const chkCodice = await rendi(radice, FILE_CASSA, { loaderData: { modo: "codice" }, carrello: carrelloFinto([ok], 57.8), rivalida: rivFinto({ stato: "non_verificabile" }) });
   c("CASSA `codice` con una riga CMS rimasta: non si ordina (bottone spento)", true, /<button[^>]*\sdisabled=""[^>]*>[^]*Conferma ordine/.test(chkCodice.html));
+
+  // ── la modalità «certa»: il server dice `codice` solo se l'ha letto, sano ──
+  const certa = (db, forza) => MC.leggiModalitaCerta({ db: fintoDb({ tabelle: negozio("codice"), ...db }), forza });
+  const impostazioni = (valore) => ({ tabelle: { ...negozio("codice"), shop_impostazioni: valore === undefined ? [] : [{ chiave: "catalogo_sito", valore, aggiornato_il: ISTANTE, aggiornato_da: null }] } });
+  c("modalità certa: la riga dice `codice` → «codice»; dice `cms` → «cms»", ["codice", "cms"], [await certa(impostazioni("codice")), await certa(impostazioni("cms"))]);
+  c("modalità certa: riga assente, valore strano, tabella assente, errore del database, rete che lancia → «incerto» (mai «codice» per assenza di notizie)", Array(5).fill("incerto"), [
+    await certa(impostazioni(undefined)), await certa(impostazioni(5)), await certa({ mancante: true }),
+    await certa({ ...impostazioni("codice"), errori: { "shop_impostazioni.select": { error: { code: "57P01" } } } }), await certa({ ...impostazioni("codice"), errori: { "shop_impostazioni.select": { lancia: new Error("rete") } } })]);
+  c("modalità certa: `SHOP_CATALOGO_FORZA` («codice» o «cms») vale senza toccare il database; ogni altro valore si ignora", [["codice", 0], ["cms", 0], ["incerto", 1]], await Promise.all([["codice", "codice"], ["cms", "cms"], ["incerto", "boh"]].map(async ([, forza], i) => {
+    const f = fintoDb({ tabelle: negozio("codice"), errori: { "shop_impostazioni.select": { error: { code: "57P01" } } } });
+    return [await MC.leggiModalitaCerta({ db: f, forza }), f.chiamate];
+  })));
+
+  // ── la finestra della sonda: UN solo fallimento nella lettura della modalità non toglie le righe CMS ──
+  //  Il catalogo è in memoria (sano), la lettura della modalità fallisce una volta → `modalita()` dice `codice` (è un guasto, non una scelta):
+  //  la vecchia sonda (`schedaEsito`) risponde «sano» dalla memoria e il carrello veniva svuotato.
+  const unaVolta = () => { let n = 0; return () => (n++ === 0 ? { error: { code: "57P01" } } : undefined); };
+  const scenario = async ({ errori, modo }) => {
+    const k = catalogoDi("cms", { db: { errori } });
+    await k.elenco(); // il catalogo è già in memoria, sano
+    const m = await k.modalita(); // il caricamento della pagina: la modalità non si legge → `codice`
+    return { m, k, r: await K.rivalida(porte(k, modo ?? m), [ok, vecchia("t01", 2)]) };
+  };
+  const finestra = await scenario({ errori: { "shop_impostazioni.select": unaVolta() } });
+  c("UN solo fallimento nella lettura della modalità (catalogo in memoria, sano): le righe CMS NON si tolgono; `non_verificabile`", ["codice", "non_verificabile", undefined], [finestra.m, finestra.r.stato, finestra.r.righe]);
+  const fermo = await scenario({ errori: { "shop_impostazioni.select": { error: { code: "57P01" } } } });
+  c("la modalità che continua a non rispondere: le righe restano, `non_verificabile`", ["codice", "non_verificabile"], [fermo.m, fermo.r.stato]);
+  const vera = await K.rivalida(porte(catalogoDi("codice"), "codice"), [ok, vecchia("t01", 2)]);
+  c("il server conferma in modo esplicito e sano `codice`: le righe CMS si tolgono (e le vecchie restano)", [["t01"], 1, "ok"], [vera.righe.map((l) => l.productId), vera.rimosse, vera.stato]);
+  c("la conferma dice `cms` (la pagina era rimasta indietro) o la lettura lancia: le righe restano", ["non_verificabile", "non_verificabile", 2], await (async () => {
+    const dice = (m) => ({ modo: "codice", chiediRighe: async () => [], sonda: async () => true, modalitaCerta: m });
+    const a = await K.rivalida(dice(async () => "cms"), [ok]);
+    const b = await K.rivalida(dice(async () => { throw new Error("rete"); }), [ok]);
+    return [a.stato, b.stato, [ok, vecchia("t01")].length];
+  })());
+  const hook = readFileSync(join(radice, "src/shop/useRivalidaCarrello.ts"), "utf8");
+  const funz = readFileSync(join(radice, "src/shop/cms/modalita-certa.functions.ts"), "utf8");
+  c("sorgente: il carrello chiede la modalità certa al server (non la deduce dalla scheda) e la funzione del server non lancia, non si ferma in memoria, e non scrive niente", [true, true, true, true], [
+    /modalitaCerta: \(\) => modalitaCertaDelServer\(\)/.test(hook), /catch/.test(funz) && /"incerto"/.test(funz), /no-store/.test(funz), !/\.(insert|update|upsert|delete|rpc)\(/.test(funz)]);
+
+  // ── i prezzi delle VARIANTI: cassa e carrello non usano mai il prezzo «da» del prodotto ──
+  //  «Taglia L» 35,00 € e «Taglia S» 20,00 € (il «da» del prodotto): `rivalida` deve riportarle ai prezzi del server anche se lo `snap` le ricordava tutte a 20,00 €.
+  const conTaglie = (t) => {
+    t.shop_prodotti.push(prodottoProva({ id: uuid(0x210), sku: "PROVA-005", slug: "prodotto-con-taglie", nome: "Prodotto con taglie", prezzo_cent: 2000 }));
+    t.shop_varianti.push(
+      varianteProva({ id: uuid(0x310), prodotto_id: uuid(0x210), sku: "PROVA-005-L", nome: "Taglia L", opzioni: { Taglia: "L" }, prezzo_cent: 3500, ordine: 1 }),
+      varianteProva({ id: uuid(0x311), prodotto_id: uuid(0x210), sku: "PROVA-005-S", nome: "Taglia S", opzioni: { Taglia: "S" }, prezzo_cent: null, ordine: 2 }),
+    );
+  };
+  const kt = catalogoDi("cms", { modifica: conTaglie });
+  const taglie = [riga("PROVA-005-L", "prodotto-con-taglie", 2000, 1), riga("PROVA-005-S", "prodotto-con-taglie", 2000, 2)];
+  const rt = await K.rivalida(porte(kt), taglie);
+  c("varianti: `rivalida` riporta a ogni riga il prezzo della SUA variante (L 35,00 €, S 20,00 €) e avvisa che un prezzo è cambiato", [[3500, 2000], true], [rt.righe.map((l) => l.snap.prezzoCent), rt.prezziCambiati]);
+  const ot = K.itemsOrdine(rt.righe, rt.server);
+  c("varianti: le righe dell'ordine hanno il prezzo della variante (35 e 20 euro, nomi «Taglia L» e «Taglia S»), subtotale 75,00 € in centesimi", [[35, 20], ["Taglia L", "Taglia S"], 7500], [ot.items.map((i) => i.unit_price), ot.items.map((i) => i.variant), ot.subtotaleCent]);
+  const giuste = taglie.map((l, i) => ({ ...l, snap: { ...l.snap, prezzoCent: [3500, 2000][i] } }));
+  const cartaT = await rendi(radice, FILE_CARR, { loaderData: { modo: "cms" }, carrello: carrelloFinto(giuste, 75), rivalida: rivFinto() });
+  c("CARRELLO: ogni riga mostra il prezzo della sua variante (L 35,00 €, S × 2 = 40,00 €), e il subtotale è 75,00 €", [true, true, true], [/35,00\s€/.test(cartaT.html), /40,00\s€/.test(cartaT.html), /75,00\s€/.test(cartaT.html)]);
+
+  const submitSrc = nudo(readFileSync(join(radice, FILE_CASSA), "utf8")).split("const submit = async")[1]?.split("if (orderId)")[0] ?? "";
+  // ── la cassa vera: si invia il modulo, si legge la riga che andrebbe nel database ──
+  const invia = async (loaderData, lines, subtotal, controlla) => {
+    const p = await rendi(radice, FILE_CASSA, { loaderData, carrello: carrelloFinto(lines, subtotal), rivalida: rivFinto({ controlla }) });
+    await gestore(p.pagina, "form")({ preventDefault() {} });
+    return p.pagina.righe;
+  };
+  const controllaCms = (lines, k = kt) => () => K.rivalida(porte(k), lines);
+  const [oT] = await invia({ modo: "cms" }, giuste, 75, controllaCms(giuste));
+  c("CASSA CMS: l'ordine ha i prezzi delle varianti dal server (35 e 20 euro), mai il «da» del prodotto; subtotale 75, spedizione 4,90 (tariffa fissa), totale 79,90", [[35, 20], ["PROVA-005-L", "PROVA-005-S"], 75, 4.9, 79.9], [oT?.items.map((i) => i.unit_price), oT?.items.map((i) => i.product_id), oT?.subtotal, oT?.shipping, oT?.total]);
+  const vecchiePt = taglie.map((l) => ({ ...l, snap: { ...l.snap, prezzoCent: 1 } }));
+  const [oF] = await invia({ modo: "cms" }, vecchiePt, 0.03, controllaCms(vecchiePt));
+  c("CASSA CMS: con gli `snap` falsificati (1 centesimo) la prima conferma si ferma (prezzi cambiati), e nessun ordine parte con prezzi del browser", undefined, oF);
+
+  // ── D37: in modalità CMS la spedizione è a tariffa fissa, senza soglia ──
+  c("D37: una sola costante, 4,90 € (490 centesimi), in `cassa.ts`", 490, K.SPEDIZIONE_CMS_CENT);
+  const una = riga("PROVA-001-A", "prodotto-di-prova", 2890, 1);
+  const tre = riga("PROVA-001-A", "prodotto-di-prova", 2890, 3); // 86,70 €: sopra i 59 €
+  for (const [nome, lines, sub, tot] of [["sotto i 59 € (28,90)", [una], 28.9, 33.8], ["sopra i 59 € (86,70)", [tre], 86.7, 91.6]]) {
+    const car = await rendi(radice, FILE_CARR, { loaderData: { modo: "cms" }, carrello: carrelloFinto(lines, sub), rivalida: rivFinto() });
+    const [o] = await invia({ modo: "cms" }, lines, sub, () => K.rivalida(porte(catalogoDi()), lines));
+    c(`D37 CMS, ${nome}: CARRELLO con spedizione 4,90 € (mai «Gratuita», mai «Aggiungi … per la spedizione»), totale ${String(tot).replace(".", ",")}0 €; CASSA con shipping 4.9 e total ${tot}`, [true, false, false, 4.9, tot], [
+      /Spedizione<\/span><span[^>]*>4,90\s€/.test(car.html) && new RegExp(`${String(tot).replace(".", ",")}0\\s€`).test(car.html), /gratuit/i.test(car.html), /per la spedizione/.test(car.html), o?.shipping, o?.total]);
+  }
+  c("D37 sorgente: l'invio della cassa CMS prende le spese dalla costante unica (nessuna soglia né tariffa scritte a mano nel ramo CMS)", [true, false], [
+    submitSrc.includes("SPEDIZIONE_CMS_CENT"), /SHIPPING_THRESHOLD|SHIPPING_COST/.test(submitSrc)]);
+  // con `codice` non cambia niente: sotto soglia 4,90, da 59 in su gratis (la cassa vera)
+  const catalogoCodice = readFileSync(join(radice, "src/shop/catalog.ts"), "utf8");
+  const prezziCodice = [...catalogoCodice.matchAll(/\bid: "(\w+)",[\s\S]*?\bprice: (\d+(?:\.\d+)?)/g)].map((m) => [m[1], Number(m[2])]);
+  const economico = prezziCodice.find(([, pr]) => pr < 59), caro = prezziCodice.find(([, pr]) => pr >= 59);
+  const [oEco] = await invia({ modo: "codice" }, [vecchia(economico[0])], economico[1], async () => ({ stato: "ok", righe: [], server: [], rimosse: 0, prezziCambiati: false }));
+  const [oCaro] = await invia({ modo: "codice" }, [vecchia(caro[0])], caro[1], async () => ({ stato: "ok", righe: [], server: [], rimosse: 0, prezziCambiati: false }));
+  c("`codice`: la cassa non cambia: sotto i 59 € spedizione 4.9, da 59 € in su 0 (la soglia vale ancora)", [4.9, economico[1] + 4.9, 0, caro[1]], [oEco?.shipping, Math.round((oEco?.total ?? 0) * 100) / 100, oCaro?.shipping, oCaro?.total]);
 
   // ── con `codice`: IDENTICI a oggi ──
   const catalogo = readFileSync(join(radice, "src/shop/catalog.ts"), "utf8");

@@ -5,6 +5,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useCart } from "@/shop/CartContext";
 import { righeCarrello, schedaProdotto } from "@/shop/cms/catalogo.functions";
+import { modalitaCertaDelServer } from "@/shop/cms/modalita-certa.functions";
 import { MSG_PREZZI, MSG_RIMOSSE, rivalida, type EsitoRivalida } from "@/shop/cms/cassa";
 import type { CartLine } from "@/shop/CartContext";
 
@@ -24,6 +25,7 @@ export function useRivalidaCarrello(modo: "codice" | "cms") {
         modo,
         chiediRighe: (skus) => righeCarrello({ data: { skus } }),
         sonda: async (slug) => (await schedaProdotto({ data: { slug, chiave: "" } })).esito !== "guasto",
+        modalitaCerta: () => modalitaCertaDelServer(),
       },
       ultime.current,
     );

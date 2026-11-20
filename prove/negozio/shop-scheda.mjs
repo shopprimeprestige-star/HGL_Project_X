@@ -9,7 +9,7 @@ import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fintoDb } from "./_finto-db.mjs";
-import { rendi } from "./_rende.mjs";
+import { gestore, rendi } from "./_rende.mjs";
 import { negozio, viste } from "./catalogo-server.mjs";
 import { ISTANTE, prodottoProva, uuid, varianteProva } from "./dati.mjs";
 
@@ -103,6 +103,26 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("CMS: nome, prezzo (28,90 €), «Aggiungi al carrello» attivo, «Disponibile»", [true, true, true, true, false], [hCms.includes("Prodotto di prova"), /28,90\s€/.test(hCms), hCms.includes("Aggiungi al carrello"), hCms.includes("● Disponibile"), spenti(hCms) > 0]);
   c("CMS: niente «Anteprima» in una scheda pubblica", false, hCms.includes("Anteprima:"));
 
+  // ── il prezzo è quello della VARIANTE scelta, non quello «da» del prodotto ──
+  //  «Taglia L» costa 35,00 € ed è la prima opzione (quella scelta all'apertura); «Taglia S» costa 20,00 € ed è il «da».
+  const conTaglie = (t) => {
+    t.shop_prodotti.push(prodottoProva({ id: uuid(0x210), sku: "PROVA-005", slug: "prodotto-con-taglie", nome: "Prodotto con taglie", prezzo_cent: 2000 }));
+    t.shop_varianti.push(
+      varianteProva({ id: uuid(0x310), prodotto_id: uuid(0x210), sku: "PROVA-005-L", nome: "Taglia L", opzioni: { Taglia: "L" }, prezzo_cent: 3500, ordine: 1 }),
+      varianteProva({ id: uuid(0x311), prodotto_id: uuid(0x210), sku: "PROVA-005-S", nome: "Taglia S", opzioni: { Taglia: "S" }, prezzo_cent: null, ordine: 2 }),
+    );
+  };
+  const taglie = (await catalogoDi("cms", { modifica: conTaglie }).schedaEsito("prodotto-con-taglie")).prodotto;
+  const aggiunte = [];
+  const carr = { add: (...a) => aggiunte.push(a), lines: [] };
+  const pT = await pagina("prodotto-con-taglie", cmsDi(taglie), { carrello: carr });
+  c("prezzo: il «da» del prodotto è 20,00 € ma la variante scelta (Taglia L) costa 35,00 €: la scheda mostra 35,00, mai il «da»", [true, false], [/35,00\s€/.test(pT.html), /20,00\s€/.test(pT.html)]);
+  gestore(pT.pagina, "button", "Aggiungi al carrello")();
+  gestore(pT.pagina, "button", "Acquista ora")();
+  c("prezzo: «Aggiungi» e «Acquista ora» mettono nel carrello la variante scelta, con il SUO prezzo (3500 centesimi) e il suo SKU",
+    [["PROVA-005-L", 3500], ["PROVA-005-L", 3500]], aggiunte.map(([, , , cms]) => [cms?.sku, cms?.snap?.prezzoCent]));
+  c("prezzo: una variante senza prezzo proprio (Taglia S) vale quello del prodotto, 20,00 €, e il «da» è il più basso", [2000, 2000], [taglie.varianti.find((v) => v.sku === "PROVA-005-S").prezzoCent, taglie.prezzoDaCent]);
+
   const esaurito = (await catalogoDi().schedaEsito("altro-prodotto")).prodotto;
   const hEs = (await pagina("altro-prodotto", cmsDi(esaurito))).html;
   c("CMS, variante esaurita: «Esaurita», i due bottoni `disabled`, «Esaurito» a video; la giacenza non c'è", [true, 2, true, false], [hEs.includes("Esaurita"), spenti(hEs), hEs.includes("Esaurito"), /\b0\b.*pezz|ne restano/i.test(hEs)]);
@@ -121,6 +141,8 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("rotta, `head` con il CMS: titolo, canonical e UN tag JSON-LD; con `codice` nessuna intestazione nuova", [1, "Prodotto di prova | Hair Genius", {}], [hd.scripts.length, hd.meta[0].title, route.head({ loaderData: { scheda: { tipo: "codice" }, anteprima: false } })]);
   c("rotta, `head` in anteprima: `noindex` e nessun JSON-LD", [true, 0], (() => { const x = route.head({ loaderData: cmsDi(prev, true) }); return [Boolean(meta(x, "name", "robots")), x.scripts.length]; })());
   c("rotta, anteprima: `Cache-Control: private, no-store` sulla pagina; altrimenti niente di speciale", [{ "Cache-Control": "private, no-store" }, {}], [route.headers({ loaderData: cmsDi(prev, true) }), route.headers({ loaderData: cmsDi(base) })]);
+  c("rotta, scheda in GUASTO (il loader ha lanciato: `match.status` «error», nessun `loaderData`): `Cache-Control: no-store`", [{ "Cache-Control": "no-store" }, { "Cache-Control": "no-store" }], [route.headers({ match: { status: "error" } }), route.headers({ match: { status: "error" }, loaderData: undefined })]);
+  c("rotta, scheda sana senza anteprima, anche con `match` «success»: niente intestazione (resta quella della radice, `no-cache, must-revalidate`)", [{}, { "Cache-Control": "private, no-store" }], [route.headers({ loaderData: cmsDi(base), match: { status: "success" } }), route.headers({ loaderData: cmsDi(prev, true), match: { status: "success" } })]);
   const carica = async (porteFinte, slug = "prodotto-di-prova", anteprima = "") => {
     const pf = { modalita: async () => "cms", ...porteFinte };
     return S.cercaScheda(pf, slug, anteprima);

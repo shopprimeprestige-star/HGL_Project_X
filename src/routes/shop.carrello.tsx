@@ -5,7 +5,7 @@ import { PRODUCTS, formatPrice } from "@/shop/catalog";
 import { ShopVisual } from "@/shop/ShopVisual";
 import { useCart, type CartLine } from "@/shop/CartContext";
 import { modalitaCatalogo } from "@/shop/cms/catalogo.functions";
-import { MSG_NON_VERIFICABILE, datiEventoRighe } from "@/shop/cms/cassa";
+import { MSG_NON_VERIFICABILE, SPEDIZIONE_CMS_CENT, datiEventoRighe } from "@/shop/cms/cassa";
 import { useRivalidaCarrello } from "@/shop/useRivalidaCarrello";
 import { emettiEvento } from "@/lib/tracciamento/api";
 
@@ -31,7 +31,8 @@ function CartPage() {
   const { modo } = Route.useLoaderData();
   const { stato, avviso } = useRivalidaCarrello(modo);
   const cms = modo === "cms";
-  const shipping = subtotal >= SHIPPING_THRESHOLD || subtotal === 0 ? 0 : SHIPPING_COST;
+  //  CMS (D37): tariffa fissa, nessuna soglia. `codice`: come oggi (gratis da 59 €).
+  const shipping = cms ? SPEDIZIONE_CMS_CENT / 100 : subtotal >= SHIPPING_THRESHOLD || subtotal === 0 ? 0 : SHIPPING_COST;
   const total = subtotal + shipping;
 
   //  ViewCart: una volta per apertura, a controllo finito (il valore è quello del server)
