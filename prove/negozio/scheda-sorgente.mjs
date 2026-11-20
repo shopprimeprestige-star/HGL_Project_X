@@ -48,7 +48,7 @@ export async function prove(_mod, { c, gruppo, radice }) {
   c("i controlli vengono dal modulo che usa controllaPubblicazione (stessa funzione del server)", [true, true], [/controlloLive\(/.test(codice.SchedaProdotto), /controllaPubblicazione\(/.test(pura)]);
   c("il conflitto di versione dice «qualcun altro ha modificato» e propone di ricaricare", true, /qualcun altro ha modificato/i.test(scheda) && /Ricarica/.test(scheda));
   c("Invisible Derm: la scheda usa eInvisibleDerm e non mostra il campo prezzo", true, /eInvisibleDerm\(/.test(codice.SchedaProdotto));
-  c("il salvataggio automatico passa da creaAutosalva (T13)", true, /creaAutosalva\(/.test(codice.SchedaProdotto));
+  c("il salvataggio automatico passa da creaAutosalva (T13)", true, /creaAutosalva(<[^>]*>)?\(/.test(codice.SchedaProdotto));
   c("la scheda legge con negozio.scheda e scrive con esegui (nessun fetch qui)", [true, false, false], [/\.scheda\(/.test(codice.SchedaProdotto), /\bfetch\(/.test(codice.SchedaProdotto), /\bfetch\(/.test(codice.EditorVarianti)]);
   c("la scheda monta l'editor di varianti e quello dei media di T14/T16", [true, true], [/<EditorVarianti/.test(codice.SchedaProdotto), /<EditorMedia/.test(codice.SchedaProdotto)]);
   c("bersagli da 44 px sul telefono (min-h-11 / h-11)", [true, true], [/(min-h-11|h-11)/.test(codice.SchedaProdotto), /(min-h-11|h-11)/.test(codice.EditorVarianti)]);

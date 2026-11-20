@@ -467,7 +467,7 @@ function SchedaAperta({ scheda, negozio, apri, ricarica }: { scheda: DatiScheda;
     );
   };
   const mostra = (k: CampoModulo) => ({ errore: errori[k], avvisi: avvisi[k]?.avvisi ?? [] });
-  const testo = (k: "nome" | "marca" | "rigaPresentazione" | "descrizioneBreve" | "perChi" | "seoTitolo" | "seoDescrizione", etichetta: string, extra?: { aiuto?: string; max?: number; area?: boolean; righe?: number; disabilitato?: boolean }) => (
+  const testo = (k: "nome" | "marca" | "rigaPresentazione" | "descrizioneBreve" | "descrizioneLunga" | "perChi" | "seoTitolo" | "seoDescrizione", etichetta: string, extra?: { aiuto?: string; max?: number; area?: boolean; righe?: number; disabilitato?: boolean }) => (
     <Campo k={k} etichetta={etichetta} aiuto={extra?.aiuto} contatore={extra?.max ? { n: modulo[k].length, max: extra.max } : undefined} {...mostra(k)}>
       {(p) =>
         extra?.area ? (
@@ -718,7 +718,7 @@ function SchedaAperta({ scheda, negozio, apri, ricarica }: { scheda: DatiScheda;
             <div className="flex flex-col gap-3">
               {testo("rigaPresentazione", "Riga di presentazione", { max: 90, aiuto: "Una frase sotto il nome." })}
               {testo("descrizioneBreve", "Descrizione breve (obbligatoria)", { max: 300, area: true, righe: 3, aiuto: "Si legge in elenco e nella scheda." })}
-              {testo("descrizioneLunga" as "perChi", "Descrizione lunga", { area: true, righe: 6 })}
+              {testo("descrizioneLunga", "Descrizione lunga", { area: true, righe: 6 })}
               {testo("perChi", "Per chi è", { max: 200 })}
             </div>,
           )}
