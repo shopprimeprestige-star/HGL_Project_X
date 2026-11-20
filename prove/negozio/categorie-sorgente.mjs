@@ -84,7 +84,7 @@ export async function prove(_mod, { c, gruppo, radice }) {
   const src = senzaCommenti(grezzo);
   c("Categorie.tsx non è più il segnaposto", true, /return\s*\(\s*</.test(src));
   c("la firma resta quella di T14: `Categorie({ negozio, cambiate }: PropsCategorie)`", true, /export function Categorie\(\s*\{\s*negozio\s*,\s*cambiate\s*\}\s*:\s*PropsCategorie/.test(src) && /Pick<Negozio,\s*"categorie"\s*\|\s*"esegui">/.test(src));
-  c("nessuna cancellazione: niente «Elimina», niente cestino, niente metodo DELETE, niente azione di eliminazione", [false, false, false, false], [/elimina|cancella/i.test(src.replace(/"[^"]*"/g, (m) => (/elimina|cancella/i.test(m) ? m : ""))) && /Elimina|Cancella|Trash/.test(src), /Trash/.test(src), /DELETE/.test(src), /categoria_(elimina|cancella|rimuovi)/.test(src)]);
+  c("nessuna cancellazione: niente «Elimina»/«Cancella», niente cestino, niente metodo DELETE, niente azione di eliminazione", [false, false, false, false], [/\b(Elimina|Cancella)\b/i.test(src), /Trash/.test(src), /DELETE/.test(src), /categoria_(elimina|cancella|rimuovi)/.test(src)]);
   c("le frecce su e giù ci sono e sono da 44 px (`h-11 w-11`), con nome per chi non vede", true, /ArrowUp/.test(src) && /ArrowDown/.test(src) && /h-11 w-11/.test(src) && /aria-label=\{`Sposta/.test(src));
   c("l'ordine si cambia con `categoria_ordina` e l'elenco completo (`ids`)", true, /categoria_ordina/.test(src) && /\bids\b/.test(src));
   c("la visibilità con `categoria_visibile` e la `versione`; la frase «Nascosta dal sito» c'è", true, /categoria_visibile/.test(src) && /ETICHETTA_NASCOSTA|Nascosta dal sito/.test(src));
