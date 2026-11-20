@@ -8,7 +8,7 @@
  *   d'anteprima è privata e `no-store`: non si ferma da nessuna parte. */
 import { createServerFn } from "@tanstack/react-start";
 import { setResponseHeader } from "@tanstack/react-start/server";
-import { creaCatalogo, type Catalogo, type ClienteDb } from "./catalogo.server";
+import { creaCatalogo, type Catalogo, type ClienteDb, type EsitoScheda } from "./catalogo.server";
 
 /** Una per isolato: la memoria breve sta qui. */
 let istanza: Catalogo | null = null;
@@ -29,18 +29,20 @@ export async function catalogoPubblico(): Promise<Catalogo> {
   return istanza;
 }
 
-/** Esegue, con la memoria breve; qualunque guasto → `vuoto`. */
-async function letto<T>(vuoto: T, f: (k: Catalogo) => Promise<T>, cache = "public, max-age=30"): Promise<T> {
+/** Esegue, con la memoria breve (`cache` può dipendere dal risultato); qualunque guasto → `vuoto`. */
+async function letto<T>(vuoto: T, f: (k: Catalogo) => Promise<T>, cache: string | ((r: T) => string) = "public, max-age=30"): Promise<T> {
+  let r = vuoto;
   try {
-    setResponseHeader("Cache-Control", cache);
+    r = await f(await catalogoPubblico());
+  } catch {
+    /* vuoto */
+  }
+  try {
+    setResponseHeader("Cache-Control", typeof cache === "function" ? cache(r) : cache);
   } catch {
     /* fuori da una richiesta (prove, prerender): niente intestazione */
   }
-  try {
-    return await f(await catalogoPubblico());
-  } catch {
-    return vuoto;
-  }
+  return r;
 }
 
 export const modalitaCatalogo = createServerFn({ method: "GET" }).handler(() => letto<"codice" | "cms">("codice", (k) => k.modalita()));
@@ -51,7 +53,10 @@ export const elencoProdotti = createServerFn({ method: "GET" })
 
 export const schedaProdotto = createServerFn({ method: "GET" })
   .inputValidator((d: { slug: string; chiave?: string }) => ({ slug: String(d?.slug ?? ""), chiave: String(d?.chiave ?? "") }))
-  .handler(({ data }) => letto(null, (k) => k.scheda(data.slug, data.chiave), data.chiave ? "private, no-store" : "public, max-age=30"));
+  // risponde `{esito: "trovato", prodotto} | {esito: "non_trovato"} | {esito: "guasto"}`: sul guasto la risposta è `no-store`
+  .handler(({ data }) =>
+    letto<EsitoScheda>({ esito: "guasto" }, (k) => k.schedaEsito(data.slug, data.chiave), (r) => (data.chiave || r.esito === "guasto" ? "private, no-store" : "public, max-age=30")),
+  );
 
 export const elencoCategorie = createServerFn({ method: "GET" }).handler(() => letto([], (k) => k.categorie()));
 

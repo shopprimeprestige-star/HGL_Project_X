@@ -96,6 +96,21 @@ export async function prove(mod, { c, gruppo, radice }) {
   ora = T0 + 16_000; await memoriaModalita.catalogo.modalita();
   c("…e due dopo 16 s", 2, lettiDa(memoriaModalita.db, "shop_impostazioni"));
   ora = T0;
+  // un guasto della modalità si ricorda 5 s (non 15): abbastanza per non rileggere a ogni richiesta, poco per tornare appena il database torna
+  const modalitaGuasta = nuovo({ db: { mancante: true } });
+  await modalitaGuasta.catalogo.modalita(); ora = T0 + 4_000; await modalitaGuasta.catalogo.modalita();
+  c("modalità, guasto o migrazione assente: una lettura entro 4 s", 1, lettiDa(modalitaGuasta.db, "shop_impostazioni"));
+  ora = T0 + 6_000; await modalitaGuasta.catalogo.modalita();
+  c("…e due dopo 6 s (il guasto non resta 15 s)", 2, lettiDa(modalitaGuasta.db, "shop_impostazioni"));
+  let giu = true;
+  const rientra = nuovo({ db: { errori: { "shop_impostazioni.select": () => (giu ? { error: { code: "XX000" } } : undefined) } } });
+  ora = T0; const prima_ = await rientra.catalogo.modalita(); giu = false; ora = T0 + 6_000;
+  c("modalità: appena il database torna (dopo 6 s) si legge il valore vero", ["codice", "cms"], [prima_, await rientra.catalogo.modalita()]);
+  ora = T0;
+  // la lettura dell'interruttore è ESATTAMENTE questa (e solo questa)
+  const una = nuovo(); await una.catalogo.modalita();
+  const qm = una.db.registro.filter((q) => q.tab === "shop_impostazioni");
+  c("l'interruttore: `select(\"valore\")` con `eq(\"chiave\", \"catalogo_sito\")`, una riga sola, una sola lettura", [1, "valore", [["eq", "chiave", "catalogo_sito"]], "maybe"], [qm.length, qm[0].cols, qm[0].filtri, qm[0].singolo]);
 
   // ── migrazione assente / guasti: niente eccezioni, tutto vuoto ──
   const rotto = (db) => nuovo({ db }).catalogo;
@@ -225,11 +240,32 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("dopo 10 s la memoria la tiene ancora nascosta", false, (await cambio.catalogo.elenco()).some((p) => p.slug === bozzaSlug));
   ora = T0 + 60_000;
   c("entro 60 s è visibile (30 s di memoria + 30 s del CDN)", true, (await cambio.catalogo.elenco()).some((p) => p.slug === bozzaSlug));
-  // un guasto non si ricorda
+  // un guasto si ricorda 5 s (non 30, non 15): con il database giù non si rifanno 4 letture a ogni richiesta
   ora = T0; let n = 0;
   const g = nuovo({ db: { errori: { "shop_v_prodotti.select": () => (n++ === 0 ? { error: { code: "XX000" } } : undefined) } } });
-  const a1 = await g.catalogo.elenco(); const a2 = await g.catalogo.elenco();
-  c("un guasto momentaneo non si ricorda per 30 s: la lettura dopo riesce", [0, 2], [a1.length, a2.length]);
+  const a1 = await g.catalogo.elenco(); ora = T0 + 3_000; const a2 = await g.catalogo.elenco();
+  c("un guasto si ricorda per 5 s: la lettura subito dopo non riprova (e non lancia)", [0, 0, 1], [a1.length, a2.length, lettiDa(g.db, "shop_v_prodotti")]);
+  ora = T0 + 6_000; const a3 = await g.catalogo.elenco();
+  c("…dopo 6 s riprova e, se il database è tornato, riesce", [2, 2], [a3.length, lettiDa(g.db, "shop_v_prodotti")]);
+  ora = T0;
+  const giuTutto = nuovo({ db: { mancante: true }, porte: { forza: "cms" } });
+  for (let i = 0; i < 20; i++) { ora = T0 + i * 100; await giuTutto.catalogo.elenco(); await giuTutto.catalogo.scheda("prodotto-di-prova"); await giuTutto.catalogo.righeCarrello(["PROVA-001-A"]); await giuTutto.catalogo.categorie(); }
+  c("con SHOP_CATALOGO_FORZA=cms e il database giù: 60 richieste in 2 s fanno UNA sola lettura per vista (non 4 per richiesta)", [1, 1, 1, 1], ["shop_v_prodotti", "shop_v_varianti", "shop_v_media", "shop_v_categorie"].map((t) => lettiDa(giuTutto.db, t)));
+  ora = T0 + 6_000; await giuTutto.catalogo.elenco();
+  c("…e dopo 6 s si riprova (una seconda lettura)", 2, lettiDa(giuTutto.db, "shop_v_prodotti"));
+  ora = T0;
+
+  // ── scheda: «non trovato» o «guasto»? ──
+  const es = async (x, ...a) => (await x.catalogo.schedaEsito(...a)).esito;
+  const sano = nuovo();
+  c("schedaEsito: trovato (con il prodotto), non trovato (bozza, archiviato, sconosciuto, slug storto, vuoto)", ["trovato", "prodotto-di-prova", "non_trovato", "non_trovato", "non_trovato", "non_trovato", "non_trovato"],
+    [await es(sano, "prodotto-di-prova"), (await sano.catalogo.schedaEsito("prodotto-di-prova")).prodotto?.slug, await es(sano, "prodotto-in-bozza"), await es(sano, "prodotto-archiviato"), await es(sano, "non-esiste"), await es(sano, "A B/.."), await es(sano, "")]);
+  c("schedaEsito: database giù, errore di una vista o rete che lancia → «guasto» (non «non trovato»)", ["guasto", "guasto", "guasto"],
+    [await es(nuovo({ db: { mancante: true } }), "prodotto-di-prova"), await es(nuovo({ db: { errori: { "shop_v_media.select": { error: { code: "XX000" } } } } }), "prodotto-di-prova"), await es(nuovo({ db: { errori: { "shop_v_prodotti.select": { lancia: new Error("rete") } } } }), "prodotto-di-prova")]);
+  const Kb = await AN.emettiChiaveAnteprima(CHIAVE, "prodotto-in-bozza", T0);
+  c("schedaEsito con la chiave: bozza trovata; chiave valida ma tabelle giù → «guasto»; chiave sbagliata e viste giù → «guasto»; chiave sbagliata e tutto ok → «non trovato»", ["trovato", "guasto", "guasto", "non_trovato"],
+    [await es(nuovo(), "prodotto-in-bozza", Kb), await es(nuovo({ db: { errori: { "shop_prodotti.select": { lancia: new Error("rete") } } } }), "prodotto-in-bozza", Kb), await es(nuovo({ db: { mancante: true } }), "prodotto-in-bozza", "1.abc"), await es(nuovo(), "prodotto-in-bozza", "1.abc")]);
+  c("`scheda` resta com'era: il prodotto, oppure `null` (anche per un guasto: chi vuole distinguere usa `schedaEsito`)", ["prodotto-di-prova", null, null], [(await sano.catalogo.scheda("prodotto-di-prova"))?.slug, await sano.catalogo.scheda("prodotto-in-bozza"), await nuovo({ db: { mancante: true } }).catalogo.scheda("prodotto-di-prova")]);
   const sorg = (f) => readFileSync(join(radice, f), "utf8");
 
   // ── prova di sorgente: nessuna lettura pubblica nomina una tabella ──
@@ -249,10 +285,12 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("l'`anteprima: {slug}` sta dentro il segnaposto delle tabelle", true, /anteprima:\s*\{/.test(codice(dentro)));
   c("`baseMedia` si passa SEMPRE: ogni costruisciPubblico e costruisciCategorie del server la riceve", true,
     codice(server).split(/costruisci(?:Pubblico|Categorie)\(/).slice(1).every((resto) => /^[^;]{0,260}baseMedia/.test(resto)));
+  c("sorgente: la lettura dell'interruttore è ESATTAMENTE `select(\"valore\")` + `eq(\"chiave\", \"catalogo_sito\")` + `maybeSingle()`, e `shop_impostazioni` si nomina una volta sola", [1, 1],
+    [(codice(server).match(/\.from\("shop_impostazioni"\)\s*\.select\("valore"\)\s*\.eq\("chiave", "catalogo_sito"\)\s*\.maybeSingle\(\)/g) ?? []).length, (codice(server).match(/shop_impostazioni/g) ?? []).length]);
   c("le tabelle non si scrivono mai: nessun insert, update, upsert, delete né rpc", false, /\.(insert|update|upsert|delete|rpc)\(/.test(codice(server)));
   const funzioni = sorg("src/shop/cms/catalogo.functions.ts");
   c("l'involucro delle funzioni non nomina nessuna tabella", [], nomi(funzioni));
-  c("l'involucro: sei funzioni, memoria `public, max-age=30`, e senza memoria (`no-store`) per l'anteprima", [6, true, true], [(funzioni.match(/createServerFn\(/g) ?? []).length, /public, max-age=30/.test(funzioni), /data\.chiave \? "private, no-store" : "public, max-age=30"/.test(funzioni)]);
+  c("l'involucro: sei funzioni, memoria `public, max-age=30`, e senza memoria (`no-store`) per l'anteprima", [6, true, true], [(funzioni.match(/createServerFn\(/g) ?? []).length, /public, max-age=30/.test(funzioni), /data\.chiave \|\| r\.esito === "guasto" \? "private, no-store" : "public, max-age=30"/.test(funzioni)]);
   c("l'involucro legge SHOP_CATALOGO_FORZA solo se c'è, e il client del server lo importa a richiesta (mai a livello di modulo)", [true, true, false],
     [/SHOP_CATALOGO_FORZA/.test(funzioni), /await import\("@\/integrations\/supabase\/client\.server"\)/.test(funzioni), /^import .*client\.server/m.test(funzioni)]);
   c("nessuna chiave scritta nel codice", false, /(?:eyJ[A-Za-z0-9_-]{20,}|sb_secret_|service_role\s*[:=]\s*["'])/.test(server + funzioni));

@@ -7,7 +7,10 @@
  *   una riga sola, nessun dato privato). Le tabelle del catalogo si leggono in un punto solo, `leggiPerAnteprima`,
  *   raggiungibile solo dopo `verificaChiaveAnteprima`. Una prova sul sorgente lo controlla (i segnaposto «TABELLE»).
  *  ⚠️ Un guasto del database NON rompe mai una pagina pubblica: ogni funzione risponde `codice` / vuoto / `null` / «non più
- *   disponibile», mai un'eccezione. Nel log solo CODICI (mai righe o testi). Un guasto non si ricorda per 30 secondi.
+ *   disponibile», mai un'eccezione. Nel log solo CODICI (mai righe o testi).
+ *  ⚠️ UN GUASTO SI RICORDA 5 SECONDI (modalità e catalogo): con il database giù non si rifanno le letture a ogni richiesta,
+ *   e appena torna la pagina torna. Vale anche per la migrazione non ancora applicata. `scheda` dice «null» in tutti i casi;
+ *   `schedaEsito` distingue «non trovato» da «guasto» (le pagine rispondono `no-store` sul guasto).
  *  ⚠️ Memoria: il catalogo pubblico si legge una volta ogni 30 s (tutte le funzioni la condividono), la modalità ogni 15 s.
  *   Con il CDN (altri 30 s, vedi `catalogo.functions.ts`) una modifica si vede entro 60 s. La scheda con la chiave
  *   d'anteprima NON passa dalla memoria, né ci scrive.
@@ -51,6 +54,8 @@ export type Modalita = "codice" | "cms";
 export type RigaCarrelloServer =
   | { sku: string; nome: string; varianteNome: string | null; prezzoCent: number; disponibile: boolean; foto: SrcFoto | null; slug: string }
   | { sku: string; nonPiuDisponibile: true };
+/** La scheda di un prodotto: trovato, non trovato, o guasto (database giù, rete): le pagine rispondono `no-store` sul guasto. */
+export type EsitoScheda = { esito: "trovato"; prodotto: ProdottoPubblico } | { esito: "non_trovato" } | { esito: "guasto" };
 export interface FiltriElenco {
   categoria?: string;
   q?: string;
@@ -58,6 +63,8 @@ export interface FiltriElenco {
 
 const MEMORIA_CATALOGO_MS = 30_000;
 const MEMORIA_MODALITA_MS = 15_000;
+/** Quanto si ricorda un guasto (modalità e catalogo). */
+const MEMORIA_GUASTO_MS = 5_000;
 const MAX_SKU_CARRELLO = 50;
 const MAX_TESTO_RICERCA = 80;
 
@@ -83,8 +90,8 @@ export function creaCatalogo(porte: PorteCatalogo) {
   };
 
   /* ── la modalità: codice o cms ── */
-  let memModalita: { t: number; p: Promise<Modalita> } | null = null;
-  async function leggiModalita(): Promise<Modalita> {
+  let memModalita: { t: number; guasto: boolean; p: Promise<Modalita> } | null = null;
+  async function leggiModalita(guasto: () => void): Promise<Modalita> {
     if (porte.forza === "cms" || porte.forza === "codice") return porte.forza;
     try {
       const r = await db.from("shop_impostazioni").select("valore").eq("chiave", "catalogo_sito").maybeSingle();
@@ -92,12 +99,20 @@ export function creaCatalogo(porte: PorteCatalogo) {
       return (r.data as { valore?: unknown } | null)?.valore === "cms" ? "cms" : "codice";
     } catch (e) {
       segnala(e);
+      guasto();
       return "codice";
     }
   }
   const modalita = (): Promise<Modalita> => {
     const n = adesso();
-    if (!memModalita || n - memModalita.t >= MEMORIA_MODALITA_MS || n < memModalita.t) memModalita = { t: n, p: leggiModalita() };
+    if (!memModalita || n - memModalita.t >= (memModalita.guasto ? MEMORIA_GUASTO_MS : MEMORIA_MODALITA_MS) || n < memModalita.t) {
+      const voce = { t: n, guasto: false, p: Promise.resolve<Modalita>("codice") };
+      voce.p = leggiModalita(() => {
+        voce.guasto = true;
+        voce.t = adesso();
+      });
+      memModalita = voce;
+    }
     return memModalita.p;
   };
 
@@ -115,16 +130,17 @@ export function creaCatalogo(porte: PorteCatalogo) {
       righe: { prodotti: prodotti.filter((r) => mostrati.has(String(r.slug))), categorie: categorie.filter((r) => mostrate.has(String(r.slug))) },
     };
   }
-  let mem: { t: number; p: Promise<Caricato> } | null = null;
+  let mem: { t: number; guasto: boolean; p: Promise<Caricato> } | null = null;
   const dati = (): Promise<Caricato> => {
     const n = adesso();
-    if (!mem || n - mem.t >= MEMORIA_CATALOGO_MS || n < mem.t) {
-      const voce = { t: n, p: carica() };
+    if (!mem || n - mem.t >= (mem.guasto ? MEMORIA_GUASTO_MS : MEMORIA_CATALOGO_MS) || n < mem.t) {
+      const voce = { t: n, guasto: false, p: carica() };
       mem = voce;
-      // un guasto non si ricorda: la lettura dopo riprova
+      // un guasto si ricorda 5 s (le richieste di quei secondi ricevono lo stesso guasto, senza rileggere), poi si riprova
       voce.p.catch((e) => {
         segnala(e);
-        if (mem === voce) mem = null;
+        voce.guasto = true;
+        voce.t = adesso();
       });
     }
     return mem.p;
@@ -152,17 +168,23 @@ export function creaCatalogo(porte: PorteCatalogo) {
     }
   }
 
-  async function scheda(slug: unknown, chiaveAnteprima?: unknown): Promise<ProdottoPubblico | null> {
+  async function schedaEsito(slug: unknown, chiaveAnteprima?: unknown): Promise<EsitoScheda> {
     try {
-      if (typeof slug !== "string" || !slugValido(slug)) return null;
-      if (typeof chiaveAnteprima === "string" && chiaveAnteprima && (await verificaChiaveAnteprima(porte.chiaveServizio, slug, chiaveAnteprima, adesso()))) {
-        return await leggiPerAnteprima(slug);
-      }
-      return (await dati()).prodotti.find((p) => p.slug === slug) ?? null;
+      if (typeof slug !== "string" || !slugValido(slug)) return { esito: "non_trovato" };
+      const prodotto =
+        typeof chiaveAnteprima === "string" && chiaveAnteprima && (await verificaChiaveAnteprima(porte.chiaveServizio, slug, chiaveAnteprima, adesso()))
+          ? await leggiPerAnteprima(slug)
+          : (await dati()).prodotti.find((p) => p.slug === slug);
+      return prodotto ? { esito: "trovato", prodotto } : { esito: "non_trovato" };
     } catch (e) {
       segnala(e);
-      return null;
+      return { esito: "guasto" };
     }
+  }
+  /** Come `schedaEsito`, ma con `null` per tutto ciò che non è un prodotto trovato (anche un guasto). */
+  async function scheda(slug: unknown, chiaveAnteprima?: unknown): Promise<ProdottoPubblico | null> {
+    const r = await schedaEsito(slug, chiaveAnteprima);
+    return r.esito === "trovato" ? r.prodotto : null;
   }
 
   async function categorie(): Promise<CategoriaPubblica[]> {
@@ -200,6 +222,6 @@ export function creaCatalogo(porte: PorteCatalogo) {
     });
   }
 
-  return { modalita, elenco, scheda, categorie, vociSitemap, righeCarrello };
+  return { modalita, elenco, scheda, schedaEsito, categorie, vociSitemap, righeCarrello };
 }
 export type Catalogo = ReturnType<typeof creaCatalogo>;
