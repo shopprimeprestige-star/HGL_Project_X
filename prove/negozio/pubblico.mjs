@@ -120,7 +120,7 @@ export async function prove(mod, { c, gruppo, radice }) {
 
   const P = trova(tab, "prodotto-di-prova");
   const COLONNE = ["sku", "slug", "nome", "marca", "tipo", "rigaPresentazione", "descrizioneBreve", "descrizioneLunga", "perChi", "caratteristiche", "passi", "confezione",
-    "avvertenze", "faq", "categorie", "media", "opzioni", "varianti", "prezzoDaCent", "reso", "boxConsulenza", "correlato", "seo", "gtin", "aggiornatoIl"];
+    "avvertenze", "faq", "categorie", "media", "opzioni", "varianti", "prezzoDaCent", "acquistabile", "reso", "boxConsulenza", "correlato", "seo", "gtin", "aggiornatoIl"];
   c("le chiavi del prodotto sono ESATTAMENTE quelle del contratto §3.1 (e nessuna `anteprima`)", [...COLONNE].sort(), Object.keys(P).sort());
 
   // la giacenza e le chiavi vietate, in profondità, in TUTTE le uscite

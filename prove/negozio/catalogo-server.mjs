@@ -146,7 +146,7 @@ export async function prove(mod, { c, gruppo, radice }) {
   // ── le categorie ──
   const cats = await catalogo.categorie();
   c("categorie: solo la visibile con almeno un pubblicato (non la vuota, non la nascosta)", ["categoria-prova"], cats.map((x) => x.slug));
-  c("categoria: forma pubblica, con foto e quanti", { slug: "categoria-prova", nome: "Categoria di prova", tipo: "categoria", frase: null, foto: { w480: `${BASE}/cat/a-480.webp`, w960: `${BASE}/cat/a-960.webp`, w1600: `${BASE}/cat/a-1600.webp` }, seo: { titolo: null, descrizione: null }, ordine: 1, quanti: 2 }, cats[0]);
+  c("categoria: forma pubblica, con foto e quanti", { slug: "categoria-prova", nome: "Categoria di prova", tipo: "categoria", frase: null, foto: { w480: `${BASE}/cat/a-480.webp`, w960: `${BASE}/cat/a-960.webp`, w1600: `${BASE}/cat/a-1600.webp` }, fotoAlt: "Foto della categoria", seo: { titolo: null, descrizione: null }, ordine: 1, quanti: 2 }, cats[0]);
   const avvelenato = nuovo({ extra: { shop_v_categorie: [...viste(negozio()).shop_v_categorie, { id: uuid(0x1ff), slug: "vuota-in-vista", nome: "X", tipo: "categoria", visibile: true, ordine: 0, quanti: 0 }, { id: uuid(0x1fe), slug: "nascosta-in-vista", nome: "Y", tipo: "categoria", visibile: false, ordine: 0, quanti: 5 }] } });
   c("categorie: se per errore la vista mostra una vuota o una nascosta, non escono (difesa doppia)", ["categoria-prova"], (await avvelenato.catalogo.categorie()).map((x) => x.slug));
   c("costruisciCategorie: ordine per `ordine` poi nome; foto solo se ha le tre misure; righe strane scartate", ["a-prima", "b-seconda", "z-ultima"], PUB.costruisciCategorie({
@@ -161,6 +161,16 @@ export async function prove(mod, { c, gruppo, radice }) {
       media: [{ id: "m1", categoria_id: "1", slot: "foto2", ...tre, rimosso_il: null, ritrae_persone: false, liberatoria_ok: false }, { id: "m2", categoria_id: "2", slot: "principale", ...tre, rimosso_il: ISTANTE, ritrae_persone: false, liberatoria_ok: false },
         { id: "m3", categoria_id: "3", slot: "principale", ...tre, rimosso_il: null, ritrae_persone: false, liberatoria_ok: false }, { id: "m4", categoria_id: "3", slot: "principale", ordine: -1, rimosso_il: null, ritrae_persone: true, liberatoria_ok: false, path_480: "x", path_960: "y", path_1600: "z" }],
     })));
+
+  // D36: la foto e l'alt della categoria vengono dalla stessa riga di shop_v_media (categoria_id), non da un'altra
+  const rigaCat = (id, extra = {}) => ({ id, categoria_id: "1", slot: "principale", ...tre, alt: `alt ${id}`, ordine: 0, rimosso_il: null, ritrae_persone: false, liberatoria_ok: false, ...extra });
+  const catD36 = (media) => PUB.costruisciCategorie({ categorie: [{ id: "1", slug: "cat-1", nome: "1", ordine: 0, quanti: 1, visibile: true }], media })[0];
+  c("categoria: la foto e l'alt sono della stessa riga (alt della riga, tre misure della riga)", [{ w480: "a", w960: "b", w1600: "c" }, "alt m1"], ((x) => [x.foto, x.fotoAlt])(catD36([rigaCat("m1")])));
+  c("categoria: a parità vince `ordine` più basso, poi `id`; la riga con `rimosso_il` non conta; foto e alt restano della stessa riga", ["alt m2", "alt m3", "alt m3"],
+    [catD36([rigaCat("m1", { ordine: 5 }), rigaCat("m2", { ordine: 1 })]).fotoAlt, catD36([rigaCat("m4"), rigaCat("m3")]).fotoAlt, catD36([rigaCat("m0", { rimosso_il: ISTANTE }), rigaCat("m4"), rigaCat("m3")]).fotoAlt]);
+  c("categoria: senza riga, o con una misura sola, o senza la colonna `rimosso_il` (filtro assente = esclusa): foto e alt nulli", [[null, null], [null, null], [null, null]],
+    [catD36([]), catD36([rigaCat("m1", { path_960: null })]), catD36([(({ rimosso_il, ...r }) => r)(rigaCat("m1"))])].map((x) => [x.foto, x.fotoAlt]));
+  c("categoria: la riga di un'altra categoria non conta", [null, null], ((x) => [x.foto, x.fotoAlt])(catD36([rigaCat("m1", { categoria_id: "2" })])));
 
   // ── una bozza non esce da NESSUNA funzione, nemmeno se la vista sbaglia ──
   const t2 = negozio();
@@ -260,11 +270,20 @@ export async function prove(mod, { c, gruppo, radice }) {
   const sano = nuovo();
   c("schedaEsito: trovato (con il prodotto), non trovato (bozza, archiviato, sconosciuto, slug storto, vuoto)", ["trovato", "prodotto-di-prova", "non_trovato", "non_trovato", "non_trovato", "non_trovato", "non_trovato"],
     [await es(sano, "prodotto-di-prova"), (await sano.catalogo.schedaEsito("prodotto-di-prova")).prodotto?.slug, await es(sano, "prodotto-in-bozza"), await es(sano, "prodotto-archiviato"), await es(sano, "non-esiste"), await es(sano, "A B/.."), await es(sano, "")]);
-  c("schedaEsito: database giù, errore di una vista o rete che lancia → «guasto» (non «non trovato»)", ["guasto", "guasto", "guasto"],
-    [await es(nuovo({ db: { mancante: true } }), "prodotto-di-prova"), await es(nuovo({ db: { errori: { "shop_v_media.select": { error: { code: "XX000" } } } } }), "prodotto-di-prova"), await es(nuovo({ db: { errori: { "shop_v_prodotti.select": { lancia: new Error("rete") } } } }), "prodotto-di-prova")]);
+  c("schedaEsito: errore di una vista o rete che lancia → «guasto» (non «non trovato»)", ["guasto", "guasto", "guasto"],
+    [await es(nuovo({ db: { errori: { "shop_v_prodotti.select": { error: { code: "08006" } } } } }), "prodotto-di-prova"), await es(nuovo({ db: { errori: { "shop_v_media.select": { error: { code: "XX000" } } } } }), "prodotto-di-prova"), await es(nuovo({ db: { errori: { "shop_v_prodotti.select": { lancia: new Error("rete") } } } }), "prodotto-di-prova")]);
   const Kb = await AN.emettiChiaveAnteprima(CHIAVE, "prodotto-in-bozza", T0);
   c("schedaEsito con la chiave: bozza trovata; chiave valida ma tabelle giù → «guasto»; chiave sbagliata e viste giù → «guasto»; chiave sbagliata e tutto ok → «non trovato»", ["trovato", "guasto", "guasto", "non_trovato"],
-    [await es(nuovo(), "prodotto-in-bozza", Kb), await es(nuovo({ db: { errori: { "shop_prodotti.select": { lancia: new Error("rete") } } } }), "prodotto-in-bozza", Kb), await es(nuovo({ db: { mancante: true } }), "prodotto-in-bozza", "1.abc"), await es(nuovo(), "prodotto-in-bozza", "1.abc")]);
+    [await es(nuovo(), "prodotto-in-bozza", Kb), await es(nuovo({ db: { errori: { "shop_prodotti.select": { lancia: new Error("rete") } } } }), "prodotto-in-bozza", Kb), await es(nuovo({ db: { errori: { "shop_v_prodotti.select": { lancia: new Error("rete") } } } }), "prodotto-in-bozza", "1.abc"), await es(nuovo(), "prodotto-in-bozza", "1.abc")]);
+  // migrazione non applicata (S1 manca): vista o colonna assente = «non trovato» (come la modalità dà `codice`), non «guasto»
+  const mig = (db) => es(nuovo({ db }), "xyz-sconosciuto");
+  c("schedaEsito: migrazione non applicata (42P01, PGRST205, 42703, PGRST204) → «non trovato», mai «guasto»", ["non_trovato", "non_trovato", "non_trovato", "non_trovato", "non_trovato"],
+    [await mig({ mancante: true }), await mig({ mancante: true, codiceMancante: "PGRST205" }), await mig({ mancante: ["shop_v_prodotti"] }),
+      await mig({ errori: { "shop_v_media.select": { error: { code: "42703" } } } }), await mig({ errori: { "shop_v_varianti.select": { error: { code: "PGRST204" } } } })]);
+  c("…anche con la chiave d'anteprima valida (tabelle assenti), e la categoria/elenco restano vuoti", ["non_trovato", []],
+    [await es(nuovo({ db: { mancante: true } }), "prodotto-in-bozza", Kb), await nuovo({ db: { mancante: true } }).catalogo.elenco()]);
+  c("…ma un codice che non è di migrazione resta «guasto» (non si nasconde un guasto vero)", ["guasto", "guasto"],
+    [await mig({ errori: { "shop_v_media.select": { error: { code: "57P01" } } } }), await mig({ errori: { "shop_v_prodotti.select": { error: { code: "PGRST301" } } } })]);
   c("`scheda` resta com'era: il prodotto, oppure `null` (anche per un guasto: chi vuole distinguere usa `schedaEsito`)", ["prodotto-di-prova", null, null], [(await sano.catalogo.scheda("prodotto-di-prova"))?.slug, await sano.catalogo.scheda("prodotto-in-bozza"), await nuovo({ db: { mancante: true } }).catalogo.scheda("prodotto-di-prova")]);
   const sorg = (f) => readFileSync(join(radice, f), "utf8");
 
@@ -288,9 +307,18 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("sorgente: la lettura dell'interruttore è ESATTAMENTE `select(\"valore\")` + `eq(\"chiave\", \"catalogo_sito\")` + `maybeSingle()`, e `shop_impostazioni` si nomina una volta sola", [1, 1],
     [(codice(server).match(/\.from\("shop_impostazioni"\)\s*\.select\("valore"\)\s*\.eq\("chiave", "catalogo_sito"\)\s*\.maybeSingle\(\)/g) ?? []).length, (codice(server).match(/shop_impostazioni/g) ?? []).length]);
   c("le tabelle non si scrivono mai: nessun insert, update, upsert, delete né rpc", false, /\.(insert|update|upsert|delete|rpc)\(/.test(codice(server)));
+  // ── l'intestazione di memoria vale solo per la chiamata del browser, mai per l'HTML della pagina ──
+  const cache = CAT.cacheDellaRisposta;
+  c("cache: dal browser (/_serverFn/…) l'intestazione resta com'è", ["public, max-age=30", "no-store"], [cache("public, max-age=30", "/_serverFn/abc"), cache("no-store", "/_serverFn/abc")]);
+  c("cache: durante il rendering della PAGINA (percorso che non è /_serverFn) il `public` NON si imposta: la pagina resta no-cache", [null, null, null, null],
+    ["/shop/prodotto/x", "/shop/carrello", "/shop/checkout", "/shop"].map((p) => cache("public, max-age=30", p)));
+  c("cache: nel rendering le intestazioni che restringono (private, no-store) passano, e un percorso strano non fa mai `public`", ["private, no-store", "no-store", null, null],
+    [cache("private, no-store", "/shop/prodotto/x"), cache("no-store", "/shop/carrello"), cache("public, max-age=30", ""), cache("public, max-age=30", "/x/_serverFn/")]);
   const funzioni = sorg("src/shop/cms/catalogo.functions.ts");
   c("l'involucro delle funzioni non nomina nessuna tabella", [], nomi(funzioni));
   c("l'involucro: sei funzioni, memoria `public, max-age=30`, e senza memoria (`no-store`) per l'anteprima", [6, true, true], [(funzioni.match(/createServerFn\(/g) ?? []).length, /public, max-age=30/.test(funzioni), /data\.chiave \|\| r\.esito === "guasto" \? "private, no-store" : "public, max-age=30"/.test(funzioni)]);
+  c("l'involucro mette l'intestazione solo tramite `cacheDellaRisposta` con il percorso della richiesta (mai `setResponseHeader` con il valore diretto)", [true, true, 1],
+    [/cacheDellaRisposta\(/.test(funzioni) && /getRequestUrl/.test(funzioni), /import \{[^}]*cacheDellaRisposta/.test(funzioni), (codice(funzioni).match(/setResponseHeader\(/g) ?? []).length]);
   c("l'involucro legge SHOP_CATALOGO_FORZA solo se c'è, e il client del server lo importa a richiesta (mai a livello di modulo)", [true, true, false],
     [/SHOP_CATALOGO_FORZA/.test(funzioni), /await import\("@\/integrations\/supabase\/client\.server"\)/.test(funzioni), /^import .*client\.server/m.test(funzioni)]);
   c("nessuna chiave scritta nel codice", false, /(?:eyJ[A-Za-z0-9_-]{20,}|sb_secret_|service_role\s*[:=]\s*["'])/.test(server + funzioni));

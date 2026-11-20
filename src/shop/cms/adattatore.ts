@@ -24,7 +24,7 @@ export function daPubblicoAProdotto(p: ProdottoPubblico): Product {
     slug: p.slug,
     name: p.nome,
     category: categoriaDi(p),
-    price: p.prezzoDaCent / 100,
+    price: (p.prezzoDaCent ?? 0) / 100, // D39: Invisible Derm non ha prezzo (0, e `stock` 0: non si compra)
     short: p.descrizioneBreve,
     description: p.descrizioneLunga ?? p.descrizioneBreve,
     bullets: p.confezione,

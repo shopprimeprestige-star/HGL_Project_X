@@ -4,11 +4,12 @@
  *
  *  ⚠️ Mai un errore al pubblico: se il collegamento non si fa (variabili mancanti, rete), ogni funzione risponde
  *   `codice` / vuoto / `null` / «non più disponibile», come con la migrazione non applicata.
- *  ⚠️ Memoria: `Cache-Control: public, max-age=30` (la memoria dell'isolato ne aggiunge altri 30). La scheda con la chiave
+ *  ⚠️ Memoria: `Cache-Control: public, max-age=30` (la memoria dell'isolato ne aggiunge altri 30), ma SOLO sulla chiamata
+ *   del browser (`/_serverFn/…`): nel rendering della pagina il `public` non si imposta (`cacheDellaRisposta`). La scheda con la chiave
  *   d'anteprima è privata e `no-store`: non si ferma da nessuna parte. */
 import { createServerFn } from "@tanstack/react-start";
-import { setResponseHeader } from "@tanstack/react-start/server";
-import { creaCatalogo, type Catalogo, type ClienteDb, type EsitoScheda } from "./catalogo.server";
+import { getRequestUrl, setResponseHeader } from "@tanstack/react-start/server";
+import { cacheDellaRisposta, creaCatalogo, type Catalogo, type ClienteDb, type EsitoScheda } from "./catalogo.server";
 
 /** Una per isolato: la memoria breve sta qui. */
 let istanza: Catalogo | null = null;
@@ -38,7 +39,9 @@ async function letto<T>(vuoto: T, f: (k: Catalogo) => Promise<T>, cache: string 
     /* vuoto */
   }
   try {
-    setResponseHeader("Cache-Control", typeof cache === "function" ? cache(r) : cache);
+    // solo per la chiamata del browser: nel rendering della pagina l'HTML non si tiene in memoria
+    const intestazione = cacheDellaRisposta(typeof cache === "function" ? cache(r) : cache, getRequestUrl().pathname);
+    if (intestazione) setResponseHeader("Cache-Control", intestazione);
   } catch {
     /* fuori da una richiesta (prove, prerender): niente intestazione */
   }
