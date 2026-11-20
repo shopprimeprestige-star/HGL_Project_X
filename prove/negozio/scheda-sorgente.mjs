@@ -44,7 +44,10 @@ export async function prove(_mod, { c, gruppo, radice }) {
     const p = corpo.search(/prodotto_stato|prodotto_pubblica_modifiche/);
     return s >= 0 && p > s;
   })());
-  c("il tasto «Pubblica» è spento con bloccanti.length > 0", true, /bloccanti\.length\s*>\s*0/.test(codice.SchedaProdotto) && /disabled=\{[^}]*nonPubblicabile/.test(codice.SchedaProdotto));
+  const sorgente = codice.SchedaProdotto;
+  const tasti = [...sorgente.matchAll(/void pubblica\(\)/g)].map((m) => sorgente.slice(Math.max(0, m.index - 260), m.index));
+  c("nonPubblicabile include bloccanti.length > 0", true, /const nonPubblicabile = [^;]*bloccanti\.length\s*>\s*0/.test(sorgente));
+  c("OGNI tasto che chiama pubblica() è spento con nonPubblicabile (sono almeno due: barra e striscia)", [true, true], [tasti.length >= 2, tasti.every((s) => /disabled=\{[^}]*nonPubblicabile/.test(s))]);
   c("i controlli vengono dal modulo che usa controllaPubblicazione (stessa funzione del server)", [true, true], [/controlloLive\(/.test(codice.SchedaProdotto), /controllaPubblicazione\(/.test(pura)]);
   c("il conflitto di versione dice «qualcun altro ha modificato» e propone di ricaricare", true, /qualcun altro ha modificato/i.test(scheda) && /Ricarica/.test(scheda));
   c("Invisible Derm: la scheda usa eInvisibleDerm e non mostra il campo prezzo", true, /eInvisibleDerm\(/.test(codice.SchedaProdotto));
