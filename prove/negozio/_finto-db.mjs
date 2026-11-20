@@ -75,7 +75,7 @@ const DEFAULT = (t, adesso) =>
     shop_categorie: { tipo: "categoria", ordine: 0, visibile: false, creato_il: adesso(), aggiornato_il: adesso() },
     shop_prodotti: { stato: "bozza", prezzo_cent: 0, caratteristiche: [], contenuto: {}, box_consulenza: false, canali: {}, creato_il: adesso(), aggiornato_il: adesso() },
     shop_varianti: { nome: "", opzioni: {}, giacenza: 0, attiva: true, ordine: 0, creato_il: adesso(), aggiornato_il: adesso() },
-    shop_media: { tipo: "foto", sottotitoli_ok: false, muto: false, ritrae_persone: false, liberatoria_ok: false, ordine: 0, creato_il: adesso() },
+    shop_media: { tipo: "foto", sottotitoli_ok: false, muto: false, ritrae_persone: false, liberatoria_ok: false, ordine: 0, rimosso_il: null, creato_il: adesso() },
     shop_giacenza_movimenti: { creato_il: adesso() },
     shop_storico: { creato_il: adesso() },
   })[t] ?? {};
