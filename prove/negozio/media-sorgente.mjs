@@ -9,7 +9,7 @@ import { join } from "node:path";
 
 /** Il commit da cui parte T16 (ramo `shop-r1-m`). */
 const BASE = "277e018";
-const senzaCommenti = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:"'`])\/\/.*$/gm, "$1");
+const senzaCommenti = (t) => t.replace(/(^|\s)\/\*[\s\S]*?\*\//g, "$1").replace(/(^|[^:"'`])\/\/.*$/gm, "$1");
 const leggi = (p) => (existsSync(p) ? readFileSync(p, "utf8") : "");
 
 export async function prove(_mod, { c, gruppo, radice }) {
@@ -31,7 +31,7 @@ export async function prove(_mod, { c, gruppo, radice }) {
   // ── mai cancellare, mai il nome del file ──
   c("nessuna cancellazione, nessun «Elimina»: «Togli» chiama `media_rimuovi`", [false, true, true], [/\bdelete\b|Elimina|\.remove\(\)|\bunlink\b/i.test(tutto), ed.includes('"media_rimuovi"'), /Togli/.test(ed)]);
   c("il nome del file di chi carica non si legge mai (`.name`) né finisce in un percorso o in un dato", false, /\.name\b|webkitRelativePath|lastModified/.test(tutto));
-  c("il percorso non lo costruisce la schermata: nessuna stringa «foto/», «video/» o «copertina/»", false, /["'`](foto|video|copertina)\/|\$\{[^}]*\}\.(jpe?g|mp4|mov)/.test(tutto));
+  c("il percorso non lo costruisce la schermata: nessuna stringa «foto/», «video/» o «copertina/»", false, /["'`](foto|copertina)\/|["'`]video\/(?!\*|mp4|quicktime)|\$\{[^}]*\}\.(jpe?g|mp4|mov)/.test(tutto));
   c("l'originale non esce: il permesso e l'invio ricevono solo i blob ridimensionati (`disegnaMisure`), mai `file` o `File`", [true, false], [/disegnaMisure\(/.test(ed), /caricaConPermesso\([^)]*\bfile\b/.test(ed)]);
 
   // ── alt obbligatorio ──
