@@ -109,6 +109,13 @@ export async function prove(mod, { c, gruppo, radice }) {
     c("Content-Length oltre il tetto: 413 senza leggere il corpo (al più il primo pezzo che il flusso prepara da sé)", [413, true], [r.status, cont.letti <= 2]);
   }
 
+  // ── la guardia viene PRIMA di leggere il corpo: con la guardia negata il flusso non si tocca ──
+  for (const stato of [401, 403]) {
+    const cont = { letti: 0 }, a = ambiente({ guardia: guardiaNo(stato) });
+    const r = await S.gestisciPOST(richiestaFlusso(cont), a.d);
+    c(`guardia negata (${stato}) con un corpo che non finisce mai: risposta della guardia e il corpo NON si legge (al più il primo pezzo che il flusso prepara da sé)`, [stato, true, 0], [r.status, cont.letti <= 2, a.db.chiamate]);
+  }
+
   // ── le rotte, sul sorgente ──
   const dir = join(radice, "src/routes");
   const rotte = { "api.crm.negozio.ts": "/api/crm/negozio", "api.crm.negozio-media.ts": "/api/crm/negozio-media" };

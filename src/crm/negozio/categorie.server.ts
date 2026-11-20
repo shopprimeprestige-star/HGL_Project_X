@@ -221,15 +221,17 @@ async function ordina(corpo: Riga, chi: string, d: PorteDb) {
   return esitoStorico(storico);
 }
 
-/** La foto della categoria. Il percorso è quello che ha dato `media.server.ts` (cartella `foto/`); l'alt è obbligatorio.
- *  Si scrive in due posti: `shop_categorie.foto_path` (la colonna che le viste pubbliche leggono) e una riga di `shop_media`
- *  (slot «principale» della categoria) che porta il testo alternativo, perché `shop_categorie` non ha una colonna per l'alt.
+/** La foto della categoria, in tre misure come quelle dei prodotti (`path480`, `path960`, `path1600`): ogni percorso è quello che ha dato
+ *  `media.server.ts` (cartella `foto/`); l'alt è obbligatorio.
+ *  Si scrive in due posti: `shop_categorie.foto_path` (il puntatore: la 960) e una riga di `shop_media` (slot «principale» della
+ *  categoria) con le tre misure e il testo alternativo, perché `shop_categorie` non ha una colonna per l'alt.
  *  La foto di prima non si cancella: la sua riga di `shop_media` prende `rimosso_il`. */
 async function fotoDellaCategoria(corpo: Riga, chi: string, d: PorteDb) {
   const id = idDi(corpo.categoriaId);
   const versione = versioneDi(corpo.versione);
-  const path = corpo.path;
-  if (!percorsoShopValido(path) || !path.startsWith("foto/")) throw rifiuta("valore", 400, "Il percorso della foto non è valido: carica prima la foto dal pannello.");
+  const [path480, path960, path1600] = [corpo.path480, corpo.path960, corpo.path1600];
+  for (const p of [path480, path960, path1600])
+    if (!percorsoShopValido(p) || !p.startsWith("foto/")) throw rifiuta("valore", 400, "Il percorso della foto non è valido: carica prima la foto dal pannello.");
   const alt = typeof corpo.alt === "string" ? corpo.alt.trim() : "";
   if (!alt) throw rifiuta("valore", 400, "Descrivi la foto per chi non la vede: il testo alternativo è obbligatorio.");
   if (alt.length > TETTI.alt) throw rifiuta("valore", 400, `Il testo alternativo può avere al massimo ${TETTI.alt} caratteri.`);
@@ -239,12 +241,12 @@ async function fotoDellaCategoria(corpo: Riga, chi: string, d: PorteDb) {
   const corrente = (await leggiTutte(d)).find((r) => r.id === id);
   if (!corrente) throw rifiuta("non_trovato", 404, "Categoria non trovata.");
   if (!stessoIstante(versione, corrente.aggiornato_il)) throw conflitto("La categoria è stata modificata da qualcun altro nel frattempo: ricarica e riprova.");
-  await aggiorna(d, id, String(corrente.aggiornato_il), { foto_path: path });
+  await aggiorna(d, id, String(corrente.aggiornato_il), { foto_path: path960 });
   // shortcut: tre scritture senza transazione (categoria, vecchia foto tolta, foto nuova); se cade a metà basta ripetere il salvataggio
   const adesso = d.adesso().toISOString();
   dati(d, "foto", await d.db.from("shop_media").update({ rimosso_il: adesso }).eq("categoria_id", id).is("rimosso_il", null));
-  dati(d, "foto", await d.db.from("shop_media").insert({ categoria_id: id, slot: "principale", tipo: "foto", path_960: path, alt, ordine: 0 }));
-  const storico = await scriviStorico(d, "categoria", id, [{ campo: "foto", prima: corrente.foto_path ?? null, dopo: path }], chi);
+  dati(d, "foto", await d.db.from("shop_media").insert({ categoria_id: id, slot: "principale", tipo: "foto", path_480: path480, path_960: path960, path_1600: path1600, alt, ordine: 0 }));
+  const storico = await scriviStorico(d, "categoria", id, [{ campo: "foto", prima: corrente.foto_path ?? null, dopo: path960 }], chi);
   return {
     categoria: { id, slug: String(corrente.slug), versione: await versioneAttuale(d, "shop_categorie", id) },
     avvisi: testo.avvisi.map((a) => a.frase),

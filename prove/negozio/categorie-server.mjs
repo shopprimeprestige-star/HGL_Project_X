@@ -219,23 +219,29 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("il finto cancella solo dal legame (e solo con un filtro): prodotti no", [true, true], [/cancella/.test(lancio ?? ""), /senza filtri/.test(senzaFiltri ?? "")]);
 
   // ── la foto della categoria: categoria_foto ──
+  // tre misure, come le foto dei prodotti (T08): 480, 960 e 1600 px; foto_path riceve la 960
   const PATH = "foto/abcdefghijkl.webp", PATH2 = "foto/mnopqrstuvwx.jpg";
-  const cf = (extra = {}) => ({ azione: "categoria_foto", categoriaId: C1, path: PATH, alt: "Scaffale con tre patch di prova", versione: ISTANTE, ...extra });
+  const PATH480 = "foto/aaaaaaaaaaaa.webp", PATH1600 = "foto/cccccccccccc.webp", PATH2_480 = "foto/dddddddddddd.jpg", PATH2_1600 = "foto/eeeeeeeeeeee.jpg";
+  const cf = (extra = {}) => ({ azione: "categoria_foto", categoriaId: C1, path480: PATH480, path960: PATH, path1600: PATH1600, alt: "Scaffale con tre patch di prova", versione: ISTANTE, ...extra });
   const media = (db) => db.tabelle.shop_media.filter((m) => m.categoria_id === C1);
   const g0 = await esegui(cf(), { porte: { guardia: guardiaNo(403) } });
   c("categoria_foto: guardia negata (403) → nessuna chiamata", [403, 0], [g0.stato, g0.db.chiamate]);
   const f1 = await esegui(cf());
   c("foto: la categoria ha il percorso nuovo (è la colonna che le viste pubbliche leggono)", [200, true, PATH, ADESSO], [f1.stato, f1.corpo.ok, cat(f1.db, C1).foto_path, cat(f1.db, C1).aggiornato_il]);
   c("…e una riga in shop_media (slot principale, della categoria, con il testo alternativo e il percorso)", [1, "principale", "foto", PATH, "Scaffale con tre patch di prova", null], ((m) => [media(f1.db).length, m?.slot, m?.tipo, m?.path_960, m?.alt, m?.rimosso_il])(media(f1.db)[0]));
+  c("…con TUTTE E TRE le misure nella riga di shop_media", [PATH480, PATH, PATH1600], ((m) => [m?.path_480, m?.path_960, m?.path_1600])(media(f1.db)[0]));
   c("…la risposta porta id, slug e la versione riletta", [C1, "categoria-prova", ADESSO], [f1.corpo.categoria?.id, f1.corpo.categoria?.slug, f1.corpo.categoria?.versione]);
   c("…lo storico ha UNA riga: campo foto, prima vuoto, dopo il percorso, chi", [[{ entita: "categoria", entita_id: C1, campo: "foto", prima: null, dopo: PATH, chi: "Titolare Prova" }]],
     [f1.db.tabelle.shop_storico.map(({ entita, entita_id, campo, prima, dopo, chi }) => ({ entita, entita_id, campo, prima, dopo, chi }))]);
   const sost = fintoDb({ tabelle: tabelle() });
   await K.gestisciPOST(post(cf()), porte({ db: sost }).d);
-  const f2 = await esegui(cf({ path: PATH2, alt: "Altra foto di prova", versione: ADESSO }), { db: sost });
+  const f2 = await esegui(cf({ path480: PATH2_480, path960: PATH2, path1600: PATH2_1600, alt: "Altra foto di prova", versione: ADESSO }), { db: sost });
   c("seconda foto: la prima si «rimuove» (rimosso_il, mai cancellata), la nuova è l'unica attiva", [2, 1, ADESSO, PATH2], [media(sost).length, media(sost).filter((m) => !m.rimosso_il).length, media(sost).find((m) => m.path_960 === PATH)?.rimosso_il, cat(sost, C1).foto_path]);
+  c("…la nuova ha le sue tre misure (foto_path = la 960)", [PATH2_480, PATH2, PATH2_1600], ((m) => [m?.path_480, m?.path_960, m?.path_1600])(media(sost).find((m) => !m.rimosso_il)));
   c("…lo storico dice com'era prima (il vecchio percorso)", [PATH, PATH2], [sost.tabelle.shop_storico[1]?.prima, sost.tabelle.shop_storico[1]?.dopo]);
-  for (const [nome, extra] of [["percorso con ..", { path: "foto/../altro.webp" }], ["percorso di un video", { path: "video/abcdefghijkl.mp4" }], ["percorso di una copertina", { path: "copertina/abcdefghijkl.jpg" }], ["percorso con il nome del file", { path: "foto/capelli-mario.jpg" }], ["percorso troppo corto", { path: "foto/abc.webp" }], ["percorso con i segni sbagliati (maiuscole)", { path: "foto/ABCDEFGHIJKL.webp" }], ["percorso con indirizzo", { path: "https://sito.test/foto/abcdefghijkl.webp" }], ["percorso che non è testo", { path: 5 }], ["senza percorso", { path: undefined }],
+  const storti = [["con ..", "foto/../altro.webp"], ["di un video", "video/abcdefghijkl.mp4"], ["di una copertina", "copertina/abcdefghijkl.jpg"], ["con il nome del file", "foto/capelli-mario.jpg"], ["troppo corto", "foto/abc.webp"], ["con i segni sbagliati (maiuscole)", "foto/ABCDEFGHIJKL.webp"], ["con indirizzo", "https://sito.test/foto/abcdefghijkl.webp"], ["che non è testo", 5], ["mancante", undefined]];
+  const casiPercorso = ["path480", "path960", "path1600"].flatMap((k) => storti.map(([nome, v]) => [`${k} ${nome}`, { [k]: v }]));
+  for (const [nome, extra] of [...casiPercorso,
     ["senza testo alternativo", { alt: undefined }], ["testo alternativo vuoto", { alt: "   " }], ["testo alternativo oltre 125", { alt: "x".repeat(126) }], ["testo alternativo non testo", { alt: 5 }], ["testo con un prezzo accanto a Invisible Derm", { alt: "Invisible Derm a 3.900 euro" }], ["categoria non UUID", { categoriaId: "x" }], ["senza versione", { versione: undefined }]]) {
     const r = await esegui(cf(extra));
     c(`foto con ${nome} → 400, niente scritto, nessuna chiamata`, [400, 0, 0], [r.stato, r.db.scritture.length, r.db.chiamate]);
