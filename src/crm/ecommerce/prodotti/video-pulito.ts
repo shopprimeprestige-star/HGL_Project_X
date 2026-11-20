@@ -31,7 +31,8 @@ interface Atomo {
   fine: number;
 }
 
-const testo4 = (b: Uint8Array, p: number): string => String.fromCharCode(b[p], b[p + 1], b[p + 2], b[p + 3]);
+const testo4 = (b: Uint8Array, p: number): string =>
+  String.fromCharCode(b[p], b[p + 1], b[p + 2], b[p + 3]);
 const vista = (b: Uint8Array) => new DataView(b.buffer, b.byteOffset, b.byteLength);
 
 /** Gli atomi che stanno uno dopo l'altro fra `da` e `a`. Qualunque grandezza che non torna → illeggibile. */
@@ -55,7 +56,20 @@ function atomi(b: Uint8Array, da: number, a: number): Atomo[] {
   return fuori;
 }
 
-const MARCHE_MP4 = ["isom", "iso2", "iso3", "iso4", "iso5", "iso6", "mp41", "mp42", "mp71", "avc1", "M4V ", "dash"];
+const MARCHE_MP4 = [
+  "isom",
+  "iso2",
+  "iso3",
+  "iso4",
+  "iso5",
+  "iso6",
+  "mp41",
+  "mp42",
+  "mp71",
+  "avc1",
+  "M4V ",
+  "dash",
+];
 
 /** Il tipo del file dalla FIRMA (l'atomo `ftyp` all'inizio), mai da ciò che dice il browser. `null` = non è un MP4 né un MOV. */
 export function tipoDaFirma(b: Uint8Array): "video/mp4" | "video/quicktime" | null {
@@ -98,8 +112,10 @@ const CONTENITORI: Record<string, string[]> = {
 const A_LIVELLO_FILE = ["ftyp", "moov", "mdat"];
 const TRACCE_TENUTE = ["vide", "soun"];
 
-const figlio = (b: Uint8Array, a: Atomo, tipo: string): Atomo | undefined => atomi(b, a.inizio + a.testa, a.fine).find((f) => f.tipo === tipo);
-const percorso = (b: Uint8Array, a: Atomo, ...tipi: string[]): Atomo | undefined => tipi.reduce<Atomo | undefined>((x, t) => (x ? figlio(b, x, t) : undefined), a);
+const figlio = (b: Uint8Array, a: Atomo, tipo: string): Atomo | undefined =>
+  atomi(b, a.inizio + a.testa, a.fine).find((f) => f.tipo === tipo);
+const percorso = (b: Uint8Array, a: Atomo, ...tipi: string[]): Atomo | undefined =>
+  tipi.reduce<Atomo | undefined>((x, t) => (x ? figlio(b, x, t) : undefined), a);
 const corpoDi = (a: Atomo): number => a.inizio + a.testa;
 
 interface Pezzo {
@@ -116,10 +132,15 @@ function leggiTraccia(b: Uint8Array, atomo: Atomo): Traccia {
   const tkhd = figlio(b, atomo, "tkhd");
   const hdlr = percorso(b, atomo, "mdia", "hdlr");
   if (!tkhd || !hdlr) no();
-  const t = tkhd as Atomo, h = hdlr as Atomo;
+  const t = tkhd as Atomo,
+    h = hdlr as Atomo;
   const v1 = b[corpoDi(t)] === 1;
   if (t.fine - corpoDi(t) < (v1 ? 24 : 16) || h.fine - corpoDi(h) < 12) no();
-  return { atomo, id: vista(b).getUint32(corpoDi(t) + (v1 ? 20 : 12)), tiene: TRACCE_TENUTE.includes(testo4(b, corpoDi(h) + 8)) };
+  return {
+    atomo,
+    id: vista(b).getUint32(corpoDi(t) + (v1 ? 20 : 12)),
+    tiene: TRACCE_TENUTE.includes(testo4(b, corpoDi(h) + 8)),
+  };
 }
 
 /** Dove stanno i byte dei campioni di una traccia (un pezzo per ogni «chunk»), come offset dall'inizio del FILE. Illeggibile = si rifiuta. */
@@ -132,7 +153,9 @@ function pezziDi(b: Uint8Array, traccia: Atomo): Pezzo[] {
   const stsz = f.find((x) => x.tipo === "stsz"); // `stz2` (misure compatte): non si sa leggere → si rifiuta
   if (!tab || !stsc || !stsz) no();
   const dv = vista(b);
-  const T = tab as Atomo, C = stsc as Atomo, Z = stsz as Atomo;
+  const T = tab as Atomo,
+    C = stsc as Atomo,
+    Z = stsz as Atomo;
   const largo = T.tipo === "co64" ? 8 : 4;
   if (T.fine - corpoDi(T) < 8 || C.fine - corpoDi(C) < 8 || Z.fine - corpoDi(Z) < 12) no();
   const nChunk = dv.getUint32(corpoDi(T) + 4);
@@ -150,7 +173,8 @@ function pezziDi(b: Uint8Array, traccia: Atomo): Pezzo[] {
     const quanti = dv.getUint32(corpoDi(C) + 8 + voce * 12 + 4);
     if (campione + quanti > nCampioni) no();
     let lunghezza = 0;
-    for (let k = 0; k < quanti; k++) lunghezza += misuraFissa || dv.getUint32(corpoDi(Z) + 12 + (campione + k) * 4);
+    for (let k = 0; k < quanti; k++)
+      lunghezza += misuraFissa || dv.getUint32(corpoDi(Z) + 12 + (campione + k) * 4);
     campione += quanti;
     const p = corpoDi(T) + 8 + (i - 1) * largo;
     const inizio = largo === 4 ? dv.getUint32(p) : dv.getUint32(p) * 2 ** 32 + dv.getUint32(p + 4);
@@ -163,8 +187,15 @@ function pezziDi(b: Uint8Array, traccia: Atomo): Pezzo[] {
 function ricostruisci(b: Uint8Array, a: Atomo, fuori: Set<number>, senzaTref: boolean): Uint8Array {
   const parti: Uint8Array[] = [];
   for (const f of atomi(b, corpoDi(a), a.fine)) {
-    if (!CONTENITORI[a.tipo].includes(f.tipo) || fuori.has(f.inizio) || (senzaTref && f.tipo === "tref")) continue;
-    parti.push(CONTENITORI[f.tipo] ? ricostruisci(b, f, fuori, senzaTref) : b.subarray(f.inizio, f.fine));
+    if (
+      !CONTENITORI[a.tipo].includes(f.tipo) ||
+      fuori.has(f.inizio) ||
+      (senzaTref && f.tipo === "tref")
+    )
+      continue;
+    parti.push(
+      CONTENITORI[f.tipo] ? ricostruisci(b, f, fuori, senzaTref) : b.subarray(f.inizio, f.fine),
+    );
   }
   return conTesta(a.tipo, unisci(parti));
 }
@@ -181,7 +212,11 @@ interface Mdat {
 function nuovoOffset(mdat: Mdat[], vecchio: number): number {
   const m = mdat.find((x) => vecchio >= x.inizio && vecchio < x.fine);
   if (!m) return no();
-  return m.nuovoInizio + (vecchio - m.inizio) - m.tolti.filter((t) => t.fine <= vecchio).reduce((n, t) => n + (t.fine - t.inizio), 0);
+  return (
+    m.nuovoInizio +
+    (vecchio - m.inizio) -
+    m.tolti.filter((t) => t.fine <= vecchio).reduce((n, t) => n + (t.fine - t.inizio), 0)
+  );
 }
 
 function correggiOffset(moov: Uint8Array, mdat: Mdat[]): void {
@@ -199,7 +234,8 @@ function correggiOffset(moov: Uint8Array, mdat: Mdat[]): void {
       if (n > (t.fine - da - 8) / largo) no();
       for (let k = 0; k < n; k++) {
         const p = da + 8 + k * largo;
-        const vecchio = largo === 4 ? dv.getUint32(p) : dv.getUint32(p) * 2 ** 32 + dv.getUint32(p + 4);
+        const vecchio =
+          largo === 4 ? dv.getUint32(p) : dv.getUint32(p) * 2 ** 32 + dv.getUint32(p + 4);
         const nuovo = nuovoOffset(mdat, vecchio);
         if (largo === 4 && nuovo > 0xffffffff) no();
         if (largo === 4) dv.setUint32(p, nuovo);
@@ -222,9 +258,12 @@ function prossimaTraccia(moov: Uint8Array, id: number): void {
   vista(moov).setUint32(p, id);
 }
 
-export type EsitoVideo = { ok: true; dati: Uint8Array; mime: "video/mp4" | "video/quicktime"; tolti: number } | { ok: false; frase: string };
+export type EsitoVideo =
+  | { ok: true; dati: Uint8Array; mime: "video/mp4" | "video/quicktime"; tolti: number }
+  | { ok: false; frase: string };
 
-const sovrapposti = (a: Pezzo[], b: Pezzo[]): boolean => a.some((x) => b.some((y) => x.inizio < y.fine && y.inizio < x.fine));
+const sovrapposti = (a: Pezzo[], b: Pezzo[]): boolean =>
+  a.some((x) => b.some((y) => x.inizio < y.fine && y.inizio < x.fine));
 
 /** Il video senza dati nascosti. Non lancia mai: se non riesce, `{ ok: false, frase }` e il video NON si carica. */
 export function pulisciVideo(b: Uint8Array): EsitoVideo {
@@ -235,19 +274,39 @@ export function pulisciVideo(b: Uint8Array): EsitoVideo {
     const mime = tipoDaFirma(b);
     const moov = alto.filter((a) => a.tipo === "moov");
     const mdat = alto.filter((a) => a.tipo === "mdat");
-    if (!mime || moov.length !== 1 || mdat.length === 0 || alto.some((a) => a.tipo === "moof")) no();
+    if (!mime || moov.length !== 1 || mdat.length === 0 || alto.some((a) => a.tipo === "moof"))
+      no();
 
     //  Le tracce: restano video e audio; le altre vanno via intere, con i loro byte.
-    const tracce = atomi(b, corpoDi(moov[0]), moov[0].fine).filter((a) => a.tipo === "trak").map((a) => leggiTraccia(b, a));
+    const tracce = atomi(b, corpoDi(moov[0]), moov[0].fine)
+      .filter((a) => a.tipo === "trak")
+      .map((a) => leggiTraccia(b, a));
     const tenute = tracce.filter((t) => t.tiene);
     const tolte = tracce.filter((t) => !t.tiene);
     if (tenute.length === 0) no();
-    const pezziTolti = tolte.flatMap((t) => pezziDi(b, t.atomo)).sort((x, y) => x.inizio - y.inizio);
-    if (pezziTolti.some((x, i) => x.fine <= x.inizio || (i > 0 && x.inizio < pezziTolti[i - 1].fine))) no();
-    if (pezziTolti.length && sovrapposti(tenute.flatMap((t) => pezziDi(b, t.atomo)), pezziTolti)) no();
+    const pezziTolti = tolte
+      .flatMap((t) => pezziDi(b, t.atomo))
+      .sort((x, y) => x.inizio - y.inizio);
+    if (
+      pezziTolti.some((x, i) => x.fine <= x.inizio || (i > 0 && x.inizio < pezziTolti[i - 1].fine))
+    )
+      no();
+    if (
+      pezziTolti.length &&
+      sovrapposti(
+        tenute.flatMap((t) => pezziDi(b, t.atomo)),
+        pezziTolti,
+      )
+    )
+      no();
     if (pezziTolti.some((x) => !mdat.some((m) => x.inizio >= corpoDi(m) && x.fine <= m.fine))) no();
 
-    const nuovoMoov = ricostruisci(b, moov[0], new Set(tolte.map((t) => t.atomo.inizio)), tolte.length > 0);
+    const nuovoMoov = ricostruisci(
+      b,
+      moov[0],
+      new Set(tolte.map((t) => t.atomo.inizio)),
+      tolte.length > 0,
+    );
     if (tolte.length) prossimaTraccia(nuovoMoov, Math.max(...tenute.map((t) => t.id)) + 1);
 
     //  Il nuovo posto di ogni cosa: prima le lunghezze, poi gli offset.
@@ -286,7 +345,12 @@ export function pulisciVideo(b: Uint8Array): EsitoVideo {
       } else parti.push(b.subarray(a.inizio, a.fine));
     }
     const dati = unisci(parti);
-    return { ok: true, dati, mime: mime as "video/mp4" | "video/quicktime", tolti: b.length - dati.length };
+    return {
+      ok: true,
+      dati,
+      mime: mime as "video/mp4" | "video/quicktime",
+      tolti: b.length - dati.length,
+    };
   } catch {
     return { ok: false, frase: FRASE_VIDEO };
   }

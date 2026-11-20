@@ -21,7 +21,12 @@ async function daElemento(file: Blob): Promise<Immagine> {
     const img = new Image();
     img.src = url;
     await img.decode();
-    return { sorgente: img, larghezza: img.naturalWidth, altezza: img.naturalHeight, chiudi: () => URL.revokeObjectURL(url) };
+    return {
+      sorgente: img,
+      larghezza: img.naturalWidth,
+      altezza: img.naturalHeight,
+      chiudi: () => URL.revokeObjectURL(url),
+    };
   } catch {
     URL.revokeObjectURL(url);
     throw new Error("Non riesco a leggere la foto: provane un'altra.");
@@ -60,12 +65,29 @@ const ATTESA_VIDEO_MS = 10_000;
 const aspetta = (el: HTMLVideoElement, evento: string): Promise<void> =>
   new Promise((ok, no) => {
     const t = setTimeout(() => no(new Error("timeout")), ATTESA_VIDEO_MS);
-    el.addEventListener(evento, () => { clearTimeout(t); ok(); }, { once: true });
-    el.addEventListener("error", () => { clearTimeout(t); no(new Error("video")); }, { once: true });
+    el.addEventListener(
+      evento,
+      () => {
+        clearTimeout(t);
+        ok();
+      },
+      { once: true },
+    );
+    el.addEventListener(
+      "error",
+      () => {
+        clearTimeout(t);
+        no(new Error("video"));
+      },
+      { once: true },
+    );
   });
 
 /** La durata misurata nel browser e il fotogramma a `secondo` (di norma 1) come JPEG. La copertina può mancare (`null`): il video si carica lo stesso. */
-export async function leggiVideo(file: Blob, secondo = 1): Promise<{ durataS: number; copertina: Blob | null }> {
+export async function leggiVideo(
+  file: Blob,
+  secondo = 1,
+): Promise<{ durataS: number; copertina: Blob | null }> {
   const url = URL.createObjectURL(file);
   const v = document.createElement("video");
   v.muted = true;

@@ -15,7 +15,10 @@ export const MAX_ALT = TETTI.alt;
 export const MAX_TENTATIVI = 3;
 export { MAX_VIDEO_SECONDI };
 
-export type SlotEditor = Extract<Slot, "principale" | "foto2" | "foto3" | "foto4" | "foto5" | "scala" | "video" | "confezione">;
+export type SlotEditor = Extract<
+  Slot,
+  "principale" | "foto2" | "foto3" | "foto4" | "foto5" | "scala" | "video" | "confezione"
+>;
 export interface DefSlot {
   slot: SlotEditor;
   etichetta: string;
@@ -27,14 +30,70 @@ export interface DefSlot {
   conRuolo: boolean;
 }
 export const SLOT_EDITOR: readonly DefSlot[] = [
-  { slot: "principale", etichetta: "Foto principale", obbligatorio: true, tipo: "foto", aiuto: "La prima che si vede sul sito.", conRuolo: false },
-  { slot: "foto2", etichetta: "Foto 2", obbligatorio: false, tipo: "foto", aiuto: "", conRuolo: true },
-  { slot: "foto3", etichetta: "Foto 3", obbligatorio: false, tipo: "foto", aiuto: "", conRuolo: true },
-  { slot: "foto4", etichetta: "Foto 4", obbligatorio: false, tipo: "foto", aiuto: "", conRuolo: true },
-  { slot: "foto5", etichetta: "Foto 5", obbligatorio: false, tipo: "foto", aiuto: "", conRuolo: true },
-  { slot: "scala", etichetta: "Foto di scala", obbligatorio: false, tipo: "foto", aiuto: "Fa capire la grandezza vera del prodotto.", conRuolo: false },
-  { slot: "video", etichetta: "Video breve", obbligatorio: false, tipo: "video", aiuto: `Al massimo ${MAX_VIDEO_SECONDI} secondi, MP4 o MOV.`, conRuolo: false },
-  { slot: "confezione", etichetta: "Foto della confezione", obbligatorio: false, tipo: "foto", aiuto: "Facoltativa.", conRuolo: false },
+  {
+    slot: "principale",
+    etichetta: "Foto principale",
+    obbligatorio: true,
+    tipo: "foto",
+    aiuto: "La prima che si vede sul sito.",
+    conRuolo: false,
+  },
+  {
+    slot: "foto2",
+    etichetta: "Foto 2",
+    obbligatorio: false,
+    tipo: "foto",
+    aiuto: "",
+    conRuolo: true,
+  },
+  {
+    slot: "foto3",
+    etichetta: "Foto 3",
+    obbligatorio: false,
+    tipo: "foto",
+    aiuto: "",
+    conRuolo: true,
+  },
+  {
+    slot: "foto4",
+    etichetta: "Foto 4",
+    obbligatorio: false,
+    tipo: "foto",
+    aiuto: "",
+    conRuolo: true,
+  },
+  {
+    slot: "foto5",
+    etichetta: "Foto 5",
+    obbligatorio: false,
+    tipo: "foto",
+    aiuto: "",
+    conRuolo: true,
+  },
+  {
+    slot: "scala",
+    etichetta: "Foto di scala",
+    obbligatorio: false,
+    tipo: "foto",
+    aiuto: "Fa capire la grandezza vera del prodotto.",
+    conRuolo: false,
+  },
+  {
+    slot: "video",
+    etichetta: "Video breve",
+    obbligatorio: false,
+    tipo: "video",
+    aiuto: `Al massimo ${MAX_VIDEO_SECONDI} secondi, MP4 o MOV.`,
+    conRuolo: false,
+  },
+  {
+    slot: "confezione",
+    etichetta: "Foto della confezione",
+    obbligatorio: false,
+    tipo: "foto",
+    aiuto: "Facoltativa.",
+    conRuolo: false,
+  },
 ];
 export const GALLERIA: readonly SlotEditor[] = ["foto2", "foto3", "foto4", "foto5"];
 
@@ -49,34 +108,44 @@ export const RUOLI: readonly { valore: SottoRuolo; etichetta: string; alt: strin
 
 export const contaAlt = (alt: string): string => `${alt.length}/${MAX_ALT}`;
 
-export function controllaAlt(alt: unknown): { ok: true; alt: string } | { ok: false; frase: string } {
+export function controllaAlt(
+  alt: unknown,
+): { ok: true; alt: string } | { ok: false; frase: string } {
   const t = typeof alt === "string" ? alt.trim() : "";
   if (!t) return { ok: false, frase: "Scrivi cosa si vede nella foto, per chi non può vederla." };
-  if (t.length > MAX_ALT) return { ok: false, frase: `La descrizione è troppo lunga: ${t.length} segni su ${MAX_ALT}.` };
+  if (t.length > MAX_ALT)
+    return { ok: false, frase: `La descrizione è troppo lunga: ${t.length} segni su ${MAX_ALT}.` };
   return { ok: true, alt: t };
 }
 
 /** Una descrizione di partenza dal nome del prodotto e dal ruolo: il titolare la corregge. Mai oltre 125 segni. */
 export function altProposto(nome: string, slot: string, ruolo: SottoRuolo | string | null): string {
   const coda =
-    slot === "principale" ? "" :
-    slot === "scala" ? ", foto di scala" :
-    slot === "video" ? ", video breve" :
-    slot === "confezione" ? ", la confezione" :
-    `, ${RUOLI.find((r) => r.valore === ruolo)?.alt ?? "altra foto"}`;
+    slot === "principale"
+      ? ""
+      : slot === "scala"
+        ? ", foto di scala"
+        : slot === "video"
+          ? ", video breve"
+          : slot === "confezione"
+            ? ", la confezione"
+            : `, ${RUOLI.find((r) => r.valore === ruolo)?.alt ?? "altra foto"}`;
   const base = nome.trim() || "Prodotto";
   return `${base.slice(0, MAX_ALT - coda.length).trimEnd()}${coda}`;
 }
 
 /* ── quale media sta in quale slot ───────────────────────────────────── */
 
-const perOrdine = (a: Media, b: Media): number => a.ordine - b.ordine || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
-const vivi = (media: readonly Media[]): Media[] => media.filter((m) => !m.rimossoIl).sort(perOrdine);
+const perOrdine = (a: Media, b: Media): number =>
+  a.ordine - b.ordine || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+const vivi = (media: readonly Media[]): Media[] =>
+  media.filter((m) => !m.rimossoIl).sort(perOrdine);
 
 /** Un media per slot; se ce ne fossero due vince sempre lo stesso (ordine, poi id), come sul sito. */
 export function mediaPerSlot(media: readonly Media[]): Map<string, Media> {
   const fuori = new Map<string, Media>();
-  for (const m of vivi(media)) if (m.slot !== "campione" && !fuori.has(m.slot)) fuori.set(m.slot, m);
+  for (const m of vivi(media))
+    if (m.slot !== "campione" && !fuori.has(m.slot)) fuori.set(m.slot, m);
   return fuori;
 }
 
@@ -87,7 +156,10 @@ export function slotLiberiFoto(media: readonly Media[]): SlotEditor[] {
 }
 
 /** Più file insieme: ognuno va nel primo slot libero; quelli che non ci stanno restano fuori. */
-export function assegnaSlot<T extends string>(quanti: number, liberi: readonly T[]): { slot: T[]; inEccesso: number } {
+export function assegnaSlot<T extends string>(
+  quanti: number,
+  liberi: readonly T[],
+): { slot: T[]; inEccesso: number } {
   const n = Math.max(0, quanti);
   return { slot: liberi.slice(0, n), inEccesso: Math.max(0, n - liberi.length) };
 }
@@ -96,13 +168,16 @@ export const fraseInEccesso = (posti: number, fuori: number): string =>
 
 /* ── il riordino: solo le foto 2-5, scambiandosi il posto ────────────── */
 
-export const galleria = (media: readonly Media[]): Media[] => vivi(media).filter((m) => (GALLERIA as readonly string[]).includes(m.slot));
+export const galleria = (media: readonly Media[]): Media[] =>
+  vivi(media).filter((m) => (GALLERIA as readonly string[]).includes(m.slot));
 
 /** L'elenco di TUTTI gli id (per `media_ordina`) dopo aver rimesso le foto della galleria nell'ordine `nuova`, nelle stesse posizioni. */
 function rimettiGalleria(media: readonly Media[], nuova: readonly Media[]): string[] {
   const tutti = vivi(media);
   const coda = [...nuova];
-  return tutti.map((m) => ((GALLERIA as readonly string[]).includes(m.slot) ? (coda.shift() as Media) : m).id);
+  return tutti.map(
+    (m) => ((GALLERIA as readonly string[]).includes(m.slot) ? (coda.shift() as Media) : m).id,
+  );
 }
 
 /** `verso` −1 = prima, +1 = dopo. `null` se non si può (non è della galleria, è già in fondo). */
@@ -168,15 +243,34 @@ export interface Lavoro extends DatiLavoro {
   tentativi: number;
   finito: boolean;
 }
-export const nuovoLavoro = (dati: DatiLavoro): Lavoro => ({ ...dati, caricati: {}, mediaId: null, flagFatti: false, tentativi: 0, finito: false });
+export const nuovoLavoro = (dati: DatiLavoro): Lavoro => ({
+  ...dati,
+  caricati: {},
+  mediaId: null,
+  flagFatti: false,
+  tentativi: 0,
+  finito: false,
+});
 
 type Esito<T> = ({ ok: true } & T) | { ok: false; errore: { messaggio: string } };
 export interface PorteCarico {
-  permesso(f: { tipo: "foto" | "video" | "copertina"; mime: string; peso: number }): Promise<Esito<{ permesso: unknown }>>;
-  carica(permesso: unknown, blob: Blob): Promise<{ ok: true } | { ok: false; errore: { messaggio: string } }>;
-  esegui(azione: string, dati: Record<string, unknown>): Promise<Esito<{ dati: Record<string, unknown> }>>;
+  permesso(f: {
+    tipo: "foto" | "video" | "copertina";
+    mime: string;
+    peso: number;
+  }): Promise<Esito<{ permesso: unknown }>>;
+  carica(
+    permesso: unknown,
+    blob: Blob,
+  ): Promise<{ ok: true } | { ok: false; errore: { messaggio: string } }>;
+  esegui(
+    azione: string,
+    dati: Record<string, unknown>,
+  ): Promise<Esito<{ dati: Record<string, unknown> }>>;
 }
-export type EsitoLavoro = { ok: true; avviso?: string } | { ok: false; frase: string; definitivo: boolean };
+export type EsitoLavoro =
+  | { ok: true; avviso?: string }
+  | { ok: false; frase: string; definitivo: boolean };
 
 const FRASE_DEFINITIVA = `Ho riprovato ${MAX_TENTATIVI} volte senza riuscirci: scegli di nuovo la foto.`;
 const FRASE_IMPREVISTA = "Qualcosa è andato storto durante il caricamento: riprova.";
@@ -196,11 +290,18 @@ const pathDi = (l: Lavoro, n: number): string | null => {
 };
 
 /** Fa i passi che mancano. Non lancia mai: un guasto diventa `{ ok: false, frase }` con una frase nostra (mai il testo dell'eccezione, che può contenere il token). */
-export async function eseguiLavoro(l: Lavoro, porte: PorteCarico, avanza?: (fatti: number, totale: number) => void): Promise<EsitoLavoro> {
+export async function eseguiLavoro(
+  l: Lavoro,
+  porte: PorteCarico,
+  avanza?: (fatti: number, totale: number) => void,
+): Promise<EsitoLavoro> {
   if (l.finito) return { ok: true };
   if (l.tentativi >= MAX_TENTATIVI) return { ok: false, frase: FRASE_DEFINITIVA, definitivo: true };
   l.tentativi++;
-  const manca = (frase: string): EsitoLavoro => (l.tentativi >= MAX_TENTATIVI ? { ok: false, frase: FRASE_DEFINITIVA, definitivo: true } : { ok: false, frase, definitivo: false });
+  const manca = (frase: string): EsitoLavoro =>
+    l.tentativi >= MAX_TENTATIVI
+      ? { ok: false, frase: FRASE_DEFINITIVA, definitivo: true }
+      : { ok: false, frase, definitivo: false };
   const flag = flagDa(l);
   const totale = l.file.length + 1 + (flag ? 1 : 0);
   const fatti = () => Object.keys(l.caricati).length + (l.mediaId ? 1 : 0) + (l.flagFatti ? 1 : 0);
@@ -219,11 +320,24 @@ export async function eseguiLavoro(l: Lavoro, porte: PorteCarico, avanza?: (fatt
       const dati: Record<string, unknown> =
         l.tipo === "video"
           ? {
-              prodottoId: l.prodottoId, slot: l.slot, alt: l.alt,
-              pathVideo: l.caricati.video ?? null, pathCopertina: l.caricati.copertina ?? null,
-              durataS: Math.ceil(l.durataS ?? 0), muto: l.muto, testoParlato: l.testoParlato?.trim() || null,
+              prodottoId: l.prodottoId,
+              slot: l.slot,
+              alt: l.alt,
+              pathVideo: l.caricati.video ?? null,
+              pathCopertina: l.caricati.copertina ?? null,
+              durataS: Math.ceil(l.durataS ?? 0),
+              muto: l.muto,
+              testoParlato: l.testoParlato?.trim() || null,
             }
-          : { prodottoId: l.prodottoId, slot: l.slot, alt: l.alt, sottoRuolo: l.sottoRuolo, path480: pathDi(l, 480), path960: pathDi(l, 960), path1600: pathDi(l, 1600) };
+          : {
+              prodottoId: l.prodottoId,
+              slot: l.slot,
+              alt: l.alt,
+              sottoRuolo: l.sottoRuolo,
+              path480: pathDi(l, 480),
+              path960: pathDi(l, 960),
+              path1600: pathDi(l, 1600),
+            };
       const r = await porte.esegui("media_registra", dati);
       if (!r.ok) return manca(r.errore.messaggio);
       const id = (r.dati.media as { id?: unknown } | undefined)?.id;
