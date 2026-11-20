@@ -236,7 +236,7 @@ async function caricamento(M, c) {
   const fl_lg4 = M.nuovoLavoro({ ...video, ritraePersone: false, sottotitoliOk: true });
   let fl_r4;
   for (let i = 0; i < 3; i++) fl_r4 = await M.eseguiLavoro(fl_lg4, fl_g4.porte);
-  c("lo stesso per un video: la frase parla del video", "Il video è salvato, ma una sua impostazione non è stata registrata: aprilo con Modifica e controllala.", fl_r4.frase);
+  c("lo stesso per un video: la frase parla del video", "Il video è salvato, ma una sua impostazione non è stata registrata: aprilo con Modifica e controllalo.", fl_r4.frase);
   const fl_g5 = porteFinte({ permesso: 99 });
   const fl_r5 = await M.eseguiLavoro(M.nuovoLavoro(persona()), fl_g5.porte);
   c("un fallimento PRIMA del registro non cambia niente sul server: `cambiato` falso", [false, false], [fl_r5.ok, fl_r5.cambiato]);

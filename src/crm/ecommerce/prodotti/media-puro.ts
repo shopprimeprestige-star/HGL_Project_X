@@ -242,6 +242,8 @@ export interface Lavoro extends DatiLavoro {
   flagFatti: boolean;
   tentativi: number;
   finito: boolean;
+  /** Il fallimento definitivo (3 tentativi): si ricorda, così rilanciare il lavoro non ritira o ricarica niente una seconda volta. */
+  finale: EsitoLavoro | null;
 }
 export const nuovoLavoro = (dati: DatiLavoro): Lavoro => ({
   ...dati,
@@ -250,6 +252,7 @@ export const nuovoLavoro = (dati: DatiLavoro): Lavoro => ({
   flagFatti: false,
   tentativi: 0,
   finito: false,
+  finale: null,
 });
 
 type Esito<T> = ({ ok: true } & T) | { ok: false; errore: { messaggio: string } };
@@ -270,7 +273,16 @@ export interface PorteCarico {
 }
 export type EsitoLavoro =
   | { ok: true; avviso?: string }
-  | { ok: false; frase: string; definitivo: boolean };
+  | {
+      ok: false;
+      frase: string;
+      definitivo: boolean;
+      /** Sul server qualcosa è cambiato (la foto è già registrata): chi chiama deve rileggere la scheda, anche se il lavoro è fallito. */
+      cambiato: boolean;
+      /** Il media è stato ritirato dal sito (la foto non è pubblicata). */
+      ritirata?: boolean;
+      avviso?: string;
+    };
 
 const FRASE_DEFINITIVA = `Ho riprovato ${MAX_TENTATIVI} volte senza riuscirci: scegli di nuovo la foto.`;
 const FRASE_IMPREVISTA = "Qualcosa è andato storto durante il caricamento: riprova.";
@@ -289,6 +301,55 @@ const pathDi = (l: Lavoro, n: number): string | null => {
   return f ? (l.caricati[f.chiave] ?? null) : null;
 };
 
+/** Ciò che resta da dire quando i tentativi sono finiti DOPO che il file è già registrato (manca solo `media_flag`).
+ *  Una foto con una persona NON può restare in linea senza il segno «ritrae persone»: si ritira (`media_rimuovi` con
+ *  `liberatoriaRevocata`, che se serve riporta il prodotto in bozza e lo dice). Se nemmeno il ritiro riesce, lo si dice. */
+async function esitoDopoRegistro(l: Lavoro, porte: PorteCarico): Promise<EsitoLavoro> {
+  const cosa =
+    l.tipo === "video"
+      ? { il: "Il video", lo: "lo", la: "aprilo", ctrl: "controllalo" }
+      : { il: "La foto", lo: "la", la: "aprila", ctrl: "controllala" };
+  if (!l.ritraePersone)
+    return {
+      ok: false,
+      definitivo: true,
+      cambiato: true,
+      frase: `${cosa.il} è salv${l.tipo === "video" ? "ato" : "ata"}, ma una sua impostazione non è stata registrata: ${cosa.la} con Modifica e ${cosa.ctrl}.`,
+    };
+  try {
+    const r = await porte.esegui("media_rimuovi", {
+      prodottoId: l.prodottoId,
+      mediaId: l.mediaId,
+      liberatoriaRevocata: true,
+    });
+    if (r.ok) {
+      const avviso = typeof r.dati.avviso === "string" ? r.dati.avviso : undefined;
+      return {
+        ok: false,
+        definitivo: true,
+        cambiato: true,
+        ritirata: true,
+        frase:
+          l.tipo === "video"
+            ? "Il video non è stato pubblicato: riprova a caricarlo."
+            : "La foto non è stata pubblicata: riprova a caricarla.",
+        ...(avviso ? { avviso } : {}),
+      };
+    }
+  } catch {
+    //  si dice sotto: la foto è ancora in linea
+  }
+  return {
+    ok: false,
+    definitivo: true,
+    cambiato: true,
+    frase:
+      l.tipo === "video"
+        ? "Il video è salvato, ma non sono riuscito a registrare che ritrae una persona né a toglierlo: aprilo con Modifica e correggilo subito."
+        : "La foto è salvata, ma non sono riuscito a registrare che ritrae una persona né a toglierla: aprila con Modifica e correggila subito.",
+  };
+}
+
 /** Fa i passi che mancano. Non lancia mai: un guasto diventa `{ ok: false, frase }` con una frase nostra (mai il testo dell'eccezione, che può contenere il token). */
 export async function eseguiLavoro(
   l: Lavoro,
@@ -296,12 +357,18 @@ export async function eseguiLavoro(
   avanza?: (fatti: number, totale: number) => void,
 ): Promise<EsitoLavoro> {
   if (l.finito) return { ok: true };
-  if (l.tentativi >= MAX_TENTATIVI) return { ok: false, frase: FRASE_DEFINITIVA, definitivo: true };
+  if (l.finale) return l.finale;
+  if (l.tentativi >= MAX_TENTATIVI)
+    return { ok: false, frase: FRASE_DEFINITIVA, definitivo: true, cambiato: !!l.mediaId };
   l.tentativi++;
-  const manca = (frase: string): EsitoLavoro =>
-    l.tentativi >= MAX_TENTATIVI
-      ? { ok: false, frase: FRASE_DEFINITIVA, definitivo: true }
-      : { ok: false, frase, definitivo: false };
+  const manca = async (frase: string): Promise<EsitoLavoro> => {
+    if (l.tentativi < MAX_TENTATIVI)
+      return { ok: false, frase, definitivo: false, cambiato: !!l.mediaId };
+    l.finale = l.mediaId
+      ? await esitoDopoRegistro(l, porte)
+      : { ok: false, frase: FRASE_DEFINITIVA, definitivo: true, cambiato: false };
+    return l.finale;
+  };
   const flag = flagDa(l);
   const totale = l.file.length + 1 + (flag ? 1 : 0);
   const fatti = () => Object.keys(l.caricati).length + (l.mediaId ? 1 : 0) + (l.flagFatti ? 1 : 0);
