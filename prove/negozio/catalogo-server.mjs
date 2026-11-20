@@ -146,7 +146,7 @@ export async function prove(mod, { c, gruppo, radice }) {
   // ── le categorie ──
   const cats = await catalogo.categorie();
   c("categorie: solo la visibile con almeno un pubblicato (non la vuota, non la nascosta)", ["categoria-prova"], cats.map((x) => x.slug));
-  c("categoria: forma pubblica, con foto e quanti", { slug: "categoria-prova", nome: "Categoria di prova", tipo: "categoria", frase: null, foto: { w480: `${BASE}/cat/a-480.webp`, w960: `${BASE}/cat/a-960.webp`, w1600: `${BASE}/cat/a-1600.webp` }, seo: { titolo: null, descrizione: null }, ordine: 1, quanti: 2 }, cats[0]);
+  c("categoria: forma pubblica, con foto e quanti", { slug: "categoria-prova", nome: "Categoria di prova", tipo: "categoria", frase: null, foto: { w480: `${BASE}/cat/a-480.webp`, w960: `${BASE}/cat/a-960.webp`, w1600: `${BASE}/cat/a-1600.webp` }, fotoAlt: "Foto della categoria", seo: { titolo: null, descrizione: null }, ordine: 1, quanti: 2 }, cats[0]);
   const avvelenato = nuovo({ extra: { shop_v_categorie: [...viste(negozio()).shop_v_categorie, { id: uuid(0x1ff), slug: "vuota-in-vista", nome: "X", tipo: "categoria", visibile: true, ordine: 0, quanti: 0 }, { id: uuid(0x1fe), slug: "nascosta-in-vista", nome: "Y", tipo: "categoria", visibile: false, ordine: 0, quanti: 5 }] } });
   c("categorie: se per errore la vista mostra una vuota o una nascosta, non escono (difesa doppia)", ["categoria-prova"], (await avvelenato.catalogo.categorie()).map((x) => x.slug));
   c("costruisciCategorie: ordine per `ordine` poi nome; foto solo se ha le tre misure; righe strane scartate", ["a-prima", "b-seconda", "z-ultima"], PUB.costruisciCategorie({
@@ -161,6 +161,16 @@ export async function prove(mod, { c, gruppo, radice }) {
       media: [{ id: "m1", categoria_id: "1", slot: "foto2", ...tre, rimosso_il: null, ritrae_persone: false, liberatoria_ok: false }, { id: "m2", categoria_id: "2", slot: "principale", ...tre, rimosso_il: ISTANTE, ritrae_persone: false, liberatoria_ok: false },
         { id: "m3", categoria_id: "3", slot: "principale", ...tre, rimosso_il: null, ritrae_persone: false, liberatoria_ok: false }, { id: "m4", categoria_id: "3", slot: "principale", ordine: -1, rimosso_il: null, ritrae_persone: true, liberatoria_ok: false, path_480: "x", path_960: "y", path_1600: "z" }],
     })));
+
+  // D36: la foto e l'alt della categoria vengono dalla stessa riga di shop_v_media (categoria_id), non da un'altra
+  const rigaCat = (id, extra = {}) => ({ id, categoria_id: "1", slot: "principale", ...tre, alt: `alt ${id}`, ordine: 0, rimosso_il: null, ritrae_persone: false, liberatoria_ok: false, ...extra });
+  const catD36 = (media) => PUB.costruisciCategorie({ categorie: [{ id: "1", slug: "cat-1", nome: "1", ordine: 0, quanti: 1, visibile: true }], media })[0];
+  c("categoria: la foto e l'alt sono della stessa riga (alt della riga, tre misure della riga)", [{ w480: "a", w960: "b", w1600: "c" }, "alt m1"], ((x) => [x.foto, x.fotoAlt])(catD36([rigaCat("m1")])));
+  c("categoria: a parità vince `ordine` più basso, poi `id`; la riga con `rimosso_il` non conta; foto e alt restano della stessa riga", ["alt m2", "alt m3", "alt m3"],
+    [catD36([rigaCat("m1", { ordine: 5 }), rigaCat("m2", { ordine: 1 })]).fotoAlt, catD36([rigaCat("m4"), rigaCat("m3")]).fotoAlt, catD36([rigaCat("m0", { rimosso_il: ISTANTE }), rigaCat("m4"), rigaCat("m3")]).fotoAlt]);
+  c("categoria: senza riga, o con una misura sola, o senza la colonna `rimosso_il` (filtro assente = esclusa): foto e alt nulli", [[null, null], [null, null], [null, null]],
+    [catD36([]), catD36([rigaCat("m1", { path_960: null })]), catD36([(({ rimosso_il, ...r }) => r)(rigaCat("m1"))])].map((x) => [x.foto, x.fotoAlt]));
+  c("categoria: la riga di un'altra categoria non conta", [null, null], ((x) => [x.foto, x.fotoAlt])(catD36([rigaCat("m1", { categoria_id: "2" })])));
 
   // ── una bozza non esce da NESSUNA funzione, nemmeno se la vista sbaglia ──
   const t2 = negozio();

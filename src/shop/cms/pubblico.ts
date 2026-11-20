@@ -189,7 +189,7 @@ export function costruisciPubblico(righe: unknown, opzioni: OpzioniPubblico = {}
 /**
  * Le categorie pubbliche (PIANO §3.1 `CategoriaPubblica`): solo `visibile` e con almeno un prodotto pubblicato (`quanti`,
  * che calcola la vista `shop_v_categorie`; senza un numero > 0 la categoria non esiste). La foto è la «principale» di quella
- * categoria (stessa scelta e stessi filtri dei prodotti), solo se ha le tre misure. Ordine: `ordine`, poi nome.
+ * categoria (stessa scelta e stessi filtri dei prodotti), solo se ha le tre misure; l'alt è della stessa riga (D36). Ordine: `ordine`, poi nome.
  */
 export function costruisciCategorie(righe: unknown, opzioni: { baseMedia?: string } = {}): CategoriaPubblica[] {
   const r = oggetto(righe);
@@ -204,8 +204,9 @@ export function costruisciCategorie(righe: unknown, opzioni: { baseMedia?: strin
     .sort((a, b) => a.c.ordine - b.c.ordine || a.c.nome.localeCompare(b.c.nome))
     .map(({ c, quanti }) => {
       const m = media.find((x) => x.categoriaId === c.id);
+      const src = m ? foto(m) : null; // foto e alt sono della STESSA riga (D36): senza le tre misure non c'è nessuno dei due
       return {
-        slug: c.slug, nome: c.nome, tipo: c.tipo, frase: c.frase, foto: m ? foto(m) : null,
+        slug: c.slug, nome: c.nome, tipo: c.tipo, frase: c.frase, foto: src, fotoAlt: src && m ? m.alt : null,
         seo: { titolo: c.seoTitolo, descrizione: c.seoDescrizione }, ordine: c.ordine, quanti,
       };
     });

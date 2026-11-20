@@ -207,6 +207,8 @@ export interface CategoriaPubblica {
   tipo: "categoria" | "collezione";
   frase: string | null;
   foto: SrcFoto | null;
+  /** Il testo alternativo della stessa riga di `shop_v_media` da cui viene `foto` (D36); `null` se non c'è la foto. */
+  fotoAlt: string | null;
   seo: { titolo: string | null; descrizione: string | null };
   ordine: number;
   /** Quanti prodotti pubblicati: una categoria senza prodotti pubblicati non esiste (Design §4.14 n. 11). */
