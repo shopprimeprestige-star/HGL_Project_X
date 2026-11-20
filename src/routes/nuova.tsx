@@ -344,7 +344,7 @@ function Landing() {
                 <b className="ml-1 font-semibold text-white/80">4.9</b> · 1.326 recensioni
               </span>
               <span className="flex items-center gap-1.5">
-                <BadgeCheck className="h-4 w-4 text-cyan-300" /> Studio a Roma, Via degli Scipioni
+                <BadgeCheck className="h-4 w-4 text-cyan-300" /> Studio a Roma
               </span>
             </div>
           </div>
@@ -569,7 +569,7 @@ function Landing() {
       <footer className="border-t border-white/[0.06] px-5 py-10 text-center">
         <img src={IMG.logo} alt="Hair Genius Labs" className="mx-auto h-7 w-auto opacity-70" />
         <p className="mt-5 text-[13px] text-white/40">
-          Via degli Scipioni 132, Roma 00192 · hairgeniuslabs@gmail.com · +39 379 324 4356
+          Studio a Roma · hairgeniuslabs@gmail.com · +39 379 324 4356
         </p>
         <p className="mt-2 text-[12px] text-white/25">
           © {new Date().getFullYear()} Hair Genius Labs SRLS — P.IVA 18486531009
