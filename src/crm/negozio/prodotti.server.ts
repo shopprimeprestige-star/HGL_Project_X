@@ -30,6 +30,7 @@ import {
   slugDa,
   slugValido,
   type Canali,
+  type Media,
   type Prodotto,
 } from "../../shop/cms/modello";
 import {
@@ -47,7 +48,6 @@ import {
   oggetto,
   prodottoDaRiga,
   varianteDaRiga,
-  type MediaLetto,
   type VarianteLetta,
 } from "../../shop/cms/righe";
 
@@ -144,7 +144,7 @@ interface Stato {
   prodotto: Prodotto;
   varianti: VarianteLetta[];
   /** Solo i media non rimossi. */
-  media: MediaLetto[];
+  media: Media[];
   categorie: string[];
 }
 interface SkuNoto extends SkuUsato {
@@ -737,7 +737,7 @@ const media_ordina: Azione = async (c, corpo) => {
 };
 
 /** Trova il media (non rimosso) di un prodotto: il prodotto lo si ricava dal media. */
-async function caricaDaMedia(d: DipendenzeProdotti, mediaId: unknown): Promise<{ s: Stato; m: MediaLetto }> {
+async function caricaDaMedia(d: DipendenzeProdotti, mediaId: unknown): Promise<{ s: Stato; m: Media }> {
   if (!eId(mediaId)) throw valore("La foto indicata non è valida.");
   const r = righe(await q(d, "media", d.db.from("shop_media").select("prodotto_id").eq("id", mediaId).is("rimosso_il", null).limit(1)))[0];
   if (typeof r?.prodotto_id !== "string") throw rifiuta("non_trovato", 404, "Foto non trovata.");
