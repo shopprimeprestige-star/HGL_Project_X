@@ -10,6 +10,8 @@ import { lazy, Suspense, useCallback, useState } from "react";
 import { ConfineOspite, SchermataUnAttimo } from "@/shop/ConfineOspite";
 import { linkDaCliente, motoreSubito } from "@/shop/link-ospite";
 import { NOME_PRODOTTO } from "@/landing/testi-sito";
+import { ProviderTracciamento } from "@/components/tracciamento/ProviderTracciamento";
+import { politicaReferrer } from "@/components/tracciamento/controllo";
 
 /*  ⚠️ E SE IL PEZZO NON ARRIVA, LA PAGINA RESTA IN PIEDI. Una scheda aperta
     prima di una pubblicazione chiede pezzi con i nomi di ieri: prima questo
@@ -71,7 +73,13 @@ export const Route = createRootRoute({
   //  aggiornano" e i clienti che cadono a metà consulenza dopo un deploy.
   //  `no-cache` non vieta la cache: obbliga a chiedere al server se è cambiata,
   //  quindi non costa banda quando non serve.
-  headers: () => ({ "Cache-Control": "no-cache, must-revalidate" }),
+  //  ⚠️ `Referrer-Policy: strict-origin` sulle pagine NON ammesse (ordine, CRM, preventivo, videochiamata, `?watch`…): il loro indirizzo
+  //   porta codici e non deve uscire verso altri siti (esce solo l'origine). Non `no-referrer`: YouTube lo rifiuta («errore 153»). La pagina è quella FINALE della catena (l'ultimo incontro); la regola è la
+  //   stessa dei pixel e del banner (`percorsoAmmesso`), non un elenco a parte.
+  headers: ({ matches }) => {
+    const pagina = matches[matches.length - 1] as { pathname?: string; search?: Record<string, unknown> } | undefined;
+    return { "Cache-Control": "no-cache, must-revalidate", ...politicaReferrer(pagina?.pathname ?? "/", pagina?.search ?? {}) };
+  },
   head: () => ({
     meta: [
       { charSet: "utf-8" },
@@ -284,6 +292,9 @@ function RootComponent() {
   }, [gated]);
   return (
     <>
+      {/* Il banner dei cookie e il caricatore dei pixel: uno solo per tutto il sito, in testa al DOM, fuori dal cancello dell'ospite
+          (disegna solo dove `bannerAmmesso` lo permette: mai sulla sala d'attesa, nel CRM o nell'anteprima). */}
+      <ProviderTracciamento />
       {!gated && (
         <div id="hg-outlet" style={{ display: "contents" }}>
           {/* RESILIENZA OSPITE — un errore di render della PAGINA non deve mai

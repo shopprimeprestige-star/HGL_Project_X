@@ -23,7 +23,8 @@
  *  con figure di repertorio su una pagina che vende un risultato estetico
  *  sarebbe la cosa meno credibile che si possa fare.
  */
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { GestisciCookie } from "@/components/tracciamento/GestisciCookie";
 import { useEffect, useState } from "react";
 import {
   ArrowRight, BadgeCheck, CalendarCheck, Camera, CheckCircle2, ChevronDown, Clock,
@@ -344,7 +345,7 @@ function Landing() {
                 <b className="ml-1 font-semibold text-white/80">4.9</b> · 1.326 recensioni
               </span>
               <span className="flex items-center gap-1.5">
-                <BadgeCheck className="h-4 w-4 text-cyan-300" /> Studio a Roma, Via degli Scipioni
+                <BadgeCheck className="h-4 w-4 text-cyan-300" /> Studio a Roma
               </span>
             </div>
           </div>
@@ -566,13 +567,23 @@ function Landing() {
         </div>
       </section>
 
-      <footer className="border-t border-white/[0.06] px-5 py-10 text-center">
+      <footer className="border-t border-white/[0.06] px-5 pt-10 pb-28 text-center sm:pb-10">
         <img src={IMG.logo} alt="Hair Genius Labs" className="mx-auto h-7 w-auto opacity-70" />
         <p className="mt-5 text-[13px] text-white/40">
-          Via degli Scipioni 132, Roma 00192 · hairgeniuslabs@gmail.com · +39 379 324 4356
+          Studio a Roma · hairgeniuslabs@gmail.com · +39 379 324 4356
         </p>
         <p className="mt-2 text-[12px] text-white/25">
           © {new Date().getFullYear()} Hair Genius Labs SRLS — P.IVA 18486531009
+        </p>
+        {/* chi accetta i cookie su questa pagina deve poter cambiare idea da qui (T31) */}
+        <p className="mt-3 flex flex-wrap items-center justify-center gap-x-5 text-[13px] text-white/60">
+          <Link
+            to="/cookie-policy"
+            className="inline-flex min-h-11 items-center underline underline-offset-4 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+          >
+            Cookie policy
+          </Link>
+          <GestisciCookie className="inline-flex min-h-11 items-center underline underline-offset-4 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white" />
         </p>
       </footer>
 
