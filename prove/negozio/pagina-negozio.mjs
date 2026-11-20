@@ -170,8 +170,8 @@ export async function prove(_mod, { c, gruppo, radice }) {
     const testo = esiste ? readFileSync(p, "utf8") : "";
     c(`${nome}.tsx esiste ed esporta \`${nome}\` con la firma finale`, true, esiste && new RegExp(`export function ${nome}\\(`).test(testo));
     //  T15 (SchedaProdotto, EditorVarianti) e T17 (Categorie, ApriShop) hanno riempito i loro segnaposto: le loro prove sono
-    //  `scheda-sorgente.mjs`, `categorie-sorgente.mjs` e `interruttore-sorgente.mjs`. Resta segnaposto solo `EditorMedia` (T16).
-    const RIEMPITO = compito === "T15" || compito === "T17";
+    //  `scheda-sorgente.mjs`, `categorie-sorgente.mjs` e `interruttore-sorgente.mjs`. T16 (EditorMedia) idem.
+    const RIEMPITO = compito === "T15" || compito === "T16" || compito === "T17";
     const m = esiste && !RIEMPITO ? await caricaTsx(p).catch(() => ({})) : {};
     if (!RIEMPITO) c(`${nome} ritorna null (segnaposto: lo riempie ${compito})`, null, typeof m[nome] === "function" ? m[nome](PROPS_DI_ESEMPIO[nome]) : "non è una funzione");
     const testa = testo.slice(0, testo.indexOf("*/") + 2);
