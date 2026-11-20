@@ -116,10 +116,12 @@ import { Route as CRMSplatRouteImport } from './routes/CRM.$'
 import { Route as CRMKpiIndexRouteImport } from './routes/CRM.kpi.index'
 import { Route as CRMInstallazioniIndexRouteImport } from './routes/CRM.installazioni.index'
 import { Route as ShopProdottoSlugRouteImport } from './routes/shop.prodotto.$slug'
+import { Route as ShopCSlugRouteImport } from './routes/shop.c.$slug'
 import { Route as ApiPublicWhatsappWebhookRouteImport } from './routes/api.public.whatsapp-webhook'
 import { Route as ApiPublicWebinarRouteImport } from './routes/api.public.webinar'
 import { Route as ApiPublicValidateDiscountRouteImport } from './routes/api.public.validate-discount'
 import { Route as ApiPublicTurnRouteImport } from './routes/api.public.turn'
+import { Route as ApiPublicTrackingConfigRouteImport } from './routes/api.public.tracking-config'
 import { Route as ApiPublicSheetsIngressoRouteImport } from './routes/api.public.sheets-ingresso'
 import { Route as ApiPublicSalaAttesaRouteImport } from './routes/api.public.sala-attesa'
 import { Route as ApiPublicRisposteAiRouteImport } from './routes/api.public.risposte-ai'
@@ -140,6 +142,8 @@ import { Route as ApiPublicManychatPrenotaRouteImport } from './routes/api.publi
 import { Route as ApiPublicLinkOspiteRouteImport } from './routes/api.public.link-ospite'
 import { Route as ApiPublicInvitoRouteImport } from './routes/api.public.invito'
 import { Route as ApiPublicGalleriaRouteImport } from './routes/api.public.galleria'
+import { Route as ApiPublicEventoPermessoRouteImport } from './routes/api.public.evento-permesso'
+import { Route as ApiPublicEventoRouteImport } from './routes/api.public.evento'
 import { Route as ApiPublicEsciRouteImport } from './routes/api.public.esci'
 import { Route as ApiPublicAttesiRouteImport } from './routes/api.public.attesi'
 import { Route as ApiPresenterVideosRouteImport } from './routes/api.presenter.videos'
@@ -187,6 +191,7 @@ import { Route as ApiCrmWhatsappChiaviRouteImport } from './routes/api.crm.whats
 import { Route as ApiCrmWhatsappCanaleRouteImport } from './routes/api.crm.whatsapp-canale'
 import { Route as ApiCrmWebinarRegistrazioniRouteImport } from './routes/api.crm.webinar-registrazioni'
 import { Route as ApiCrmWebinarRouteImport } from './routes/api.crm.webinar'
+import { Route as ApiCrmTracciamentoRouteImport } from './routes/api.crm.tracciamento'
 import { Route as ApiCrmSumupRouteImport } from './routes/api.crm.sumup'
 import { Route as ApiCrmSorgenteRouteImport } from './routes/api.crm.sorgente'
 import { Route as ApiCrmPushRouteImport } from './routes/api.crm.push'
@@ -200,6 +205,8 @@ import { Route as ApiCrmPonteMediaAzioneRouteImport } from './routes/api.crm.pon
 import { Route as ApiCrmPonteMediaRouteImport } from './routes/api.crm.ponte-media'
 import { Route as ApiCrmPonteInvioRouteImport } from './routes/api.crm.ponte-invio'
 import { Route as ApiCrmOrdiniRouteImport } from './routes/api.crm.ordini'
+import { Route as ApiCrmNegozioMediaRouteImport } from './routes/api.crm.negozio-media'
+import { Route as ApiCrmNegozioRouteImport } from './routes/api.crm.negozio'
 import { Route as ApiCrmMessaggiAutomaticiRouteImport } from './routes/api.crm.messaggi-automatici'
 import { Route as ApiCrmMeetingSessionRouteImport } from './routes/api.crm.meeting-session'
 import { Route as ApiCrmMediaUploadRouteImport } from './routes/api.crm.media-upload'
@@ -770,6 +777,11 @@ const ShopProdottoSlugRoute = ShopProdottoSlugRouteImport.update({
   path: '/prodotto/$slug',
   getParentRoute: () => ShopRoute,
 } as any)
+const ShopCSlugRoute = ShopCSlugRouteImport.update({
+  id: '/c/$slug',
+  path: '/c/$slug',
+  getParentRoute: () => ShopRoute,
+} as any)
 const ApiPublicWhatsappWebhookRoute =
   ApiPublicWhatsappWebhookRouteImport.update({
     id: '/api/public/whatsapp-webhook',
@@ -790,6 +802,11 @@ const ApiPublicValidateDiscountRoute =
 const ApiPublicTurnRoute = ApiPublicTurnRouteImport.update({
   id: '/api/public/turn',
   path: '/api/public/turn',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicTrackingConfigRoute = ApiPublicTrackingConfigRouteImport.update({
+  id: '/api/public/tracking-config',
+  path: '/api/public/tracking-config',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiPublicSheetsIngressoRoute = ApiPublicSheetsIngressoRouteImport.update({
@@ -894,6 +911,16 @@ const ApiPublicInvitoRoute = ApiPublicInvitoRouteImport.update({
 const ApiPublicGalleriaRoute = ApiPublicGalleriaRouteImport.update({
   id: '/api/public/galleria',
   path: '/api/public/galleria',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicEventoPermessoRoute = ApiPublicEventoPermessoRouteImport.update({
+  id: '/api/public/evento-permesso',
+  path: '/api/public/evento-permesso',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicEventoRoute = ApiPublicEventoRouteImport.update({
+  id: '/api/public/evento',
+  path: '/api/public/evento',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiPublicEsciRoute = ApiPublicEsciRouteImport.update({
@@ -1138,6 +1165,11 @@ const ApiCrmWebinarRoute = ApiCrmWebinarRouteImport.update({
   path: '/api/crm/webinar',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiCrmTracciamentoRoute = ApiCrmTracciamentoRouteImport.update({
+  id: '/api/crm/tracciamento',
+  path: '/api/crm/tracciamento',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiCrmSumupRoute = ApiCrmSumupRouteImport.update({
   id: '/api/crm/sumup',
   path: '/api/crm/sumup',
@@ -1202,6 +1234,16 @@ const ApiCrmPonteInvioRoute = ApiCrmPonteInvioRouteImport.update({
 const ApiCrmOrdiniRoute = ApiCrmOrdiniRouteImport.update({
   id: '/api/crm/ordini',
   path: '/api/crm/ordini',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiCrmNegozioMediaRoute = ApiCrmNegozioMediaRouteImport.update({
+  id: '/api/crm/negozio-media',
+  path: '/api/crm/negozio-media',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiCrmNegozioRoute = ApiCrmNegozioRouteImport.update({
+  id: '/api/crm/negozio',
+  path: '/api/crm/negozio',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiCrmMessaggiAutomaticiRoute =
@@ -1509,6 +1551,8 @@ export interface FileRoutesByFullPath {
   '/api/crm/media-upload': typeof ApiCrmMediaUploadRoute
   '/api/crm/meeting-session': typeof ApiCrmMeetingSessionRoute
   '/api/crm/messaggi-automatici': typeof ApiCrmMessaggiAutomaticiRoute
+  '/api/crm/negozio': typeof ApiCrmNegozioRoute
+  '/api/crm/negozio-media': typeof ApiCrmNegozioMediaRoute
   '/api/crm/ordini': typeof ApiCrmOrdiniRoute
   '/api/crm/ponte-invio': typeof ApiCrmPonteInvioRoute
   '/api/crm/ponte-media': typeof ApiCrmPonteMediaRoute
@@ -1522,6 +1566,7 @@ export interface FileRoutesByFullPath {
   '/api/crm/push': typeof ApiCrmPushRoute
   '/api/crm/sorgente': typeof ApiCrmSorgenteRoute
   '/api/crm/sumup': typeof ApiCrmSumupRoute
+  '/api/crm/tracciamento': typeof ApiCrmTracciamentoRoute
   '/api/crm/webinar': typeof ApiCrmWebinarRoute
   '/api/crm/webinar-registrazioni': typeof ApiCrmWebinarRegistrazioniRoute
   '/api/crm/whatsapp-canale': typeof ApiCrmWhatsappCanaleRoute
@@ -1569,6 +1614,8 @@ export interface FileRoutesByFullPath {
   '/api/presenter/videos': typeof ApiPresenterVideosRoute
   '/api/public/attesi': typeof ApiPublicAttesiRoute
   '/api/public/esci': typeof ApiPublicEsciRoute
+  '/api/public/evento': typeof ApiPublicEventoRoute
+  '/api/public/evento-permesso': typeof ApiPublicEventoPermessoRoute
   '/api/public/galleria': typeof ApiPublicGalleriaRoute
   '/api/public/invito': typeof ApiPublicInvitoRoute
   '/api/public/link-ospite': typeof ApiPublicLinkOspiteRoute
@@ -1589,10 +1636,12 @@ export interface FileRoutesByFullPath {
   '/api/public/risposte-ai': typeof ApiPublicRisposteAiRoute
   '/api/public/sala-attesa': typeof ApiPublicSalaAttesaRoute
   '/api/public/sheets-ingresso': typeof ApiPublicSheetsIngressoRoute
+  '/api/public/tracking-config': typeof ApiPublicTrackingConfigRoute
   '/api/public/turn': typeof ApiPublicTurnRoute
   '/api/public/validate-discount': typeof ApiPublicValidateDiscountRoute
   '/api/public/webinar': typeof ApiPublicWebinarRoute
   '/api/public/whatsapp-webhook': typeof ApiPublicWhatsappWebhookRoute
+  '/shop/c/$slug': typeof ShopCSlugRoute
   '/shop/prodotto/$slug': typeof ShopProdottoSlugRoute
   '/CRM/installazioni/': typeof CRMInstallazioniIndexRoute
   '/CRM/kpi/': typeof CRMKpiIndexRoute
@@ -1730,6 +1779,8 @@ export interface FileRoutesByTo {
   '/api/crm/media-upload': typeof ApiCrmMediaUploadRoute
   '/api/crm/meeting-session': typeof ApiCrmMeetingSessionRoute
   '/api/crm/messaggi-automatici': typeof ApiCrmMessaggiAutomaticiRoute
+  '/api/crm/negozio': typeof ApiCrmNegozioRoute
+  '/api/crm/negozio-media': typeof ApiCrmNegozioMediaRoute
   '/api/crm/ordini': typeof ApiCrmOrdiniRoute
   '/api/crm/ponte-invio': typeof ApiCrmPonteInvioRoute
   '/api/crm/ponte-media': typeof ApiCrmPonteMediaRoute
@@ -1743,6 +1794,7 @@ export interface FileRoutesByTo {
   '/api/crm/push': typeof ApiCrmPushRoute
   '/api/crm/sorgente': typeof ApiCrmSorgenteRoute
   '/api/crm/sumup': typeof ApiCrmSumupRoute
+  '/api/crm/tracciamento': typeof ApiCrmTracciamentoRoute
   '/api/crm/webinar': typeof ApiCrmWebinarRoute
   '/api/crm/webinar-registrazioni': typeof ApiCrmWebinarRegistrazioniRoute
   '/api/crm/whatsapp-canale': typeof ApiCrmWhatsappCanaleRoute
@@ -1790,6 +1842,8 @@ export interface FileRoutesByTo {
   '/api/presenter/videos': typeof ApiPresenterVideosRoute
   '/api/public/attesi': typeof ApiPublicAttesiRoute
   '/api/public/esci': typeof ApiPublicEsciRoute
+  '/api/public/evento': typeof ApiPublicEventoRoute
+  '/api/public/evento-permesso': typeof ApiPublicEventoPermessoRoute
   '/api/public/galleria': typeof ApiPublicGalleriaRoute
   '/api/public/invito': typeof ApiPublicInvitoRoute
   '/api/public/link-ospite': typeof ApiPublicLinkOspiteRoute
@@ -1810,10 +1864,12 @@ export interface FileRoutesByTo {
   '/api/public/risposte-ai': typeof ApiPublicRisposteAiRoute
   '/api/public/sala-attesa': typeof ApiPublicSalaAttesaRoute
   '/api/public/sheets-ingresso': typeof ApiPublicSheetsIngressoRoute
+  '/api/public/tracking-config': typeof ApiPublicTrackingConfigRoute
   '/api/public/turn': typeof ApiPublicTurnRoute
   '/api/public/validate-discount': typeof ApiPublicValidateDiscountRoute
   '/api/public/webinar': typeof ApiPublicWebinarRoute
   '/api/public/whatsapp-webhook': typeof ApiPublicWhatsappWebhookRoute
+  '/shop/c/$slug': typeof ShopCSlugRoute
   '/shop/prodotto/$slug': typeof ShopProdottoSlugRoute
   '/CRM/installazioni': typeof CRMInstallazioniIndexRoute
   '/CRM/kpi': typeof CRMKpiIndexRoute
@@ -1957,6 +2013,8 @@ export interface FileRoutesById {
   '/api/crm/media-upload': typeof ApiCrmMediaUploadRoute
   '/api/crm/meeting-session': typeof ApiCrmMeetingSessionRoute
   '/api/crm/messaggi-automatici': typeof ApiCrmMessaggiAutomaticiRoute
+  '/api/crm/negozio': typeof ApiCrmNegozioRoute
+  '/api/crm/negozio-media': typeof ApiCrmNegozioMediaRoute
   '/api/crm/ordini': typeof ApiCrmOrdiniRoute
   '/api/crm/ponte-invio': typeof ApiCrmPonteInvioRoute
   '/api/crm/ponte-media': typeof ApiCrmPonteMediaRoute
@@ -1970,6 +2028,7 @@ export interface FileRoutesById {
   '/api/crm/push': typeof ApiCrmPushRoute
   '/api/crm/sorgente': typeof ApiCrmSorgenteRoute
   '/api/crm/sumup': typeof ApiCrmSumupRoute
+  '/api/crm/tracciamento': typeof ApiCrmTracciamentoRoute
   '/api/crm/webinar': typeof ApiCrmWebinarRoute
   '/api/crm/webinar-registrazioni': typeof ApiCrmWebinarRegistrazioniRoute
   '/api/crm/whatsapp-canale': typeof ApiCrmWhatsappCanaleRoute
@@ -2017,6 +2076,8 @@ export interface FileRoutesById {
   '/api/presenter/videos': typeof ApiPresenterVideosRoute
   '/api/public/attesi': typeof ApiPublicAttesiRoute
   '/api/public/esci': typeof ApiPublicEsciRoute
+  '/api/public/evento': typeof ApiPublicEventoRoute
+  '/api/public/evento-permesso': typeof ApiPublicEventoPermessoRoute
   '/api/public/galleria': typeof ApiPublicGalleriaRoute
   '/api/public/invito': typeof ApiPublicInvitoRoute
   '/api/public/link-ospite': typeof ApiPublicLinkOspiteRoute
@@ -2037,10 +2098,12 @@ export interface FileRoutesById {
   '/api/public/risposte-ai': typeof ApiPublicRisposteAiRoute
   '/api/public/sala-attesa': typeof ApiPublicSalaAttesaRoute
   '/api/public/sheets-ingresso': typeof ApiPublicSheetsIngressoRoute
+  '/api/public/tracking-config': typeof ApiPublicTrackingConfigRoute
   '/api/public/turn': typeof ApiPublicTurnRoute
   '/api/public/validate-discount': typeof ApiPublicValidateDiscountRoute
   '/api/public/webinar': typeof ApiPublicWebinarRoute
   '/api/public/whatsapp-webhook': typeof ApiPublicWhatsappWebhookRoute
+  '/shop/c/$slug': typeof ShopCSlugRoute
   '/shop/prodotto/$slug': typeof ShopProdottoSlugRoute
   '/CRM/installazioni/': typeof CRMInstallazioniIndexRoute
   '/CRM/kpi/': typeof CRMKpiIndexRoute
@@ -2185,6 +2248,8 @@ export interface FileRouteTypes {
     | '/api/crm/media-upload'
     | '/api/crm/meeting-session'
     | '/api/crm/messaggi-automatici'
+    | '/api/crm/negozio'
+    | '/api/crm/negozio-media'
     | '/api/crm/ordini'
     | '/api/crm/ponte-invio'
     | '/api/crm/ponte-media'
@@ -2198,6 +2263,7 @@ export interface FileRouteTypes {
     | '/api/crm/push'
     | '/api/crm/sorgente'
     | '/api/crm/sumup'
+    | '/api/crm/tracciamento'
     | '/api/crm/webinar'
     | '/api/crm/webinar-registrazioni'
     | '/api/crm/whatsapp-canale'
@@ -2245,6 +2311,8 @@ export interface FileRouteTypes {
     | '/api/presenter/videos'
     | '/api/public/attesi'
     | '/api/public/esci'
+    | '/api/public/evento'
+    | '/api/public/evento-permesso'
     | '/api/public/galleria'
     | '/api/public/invito'
     | '/api/public/link-ospite'
@@ -2265,10 +2333,12 @@ export interface FileRouteTypes {
     | '/api/public/risposte-ai'
     | '/api/public/sala-attesa'
     | '/api/public/sheets-ingresso'
+    | '/api/public/tracking-config'
     | '/api/public/turn'
     | '/api/public/validate-discount'
     | '/api/public/webinar'
     | '/api/public/whatsapp-webhook'
+    | '/shop/c/$slug'
     | '/shop/prodotto/$slug'
     | '/CRM/installazioni/'
     | '/CRM/kpi/'
@@ -2406,6 +2476,8 @@ export interface FileRouteTypes {
     | '/api/crm/media-upload'
     | '/api/crm/meeting-session'
     | '/api/crm/messaggi-automatici'
+    | '/api/crm/negozio'
+    | '/api/crm/negozio-media'
     | '/api/crm/ordini'
     | '/api/crm/ponte-invio'
     | '/api/crm/ponte-media'
@@ -2419,6 +2491,7 @@ export interface FileRouteTypes {
     | '/api/crm/push'
     | '/api/crm/sorgente'
     | '/api/crm/sumup'
+    | '/api/crm/tracciamento'
     | '/api/crm/webinar'
     | '/api/crm/webinar-registrazioni'
     | '/api/crm/whatsapp-canale'
@@ -2466,6 +2539,8 @@ export interface FileRouteTypes {
     | '/api/presenter/videos'
     | '/api/public/attesi'
     | '/api/public/esci'
+    | '/api/public/evento'
+    | '/api/public/evento-permesso'
     | '/api/public/galleria'
     | '/api/public/invito'
     | '/api/public/link-ospite'
@@ -2486,10 +2561,12 @@ export interface FileRouteTypes {
     | '/api/public/risposte-ai'
     | '/api/public/sala-attesa'
     | '/api/public/sheets-ingresso'
+    | '/api/public/tracking-config'
     | '/api/public/turn'
     | '/api/public/validate-discount'
     | '/api/public/webinar'
     | '/api/public/whatsapp-webhook'
+    | '/shop/c/$slug'
     | '/shop/prodotto/$slug'
     | '/CRM/installazioni'
     | '/CRM/kpi'
@@ -2632,6 +2709,8 @@ export interface FileRouteTypes {
     | '/api/crm/media-upload'
     | '/api/crm/meeting-session'
     | '/api/crm/messaggi-automatici'
+    | '/api/crm/negozio'
+    | '/api/crm/negozio-media'
     | '/api/crm/ordini'
     | '/api/crm/ponte-invio'
     | '/api/crm/ponte-media'
@@ -2645,6 +2724,7 @@ export interface FileRouteTypes {
     | '/api/crm/push'
     | '/api/crm/sorgente'
     | '/api/crm/sumup'
+    | '/api/crm/tracciamento'
     | '/api/crm/webinar'
     | '/api/crm/webinar-registrazioni'
     | '/api/crm/whatsapp-canale'
@@ -2692,6 +2772,8 @@ export interface FileRouteTypes {
     | '/api/presenter/videos'
     | '/api/public/attesi'
     | '/api/public/esci'
+    | '/api/public/evento'
+    | '/api/public/evento-permesso'
     | '/api/public/galleria'
     | '/api/public/invito'
     | '/api/public/link-ospite'
@@ -2712,10 +2794,12 @@ export interface FileRouteTypes {
     | '/api/public/risposte-ai'
     | '/api/public/sala-attesa'
     | '/api/public/sheets-ingresso'
+    | '/api/public/tracking-config'
     | '/api/public/turn'
     | '/api/public/validate-discount'
     | '/api/public/webinar'
     | '/api/public/whatsapp-webhook'
+    | '/shop/c/$slug'
     | '/shop/prodotto/$slug'
     | '/CRM/installazioni/'
     | '/CRM/kpi/'
@@ -2815,6 +2899,8 @@ export interface RootRouteChildren {
   ApiCrmMediaUploadRoute: typeof ApiCrmMediaUploadRoute
   ApiCrmMeetingSessionRoute: typeof ApiCrmMeetingSessionRoute
   ApiCrmMessaggiAutomaticiRoute: typeof ApiCrmMessaggiAutomaticiRoute
+  ApiCrmNegozioRoute: typeof ApiCrmNegozioRoute
+  ApiCrmNegozioMediaRoute: typeof ApiCrmNegozioMediaRoute
   ApiCrmOrdiniRoute: typeof ApiCrmOrdiniRoute
   ApiCrmPonteInvioRoute: typeof ApiCrmPonteInvioRoute
   ApiCrmPonteMediaRoute: typeof ApiCrmPonteMediaRoute
@@ -2828,6 +2914,7 @@ export interface RootRouteChildren {
   ApiCrmPushRoute: typeof ApiCrmPushRoute
   ApiCrmSorgenteRoute: typeof ApiCrmSorgenteRoute
   ApiCrmSumupRoute: typeof ApiCrmSumupRoute
+  ApiCrmTracciamentoRoute: typeof ApiCrmTracciamentoRoute
   ApiCrmWebinarRoute: typeof ApiCrmWebinarRoute
   ApiCrmWebinarRegistrazioniRoute: typeof ApiCrmWebinarRegistrazioniRoute
   ApiCrmWhatsappCanaleRoute: typeof ApiCrmWhatsappCanaleRoute
@@ -2875,6 +2962,8 @@ export interface RootRouteChildren {
   ApiPresenterVideosRoute: typeof ApiPresenterVideosRoute
   ApiPublicAttesiRoute: typeof ApiPublicAttesiRoute
   ApiPublicEsciRoute: typeof ApiPublicEsciRoute
+  ApiPublicEventoRoute: typeof ApiPublicEventoRoute
+  ApiPublicEventoPermessoRoute: typeof ApiPublicEventoPermessoRoute
   ApiPublicGalleriaRoute: typeof ApiPublicGalleriaRoute
   ApiPublicInvitoRoute: typeof ApiPublicInvitoRoute
   ApiPublicLinkOspiteRoute: typeof ApiPublicLinkOspiteRoute
@@ -2895,6 +2984,7 @@ export interface RootRouteChildren {
   ApiPublicRisposteAiRoute: typeof ApiPublicRisposteAiRoute
   ApiPublicSalaAttesaRoute: typeof ApiPublicSalaAttesaRoute
   ApiPublicSheetsIngressoRoute: typeof ApiPublicSheetsIngressoRoute
+  ApiPublicTrackingConfigRoute: typeof ApiPublicTrackingConfigRoute
   ApiPublicTurnRoute: typeof ApiPublicTurnRoute
   ApiPublicValidateDiscountRoute: typeof ApiPublicValidateDiscountRoute
   ApiPublicWebinarRoute: typeof ApiPublicWebinarRoute
@@ -3652,6 +3742,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ShopProdottoSlugRouteImport
       parentRoute: typeof ShopRoute
     }
+    '/shop/c/$slug': {
+      id: '/shop/c/$slug'
+      path: '/c/$slug'
+      fullPath: '/shop/c/$slug'
+      preLoaderRoute: typeof ShopCSlugRouteImport
+      parentRoute: typeof ShopRoute
+    }
     '/api/public/whatsapp-webhook': {
       id: '/api/public/whatsapp-webhook'
       path: '/api/public/whatsapp-webhook'
@@ -3678,6 +3775,13 @@ declare module '@tanstack/react-router' {
       path: '/api/public/turn'
       fullPath: '/api/public/turn'
       preLoaderRoute: typeof ApiPublicTurnRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/tracking-config': {
+      id: '/api/public/tracking-config'
+      path: '/api/public/tracking-config'
+      fullPath: '/api/public/tracking-config'
+      preLoaderRoute: typeof ApiPublicTrackingConfigRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/sheets-ingresso': {
@@ -3818,6 +3922,20 @@ declare module '@tanstack/react-router' {
       path: '/api/public/galleria'
       fullPath: '/api/public/galleria'
       preLoaderRoute: typeof ApiPublicGalleriaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/evento-permesso': {
+      id: '/api/public/evento-permesso'
+      path: '/api/public/evento-permesso'
+      fullPath: '/api/public/evento-permesso'
+      preLoaderRoute: typeof ApiPublicEventoPermessoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/evento': {
+      id: '/api/public/evento'
+      path: '/api/public/evento'
+      fullPath: '/api/public/evento'
+      preLoaderRoute: typeof ApiPublicEventoRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/esci': {
@@ -4149,6 +4267,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiCrmWebinarRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/crm/tracciamento': {
+      id: '/api/crm/tracciamento'
+      path: '/api/crm/tracciamento'
+      fullPath: '/api/crm/tracciamento'
+      preLoaderRoute: typeof ApiCrmTracciamentoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/crm/sumup': {
       id: '/api/crm/sumup'
       path: '/api/crm/sumup'
@@ -4238,6 +4363,20 @@ declare module '@tanstack/react-router' {
       path: '/api/crm/ordini'
       fullPath: '/api/crm/ordini'
       preLoaderRoute: typeof ApiCrmOrdiniRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/crm/negozio-media': {
+      id: '/api/crm/negozio-media'
+      path: '/api/crm/negozio-media'
+      fullPath: '/api/crm/negozio-media'
+      preLoaderRoute: typeof ApiCrmNegozioMediaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/crm/negozio': {
+      id: '/api/crm/negozio'
+      path: '/api/crm/negozio'
+      fullPath: '/api/crm/negozio'
+      preLoaderRoute: typeof ApiCrmNegozioRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/crm/messaggi-automatici': {
@@ -4600,6 +4739,7 @@ interface ShopRouteChildren {
   ShopCarrelloRoute: typeof ShopCarrelloRoute
   ShopCheckoutRoute: typeof ShopCheckoutRoute
   ShopIndexRoute: typeof ShopIndexRoute
+  ShopCSlugRoute: typeof ShopCSlugRoute
   ShopProdottoSlugRoute: typeof ShopProdottoSlugRoute
 }
 
@@ -4607,6 +4747,7 @@ const ShopRouteChildren: ShopRouteChildren = {
   ShopCarrelloRoute: ShopCarrelloRoute,
   ShopCheckoutRoute: ShopCheckoutRoute,
   ShopIndexRoute: ShopIndexRoute,
+  ShopCSlugRoute: ShopCSlugRoute,
   ShopProdottoSlugRoute: ShopProdottoSlugRoute,
 }
 
@@ -4717,6 +4858,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiCrmMediaUploadRoute: ApiCrmMediaUploadRoute,
   ApiCrmMeetingSessionRoute: ApiCrmMeetingSessionRoute,
   ApiCrmMessaggiAutomaticiRoute: ApiCrmMessaggiAutomaticiRoute,
+  ApiCrmNegozioRoute: ApiCrmNegozioRoute,
+  ApiCrmNegozioMediaRoute: ApiCrmNegozioMediaRoute,
   ApiCrmOrdiniRoute: ApiCrmOrdiniRoute,
   ApiCrmPonteInvioRoute: ApiCrmPonteInvioRoute,
   ApiCrmPonteMediaRoute: ApiCrmPonteMediaRoute,
@@ -4730,6 +4873,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiCrmPushRoute: ApiCrmPushRoute,
   ApiCrmSorgenteRoute: ApiCrmSorgenteRoute,
   ApiCrmSumupRoute: ApiCrmSumupRoute,
+  ApiCrmTracciamentoRoute: ApiCrmTracciamentoRoute,
   ApiCrmWebinarRoute: ApiCrmWebinarRoute,
   ApiCrmWebinarRegistrazioniRoute: ApiCrmWebinarRegistrazioniRoute,
   ApiCrmWhatsappCanaleRoute: ApiCrmWhatsappCanaleRoute,
@@ -4777,6 +4921,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPresenterVideosRoute: ApiPresenterVideosRoute,
   ApiPublicAttesiRoute: ApiPublicAttesiRoute,
   ApiPublicEsciRoute: ApiPublicEsciRoute,
+  ApiPublicEventoRoute: ApiPublicEventoRoute,
+  ApiPublicEventoPermessoRoute: ApiPublicEventoPermessoRoute,
   ApiPublicGalleriaRoute: ApiPublicGalleriaRoute,
   ApiPublicInvitoRoute: ApiPublicInvitoRoute,
   ApiPublicLinkOspiteRoute: ApiPublicLinkOspiteRoute,
@@ -4797,6 +4943,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicRisposteAiRoute: ApiPublicRisposteAiRoute,
   ApiPublicSalaAttesaRoute: ApiPublicSalaAttesaRoute,
   ApiPublicSheetsIngressoRoute: ApiPublicSheetsIngressoRoute,
+  ApiPublicTrackingConfigRoute: ApiPublicTrackingConfigRoute,
   ApiPublicTurnRoute: ApiPublicTurnRoute,
   ApiPublicValidateDiscountRoute: ApiPublicValidateDiscountRoute,
   ApiPublicWebinarRoute: ApiPublicWebinarRoute,
