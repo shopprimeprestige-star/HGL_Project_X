@@ -42,6 +42,32 @@ export function politicaReferrer(percorso: string, ricerca: string | Record<stri
   return percorsoAmmesso(percorso, testo, false) ? undefined : { "Referrer-Policy": "strict-origin" };
 }
 
+type Documento = { activeElement: unknown; body: unknown };
+
+/** Premuto un bottone da tastiera il bottone sparisce e il fuoco cadrebbe sulla pagina: lo si porta sulla riga di conferma. Solo se il fuoco è sul
+ *  `body` o ancora dentro il banner: se l'utente è già altrove non si tocca. */
+export function portaIlFuocoSulloStato(doc: Documento, scheda: { contains(n: never): boolean } | null, stato: { focus(): void } | null): boolean {
+  const a = doc.activeElement;
+  if (!stato || (a && a !== doc.body && !scheda?.contains(a as never))) return false;
+  stato.focus();
+  return true;
+}
+
+/** Il banner se n'è andato (conferma finita o Esc): il fuoco non resta sulla pagina vuota. Torna al link che l'aveva aperto (se è ancora lì), o al
+ *  primo «Gestisci cookie»; senza scorrere la pagina, e solo se il fuoco è sul `body` (se è altrove l'utente l'ha già spostato). */
+export function ridaiIlFuoco(
+  doc: Documento,
+  prima: { isConnected: boolean; focus(o?: { preventScroll: boolean }): void } | null,
+  primoLink: { focus(o?: { preventScroll: boolean }): void } | null,
+): boolean {
+  const a = doc.activeElement;
+  if (a && a !== doc.body) return false;
+  const dove = prima?.isConnected ? prima : primoLink;
+  if (!dove) return false;
+  dove.focus({ preventScroll: true });
+  return true;
+}
+
 export type PorteControllo = {
   caricatore: Caricatore;
   leggi: () => Consenso;

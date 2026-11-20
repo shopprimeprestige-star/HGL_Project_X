@@ -23,7 +23,8 @@
  *  con figure di repertorio su una pagina che vende un risultato estetico
  *  sarebbe la cosa meno credibile che si possa fare.
  */
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { GestisciCookie } from "@/components/tracciamento/GestisciCookie";
 import { useEffect, useState } from "react";
 import {
   ArrowRight, BadgeCheck, CalendarCheck, Camera, CheckCircle2, ChevronDown, Clock,
@@ -573,6 +574,16 @@ function Landing() {
         </p>
         <p className="mt-2 text-[12px] text-white/25">
           © {new Date().getFullYear()} Hair Genius Labs SRLS — P.IVA 18486531009
+        </p>
+        {/* chi accetta i cookie su questa pagina deve poter cambiare idea da qui (T31) */}
+        <p className="mt-3 flex flex-wrap items-center justify-center gap-x-5 text-[13px] text-white/60">
+          <Link
+            to="/cookie-policy"
+            className="inline-flex min-h-11 items-center underline underline-offset-4 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+          >
+            Cookie policy
+          </Link>
+          <GestisciCookie className="inline-flex min-h-11 items-center underline underline-offset-4 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white" />
         </p>
       </footer>
 

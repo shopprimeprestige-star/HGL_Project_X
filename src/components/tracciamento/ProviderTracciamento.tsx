@@ -11,7 +11,7 @@ import { percorsoAmmesso } from "@/lib/tracciamento/ammesse";
 import { daiCaricatore, emettiEvento } from "@/lib/tracciamento/api";
 import type { ConfigPubblica } from "@/lib/tracciamento/carica";
 import { BannerCookie, type SceltaBanner } from "./BannerCookie";
-import { creaControllo, EVENTO_APRI_COOKIE, mostraBanner } from "./controllo";
+import { creaControllo, EVENTO_APRI_COOKIE, mostraBanner, ridaiIlFuoco } from "./controllo";
 
 /** `localStorage` o niente: con i cookie bloccati anche solo toccarlo può lanciare. */
 function magazzino(): Storage | null {
@@ -104,11 +104,8 @@ export function ProviderTracciamento() {
   useEffect(() => {
     if (visibile || !ridaiFuoco.current) return;
     ridaiFuoco.current = false;
-    const a = document.activeElement;
-    if (a && a !== document.body) return;
-    const dove = fuocoPrima.current?.isConnected ? fuocoPrima.current : document.querySelector<HTMLElement>("[data-gestisci-cookie]");
+    ridaiIlFuoco(document, fuocoPrima.current, document.querySelector<HTMLElement>("[data-gestisci-cookie]"));
     fuocoPrima.current = null;
-    dove?.focus({ preventScroll: true });
   }, [visibile]);
   if (!visibile) return null;
   return (

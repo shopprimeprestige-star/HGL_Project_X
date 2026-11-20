@@ -8,6 +8,7 @@
        solo se è stato l'utente a chiederlo (link «Gestisci cookie») o a premere «Scegli».
     ⚠️ Mai bianco su `bg-brand` (3,3:1) né testo sotto gli 11 px: contorno bianco su blu notte, 14 px. */
 import { useEffect, useId, useRef, useState } from "react";
+import { portaIlFuocoSulloStato } from "./controllo";
 import { TESTI } from "./testi-cookie";
 
 export type SceltaBanner = { statistiche: boolean; marketing: boolean };
@@ -52,8 +53,7 @@ export function BannerCookie({ attuale, onScelta, onChiudi, esito = null, vistaI
   // premuto un bottone da tastiera il bottone sparisce: il fuoco va sulla riga di conferma invece di cadere sulla pagina
   useEffect(() => {
     if (esito !== "ok") return;
-    const a = document.activeElement;
-    if (!a || a === document.body || scheda.current?.contains(a)) statoRef.current?.focus();
+    portaIlFuocoSulloStato(document, scheda.current, statoRef.current);
   }, [esito]);
   // la conferma resta qualche secondo e poi se ne va da sola: non c'è niente da premere
   useEffect(() => {

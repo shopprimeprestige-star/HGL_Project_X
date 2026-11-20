@@ -31,6 +31,9 @@ export async function prove(_mod, { c, gruppo, radice }) {
   c("`nuova.tsx`: il badge dice «Studio a Roma» e il piè di pagina tiene email e telefono", [true, true, true], [/> Studio a Roma\s*\n/.test(nuova), /hairgeniuslabs@gmail\.com/.test(nuova), /\+39 379 324 4356/.test(nuova)]);
   c("`nuova.tsx`: il piè di pagina è «Studio a Roma · email · telefono»", true, /Studio a Roma · hairgeniuslabs@gmail\.com · \+39 379 324 4356/.test(nuova));
 
+  c("`nuova.tsx`: il piè di pagina ha `<GestisciCookie />` e il link alla cookie policy (chi accetta lì deve poter revocare, come promette la policy)", [true, true, true], [/<GestisciCookie\b/.test(nuova), /from "@\/components\/tracciamento\/GestisciCookie"/.test(nuova), /<Link\b[^>]*to="\/cookie-policy"/.test(nuova)]);
+  c("`nuova.tsx`: `<GestisciCookie />` sta DENTRO il `<footer>`", true, /<footer\b[\s\S]*<GestisciCookie\b[\s\S]*<\/footer>/.test(nuova));
+
   /* ── cookie policy: le tre categorie e i fornitori veri ── */
   c("cookie policy: le tre categorie — Necessari, Statistiche, Marketing", [true, true, true], [/Necessari/.test(policy), /Statistiche/.test(policy), /Marketing/.test(policy)]);
   c("cookie policy: nomina Meta, TikTok e Google", [true, true, true], [/Meta/.test(policy), /TikTok/.test(policy), /Google/.test(policy)]);

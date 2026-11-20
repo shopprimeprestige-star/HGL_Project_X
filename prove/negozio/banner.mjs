@@ -89,10 +89,13 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("il banner non ruba il fuoco da solo: nessun `autoFocus`", false, /autoFocus|autofocus/.test(src.banner));
   c("il banner usa il file dei testi (nessun testo di bottone scritto nel componente)", [true, false], [/testi-cookie/.test(src.banner), /["'>]\s*Accetta\s*["'<]/.test(senzaCommenti(src.banner))]);
 
-  /* il fuoco non si perde (nota 3 del revisore): dopo la scelta va sulla riga di stato, alla chiusura torna al link che aveva aperto il banner (o al primo «Gestisci cookie») */
-  c("fuoco: il banner porta il fuoco sulla riga di conferma (`tabIndex={-1}`) quando la scelta è salvata", [true, true], [/statoRef/.test(src.banner) && /\.focus\(/.test(src.banner), /role="status"[\s\S]{0,200}tabIndex=\{-1\}|tabIndex=\{-1\}[\s\S]{0,200}role="status"/.test(src.banner)]);
-  c("fuoco: il provider ricorda l'elemento che aveva il fuoco quando si apre da «Gestisci cookie» e lo ridà alla chiusura (altrimenti il primo link «Gestisci cookie»)", [true, true, true], [/document\.activeElement/.test(src.provider), /isConnected/.test(src.provider), /data-gestisci-cookie/.test(src.provider) && /data-gestisci-cookie/.test(src.gestisci)]);
-  c("fuoco: non lo toglie a chi l'ha già spostato altrove (controlla `document.body` prima di ridarlo)", true, /document\.body/.test(src.provider));
+  /* il fuoco non si perde (note 3 e 2 del revisore): dopo la scelta va sulla riga di conferma, alla chiusura torna al link che aveva aperto
+     il banner (o al primo «Gestisci cookie»). Le DUE decisioni sono funzioni di `controllo.ts` provate con oggetti finti; qui, sul sorgente, si
+     controlla che il banner e il provider le CHIAMINO davvero (togliere la riga fa diventare rosso). */
+  c("fuoco: il banner chiama `portaIlFuocoSulloStato(document, …, statoRef.current)` e il paragrafo di stato è `tabIndex={-1}`", [true, true], [/portaIlFuocoSulloStato\(\s*document\s*,\s*scheda\.current\s*,\s*statoRef\.current\s*\)/.test(senzaCommenti(src.banner)), /<p ref=\{statoRef\} role="status" tabIndex=\{-1\}/.test(src.banner)]);
+  c("fuoco: il provider chiama `ridaiIlFuoco(document, fuocoPrima.current, …[data-gestisci-cookie])` quando il banner se ne va", [true, true], [/ridaiIlFuoco\(\s*document\s*,\s*fuocoPrima\.current\s*,/.test(senzaCommenti(src.provider)), /querySelector[^)]*data-gestisci-cookie/.test(src.provider)]);
+  c("fuoco: il provider ricorda `document.activeElement` quando si apre da «Gestisci cookie»; il link ha `data-gestisci-cookie`", [true, true], [/fuocoPrima\.current\s*=\s*document\.activeElement/.test(src.provider), /data-gestisci-cookie/.test(src.gestisci)]);
+  c("«Gestisci cookie» ha il cursore a mano (`cursor-pointer`, Tailwind 4 mette la freccia ai `button`)", true, /cursor-pointer/.test(src.gestisci));
 
   /* ───────────────── 2 · IL MARCHIO DEL BANNER ───────────────── */
   const esbuild = requireQui("esbuild");
@@ -184,6 +187,33 @@ export async function prove(mod, { c, gruppo, radice }) {
     K = null;
   }
   c("il controllo del provider si impacchetta e dà `mostraBanner`, `serveRevoca`, `creaControllo`", [true, true, true], [typeof K?.mostraBanner === "function", typeof K?.serveRevoca === "function", typeof K?.creaControllo === "function"]);
+  /* ── il fuoco, con oggetti finti ── */
+  if (typeof K?.portaIlFuocoSulloStato === "function" && typeof K?.ridaiIlFuoco === "function") {
+    const corpo = { nome: "body" };
+    const altro = { nome: "link" };
+    const dentro = { nome: "bottone nel banner" };
+    const scheda = { contains: (n) => n === dentro };
+    const el = (nome, extra = {}) => { const e = { nome, chiamate: [], focus(o) { e.chiamate.push(o ?? null); }, ...extra }; return e; };
+    let st = el("stato");
+    c("fuoco sullo stato: dopo il clic il bottone è sparito (fuoco sul body) → il fuoco va sulla riga di stato", [true, 1], [K.portaIlFuocoSulloStato({ activeElement: corpo, body: corpo }, scheda, st), st.chiamate.length]);
+    st = el("stato");
+    c("fuoco sullo stato: se il fuoco è ancora su un elemento del banner → va sulla riga di stato", [true, 1], [K.portaIlFuocoSulloStato({ activeElement: dentro, body: corpo }, scheda, st), st.chiamate.length]);
+    st = el("stato");
+    c("fuoco sullo stato: se l'utente è già altrove nella pagina non si tocca", [false, 0], [K.portaIlFuocoSulloStato({ activeElement: altro, body: corpo }, scheda, st), st.chiamate.length]);
+    c("fuoco sullo stato: senza riga di stato non lancia e non fa niente", false, K.portaIlFuocoSulloStato({ activeElement: corpo, body: corpo }, scheda, null));
+    let prima = el("link che ha aperto", { isConnected: true });
+    let primo = el("primo Gestisci cookie");
+    c("fuoco alla chiusura: il fuoco è sul body → torna al link che aveva aperto il banner, senza scorrere", [true, [{ preventScroll: true }], 0], [K.ridaiIlFuoco({ activeElement: corpo, body: corpo }, prima, primo), prima.chiamate, primo.chiamate.length]);
+    prima = el("link che ha aperto", { isConnected: false }); primo = el("primo Gestisci cookie");
+    c("fuoco alla chiusura: il link di prima non c'è più → va al primo «Gestisci cookie», senza scorrere", [true, 0, [{ preventScroll: true }]], [K.ridaiIlFuoco({ activeElement: corpo, body: corpo }, prima, primo), prima.chiamate.length, primo.chiamate]);
+    primo = el("primo Gestisci cookie");
+    c("fuoco alla chiusura: apertura non dell'utente (nessun link di prima) → primo «Gestisci cookie»", [true, 1], [K.ridaiIlFuoco({ activeElement: null, body: corpo }, null, primo), primo.chiamate.length]);
+    prima = el("link", { isConnected: true }); primo = el("primo");
+    c("fuoco alla chiusura: se l'utente ha già portato il fuoco altrove non si tocca", [false, 0, 0], [K.ridaiIlFuoco({ activeElement: altro, body: corpo }, prima, primo), prima.chiamate.length, primo.chiamate.length]);
+    c("fuoco alla chiusura: né link di prima né «Gestisci cookie» nella pagina → niente, senza lanciare", false, K.ridaiIlFuoco({ activeElement: corpo, body: corpo }, null, null));
+  } else {
+    c("`controllo.ts` esporta `portaIlFuocoSulloStato` e `ridaiIlFuoco`", true, false);
+  }
   const CAR = mod["lib/tracciamento/carica"];
   if (!K?.mostraBanner || !K?.creaControllo || !CAR?.creaCaricatore) return;
 
