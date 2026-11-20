@@ -8,10 +8,15 @@
     ⚠️ Un pixel già caricato non si scarica: per questo `sospendi()` lo mette a tacere e la navigazione verso
        una pagina non ammessa RICARICA la pagina (senza script, perché la pagina non è ammessa); la revoca
        ricarica anch'essa. La ricarica non perde il modulo di consulenza: `BookingFunnel` lo persiste.
+    ⚠️ I pixel, da soli, seguono i cambi di pagina delle app a pagina singola (`pushState`) e mandano il PageView con
+       l'indirizzo COMPLETO, saltando il nostro filtro: Meta si ferma con `fbq.disablePushState = true`; per TikTok non
+       conosco un'opzione equivalente (da verificare). In ogni caso `pushState`/`replaceState` sono sorvegliati: se la
+       destinazione non è ammessa e ci sono script caricati, si spegne tutto e si naviga con una pagina nuova, SENZA
+       che l'indirizzo cambi sotto i pixel.
     ⚠️ Gli ID arrivano dalla configurazione pubblica ma finiscono in un indirizzo: si controlla la FORMA di ognuno
        e, se non torna, quella piattaforma non si carica (nessun codice dentro gli indirizzi). */
 import { modoGoogle, puoCaricare, type Consenso } from "../consenso";
-import { percorsoAmmesso } from "./ammesse";
+import { percorsoAmmesso, referrerPulito, urlPulito } from "./ammesse";
 
 export type ConfigPubblica = {
   meta: { pixelId: string } | null;
@@ -20,8 +25,13 @@ export type ConfigPubblica = {
 };
 
 export type PorteCarica = {
-  documento: { cookie: string; createElement(tag: string): any; head: { appendChild(n: any): unknown } };
-  finestra: { location: { hostname: string; pathname: string; search: string; reload(): void }; localStorage?: { removeItem(k: string): void }; [chiave: string]: any };
+  documento: { cookie: string; referrer?: string; createElement(tag: string): any; head: { appendChild(n: any): unknown } };
+  finestra: {
+    location: { hostname: string; pathname: string; search: string; origin?: string; reload(): void; assign?(url: string): void };
+    localStorage?: { removeItem(k: string): void };
+    history?: { pushState: (...a: any[]) => void; replaceState: (...a: any[]) => void };
+    [chiave: string]: any;
+  };
   /** Un amministratore già riconosciuto non si traccia (come `isAdminLogged`). */
   admin?: () => boolean;
   /** La pagina è dentro un iframe (l'anteprima del CMS)? */
@@ -36,6 +46,8 @@ export type Caricatore = {
   caricati(): { meta: boolean; tiktok: boolean; google: boolean };
   /** Gli script possono parlare adesso? (non sospeso, non admin, non in cornice, pagina ammessa) */
   puoAgire(): boolean;
+  /** Dice a Google l'indirizzo PULITO di questa pagina e il referrer ridotto all'origine (`set`), se sono cambiati: vale per ogni evento che segue. */
+  sincronizzaIndirizzo(): void;
 };
 
 const ID_META = /^\d{5,20}$/;
@@ -67,6 +79,7 @@ export function creaCaricatore(porte: PorteCarica): Caricatore {
   let sospeso = false;
   let modoGoogleUsato = "";
   let googleMarketing = false;
+  let ultimoIndirizzo = "";
   const idGoogle: string[] = [];
 
   const aggiungiScript = (src: string) => {
@@ -93,6 +106,7 @@ export function creaCaricatore(porte: PorteCarica): Caricatore {
       f.fbq = n;
       if (!f._fbq) f._fbq = n;
     }
+    f.fbq.disablePushState = true; // Meta non segue `pushState` da solo: i PageView li emette il provider, con l'indirizzo pulito
     f.fbq("set", "autoConfig", false, id); // prima di `init`: niente abbinamento automatico dai campi dei moduli
     f.fbq("init", id); // senza dati utente: l'abbinamento avanzato lo fa il server con l'hash
     aggiungiScript(SCRIPT_META); // il PageView non parte da qui: lo emette il provider (D19)
@@ -142,13 +156,31 @@ export function creaCaricatore(porte: PorteCarica): Caricatore {
     const m = c.marketing === true;
     if (!primaVolta && m === googleMarketing) return;
     googleMarketing = m;
-    if (primaVolta) finestra.gtag("js", new Date());
+    if (primaVolta) {
+      sincronizzaIndirizzo(); // prima di ogni `config` e di ogni evento: tutti portano l'indirizzo pulito
+      finestra.gtag("js", new Date());
+    }
     if (ga4) finestra.gtag("config", ga4, { send_page_view: false, allow_google_signals: m, allow_ad_personalization_signals: m });
     if (!m) finestra.gtag("set", "ads_data_redaction", true);
     else {
       if (!primaVolta) finestra.gtag("set", "ads_data_redaction", false);
       if (ads) finestra.gtag("config", ads);
     }
+  }
+
+  function origineSito(): string {
+    return finestra.location.origin || `https://${finestra.location.hostname}`;
+  }
+
+  function sincronizzaIndirizzo() {
+    if (!stato.google || sospeso) return;
+    const origine = origineSito();
+    const pulito = urlPulito(origine, finestra.location.pathname, finestra.location.search);
+    if (!pulito || pulito === ultimoIndirizzo) return;
+    // il primo referrer è quello vero (ridotto all'origine); poi, in navigazione interna, la pagina di prima era sul sito
+    const referrer = ultimoIndirizzo ? origine : referrerPulito(documento.referrer, origine);
+    ultimoIndirizzo = pulito;
+    finestra.gtag("set", { page_location: pulito, page_referrer: referrer });
   }
 
   function sospendi() {
@@ -173,6 +205,40 @@ export function creaCaricatore(porte: PorteCarica): Caricatore {
     }
   }
 
+  /** Guardia del router: `pushState` e `replaceState` verso una pagina non ammessa, con script caricati, → si spegne tutto e
+   *  si naviga con una pagina nuova (senza script) PRIMA che l'indirizzo cambi sotto i pixel. */
+  function installaGuardia() {
+    const h = finestra.history;
+    if (!h) return;
+    for (const metodo of ["pushState", "replaceState"] as const) {
+      const originale = h[metodo];
+      if (typeof originale !== "function") continue;
+      h[metodo] = function (this: unknown, ...a: any[]) {
+        const url = a[2];
+        if (url != null && (stato.meta || stato.tiktok || stato.google)) {
+          let dest: URL | null = null;
+          try {
+            dest = new URL(String(url), `${origineSito()}${finestra.location.pathname}${finestra.location.search}`);
+          } catch {
+            dest = null;
+          }
+          if (dest && dest.origin === origineSito() && !percorsoAmmesso(dest.pathname, dest.search, !!porte.inCornice?.())) {
+            sospendi();
+            try {
+              finestra.location.assign?.(dest.href);
+            } catch {
+              /* niente da fare: gli script sono già a tacere */
+            }
+            return;
+          }
+        }
+        return originale.apply(this, a);
+      };
+    }
+  }
+  // shortcut: `popstate` (indietro/avanti) non si può fermare prima: lo gestisce `applicaConsenso` appena il provider lo richiama, con sospendi e ricarica; si cambia se i pixel mandano un PageView in quel momento.
+  installaGuardia();
+
   return {
     applicaConsenso(c, config) {
       if (sospeso || !c || !config || porte.admin?.()) return;
@@ -196,6 +262,7 @@ export function creaCaricatore(porte: PorteCarica): Caricatore {
             false,
           );
       }
+      sincronizzaIndirizzo();
     },
 
     sospendi,
@@ -232,5 +299,6 @@ export function creaCaricatore(porte: PorteCarica): Caricatore {
     sospeso: () => sospeso,
     caricati: () => ({ ...stato }),
     puoAgire,
+    sincronizzaIndirizzo,
   };
 }

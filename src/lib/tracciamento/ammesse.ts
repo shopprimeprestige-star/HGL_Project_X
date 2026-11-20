@@ -1,17 +1,21 @@
 /*  ── LE PAGINE AMMESSE AI PIXEL E AL BANNER (modulo puro) ───────────────────────
     Shop R1 · T26 · PIANO D14, D15, §3.4. Una funzione sola per pixel, banner e provider.
 
-    ⚠️ Si elencano le pagine AMMESSE (per SCHEMA di percorso, non per prefisso), non quelle escluse: una pagina
-       nuova non traccia finché qualcuno non la aggiunge qui. Le pagine private portano codici nell'indirizzo
-       (`?t=`, `?anteprima=`, `?watch=`): non devono arrivare a Meta, TikTok e Google, e il banner non deve
-       comparirci (sala d'attesa del cliente, anteprima del CMS dentro il CRM).
+    ⚠️ Si elencano le pagine AMMESSE (per SCHEMA di percorso, non per prefisso) e le chiavi di query AMMESSE, non quelle
+       escluse: una pagina o una chiave nuova non traccia finché qualcuno non la aggiunge qui. Le pagine private portano
+       codici nell'indirizzo (`?t=`, `?anteprima=`, `?watch=`, `?ref_code=`…): non devono arrivare a Meta, TikTok e
+       Google, e il banner non deve comparirci (sala d'attesa del cliente, anteprima del CMS dentro il CRM).
+       Una pagina è ammessa SOLO se OGNI chiave della sua query è `utm_*` o fra `CHIAVI_QUERY_AMMESSE`: qualunque chiave
+       sconosciuta la rende non ammessa (lista bianca, non lista nera).
     ⚠️ L'indirizzo che esce verso le piattaforme si RICOSTRUISCE (`urlPulito`: origine + percorso + sole chiavi
        ammesse); il referrer si riduce all'origine (`referrerPulito`). Mai copiati da `location`. */
 
-/** Una pagina con anche solo una di queste chiavi NON è ammessa (confronto senza maiuscole). */
+/** I casi noti di codici privati. ⚠️ Non decidono più niente: vale la lista BIANCA qui sotto (ogni chiave non ammessa
+ *  esclude la pagina, queste comprese). Restano come elenco documentato e per le prove. */
 export const CHIAVI_QUERY_VIETATE = ["anteprima", "t", "watch", "modifica", "sess", "code", "codice", "token", "key", "embed"] as const;
-/** Le chiavi di query che possono uscire (più tutte quelle che cominciano per `utm_`). */
-export const CHIAVI_QUERY_AMMESSE = ["fbclid", "gclid", "gbraid", "wbraid", "ttclid", "ad_id", "adset_id", "campaign_id", "ad_name", "creative", "creative_name"] as const;
+/** Le sole chiavi di query che una pagina ammessa può avere, e che possono uscire (più tutte quelle che cominciano per `utm_`).
+ *  Click id e campagne delle piattaforme; `gad_source`, `gad_campaignid` e `gclsrc` li aggiunge Google Ads insieme a `gclid`. */
+export const CHIAVI_QUERY_AMMESSE = ["fbclid", "gclid", "gbraid", "wbraid", "ttclid", "gad_source", "gad_campaignid", "gclsrc", "ad_id", "adset_id", "campaign_id", "ad_name", "creative", "creative_name"] as const;
 
 const MAX_VALORE = 200;
 /** Uno slug: minuscolo, cifre, trattini. */
@@ -42,9 +46,9 @@ const chiaveAmmessa = (k: string) => k.startsWith("utm_") || (CHIAVI_QUERY_AMMES
 
 export function percorsoAmmesso(percorso: unknown, ricerca: unknown, inCornice: boolean): boolean {
   if (inCornice || typeof percorso !== "string") return false;
-  // una chiave vietata vale ovunque sia scritta: nella ricerca o dentro il percorso
+  // ogni chiave deve essere ammessa, ovunque sia scritta: nella ricerca o dentro il percorso
   const incorporata = percorso.split("#")[0].split("?").slice(1).join("?");
-  if ([...coppie(ricerca), ...coppie(incorporata)].some(([k]) => (CHIAVI_QUERY_VIETATE as readonly string[]).includes(k))) return false;
+  if ([...coppie(ricerca), ...coppie(incorporata)].some(([k]) => !chiaveAmmessa(k))) return false;
   const p = normalizza(percorso);
   if (FISSE.has(p)) return true;
   const prefisso = CON_SLUG.find((x) => p.startsWith(x));

@@ -66,6 +66,19 @@ export async function prove(mod, { c, gruppo }) {
     ["/regia/x", "", false, false],
     ["/chat", "", false, false],
     ["/api/public/evento", "", false, false],
+    // la lista è BIANCA: qualunque chiave sconosciuta esclude la pagina (revisione di sicurezza)
+    ["/shop", "?ref_code=X", false, false],
+    ["/shop", "?qualcosa=Y", false, false],
+    ["/shop", "?utm_source=meta&qualcosa=Y", false, false],
+    ["/shop/prodotto/x", "?fbclid=1&invito=Z", false, false],
+    ["/shop/cerca", "?q=capelli", false, false],
+    ["/shop", "?=x", false, false],
+    ["/shop", "?UTM_SOURCE=meta", false, true],
+    ["/shop", "?gad_source=1&gclid=abc&gad_campaignid=9", false, true],
+    ["/shop", "?utm_source=a&utm_medium=b&fbclid=1&gclid=2&gbraid=3&wbraid=4&ttclid=5&ad_id=6&adset_id=7&campaign_id=8&ad_name=9&creative=10&creative_name=11", false, true],
+    ["/shop", "?utm_source=a&utm_medium=b", true, false],
+    ["/shop?ref_code=X", "", false, false],
+    ["/shop?utm_source=a", "", false, true],
     // schemi: troppo o troppo poco, segni strani
     ["/shop/prodotto", "", false, false],
     ["/shop/prodotto/", "", false, false],
@@ -92,12 +105,14 @@ export async function prove(mod, { c, gruppo }) {
   const VIETATE = ["anteprima", "t", "watch", "modifica", "sess", "code", "codice", "token", "key", "embed"];
   c("ogni chiave vietata, anche da sola e senza valore, esclude la pagina", [], VIETATE.filter((k) => ok("/shop", `?${k}`, false) || ok("/shop", `?${k}=1`, false)));
   c("…anche scritta in maiuscolo o dopo altre chiavi", [], VIETATE.filter((k) => ok("/shop", `?${k.toUpperCase()}=1`, false) || ok("/shop", `?utm_source=a&${k}=1&fbclid=2`, false)));
-  c("la ricerca senza «?» davanti vale uguale; una chiave innocua non esclude", [true, false, true], [ok("/shop", "utm_source=a", false), ok("/shop", "t=1", false), ok("/shop/cerca", "?q=capelli", false)]);
+  c("la ricerca senza «?» davanti vale uguale; una chiave ammessa non esclude, una sconosciuta sì (anche «q»)", [true, false, false, true], [ok("/shop", "utm_source=a", false), ok("/shop", "t=1", false), ok("/shop/cerca", "?q=capelli", false), ok("/shop", "gclid=1&utm_term=x", false)]);
   c("una chiave vietata scritta dentro il percorso (dopo un «?») esclude la pagina", [false, true], [ok("/shop?t=1", "", false), ok("/shop?utm_source=a", "", false)]);
   c("il frammento (#…) non conta", true, ok("/shop#t=1", "", false));
   c("valori non testo: no, nessuna eccezione", [false, false, false, false], [ok(null, "", false), ok(undefined, "", false), ok(42, "", false), ok({}, "", false)]);
   c("ricerca non testo: si ignora, il percorso decide", [true, true], [ok("/shop", null, false), ok("/shop", undefined, false)]);
-  c("elenchi esportati: 10 chiavi vietate, le ammesse comprendono fbclid, gclid, ttclid, ad_id", [10, true], [A.CHIAVI_QUERY_VIETATE.length, ["fbclid", "gclid", "ttclid", "ad_id", "campaign_id"].every((k) => A.CHIAVI_QUERY_AMMESSE.includes(k))]);
+  c("elenchi esportati: 10 chiavi vietate note, le ammesse comprendono fbclid, gclid, ttclid, ad_id, gad_source", [10, true], [A.CHIAVI_QUERY_VIETATE.length, ["fbclid", "gclid", "ttclid", "ad_id", "campaign_id", "gad_source"].every((k) => A.CHIAVI_QUERY_AMMESSE.includes(k))]);
+  c("lista bianca: ogni chiave ammessa dà una pagina ammessa, ogni chiave inventata no (anche vicina a una ammessa)", [[], []],
+    [A.CHIAVI_QUERY_AMMESSE.filter((k) => !ok("/shop", `?${k}=1`, false)), ["utm", "fbclid2", "xgclid", "gclid_", "fb", "ttclid ", "_utm_source", "ref", "code2", "id", "email", "telefono", "nome", "utm"].filter((k) => ok("/shop", `?${k}=1`, false))]);
   c("nessuna chiave è insieme vietata e ammessa", [], A.CHIAVI_QUERY_VIETATE.filter((k) => A.CHIAVI_QUERY_AMMESSE.includes(k)));
 
   /* ── urlPulito ── */

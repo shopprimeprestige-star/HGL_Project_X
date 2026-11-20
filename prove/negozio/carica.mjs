@@ -18,18 +18,20 @@ const MARKETING = { scelto: true, statistiche: true, marketing: true, ts: 1 };
 const TUTTO_NEGATO = { analytics_storage: "denied", ad_storage: "denied", ad_user_data: "denied", ad_personalization: "denied" };
 
 /** Il mondo finto: documento, finestra, e il registro di quel che succede. */
-function mondo({ host = "www.sito.test", path = "/shop", search = "", cookie = "", admin = false, cornice = false } = {}) {
-  const m = { scripts: [], cookieScritti: [], reloads: 0, cookie, localStorage: {}, rimossi: [] };
+function mondo({ host = "www.sito.test", path = "/shop", search = "", cookie = "", admin = false, cornice = false, referrer = "" } = {}) {
+  const m = { scripts: [], cookieScritti: [], reloads: 0, cookie, localStorage: {}, rimossi: [], pushate: [], sostituite: [], navigazioni: [] };
   m.documento = {
+    referrer,
     get cookie() { return m.cookie; },
     set cookie(v) { m.cookieScritti.push(String(v)); },
     createElement: (tag) => ({ tag }),
     head: {
-      appendChild: (n) => m.scripts.push({ src: n.src, async: n.async, dl: (m.finestra.dataLayer ?? []).length, fq: m.finestra.fbq?.queue?.length ?? -1 }),
+      appendChild: (n) => m.scripts.push({ src: n.src, async: n.async, dl: (m.finestra.dataLayer ?? []).length, fq: m.finestra.fbq?.queue?.length ?? -1, dp: m.finestra.fbq?.disablePushState }),
     },
   };
   m.finestra = {
-    location: { hostname: host, pathname: path, search, origin: `https://${host}`, reload: () => { m.reloads++; } },
+    location: { hostname: host, pathname: path, search, origin: `https://${host}`, reload: () => { m.reloads++; }, assign: (u) => m.navigazioni.push(u) },
+    history: { pushState(...a) { m.pushate.push({ questo: this === m.finestra.history, a }); }, replaceState(...a) { m.sostituite.push({ questo: this === m.finestra.history, a }); } },
     localStorage: { removeItem: (k) => m.rimossi.push(k), getItem: (k) => m.localStorage[k] ?? null, setItem: (k, v) => { m.localStorage[k] = String(v); } },
   };
   m.porte = { documento: m.documento, finestra: m.finestra, admin: () => admin, inCornice: () => cornice };
@@ -110,6 +112,45 @@ export async function prove(mod, { c, gruppo }) {
   c("ID dal formato strano: non si carica nessuno script (niente codice dentro gli indirizzi)", [0, 0, 0, 0, 0], cattivi.map((cfg) => { const x = nuovo(); x.car.applicaConsenso(MARKETING, { meta: null, tiktok: null, google: null, ...cfg }); return x.scripts.length; }));
   c("solo Google Ads (senza GA4): lo script entra con l'ID di Ads", ["https://www.googletagmanager.com/gtag/js?id=AW-12345678"], (() => { const x = nuovo(); x.car.applicaConsenso(MARKETING, { google: { ga4Id: null, adsId: "AW-12345678", adsLabelAcquisto: null } }); return srcs(x); })());
 
+  /* ── Meta e TikTok non seguono da soli i cambi di pagina (pushState) ── */
+  c("Meta: `fbq.disablePushState = true` già impostato quando lo script di Meta entra nella pagina", [true, true], [k.scripts.find((x) => /fbevents/.test(x.src)).dp, k.finestra.fbq.disablePushState]);
+  const g0 = nuovo();
+  g0.finestra.fbq = Object.assign(function () {}, { queue: [] });
+  g0.car.applicaConsenso(MARKETING, CONFIG);
+  c("…anche se `fbq` c'era già (messo da altri)", true, g0.finestra.fbq.disablePushState);
+
+  /* ── la guardia del router: pushState / replaceState verso una pagina non ammessa ── */
+  const gp = nuovo({ path: "/shop" });
+  gp.car.applicaConsenso(MARKETING, CONFIG);
+  gp.finestra.history.pushState({ x: 1 }, "", "/shop/carrello?utm_source=a");
+  c("verso una pagina ammessa: la navigazione prosegue com'è (stesso `this`, stessi argomenti), niente sospensione", [1, true, [{ x: 1 }, "", "/shop/carrello?utm_source=a"], false, 0], [gp.pushate.length, gp.pushate[0]?.questo, gp.pushate[0]?.a, gp.car.sospeso(), gp.navigazioni.length]);
+  gp.finestra.history.pushState({}, "", "/shop/ordine/HG-1?t=abc");
+  c("verso /shop/ordine/x?t=…: PRIMA che l'indirizzo cambi si spegne tutto e si naviga con una pagina nuova (l'indirizzo NON passa dal router)", [1, true, ["https://www.sito.test/shop/ordine/HG-1?t=abc"]], [gp.pushate.length, gp.car.sospeso(), gp.navigazioni]);
+  c("…e Meta e Google sono già a tacere in quel momento (consent revoke / denied)", [true, true], [fq(gp).some((x) => x[0] === "consent" && x[1] === "revoke"), JSON.stringify(dl(gp).filter((x) => x[1] === "update").at(-1)?.[2]) === JSON.stringify(TUTTO_NEGATO)]);
+  const gr = nuovo({ path: "/shop" });
+  gr.car.applicaConsenso(MARKETING, CONFIG);
+  gr.finestra.history.replaceState(null, "", "https://www.sito.test/CRM/leads");
+  c("replaceState verso una pagina non ammessa (indirizzo intero): stessa guardia", [0, true, ["https://www.sito.test/CRM/leads"]], [gr.sostituite.length, gr.car.sospeso(), gr.navigazioni]);
+  const gq = nuovo({ path: "/shop" });
+  gq.car.applicaConsenso(MARKETING, CONFIG);
+  gq.finestra.history.pushState(null, "", "/shop/prodotto/x?qualcosa=Y");
+  c("verso una pagina con una chiave sconosciuta (lista bianca): stessa guardia", [0, 1], [gq.pushate.length, gq.navigazioni.length]);
+  const gs = nuovo({ path: "/shop" });
+  gs.finestra.history.pushState(null, "", "/shop/ordine/HG-1?t=abc");
+  c("senza script caricati la guardia non fa niente: la navigazione prosegue", [1, 0, false], [gs.pushate.length, gs.navigazioni.length, gs.car.sospeso()]);
+  const gx = nuovo({ path: "/shop" });
+  gx.car.applicaConsenso(MARKETING, CONFIG);
+  gx.finestra.history.pushState(null, "", "https://altro.test/x");
+  gx.finestra.history.pushState(null, "");
+  gx.finestra.history.pushState(null, "", null);
+  c("destinazione di un altro sito o senza indirizzo: non è affar nostro, passa al router vero", [3, 0, false], [gx.pushate.length, gx.navigazioni.length, gx.car.sospeso()]);
+  const gn = mondo({ path: "/shop" });
+  delete gn.finestra.history;
+  let eh = null;
+  try { K.creaCaricatore(gn.porte).applicaConsenso(MARKETING, CONFIG); } catch (e) { eh = String(e); }
+  c("senza `history` (ambiente senza router) non lancia", null, eh);
+  c("dentro una cornice non c'è nessuno script: nessuna deviazione, la navigazione prosegue", [1, 0], (() => { const x = nuovo({ cornice: true }); x.car.applicaConsenso(MARKETING, CONFIG); x.finestra.history.pushState(null, "", "/shop/ordine/x?t=1"); return [x.pushate.length, x.navigazioni.length]; })());
+
   /* ── dove non si carica: admin, cornice, pagine non ammesse ── */
   const casiNo = [
     ["admin loggato", { admin: true }],
@@ -183,8 +224,8 @@ export async function prove(mod, { c, gruppo }) {
   /* ── L'API DEL BROWSER: emettiEvento ── */
   gruppo("SHOP R1 · T26 · API DEL BROWSER: emettiEvento, emettiSoloContatore (20/11/2026)");
   const ID = /^[0-9a-f-]{36}$/;
-  function sito({ consenso = MARKETING, path = "/shop/prodotto/lace-front", search = "?utm_source=meta&q=SEGRETO", admin = false, cornice = false, adesso = 1_800_000_000_000, referrer = "https://l.facebook.com/l.php?u=x" } = {}) {
-    const m = mondo({ path, search, admin, cornice });
+  function sito({ consenso = MARKETING, path = "/shop/prodotto/lace-front", search = "?utm_source=meta", admin = false, cornice = false, adesso = 1_800_000_000_000, referrer = "https://l.facebook.com/l.php?u=x" } = {}) {
+    const m = mondo({ path, search, admin, cornice, referrer });
     m.car = K.creaCaricatore(m.porte);
     m.fetchLog = [];
     m.contatori = [];
@@ -193,7 +234,7 @@ export async function prove(mod, { c, gruppo }) {
       m.fetchLog.push({ url: String(url), metodo: init.method ?? "GET", corpo: init.body ? JSON.parse(init.body) : null });
       return { ok: true, status: 200, json: async () => ({ permesso: "1800000600000.permesso-finto" }) };
     };
-    m.api = API.creaApi({ finestra: m.finestra, fetch: m.fetch, adesso: () => m.ora, caricatore: m.car, consenso: () => consenso, referrer: () => referrer, contatore: (n, p) => m.contatori.push([n, p]) });
+    m.api = API.creaApi({ finestra: m.finestra, fetch: m.fetch, adesso: () => m.ora, caricatore: m.car, consenso: () => consenso, contatore: (n, p) => m.contatori.push([n, p]) });
     if (consenso.scelto) m.car.applicaConsenso(consenso, CONFIG);
     return m;
   }
@@ -213,8 +254,8 @@ export async function prove(mod, { c, gruppo }) {
   c("il server: prima chiede il permesso, poi manda l'evento (due chiamate)", [["GET", "/api/public/evento-permesso"], ["POST", "/api/public/evento"]], e.fetchLog.map((x) => [x.metodo, x.url]));
   const corpo = e.fetchLog[1]?.corpo ?? {};
   c("la richiesta al server ha lo STESSO event_id, il permesso e `consenso: true`", [id, "1800000600000.permesso-finto", true, "AddToCart"], [corpo.eventId, corpo.permesso, corpo.consenso, corpo.nome]);
-  c("la richiesta porta il percorso e le sole chiavi ammesse (niente `q`, niente indirizzo intero)", ["/shop/prodotto/lace-front", "utm_source=meta"], [corpo.percorso, corpo.query]);
-  c("…e nessun dato personale né altro indirizzo nel corpo", false, /@|SEGRETO|https?:|sito\.test|fbp|fbc|email|telefono/i.test(JSON.stringify(corpo)));
+  c("la richiesta porta il percorso e le sole chiavi ammesse (niente indirizzo intero)", ["/shop/prodotto/lace-front", "utm_source=meta"], [corpo.percorso, corpo.query]);
+  c("…e nessun dato personale né altro indirizzo nel corpo", false, /@|https?:|sito\.test|fbp|fbc|email|telefono/i.test(JSON.stringify(corpo)));
   e.api.emettiEvento("ViewContent", { contentIds: ["HG-001"], contentType: "product" });
   await e.api.scarica();
   c("il permesso si tiene in memoria: la seconda richiesta non lo richiede", [3, 1], [e.fetchLog.length, e.fetchLog.filter((x) => x.url.includes("permesso")).length]);
@@ -249,24 +290,38 @@ export async function prove(mod, { c, gruppo }) {
   const x1 = sito();
   c("eventi senza prodotti o con nomi d'acquisto: null e nessuna chiamata", [null, null, null, null, 0], [x1.api.emettiEvento("ViewContent", {}), x1.api.emettiEvento("Purchase", dati), x1.api.emettiEvento("CompletePayment", dati), x1.api.emettiEvento("", dati), x1.fetchLog.length]);
 
-  // PageView: indirizzo e referrer ripuliti
-  const pv = sito({ path: "/shop/prodotto/Lace-Front", search: "?utm_source=meta&q=SEGRETO&fbclid=9" });
+  // Google: OGNI evento porta l'indirizzo pulito e il referrer ridotto all'origine (`gtag('set', …)`)
+  const pv = sito({ path: "/Shop/Prodotto/Lace-Front", search: "?utm_source=meta&fbclid=9" });
   const idP = pv.api.emettiEvento("PageView");
   await pv.api.scarica();
-  const g = dl(pv).find((x) => x[0] === "event" && x[1] === "page_view");
-  c("PageView: Google riceve l'indirizzo RICOSTRUITO e il referrer ridotto all'origine", ["https://www.sito.test/shop/prodotto/lace-front?utm_source=meta&fbclid=9", "https://l.facebook.com"], [g?.[2]?.page_location, g?.[2]?.page_referrer]);
-  c("PageView: Meta ha lo stesso id; il server riceve il percorso e le sole chiavi ammesse", [idP, "/shop/prodotto/Lace-Front", "utm_source=meta&fbclid=9"], [fq(pv).filter((x) => x[0] === "track").at(-1)?.[3]?.eventID, pv.fetchLog.at(-1)?.corpo?.percorso, pv.fetchLog.at(-1)?.corpo?.query]);
-  c("nessun indirizzo con codici esce, in nessuna chiamata (scansione di tutto)", false, /SEGRETO/.test(JSON.stringify([fq(pv), tq(pv), dl(pv), pv.fetchLog])));
+  const sets = () => dl(pv).filter((x) => x[0] === "set" && x[1]?.page_location);
+  c("Google: c'è un `set` con l'indirizzo RICOSTRUITO (minuscolo, solo chiavi ammesse) e il referrer ridotto all'origine", ["https://www.sito.test/shop/prodotto/lace-front?utm_source=meta&fbclid=9", "https://l.facebook.com"], [sets()[0]?.[1]?.page_location, sets()[0]?.[1]?.page_referrer]);
+  const primaDelConfig = dl(pv).findIndex((x) => x[0] === "config");
+  c("…e il `set` viene PRIMA di ogni `config` e di ogni evento", [true, true], [dl(pv).findIndex((x) => x[0] === "set" && x[1]?.page_location) < primaDelConfig, dl(pv).findIndex((x) => x[0] === "set" && x[1]?.page_location) < dl(pv).findIndex((x) => x[0] === "event")]);
+  c("PageView: Meta ha lo stesso id; il server riceve il percorso e le sole chiavi ammesse", [idP, "/Shop/Prodotto/Lace-Front", "utm_source=meta&fbclid=9"], [fq(pv).filter((x) => x[0] === "track").at(-1)?.[3]?.eventID, pv.fetchLog.at(-1)?.corpo?.percorso, pv.fetchLog.at(-1)?.corpo?.query]);
+  // navigazione interna + altri eventi: l'indirizzo si aggiorna, il referrer diventa l'origine del sito
+  pv.finestra.location.pathname = "/shop/carrello";
+  pv.finestra.location.search = "";
+  pv.api.emettiEvento("ViewCart", { contentIds: ["HG-001"] });
+  pv.api.emettiEvento("AddToCart", dati);
+  await pv.api.scarica();
+  c("dopo la navigazione, il primo evento aggiorna `set` (nuovo indirizzo, referrer = origine del sito) e il secondo no (non è cambiato)", [2, "https://www.sito.test/shop/carrello", "https://www.sito.test"], [sets().length, sets().at(-1)?.[1]?.page_location, sets().at(-1)?.[1]?.page_referrer]);
+  // ogni `event` è preceduto da un `set` con l'indirizzo pulito della sua pagina
+  const eventi = dl(pv);
+  let ultimo = null; const senzaIndirizzo = [];
+  eventi.forEach((x, i) => { if (x[0] === "set" && x[1]?.page_location) ultimo = x[1].page_location; if (x[0] === "event" && (!ultimo || /[A-Z]/.test(ultimo))) senzaIndirizzo.push(i); });
+  c("ogni evento di Google ha già un indirizzo pulito (minuscolo, ricostruito) impostato prima di sé", [], senzaIndirizzo);
+  c("nessun indirizzo grezzo (maiuscole del percorso vero) arriva a Google, Meta o TikTok", false, /Lace-Front/.test(JSON.stringify([fq(pv), tq(pv), dl(pv)])));
 
   // il server non risponde / il permesso non arriva: non si rompe niente
   const rotto = sito();
-  rotto.api = API.creaApi({ finestra: rotto.finestra, fetch: async () => { throw new Error("rete assente"); }, adesso: () => 1, caricatore: rotto.car, consenso: () => MARKETING, referrer: () => "", contatore: () => {} });
+  rotto.api = API.creaApi({ finestra: rotto.finestra, fetch: async () => { throw new Error("rete assente"); }, adesso: () => 1, caricatore: rotto.car, consenso: () => MARKETING, contatore: () => {} });
   let err5 = null, id5 = null;
   try { id5 = rotto.api.emettiEvento("AddToCart", dati); await rotto.api.scarica(); } catch (er) { err5 = String(er); }
   c("rete assente: nessuna eccezione, l'evento del browser parte lo stesso", [null, true], [err5, ID.test(id5)]);
   const rifiuto = sito();
   const rifiutate = [];
-  rifiuto.api = API.creaApi({ finestra: rifiuto.finestra, fetch: async (u, i) => { rifiutate.push([i?.method ?? "GET", String(u)]); return { ok: false, status: 503, json: async () => ({}) }; }, adesso: () => 1, caricatore: rifiuto.car, consenso: () => MARKETING, referrer: () => "", contatore: () => {} });
+  rifiuto.api = API.creaApi({ finestra: rifiuto.finestra, fetch: async (u, i) => { rifiutate.push([i?.method ?? "GET", String(u)]); return { ok: false, status: 503, json: async () => ({}) }; }, adesso: () => 1, caricatore: rifiuto.car, consenso: () => MARKETING, contatore: () => {} });
   let err6 = null;
   try { rifiuto.api.emettiEvento("AddToCart", dati); await rifiuto.api.scarica(); } catch (er) { err6 = String(er); }
   c("permesso rifiutato (503): nessuna eccezione e nessun invio dell'evento (solo la richiesta del permesso)", [null, [["GET", "/api/public/evento-permesso"]]], [err6, rifiutate]);

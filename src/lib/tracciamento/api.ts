@@ -8,12 +8,12 @@
 
     Lo STESSO `event_id` va a Meta (`eventID`), TikTok (`event_id`) e al server (`/api/public/evento`): così
     le piattaforme tolgono i doppioni. Il server riceve solo `percorso` e le sole chiavi di query ammesse (D14): l'indirizzo
-    lo ricostruisce lui (D16). Google riceve l'indirizzo ripulito e il referrer ridotto all'origine.
+    lo ricostruisce lui (D16). Google riceve, su OGNI evento, l'indirizzo ripulito e il referrer ridotto all'origine (`gtag('set', …)` del caricatore).
     ⚠️ Il server si chiama SOLO con il consenso marketing e solo per i nomi che il mittente accetta (`nomeAmmesso`):
        `Lead` accende i pixel del browser ma non passa di lì (resta su `capi`).
     ⚠️ Sul server (senza `window`) e senza consenso questo modulo non fa niente. */
 import { puoCaricare, leggiConsenso, type Consenso } from "../consenso";
-import { percorsoAmmesso, queryPulita, referrerPulito, urlPulito } from "./ammesse";
+import { queryPulita } from "./ammesse";
 import { creaCaricatore, type Caricatore, type PorteCarica } from "./carica";
 import { costruisciEvento, type DatiEvento } from "./eventi";
 import { nomeAmmesso, type NomeEvento } from "./nomi";
@@ -24,7 +24,6 @@ export type PorteApi = {
   adesso: () => number;
   caricatore: Caricatore;
   consenso: () => Consenso;
-  referrer: () => string;
   /** Scrive un conteggio interno in `lp_events`. */
   contatore: (nome: string, payload: Record<string, string | number | boolean>) => void;
 };
@@ -105,12 +104,11 @@ export function creaApi(porte: PorteApi) {
         prova(() => (nome === "PageView" ? finestra.ttq.page() : finestra.ttq.track(ev.tiktok!.nome, ev.tiktok!.parametri, { event_id: id })));
       }
       if (aGoogle) {
-        const parametri: Record<string, unknown> = { ...ev.ga4.parametri };
-        if (nome === "PageView") {
-          parametri.page_location = urlPulito(finestra.location.origin, finestra.location.pathname, finestra.location.search);
-          parametri.page_referrer = referrerPulito(porte.referrer(), finestra.location.origin);
-        }
-        prova(() => finestra.gtag("event", ev.ga4.nome, parametri));
+        // ogni evento di Google porta l'indirizzo pulito: lo ha impostato il caricatore con `gtag('set', …)` e lo aggiorna qui a ogni navigazione
+        prova(() => {
+          porte.caricatore.sincronizzaIndirizzo();
+          finestra.gtag("event", ev.ga4.nome, ev.ga4.parametri);
+        });
       }
       if (alServer) {
         const invio = inviaAlServer(nome, id, dati).catch(() => {});
@@ -175,7 +173,6 @@ function api(): Api | null {
     adesso: () => Date.now(),
     caricatore,
     consenso: () => leggiConsenso(window.localStorage),
-    referrer: () => document.referrer,
     // import dinamico: il modulo di tracciamento porta con sé il client del database, che qui non deve pesare
     contatore: (nome, payload) => void import("@/landing/booking/tracking").then((m) => m.trackEvent(nome, null, payload)),
   });

@@ -129,9 +129,13 @@ export async function prove(mod, { c, gruppo, radice }) {
   /* ── l'indirizzo lo costruisce il server ── */
   c("event_source_url è sul dominio del SITO, col percorso e le sole chiavi ammesse (Meta e TikTok)", ["https://sito.test/shop/prodotto/x?utm_source=meta", "https://sito.test/shop/prodotto/x?utm_source=meta"], [d.event_source_url, ft.corpo.data[0].page.url]);
   const m2 = mondo();
-  await vai(m2, await evento({ url: "https://evil.test/rubato", event_source_url: "https://evil.test/x", sourceUrl: "https://evil.test", percorso: "/shop/c/patch", query: "utm_source=meta&q=SEGRETO&fbclid=9&email=a@example.com" }));
+  await vai(m2, await evento({ url: "https://evil.test/rubato", event_source_url: "https://evil.test/x", sourceUrl: "https://evil.test", percorso: "/Shop/C/Patch/", query: "?UTM_SOURCE=meta&fbclid=9" }));
   const d2 = m2.fetches[0].corpo.data[0];
-  c("un indirizzo dichiarato dal client non esce: resta il dominio del sito; `q`, `email` e simili non escono", ["https://sito.test/shop/c/patch?utm_source=meta&fbclid=9", false], [d2.event_source_url, /evil|SEGRETO|@/.test(JSON.stringify(m2.fetches))]);
+  c("un indirizzo dichiarato dal client non esce: resta il dominio del sito, col percorso normalizzato e le sole chiavi ammesse", ["https://sito.test/shop/c/patch?utm_source=meta&fbclid=9", false], [d2.event_source_url, /evil/.test(JSON.stringify(m2.fetches))]);
+  const m2b = mondo();
+  const st2 = [];
+  for (const query of ["utm_source=meta&q=SEGRETO", "ref_code=X", "qualcosa=Y", "email=a@example.com&fbclid=9"]) st2.push((await vai(m2b, await evento({ query }))).stato);
+  c("una chiave di query che non è fra quelle ammesse (lista bianca) → 400 e nessuna chiamata: il server non ricostruisce un indirizzo da codici sconosciuti", [[400, 400, 400, 400], 0], [st2, m2b.fetches.length]);
 
   /* ── i dati: nessun dato personale, solo IP e user agent dalle intestazioni ── */
   c("Meta: user_data ha SOLO client_ip_address e client_user_agent, presi dalle intestazioni", [["client_ip_address", "client_user_agent"], IP, UA], [Object.keys(d.user_data).sort(), d.user_data.client_ip_address, d.user_data.client_user_agent]);
