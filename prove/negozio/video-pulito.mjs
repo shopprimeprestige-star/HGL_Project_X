@@ -187,10 +187,10 @@ export async function prove(_mod, { c, gruppo, radice }) {
   // ── 64 bit, atomi a livello del file, file già pulito ──
   const q = costruisci({ prima: true, co64: true });
   const rq = V.pulisciVideo(q.file);
-  c("co64 (offset a 64 bit): corretti come stco", rq.ok && rq.dati.length < q.file.length ? ["PRIMO-CHUNK!", "SECONDO-CHUNK"] : "no", rq.ok ? offsets(rq.dati).map((o, i) => testo(rq.dati.slice(o, o + (i ? 13 : 12)))) : "no");
+  c("co64 (offset a 64 bit): corretti come stco", rq.ok && rq.dati.length < q.file.length ? ["PRIMO-CHUNK!", "SECONDO-CHUNK"] : "no", rq.ok ? offsets(rq.dati).map((o, i) => testo(rq.dati.slice(o, o + (i ? 13 : 12)))) : "rifiutato");
   const u = costruisci({ prima: true, uuid: true });
   const ru = V.pulisciVideo(u.file);
-  c("un atomo `uuid` a livello del file (dove stanno i pacchetti XMP) si toglie, e gli offset si correggono lo stesso", ru.ok ? [-1, ["PRIMO-CHUNK!", "SECONDO-CHUNK"]] : "no", ru.ok ? [trova(ru.dati, [...GPS]), offsets(ru.dati).map((o, i) => testo(ru.dati.slice(o, o + (i ? 13 : 12))))] : "no");
+  c("un atomo `uuid` a livello del file (dove stanno i pacchetti XMP) si toglie, e gli offset si correggono lo stesso", ru.ok ? [-1, ["PRIMO-CHUNK!", "SECONDO-CHUNK"]] : "no", ru.ok ? [trova(ru.dati, [...GPS]), offsets(ru.dati).map((o, i) => testo(ru.dati.slice(o, o + (i ? 13 : 12))))] : "rifiutato");
   const p = costruisci({ prima: true, pulito: true });
   const rp = V.pulisciVideo(p.file);
   c("un file senza metadati torna identico", [true, 0], [rp.ok && rp.dati.length === p.file.length && rp.dati.every((b, i) => b === p.file[i]), rp.ok ? rp.tolti : -1]);
@@ -219,7 +219,7 @@ export async function prove(_mod, { c, gruppo, radice }) {
     c(`una traccia «${tipo}» si toglie intera, con i suoi byte`, [true, -1, ["VIDEO-AAAA", "VIDEO-BBBB"]], r.ok ? [true, trova(r.dati, [...GPS]), letti(r.dati)] : [false]);
   }
   const rsn = V.pulisciVideo(costruisciGps({ tipoGps: "soun", ordine: "in-mezzo" }));
-  c("una traccia audio (`soun`) resta, con i suoi byte", rsn.ok ? [true, true] : "no", rsn.ok ? [true, trova(rsn.dati, [...GPS]) >= 0] : "no");
+  c("una traccia audio (`soun`) resta, con i suoi byte", rsn.ok ? [true, true] : "no", rsn.ok ? [true, trova(rsn.dati, [...GPS]) >= 0] : "rifiutato");
   const rif = (nome, bytes) => { const r = V.pulisciVideo(bytes); c(`${nome}: rifiutato con la frase, nessun dato`, [false, FRASE, undefined], [r.ok, r.frase, r.dati]); };
   rif("la traccia da togliere ha le misure compatte (`stz2`): non so dove stanno i suoi byte", costruisciGps({ senzaStsz: true }));
   rif("i byte della traccia da togliere si sovrappongono a quelli di una traccia che resta", costruisciGps({ sovrapposta: true }));
@@ -233,20 +233,20 @@ export async function prove(_mod, { c, gruppo, radice }) {
   const x_albero = (f) => { const dv = new DataView(f.buffer, f.byteOffset); const t = []; let q = 0; while (q < f.length) { let sz = dv.getUint32(q); let testa = 8; const tipo = testo(f.slice(q + 4, q + 8)); if (sz === 1) { sz = Number(dv.getBigUint64(q + 8)); testa = 16; } else if (sz === 0) sz = f.length - q; t.push({ tipo, q, sz, testa, grezza: dv.getUint32(q) }); q += sz; } return t; };
   const x_VV = "VIDEO-AAAAVIDEO-BBBB";
   const x_rz = V.pulisciVideo(costruisciVariante({ prima: true, mdat: "zero" }));
-  c("`mdat` con grandezza 0 («fino alla fine»): pulito; l'intestazione resta 0, il blocco è l'ultimo e contiene solo il video, di fila", x_rz.ok ? [true, 0, x_VV, "mdat"] : "no", x_rz.ok ? (() => { const a = x_albero(x_rz.dati).at(-1); return [true, a.grezza, testo(x_rz.dati.slice(a.q + 8)), a.tipo]; })() : "no");
-  c("…e le coordinate non ci sono più e gli offset puntano al video", x_rz.ok ? [-1, ["VIDEO-AAAA", "VIDEO-BBBB"]] : "no", x_rz.ok ? [trova(x_rz.dati, [...GPS]), letti(x_rz.dati)] : "no");
+  c("`mdat` con grandezza 0 («fino alla fine»): pulito; l'intestazione resta 0, il blocco è l'ultimo e contiene solo il video, di fila", x_rz.ok ? [true, 0, x_VV, "mdat"] : "no", x_rz.ok ? (() => { const a = x_albero(x_rz.dati).at(-1); return [true, a.grezza, testo(x_rz.dati.slice(a.q + 8)), a.tipo]; })() : "rifiutato");
+  c("…e le coordinate non ci sono più e gli offset puntano al video", x_rz.ok ? [-1, ["VIDEO-AAAA", "VIDEO-BBBB"]] : "no", x_rz.ok ? [trova(x_rz.dati, [...GPS]), letti(x_rz.dati)] : "rifiutato");
   const x_rl = V.pulisciVideo(costruisciVariante({ prima: true, mdat: "largo" }));
-  c("`mdat` con intestazione a 64 bit (grandezza 1): pulito; l'intestazione resta di 16 byte e la grandezza DICE LA VERITÀ (16 + 20)", x_rl.ok ? [true, 1, 16, 36, x_VV] : "no", x_rl.ok ? (() => { const a = x_albero(x_rl.dati).at(-1); return [true, a.grezza, a.testa, a.sz, testo(x_rl.dati.slice(a.q + 16, a.q + a.sz))]; })() : "no");
-  c("…la somma delle grandezze dei blocchi è la lunghezza del file, e gli offset puntano al video", x_rl.ok ? [x_rl.dati.length, ["VIDEO-AAAA", "VIDEO-BBBB"]] : "no", x_rl.ok ? [x_albero(x_rl.dati).reduce((n, a) => n + a.sz, 0), letti(x_rl.dati)] : "no");
+  c("`mdat` con intestazione a 64 bit (grandezza 1): pulito; l'intestazione resta di 16 byte e la grandezza DICE LA VERITÀ (16 + 20)", x_rl.ok ? [true, 1, 16, 36, x_VV] : "no", x_rl.ok ? (() => { const a = x_albero(x_rl.dati).at(-1); return [true, a.grezza, a.testa, a.sz, testo(x_rl.dati.slice(a.q + 16, a.q + a.sz))]; })() : "rifiutato");
+  c("…la somma delle grandezze dei blocchi è la lunghezza del file, e gli offset puntano al video", x_rl.ok ? [x_rl.dati.length, ["VIDEO-AAAA", "VIDEO-BBBB"]] : "no", x_rl.ok ? [x_albero(x_rl.dati).reduce((n, a) => n + a.sz, 0), letti(x_rl.dati)] : "rifiutato");
   const x_rl2 = V.pulisciVideo(costruisciVariante({ prima: false, mdat: "largo" }));
-  c("`mdat` a 64 bit con `moov` DOPO: pulito e gli offset tornano", x_rl2.ok ? [-1, ["VIDEO-AAAA", "VIDEO-BBBB"]] : "no", x_rl2.ok ? [trova(x_rl2.dati, [...GPS]), letti(x_rl2.dati)] : "no");
+  c("`mdat` a 64 bit con `moov` DOPO: pulito e gli offset tornano", x_rl2.ok ? [-1, ["VIDEO-AAAA", "VIDEO-BBBB"]] : "no", x_rl2.ok ? [trova(x_rl2.dati, [...GPS]), letti(x_rl2.dati)] : "rifiutato");
   const x_rd = V.pulisciVideo(costruisciVariante({ prima: true, mdat: "due" }));
-  c("DUE `mdat` (le coordinate nel secondo): puliti, restano due blocchi con un pezzo di video ciascuno", x_rd.ok ? [["mdat", "mdat"], ["VIDEO-AAAA", "VIDEO-BBBB"], -1] : "no", x_rd.ok ? [x_albero(x_rd.dati).filter((a) => a.tipo === "mdat").map((a) => a.tipo), x_albero(x_rd.dati).filter((a) => a.tipo === "mdat").map((a) => testo(x_rd.dati.slice(a.q + 8, a.q + a.sz))), trova(x_rd.dati, [...GPS])] : "no");
-  c("…e gli offset puntano ai due pezzi (il secondo si è spostato per i byte tolti)", x_rd.ok ? ["VIDEO-AAAA", "VIDEO-BBBB"] : "no", x_rd.ok ? letti(x_rd.dati) : "no");
+  c("DUE `mdat` (le coordinate nel secondo): puliti, restano due blocchi con un pezzo di video ciascuno", x_rd.ok ? [["mdat", "mdat"], ["VIDEO-AAAA", "VIDEO-BBBB"], -1] : "no", x_rd.ok ? [x_albero(x_rd.dati).filter((a) => a.tipo === "mdat").map((a) => a.tipo), x_albero(x_rd.dati).filter((a) => a.tipo === "mdat").map((a) => testo(x_rd.dati.slice(a.q + 8, a.q + a.sz))), trova(x_rd.dati, [...GPS])] : "rifiutato");
+  c("…e gli offset puntano ai due pezzi (il secondo si è spostato per i byte tolti)", x_rd.ok ? ["VIDEO-AAAA", "VIDEO-BBBB"] : "no", x_rd.ok ? letti(x_rd.dati) : "rifiutato");
   const x_rtf = V.pulisciVideo(costruisciVariante({ prima: true, tref: true }));
-  c("`tref` della traccia che resta, se una traccia è sparita: si toglie (non può puntare al vuoto)", x_rtf.ok ? -1 : "no", x_rtf.ok ? trova(x_rtf.dati, [...enc("tref")]) : "no");
+  c("`tref` della traccia che resta, se una traccia è sparita: si toglie (non può puntare al vuoto)", x_rtf.ok ? -1 : "no", x_rtf.ok ? trova(x_rtf.dati, [...enc("tref")]) : "rifiutato");
   const x_rts = V.pulisciVideo(costruisci({ prima: true, tref: true }).file);
-  c("…ma se nessuna traccia è sparita `tref` resta", x_rts.ok ? true : "no", x_rts.ok ? trova(x_rts.dati, [...enc("tref")]) >= 0 : "no");
+  c("…ma se nessuna traccia è sparita `tref` resta", x_rts.ok ? true : "no", x_rts.ok ? trova(x_rts.dati, [...enc("tref")]) >= 0 : "rifiutato");
   const rif2 = (nome, bytes) => { const r = V.pulisciVideo(bytes); c(`${nome}: rifiutato con la frase, nessun dato`, [false, FRASE, undefined], [r.ok, r.frase, r.dati]); };
   const alto64 = costruisciVariante({ prima: true, mdat: "largo" });
   const a64 = x_albero(alto64).at(-1);
