@@ -251,9 +251,15 @@ function Pannello({
           {errore.messaggio}
         </Avviso>
       )}
-      {esito && (
+      {esito?.tono === "ok" && (
+        <p role="status" className="flex items-start gap-1.5 text-[12.5px] text-emerald-800">
+          <CircleCheck className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          {esito.testo}
+        </p>
+      )}
+      {esito?.tono === "errore" && (
         <Avviso
-          errore={esito.tono === "errore"}
+          errore
           azione={
             esito.riprova && (
               <Button

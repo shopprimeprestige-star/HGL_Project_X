@@ -27,7 +27,8 @@ export interface StatoShop {
 const eOggetto = (v: unknown): v is Record<string, unknown> =>
   typeof v === "object" && v !== null && !Array.isArray(v);
 
-/** Le righe ben formate; le altre si scartano (una riga che non si capisce non può far aprire niente). */
+/** Le righe ben formate; le altre si scartano e non si vedono. Per non far apparire verde ciò che è stato tagliato,
+ *  `puoAprireDa` confronta quante ne sono arrivate con quante se ne sono capite: se ne manca una, non si apre. */
 function leggiRighe(x: unknown): RigaCondizione[] {
   if (!Array.isArray(x)) return [];
   return x.flatMap((r) =>
@@ -52,7 +53,7 @@ export function righeDaCondizioni(condizioni: unknown): RigaCondizione[] | null 
     : null;
 }
 
-/** `true` solo se il server lo dice e ogni riga è valutabile e a posto (e ce n'è almeno una). */
+/** `true` solo se il server lo dice e ogni riga ricevuta è valutabile e a posto (e ce n'è almeno una, nessuna scartata). */
 export function puoAprireDa(condizioni: unknown): boolean {
   const righe = righeDaCondizioni(condizioni);
   return (
@@ -60,6 +61,7 @@ export function puoAprireDa(condizioni: unknown): boolean {
     condizioni.puoAprire === true &&
     righe !== null &&
     righe.length > 0 &&
+    righe.length === (condizioni.righe as unknown[]).length &&
     righe.every((r) => statoCondizione(r) === "ok")
   );
 }

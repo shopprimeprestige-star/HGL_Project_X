@@ -50,6 +50,7 @@ export async function prove(_mod, { c, gruppo, radice }) {
     c("`puoAprire` vero ma una riga non valutabile: non si apre", false, P.leggiStatoShop(dati("codice", [riga("a", true), riga("pagamento", false, false)], true)).puoAprire);
     c("righe tutte a posto ma `puoAprire` falso (decide il server): non si apre", false, P.leggiStatoShop(dati("codice", tutteOk, false)).puoAprire);
     c("`puoAprire` non booleano («true» testo, 1): non si apre", [false, false], [P.leggiStatoShop(dati("codice", tutteOk, "true")).puoAprire, P.leggiStatoShop(dati("codice", tutteOk, 1)).puoAprire]);
+    c("una riga scartata perché storta fa valere «non si apre»: non si fa apparire verde ciò che è stato tagliato", false, P.leggiStatoShop(dati("codice", [riga("a", true), riga("b", true), null], true)).puoAprire);
     c("nessuna riga: non si apre", false, P.leggiStatoShop(dati("codice", [], true)).puoAprire);
     c("righe storte (non oggetti, senza chiave) vengono scartate, non fanno aprire", [1, false], [P.leggiStatoShop(dati("codice", [riga("a", true), null, 5, { ok: true }, { chiave: "x", ok: true }], true)).righe.length, P.leggiStatoShop(dati("codice", [null, { chiave: "x", ok: true }], true)).puoAprire]);
     c("l'interruttore del catalogo manca o ha un valore sconosciuto: non si legge (null)", [null, null, null, null], [P.leggiStatoShop(null), P.leggiStatoShop({}), P.leggiStatoShop(dati("boh", tutteOk, true)), P.leggiStatoShop({ interruttori: {}, condizioni: { righe: [], puoAprire: false } })]);
@@ -85,6 +86,7 @@ export async function prove(_mod, { c, gruppo, radice }) {
   c("il pulsante «Chiudi lo shop» c'è e non è spento dalle condizioni", true, /Chiudi lo shop/.test(src) && !/Chiudi lo shop[\s\S]{0,0}puoAprire/.test(src));
   const bloccoChiudi = src.match(/<Button[^>]*onClick=\{chiudi\}[^>]*>/s)?.[0] ?? "";
   c("…il suo `disabled`, se c'è, dipende solo dal lavoro in corso", true, bloccoChiudi !== "" && !/puoAprire|condizion/.test(bloccoChiudi));
+  c("gli esiti positivi («Lo shop è chiuso…») non usano l'avviso ambra col triangolo", true, !/esito\.tono === "ok"[\s\S]{0,40}?<Avviso/.test(src) && /tono === "ok"/.test(src) && /text-emerald/.test(src));
   c("la frase di avviso del sito", true, grezzo.includes("Con lo shop aperto il sito mostra solo i prodotti pubblicati qui."));
   c("le righe non valutabili dicono «si attiva col rilascio della cassa»", true, /si attiva col rilascio della cassa/i.test(grezzo + (existsSync(puroPath) ? readFileSync(puroPath, "utf8") : "")));
   c("dice onestamente che oggi in produzione lo shop non si può aprire finché mancano le righe non valutabili", true, /non si può aprire/i.test(grezzo));

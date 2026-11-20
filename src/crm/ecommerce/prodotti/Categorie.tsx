@@ -92,11 +92,13 @@ const tastoRiprova = (riprova: () => void) => (
   </Button>
 );
 
+/** Dopo un conflitto la finestra si chiude (non può rimandare la versione vecchia né riscrivere sopra l'altra persona): la frase resta nell'elenco. */
+const FRASE_CONFLITTO =
+  "Un'altra persona ha cambiato questa categoria nel frattempo: ho aggiornato l'elenco, riaprila per vedere le modifiche.";
+
 /** Le frasi dei fallimenti di un'azione sulle categorie, nostre dove il client ne dice una sbagliata per le categorie. */
 function fraseErrore(e: ErroreNegozio): string {
-  if (e.tipo === "conflitto")
-    return "Un'altra persona ha cambiato questa categoria nel frattempo: ho aggiornato l'elenco. Controlla e riprova.";
-  return e.messaggio;
+  return e.tipo === "conflitto" ? FRASE_CONFLITTO : e.messaggio;
 }
 
 export function Categorie({ negozio, cambiate }: PropsCategorie) {
@@ -168,22 +170,26 @@ export function Categorie({ negozio, cambiate }: PropsCategorie) {
     await carica();
   }, [cambiate, carica]);
 
-  /** Un'azione dell'elenco (ordine, visibilità). Il conflitto rilegge; lo storico non scritto si dice. */
+  /** Un'azione dell'elenco (ordine, visibilità). Frecce e interruttore restano spenti fino a DOPO la rilettura: due mosse
+   *  rapide non devono partire dall'ordine o dalla versione vecchi. Il conflitto rilegge; lo storico non scritto si dice. */
   async function lancia(azione: string, dati: Record<string, unknown>, annunciata: string) {
     setLavoro(true);
     setEsito(null);
-    const r = await esegui(azione, dati);
-    if (!vivo.current) return;
-    setLavoro(false);
-    if (!r.ok) {
-      setEsito({ tono: "errore", testo: fraseErrore(r.errore) });
-      if (r.errore.tipo === "conflitto" || r.errore.tipo === "rete") await carica();
-      return;
+    try {
+      const r = await esegui(azione, dati);
+      if (!vivo.current) return;
+      if (!r.ok) {
+        setEsito({ tono: "errore", testo: fraseErrore(r.errore) });
+        if (r.errore.tipo === "conflitto" || r.errore.tipo === "rete") await carica();
+        return;
+      }
+      if (r.dati.storico === false && typeof r.dati.avvisoStorico === "string")
+        setEsito({ tono: "errore", testo: r.dati.avvisoStorico });
+      setAnnuncio(annunciata);
+      await fatto();
+    } finally {
+      if (vivo.current) setLavoro(false);
     }
-    if (r.dati.storico === false && typeof r.dati.avvisoStorico === "string")
-      setEsito({ tono: "errore", testo: r.dati.avvisoStorico });
-    setAnnuncio(annunciata);
-    await fatto();
   }
 
   if (!lettura.letto)
@@ -390,7 +396,11 @@ export function Categorie({ negozio, cambiate }: PropsCategorie) {
           esegui={esegui}
           fatto={fatto}
           chiudi={() => setFinestra(null)}
-          rileggi={carica}
+          chiudiPerConflitto={async () => {
+            await carica();
+            setEsito({ tono: "errore", testo: FRASE_CONFLITTO });
+            setFinestra(null);
+          }}
         />
       )}
     </section>
@@ -404,13 +414,14 @@ function FinestraCategoria({
   esegui,
   fatto,
   chiudi,
-  rileggi,
+  chiudiPerConflitto,
 }: {
   categoria: CategoriaVista | null;
   esegui: Esegui;
   fatto: () => Promise<void>;
   chiudi: () => void;
-  rileggi: () => Promise<void>;
+  /** Un altro ha cambiato la categoria: rilegge, chiude la finestra e lascia la frase nell'elenco. */
+  chiudiPerConflitto: () => Promise<void>;
 }) {
   const nuova = categoria === null;
   const [nome, setNome] = useState(categoria?.nome ?? "");
@@ -431,9 +442,8 @@ function FinestraCategoria({
     const r = await esegui("categoria_salva", corpo);
     setInvio(false);
     if (!r.ok) {
-      setErrore(fraseErrore(r.errore));
-      if (r.errore.tipo === "conflitto") await rileggi();
-      return;
+      if (r.errore.tipo === "conflitto") return chiudiPerConflitto();
+      return setErrore(fraseErrore(r.errore));
     }
     await fatto();
     chiudi();
@@ -456,6 +466,7 @@ function FinestraCategoria({
             esegui={esegui}
             fatto={fatto}
             nuovaVersione={setVersione}
+            chiudiPerConflitto={chiudiPerConflitto}
           />
         ) : (
           <p className="text-[12px] text-muted-foreground">
@@ -584,11 +595,14 @@ function FotoCategoria({
   esegui,
   fatto,
   nuovaVersione,
+  chiudiPerConflitto,
 }: {
   categoria: CategoriaVista;
   esegui: Esegui;
   fatto: () => Promise<void>;
   nuovaVersione: (v: string | null) => void;
+  /** Un altro ha cambiato la categoria: la foto è già caricata ma non si aggancia sopra la sua modifica; la finestra si chiude. */
+  chiudiPerConflitto: () => Promise<void>;
 }) {
   const [scelta, setScelta] = useState<Scelta | null>(null);
   const [alt, setAlt] = useState("");
@@ -605,7 +619,19 @@ function FotoCategoria({
     if (anteprima.current) URL.revokeObjectURL(anteprima.current);
     anteprima.current = null;
   };
-  useEffect(() => liberaAnteprima, []);
+  //  La bitmap della foto scelta serve fino al salvataggio: si chiude quando si sostituisce, si salva o si esce.
+  const bitmapScelta = useRef<ImageBitmap | null>(null);
+  const liberaBitmap = () => {
+    bitmapScelta.current?.close();
+    bitmapScelta.current = null;
+  };
+  useEffect(
+    () => () => {
+      liberaAnteprima();
+      liberaBitmap();
+    },
+    [],
+  );
 
   const scegli = async (file: File | undefined) => {
     if (!file) return;
@@ -621,7 +647,12 @@ function FotoCategoria({
       return setErrore("Non riesco a leggere questa foto: provane un'altra.");
     }
     const p = pianoFoto(bitmap.width, bitmap.height);
-    if (!p.ok) return setErrore(p.frase);
+    if (!p.ok) {
+      bitmap.close();
+      return setErrore(p.frase);
+    }
+    liberaBitmap();
+    bitmapScelta.current = bitmap;
     liberaAnteprima();
     anteprima.current = URL.createObjectURL(file);
     caricati.current = new Map();
@@ -661,13 +692,13 @@ function FotoCategoria({
         );
       setFase("Salvo la foto…");
       const r = await esegui("categoria_foto", corpo);
-      if (!r.ok)
-        return fallita(
-          r.errore.tipo === "conflitto"
-            ? "Un'altra persona ha cambiato questa categoria nel frattempo: ho aggiornato l'elenco. Salva di nuovo la foto."
-            : r.errore.messaggio,
-          r.errore.tipo === "conflitto",
-        );
+      if (!r.ok) {
+        if (r.errore.tipo === "conflitto") {
+          setFase(null);
+          return chiudiPerConflitto();
+        }
+        return fallita(r.errore.messaggio);
+      }
       const k = r.dati.categoria as { versione?: unknown } | undefined;
       if (typeof k?.versione === "string") nuovaVersione(k.versione);
       const dette = Array.isArray(r.dati.avvisi)
@@ -683,6 +714,7 @@ function FotoCategoria({
       setScelta(null);
       setAlt("");
       liberaAnteprima();
+      liberaBitmap();
       setFase(null);
       await fatto();
     } catch (e) {
@@ -691,11 +723,10 @@ function FotoCategoria({
       );
     }
   };
-  /** Un fallimento: la frase e «Riprova». Con `rileggere` anche l'elenco si aggiorna (e con lui la versione). */
-  function fallita(frase: string, rileggere = false) {
+  /** Un fallimento: la frase e «Riprova». */
+  function fallita(frase: string) {
     setFase(null);
     setErrore(frase);
-    if (rileggere) void fatto();
   }
 
   const altOk = alt.trim().length > 0 && alt.trim().length <= TETTI.alt;

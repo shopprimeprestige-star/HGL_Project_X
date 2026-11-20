@@ -100,4 +100,27 @@ export async function prove(_mod, { c, gruppo, radice }) {
   c("nessun `fetch` diretto verso il CRM (solo `fetchCRM` per il permesso; `window.fetch` è il caricamento nudo allo Storage), nessun log", [false, false], [/(?<!Nudo)(?<![A-Za-z])fetch\s*\(/.test(src.replace(/fetchCRM/g, "").replace(/window\.fetch\(/g, "")), /console\./.test(src)]);
   c("telefono: card in colonna (`flex-col`) e bersagli da 44 px; movimento ridotto rispettato", [true, true], [/flex-col/.test(src) && /min-h-11|h-11/.test(src), /motion-reduce/.test(src) || !/animate-/.test(src)]);
   c("lo slot vuoto della foto non è grigio: riquadro tratteggiato azzurro (come T16)", [false, true], [/border-dashed[^"`]*(gray|slate|neutral|zinc)-/.test(src), !/border-dashed/.test(src) || /border-dashed[^"`]*(sky|blue|primary)/.test(src)]);
+
+  // ── revisione T17: conflitto nella finestra, rilettura prima di riattivare, bitmap chiusa ──
+  /** Il corpo di `function nome(` o `const nome = ... => {` (parametri senza graffe) fino alla graffa che lo chiude. */
+  const corpoDi = (t, nome) => {
+    const i = t.search(new RegExp(`(function ${nome}\\b|const ${nome}\\b)`));
+    if (i < 0) return null;
+    const inizio = t.indexOf("{", t.indexOf(")", i));
+    let n = 0;
+    for (let k = inizio; k < t.length; k++) {
+      if (t[k] === "{") n++;
+      else if (t[k] === "}" && --n === 0) return t.slice(inizio, k + 1);
+    }
+    return null;
+  };
+  const finestra = corpoDi(src, "FinestraCategoria") ?? "";
+  const foto = corpoDi(src, "FotoCategoria") ?? "";
+  c("conflitto di versione nella finestra: dopo la rilettura la finestra SI CHIUDE con la frase «riaprila» (non rimanda la versione vecchia)", [true, true], [/FRASE_CONFLITTO/.test(src) && /riaprila/.test(grezzo), /conflitto/.test(finestra) && /chiudiPerConflitto\(\)/.test(finestra)]);
+  c("…vale per «Salva» (testo) e per «Salva la foto»", [true, true], [/tipo === "conflitto"[\s\S]{0,160}?chiudiPerConflitto/.test(finestra.slice(0, finestra.indexOf("return (") > 0 ? finestra.indexOf("return (") : undefined)), /chiudiPerConflitto/.test(foto) || /conflitto\(\)/.test(foto)]);
+  c("la frase di conflitto sta fuori dalla finestra (resta a schermo dopo la chiusura): `Categorie` la mostra nell'avviso", true, /setEsito\(\{\s*tono:\s*"errore",\s*testo:\s*FRASE_CONFLITTO/.test(src));
+  const lancia = corpoDi(src, "lancia") ?? "";
+  c("`lancia`: frecce e interruttore restano spenti fino a DOPO la rilettura (un solo `setLavoro(false)`, dopo `await fatto()`)", [1, true], [(lancia.match(/setLavoro\(false\)/g) ?? []).length, lancia.lastIndexOf("setLavoro(false)") > lancia.indexOf("await fatto()") && lancia.indexOf("await fatto()") > 0]);
+  c("…anche dopo un errore (`finally`): non resta mai spento per sempre", true, /finally/.test(lancia));
+  c("la bitmap della foto si chiude (`.close()`) quando si sostituisce, si salva o si esce", true, /\.close\(\)/.test(foto) && /liberaBitmap/.test(foto));
 }
