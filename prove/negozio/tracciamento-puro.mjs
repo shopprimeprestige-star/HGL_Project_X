@@ -67,6 +67,13 @@ export async function prove(mod, { c, gruppo }) {
   c("ViewContent senza tipo → product (una scheda)", "product", E.costruisciEvento("ViewContent", { contentIds: ["HG-001"] }, ctx).meta.parametri.content_type);
   c("ViewContent con `content_ids` vuoti, assenti o solo vuoti: non si costruisce (null)", [null, null, null, null, null],
     [{ contentIds: [] }, {}, undefined, { contentIds: ["", "  "] }, { contentIds: [1, null, {}] }].map((d) => E.costruisciEvento("ViewContent", d, ctx)));
+  const listaSenzaId = E.costruisciEvento("ViewContent", { contentType: "product_group", categoria: "stock" }, ctx);
+  c("ViewContent di una LISTA senza id (la pagina /shop) produce l'evento: Meta product_group, GA4 view_item_list con il nome della lista, nessun content_ids",
+    ["ViewContent", "product_group", false, "view_item_list", "stock"],
+    [listaSenzaId?.meta?.nome, listaSenzaId?.meta?.parametri?.content_type, !!listaSenzaId && "content_ids" in listaSenzaId.meta.parametri, listaSenzaId?.ga4?.nome, listaSenzaId?.ga4?.parametri?.item_list_name]);
+  c("ViewContent di una SCHEDA senza id resta bloccato (null), con o senza il tipo «product»", [null, null], [E.costruisciEvento("ViewContent", { contentType: "product" }, ctx), E.costruisciEvento("ViewContent", { contentType: "product", categoria: "stock" }, ctx)]);
+  c("contenutiVuoti: la lista senza id no, la scheda senza id sì; AddToCart di tipo product_group senza id sì (l'eccezione è solo per ViewContent)", [false, true, true],
+    [E.contenutiVuoti("ViewContent", { contentType: "product_group" }), E.contenutiVuoti("ViewContent", { contentType: "product" }), E.contenutiVuoti("AddToCart", { contentType: "product_group" })]);
   c("contenutiVuoti: vero per le schede e il carrello senza prodotti, falso per PageView, Search, Contact", [true, true, true, false, false, false, false],
     [E.contenutiVuoti("ViewContent", { contentIds: [] }), E.contenutiVuoti("AddToCart", {}), E.contenutiVuoti("InitiateCheckout", { contentIds: [] }), E.contenutiVuoti("ViewContent", { contentIds: ["HG-001"] }), E.contenutiVuoti("PageView", {}), E.contenutiVuoti("Search", {}), E.contenutiVuoti("Contact", undefined)]);
   c("gli id con spazi si puliscono, i doppioni e i non-testo si tolgono, il tetto è 50", [["HG-001", "HG-002"], 50],

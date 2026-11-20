@@ -39,8 +39,10 @@ function puliscoIds(ids: unknown): string[] {
   return [...new Set(fuori)].slice(0, MAX_PRODOTTI);
 }
 
-/** Un evento che parla di prodotti ma non ne ha: non si manda (a Meta sporcherebbe il catalogo). */
+/** Un evento che parla di prodotti ma non ne ha: non si manda (a Meta sporcherebbe il catalogo).
+ *  Eccezione: la lista (`ViewContent` di tipo `product_group`, es. /shop) può non avere id: è la pagina, non un prodotto. */
 export function contenutiVuoti(nome: string, dati?: DatiEvento): boolean {
+  if (nome === "ViewContent" && dati?.contentType === "product_group") return false;
   return (CON_PRODOTTI as readonly string[]).includes(nome) && puliscoIds(dati?.contentIds).length === 0;
 }
 
@@ -73,8 +75,10 @@ export function costruisciEvento(nome: string, dati?: DatiEvento, contesto?: Con
   const ga4: Record<string, unknown> = {};
   if (ids.length) {
     meta.content_ids = ids;
-    meta.content_type = tipo;
     tiktok.contents = ids.map((id) => ({ content_id: id, content_type: tipo }));
+  }
+  if (ids.length || (n === "ViewContent" && tipo === "product_group")) {
+    meta.content_type = tipo;
     tiktok.content_type = tipo;
   }
   if (nomeProdotto) meta.content_name = nomeProdotto;
