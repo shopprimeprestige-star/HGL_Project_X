@@ -14,13 +14,15 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { COMANDO_PROPRIETARIO, fraseEsito, validaIdGoogle, type CampoGoogle } from "./regole";
+import { colonnaOTabellaMancante, COMANDO_PROPRIETARIO, fraseEsito, validaIdGoogle, type CampoGoogle } from "./regole";
 
 interface Piattaforma {
   piattaforma: "meta" | "tiktok";
   ultimo: { evento: string; esito: string; quando: string } | null;
   invii24h: number;
   errori24h: number;
+  /** Le righe lette sono arrivate al tetto: i numeri delle 24 ore sono «almeno» (si scrive «200+»). */
+  oltreTetto?: boolean;
 }
 interface Salute {
   attivo: boolean;
@@ -64,6 +66,8 @@ export function PannelloTracciamento() {
   const [valori, setValori] = useState<Record<CampoGoogle, string>>(VUOTI);
   const [errori, setErrori] = useState<Partial<Record<CampoGoogle, string>>>({});
   const [colonneMancanti, setColonneMancanti] = useState(false);
+  // la lettura degli ID di Google è fallita per un altro motivo (rete, permessi): i campi restano spenti, o un «Salva» cancellerebbe quelli veri
+  const [letturaGoogleRotta, setLetturaGoogleRotta] = useState(false);
   const [salvando, setSalvando] = useState(false);
 
   const leggiSalute = useCallback(async () => {
@@ -81,21 +85,25 @@ export function PannelloTracciamento() {
     }
   }, []);
 
+  const userId = user?.id;
   const leggiIdGoogle = useCallback(async () => {
-    if (!user) return;
+    if (!userId) return;
     const { data, error } = await supabase
       .from("tracking_config")
       .select("google_ga4_id,google_ads_id,google_ads_label_acquisto,google_merchant_id")
-      .eq("user_id", user.id)
+      .eq("user_id", userId)
       .maybeSingle();
     if (error) {
-      setColonneMancanti(true); // le colonne non ci sono: la migrazione S3 non è applicata
+      // colonne mancanti = la migrazione S3 non è applicata; ogni altro errore = non riesco a leggere ora
+      setColonneMancanti(colonnaOTabellaMancante(error));
+      setLetturaGoogleRotta(!colonnaOTabellaMancante(error));
       return;
     }
     const r = (data ?? {}) as Record<string, string | null>;
     setColonneMancanti(false);
+    setLetturaGoogleRotta(false);
     setValori({ ga4: r.google_ga4_id ?? "", ads: r.google_ads_id ?? "", etichetta: r.google_ads_label_acquisto ?? "", merchant: r.google_merchant_id ?? "" });
-  }, [user]);
+  }, [userId]);
 
   useEffect(() => {
     void leggiSalute();
@@ -224,7 +232,7 @@ export function PannelloTracciamento() {
             </div>
           )}
           {s?.attivo && s.pixel && (
-            <div className="flex flex-wrap gap-x-5 gap-y-1 pt-1" aria-label="ID impostati per il proprietario">
+            <div className="flex flex-wrap gap-x-5 gap-y-1 pt-1" role="group" aria-label="ID impostati per il proprietario">
               <Voce ok={s.pixel.meta}>Pixel Meta</Voce>
               <Voce ok={s.pixel.tiktok}>Pixel TikTok</Voce>
               <Voce ok={s.pixel.ga4}>Google Analytics</Voce>
@@ -243,6 +251,16 @@ export function PannelloTracciamento() {
           </p>
         </CardHeader>
         <CardContent className="space-y-4">
+          {letturaGoogleRotta && (
+            <div className="flex flex-wrap items-center gap-3" role="alert">
+              <p className="flex items-center gap-2 text-sm text-destructive">
+                <AlertTriangle className="h-4 w-4" aria-hidden /> Non riesco a leggere gli ID di Google ora. Riprova.
+              </p>
+              <Button type="button" variant="outline" size="sm" onClick={() => void leggiIdGoogle()}>
+                Riprova
+              </Button>
+            </div>
+          )}
           {colonneMancanti && (
             <p className="text-sm text-muted-foreground" role="status">
               Non ancora attivo: il database non ha ancora le colonne di Google (aggiornamento «tracciamento»). I campi si accendono appena lo applichi.
@@ -255,7 +273,7 @@ export function PannelloTracciamento() {
                 <Input
                   id={`tr-${c.chiave}`}
                   value={valori[c.chiave]}
-                  disabled={colonneMancanti}
+                  disabled={colonneMancanti || letturaGoogleRotta}
                   placeholder={c.esempio}
                   autoComplete="off"
                   spellCheck={false}
@@ -272,7 +290,7 @@ export function PannelloTracciamento() {
               </div>
             ))}
           </div>
-          <Button type="button" onClick={() => void salva()} disabled={salvando || colonneMancanti || !user}>
+          <Button type="button" onClick={() => void salva()} disabled={salvando || colonneMancanti || letturaGoogleRotta || !user}>
             {salvando ? "Salvo…" : "Salva gli ID di Google"}
           </Button>
         </CardContent>
@@ -287,7 +305,7 @@ export function PannelloTracciamento() {
               Qui si vedono solo gli eventi mandati dal nostro server (con il consenso marketing del visitatore). I pixel nel browser si controllano in Events Manager.
             </p>
           </div>
-          <Button type="button" variant="outline" size="sm" onClick={() => { void leggiSalute(); void leggiIdGoogle(); }} className="shrink-0 gap-1.5">
+          <Button type="button" variant="outline" size="sm" onClick={() => void leggiSalute()} className="shrink-0 gap-1.5">
             <RefreshCw className="h-3.5 w-3.5" aria-hidden /> Aggiorna
           </Button>
         </CardHeader>
@@ -319,8 +337,15 @@ export function PannelloTracciamento() {
                     {inProva && <p className="text-xs text-muted-foreground">Con il codice di prova gli eventi vanno nel pannello di test, non nelle statistiche vere. Toglilo dalla scheda quando hai finito.</p>}
                   </div>
                   <p className="text-sm tabular-nums text-muted-foreground">
-                    {p.invii24h} {p.invii24h === 1 ? "invio" : "invii"} in 24 ore
-                    {p.errori24h > 0 && <span className="font-medium text-destructive"> · {p.errori24h} {p.errori24h === 1 ? "errore" : "errori"}</span>}
+                    {p.invii24h}
+                    {p.oltreTetto ? "+" : ""} {p.invii24h === 1 && !p.oltreTetto ? "invio" : "invii"} in 24 ore
+                    {p.errori24h > 0 && (
+                      <span className="font-medium text-destructive">
+                        {" "}
+                        · {p.errori24h}
+                        {p.oltreTetto ? "+" : ""} {p.errori24h === 1 && !p.oltreTetto ? "errore" : "errori"}
+                      </span>
+                    )}
                   </p>
                 </div>
               );

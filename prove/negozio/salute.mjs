@@ -20,22 +20,22 @@ const ISO = (minutiFa) => new Date(T0.getTime() - minutiFa * 60_000).toISOString
 const RIGA = { user_id: UTENTE, meta_pixel_id: "123456789012345", tiktok_pixel_id: "C1ABCDEF2GHIJKL3MNOP", google_ga4_id: "G-TEST1234", google_ads_id: "AW-12345678", meta_test_event_code: null, tiktok_test_event_code: null, meta_access_token: TOKEN, tiktok_access_token: TOKEN };
 
 /** Un database finto con le sole chiamate di `salute.server.ts`. */
-function db({ proprietari = [{ user_id: UTENTE, creato_il: ISO(9999) }], config = [RIGA], esiti = [], senzaS3 = false, esitiRotti = false } = {}) {
+function db({ proprietari = [{ user_id: UTENTE, creato_il: ISO(9999) }], config = [RIGA], esiti = [], senzaS3 = false, esitiRotti = false, erroreProprietari = null } = {}) {
   const chiamate = [];
   const dbf = {
     chiamate,
     from(t) {
-      const q = { t, cols: "", filtri: [] };
+      const q = { t, cols: "", filtri: [], limite: Infinity };
       const f = {
         select(cols) { q.cols = String(cols); return f; },
         eq(k, v) { q.filtri.push([k, v]); return f; },
-        order() { return f; }, limit() { return f; },
+        order() { return f; }, limit(n) { q.limite = n; return f; },
         then(ok, ko) {
           chiamate.push({ t, cols: q.cols, filtri: q.filtri });
           let r;
-          if (t === "tracciamento_proprietario") r = senzaS3 ? { data: null, error: { code: "42P01" } } : { data: [...proprietari].sort((a, b) => String(a.creato_il).localeCompare(String(b.creato_il))).map((p) => ({ user_id: p.user_id })), error: null };
+          if (t === "tracciamento_proprietario") r = erroreProprietari ? { data: null, error: erroreProprietari } : senzaS3 ? { data: null, error: { code: "42P01" } } : { data: [...proprietari].sort((a, b) => String(a.creato_il).localeCompare(String(b.creato_il))).map((p) => ({ user_id: p.user_id })), error: null };
           else if (t === "tracking_config") r = { data: config.filter((x) => q.filtri.every(([k, v]) => x[k] === v)).map((x) => Object.fromEntries(q.cols.split(",").map((k) => [k.trim(), x[k.trim()] ?? null]))), error: null };
-          else if (t === "tracciamento_esiti") r = senzaS3 || esitiRotti ? { data: null, error: { code: "42P01" } } : { data: esiti, error: null };
+          else if (t === "tracciamento_esiti") r = senzaS3 || esitiRotti ? { data: null, error: { code: "42P01" } } : { data: esiti.filter((x) => q.filtri.every(([k, v]) => x[k] === v)).sort((a, b) => (Date.parse(b.creato_il) || 0) - (Date.parse(a.creato_il) || 0)).slice(0, q.limite), error: null };
           else throw new Error(`tabella non prevista: ${t}`);
           return Promise.resolve(r).then(ok, ko);
         },
@@ -130,6 +130,40 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("«modalità prova»: sì/no per piattaforma (il codice non esce)", [{ meta: true, tiktok: false }, false], [prova.corpo.prova, JSON.stringify(prova.corpo).includes(CODICE_PROVA)]);
   c("senza codici di prova: «no» per tutte", { meta: false, tiktok: false }, n.corpo.prova);
 
+  /* ── note del revisore (T30) ── */
+  // nota 2: «S3 non applicata» solo per tabella/colonna mancante; ogni altro errore è «non riesco a leggere ora»
+  const MANCANTI = ["42P01", "42703", "PGRST204", "PGRST205"];
+  c("colonnaOTabellaMancante: 42P01, 42703, PGRST204, PGRST205 → sì; ogni altro codice o forma → no", [[true, true, true, true], [false, false, false, false, false, false]], [
+    MANCANTI.map((k) => R.colonnaOTabellaMancante({ code: k })),
+    [{ code: "08006" }, { code: "57014" }, { code: "42501" }, { message: "Failed to fetch" }, null, undefined].map((e) => R.colonnaOTabellaMancante(e)),
+  ]);
+  for (const code of MANCANTI) {
+    const m = await chiama(S, { dbf: db({ erroreProprietari: { code } }) });
+    c(`registro dei proprietari con ${code}: S3 non applicata → 200, «non ancora attivo»`, [200, true, false, "non_ancora_attivo"], [m.r.status, m.corpo.ok, m.corpo.attivo, m.corpo.motivo]);
+  }
+  for (const err of [{ code: "08006", message: `connessione persa ${TOKEN}` }, { code: "57014" }, { code: "42501" }, { message: "Failed to fetch" }, {}]) {
+    const e = await chiama(S, { dbf: db({ erroreProprietari: err }) });
+    c(`registro dei proprietari con un altro errore (${err.code ?? err.message ?? "senza codice"}): NON «non ancora attivo» ma 500 «ok:false», senza testo, e non legge altro`, [500, { ok: false }, false, []], [e.r.status, e.corpo, JSON.stringify([e.corpo, e.logs]).includes(TOKEN), e.d.db.chiamate.filter((x) => x.t !== "tracciamento_proprietario")]);
+  }
+  c("…il registro dice solo un codice, mai il messaggio", [true], [(await chiama(S, { dbf: db({ erroreProprietari: { code: "08006", message: `connessione persa ${TOKEN}` } }) })).logs.every((l) => /^[a-z0-9_]{1,60}$/.test(l))]);
+
+  // nota 1: i conteggi non si dichiarano esatti oltre il tetto, e una piattaforma non nasconde l'altra
+  const molti = (piattaforma, quanti, minutiFa0 = 1, passo = 1) => Array.from({ length: quanti }, (_, i) => ({ piattaforma, evento: "ViewContent", esito: i % 10 === 0 ? "http_500" : "ok", creato_il: ISO(minutiFa0 + i * passo) }));
+  const tanti = await chiama(S, { esiti: [...molti("meta", 250), { piattaforma: "tiktok", evento: "PageView", esito: "ok", creato_il: ISO(500) }] });
+  const mT = tanti.corpo.piattaforme.find((p) => p.piattaforma === "meta");
+  const tT = tanti.corpo.piattaforme.find((p) => p.piattaforma === "tiktok");
+  c("250 invii di Meta in 24 ore: il numero si ferma al tetto (200) e lo dice (`oltreTetto`), non si fa passare per esatto", [200, true], [mT.invii24h, mT.oltreTetto]);
+  c("…e TikTok, che ha un solo invio, compare lo stesso (non «Nessun invio ancora») e il suo numero è esatto", [{ evento: "PageView", esito: "ok", quando: ISO(500) }, 1, false], [tT.ultimo, tT.invii24h, tT.oltreTetto]);
+  const meta200 = await chiama(S, { esiti: molti("meta", 200, 1, 1) });
+  c("esattamente 200 righe tutte dentro le 24 ore: non si sa se ce ne sono altre → «oltre il tetto»", true, meta200.corpo.piattaforme.find((p) => p.piattaforma === "meta").oltreTetto);
+  const confine = await chiama(S, { esiti: molti("meta", 250, 1, 10) }); // 10 minuti l'una: dentro le 24 ore solo le prime 144, poi si esce dalla finestra prima del tetto
+  const mC = confine.corpo.piattaforme.find((p) => p.piattaforma === "meta");
+  c("se le 200 righe lette escono dalla finestra di 24 ore il numero è esatto (nessun «+»)", [144, false], [mC.invii24h, mC.oltreTetto]);
+  c("senza troppi invii (caso normale) nessuna piattaforma è «oltre il tetto»", [false, false], n.corpo.piattaforme.map((p) => p.oltreTetto));
+  const perPiattaforma = tanti.d.db.chiamate.filter((x) => x.t === "tracciamento_esiti");
+  c("gli esiti si leggono UNA volta per piattaforma, filtrati (eq piattaforma)", [[["piattaforma", "meta"]], [["piattaforma", "tiktok"]]], perPiattaforma.map((x) => x.filtri));
+  c("gli ultimi errori restano uniti e dal più recente anche con due letture", [10, true], [tanti.corpo.errori.length, tanti.corpo.errori.every((e, i, a) => i === 0 || a[i - 1].quando >= e.quando)]);
+
   /* ── ID di Google: solo nel formato giusto ── */
   const v = (o) => R.validaIdGoogle({ ga4: "", ads: "", etichetta: "", merchant: "", ...o });
   c("tutti vuoti: valido, tutti `null` (si cancellano)", [true, { ga4: null, ads: null, etichetta: null, merchant: null }, {}], (() => { const x = v({}); return [x.ok, x.valori, x.errori]; })());
@@ -156,6 +190,12 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("il pannello salva con upsert sulla riga dell'utente (onConflict user_id) SOLO le colonne di Google, dopo `validaIdGoogle`", [true, true, true, false], [/\.upsert\(/.test(pannello) && /onConflict: "user_id"/.test(pannello), /google_ga4_id/.test(pannello) && /google_ads_id/.test(pannello) && /google_ads_label_acquisto/.test(pannello) && /google_merchant_id/.test(pannello), pannello.indexOf("validaIdGoogle(") < pannello.indexOf(".upsert("), /meta_pixel_id|tiktok_pixel_id|daily_spend|ads_history_start/.test(pannello)]);
   c("il pannello dice «Imposta il proprietario dal SQL Editor» e mostra il comando; dice «non ancora attivo» se manca S3; ha la «modalità prova»", [true, true, true, true], [/Imposta il proprietario dal SQL Editor/.test(pannello), /COMANDO_PROPRIETARIO/.test(pannello), /non ancora attivo/i.test(pannello), /modalità prova/i.test(pannello)]);
   c("il pannello non ha controlli «a icona» senza nome (ogni bottone ha testo o aria-label) e ogni campo ha la sua etichetta", [true, true], [!/<Button[^>]*>\s*<\w+ className="[^"]*"\s*\/>\s*<\/Button>/.test(pannello), /<Label htmlFor=\{`tr-\$\{c\.chiave\}`\}>/.test(pannello) && (pannello.match(/chiave: "(ga4|ads|etichetta|merchant)"/g) || []).length === 4]);
+  const primaDelBottone = pannello.slice(Math.max(0, pannello.indexOf("<RefreshCw") - 260), pannello.indexOf("<RefreshCw"));
+  c("il pannello nota 3: «Aggiorna» rilegge SOLO lo stato degli invii (non cancella gli ID di Google che si stanno digitando)", [true, false], [/leggiSalute\(\)/.test(primaDelBottone), /leggiIdGoogle/.test(primaDelBottone)]);
+  c("il pannello nota 3: gli ID di Google si rileggono quando cambia l'utente (`user.id`), non a ogni nuovo oggetto `user`", [true, false], [/\}, \[userId\]\);/.test(pannello), /\}, \[user\]\);/.test(pannello)]);
+  c("il pannello nota 2: legge `colonnaOTabellaMancante` per decidere «non ancora attivo»; un altro errore dice «non riesco a leggere» e spegne i campi", [true, true, true], [/colonnaOTabellaMancante\(error\)/.test(pannello), /Non riesco a leggere gli ID di Google/.test(pannello), /disabled=\{colonneMancanti \|\| letturaGoogleRotta\}/.test(pannello)]);
+  c("il pannello nota 1: con `oltreTetto` il numero porta il «+» (200+)", true, /p\.oltreTetto \? "\+" : ""/.test(pannello));
+  c("il pannello nota 4: l'`aria-label` dei pixel impostati sta su un elemento con `role=\"group\"`", true, /<div[^>]*role="group"[^>]*aria-label="ID impostati per il proprietario"|<div[^>]*aria-label="ID impostati per il proprietario"[^>]*role="group"/.test(pannello));
   const pagina = leggi("src/routes/CRM.impostazioni.tsx");
   c("la pagina delle Impostazioni monta il pannello (una linguetta) e conserva tutte le linguette di oggi", [true, true, true, true, true, true, true, true, true, true, true, true], ["meta", "tiktok", "whatsapp", "messaggi", "landing", "costi", "alert", "meetly", "webinar", "ai", "diagnostica", "dati"].map((t) => new RegExp(`<TabsTrigger value="${t}"`).test(pagina)));
   c("…e c'è la linguetta «tracciamento» col suo contenuto, il pannello importato da un solo posto", [true, true, 1], [/<TabsTrigger value="tracciamento"/.test(pagina), /<TabsContent value="tracciamento"[^>]*>\s*<PannelloTracciamento \/>/.test(pagina), (pagina.match(/import \{ PannelloTracciamento \}/g) || []).length]);

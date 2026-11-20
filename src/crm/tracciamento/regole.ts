@@ -50,6 +50,14 @@ export function validaIdGoogle(input: IdGoogleInput): EsitoValidazione {
   return { ok: Object.keys(errori).length === 0, valori, errori };
 }
 
+/** Codici di Postgres/PostgREST che dicono «tabella o colonna inesistente»: la migrazione S3 non è applicata.
+ *  Ogni altro errore (rete, permessi, database giù) NON lo è: va detto come «non riesco a leggere ora». */
+const MANCANTI = ["42P01", "42703", "PGRST204", "PGRST205"];
+export function colonnaOTabellaMancante(errore: unknown): boolean {
+  const codice = (errore as { code?: unknown } | null | undefined)?.code;
+  return typeof codice === "string" && MANCANTI.includes(codice);
+}
+
 /** Una frase per un codice di esito (`tracciamento_esiti.esito`): solo codici, mai testi della piattaforma. */
 export function fraseEsito(codice: unknown): string {
   const c = typeof codice === "string" ? codice : "";

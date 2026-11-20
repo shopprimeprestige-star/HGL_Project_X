@@ -12,8 +12,10 @@
  *  ⚠️ Mai un token, un segreto, un codice di prova, un id utente, un IP o uno user agent nella risposta: si
  *     chiedono solo le colonne che servono e ogni valore esce passando da un filtro di forma.
  *  ⚠️ Il permesso «impostazioni» è il primo passo: se manca non si legge niente.
- *  ⚠️ Nei registri solo codici. Nessuna scrittura, da nessuna parte. */
+ *  ⚠️ Nei registri solo codici. Nessuna scrittura, da nessuna parte.
+ *  ⚠️ «S3 non applicata» vale SOLO per tabella o colonna mancante; ogni altro errore del database è un 500 («non riesco a leggere ora»). */
 import type { ClienteDb } from "../ecommerce/ordini.server";
+import { colonnaOTabellaMancante } from "./regole";
 
 export interface DipendenzeSalute {
   /** La guardia del CRM («impostazioni»): `ok` con l'id dell'account di chi chiama, oppure la risposta 401/403 da restituire così com'è. */
@@ -25,6 +27,7 @@ export interface DipendenzeSalute {
 }
 
 const PIATTAFORME = ["meta", "tiktok"] as const;
+/** Righe lette PER piattaforma: oltre questo tetto i conteggi delle 24 ore non sono esatti e si dichiara `oltreTetto`. */
 const MAX_ESITI_LETTI = 200;
 const MAX_ERRORI = 10;
 const VENTIQUATTRO_ORE_MS = 24 * 60 * 60 * 1000;
@@ -55,7 +58,13 @@ export async function gestisciGET(request: Request, d: DipendenzeSalute): Promis
 
     // 1. il proprietario: se la tabella non c'è, S3 non è applicata e non si legge altro
     const p = await d.db.from("tracciamento_proprietario").select("user_id").order("creato_il", { ascending: true }).limit(1);
-    if (p.error || !Array.isArray(p.data)) return json({ ok: true, attivo: false, motivo: "non_ancora_attivo", adesso: adesso.toISOString() });
+    if (p.error && colonnaOTabellaMancante(p.error)) return json({ ok: true, attivo: false, motivo: "non_ancora_attivo", adesso: adesso.toISOString() });
+    if (p.error || !Array.isArray(p.data)) {
+      // rete, permessi o database giù: non è «S3 mancante». Solo il codice, mai il messaggio.
+      const k = (p.error as { code?: unknown } | null)?.code;
+      d.log(`lettura_proprietario_${typeof k === "string" ? k.toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 20) || "errore" : "errore"}`);
+      return json({ ok: false }, 500);
+    }
     const proprietarioId = (p.data[0] as { user_id?: unknown } | undefined)?.user_id;
     const haProprietario = typeof proprietarioId === "string" && proprietarioId !== "";
 
@@ -73,30 +82,39 @@ export async function gestisciGET(request: Request, d: DipendenzeSalute): Promis
       prova = { meta: pieno(riga.meta_test_event_code), tiktok: pieno(riga.tiktok_test_event_code) };
     }
 
-    // 3. gli ultimi invii dal server: solo codici
+    // 3. gli ultimi invii dal server: solo codici. Una lettura PER piattaforma, così una che riempie il tetto non nasconde l'altra
     let piattaforme: unknown = null;
     let errori: unknown = null;
-    const e = await d.db
-      .from("tracciamento_esiti")
-      .select("piattaforma,evento,esito,creato_il")
-      .order("creato_il", { ascending: false })
-      .limit(MAX_ESITI_LETTI);
-    if (!e.error && Array.isArray(e.data)) {
+    const letture = await Promise.all(
+      PIATTAFORME.map((nome) =>
+        d.db
+          .from("tracciamento_esiti")
+          .select("piattaforma,evento,esito,creato_il")
+          .eq("piattaforma", nome)
+          .order("creato_il", { ascending: false })
+          .limit(MAX_ESITI_LETTI),
+      ),
+    );
+    if (letture.every((e) => !e.error && Array.isArray(e.data))) {
       const righe: Esito[] = [];
-      for (const x of e.data as Record<string, unknown>[]) {
-        const q = quando(x.creato_il);
-        if (!q) continue;
-        righe.push({
-          piattaforma: PIATTAFORME.includes(x.piattaforma as never) ? (x.piattaforma as string) : "altro",
-          evento: nomeEvento(x.evento),
-          esito: codice(x.esito),
-          quando: q,
-          t: Date.parse(q),
-        });
-      }
+      const per: Record<string, Esito[]> = {};
+      const lette: Record<string, number> = {};
+      PIATTAFORME.forEach((nome, i) => {
+        per[nome] = [];
+        const dati = letture[i].data as Record<string, unknown>[];
+        lette[nome] = dati.length;
+        for (const x of dati) {
+          const q = quando(x.creato_il);
+          if (!q) continue;
+          const r: Esito = { piattaforma: nome, evento: nomeEvento(x.evento), esito: codice(x.esito), quando: q, t: Date.parse(q) };
+          per[nome].push(r);
+          righe.push(r);
+        }
+        per[nome].sort((a, b) => b.t - a.t);
+      });
       righe.sort((a, b) => b.t - a.t);
       piattaforme = PIATTAFORME.map((nome) => {
-        const sue = righe.filter((r) => r.piattaforma === nome);
+        const sue = per[nome];
         const recenti = sue.filter((r) => adesso.getTime() - r.t <= VENTIQUATTRO_ORE_MS);
         const ultimo = sue[0];
         return {
@@ -104,10 +122,12 @@ export async function gestisciGET(request: Request, d: DipendenzeSalute): Promis
           ultimo: ultimo ? { evento: ultimo.evento, esito: ultimo.esito, quando: ultimo.quando } : null,
           invii24h: recenti.length,
           errori24h: recenti.filter((r) => r.esito !== "ok").length,
+          // se le righe lette arrivano al tetto e l'ultima è ancora dentro le 24 ore, ce ne possono essere altre: «200+»
+          oltreTetto: lette[nome] >= MAX_ESITI_LETTI && recenti.length === sue.length,
         };
       });
       errori = righe
-        .filter((r) => r.esito !== "ok" && PIATTAFORME.includes(r.piattaforma as never))
+        .filter((r) => r.esito !== "ok")
         .slice(0, MAX_ERRORI)
         .map((r) => ({ piattaforma: r.piattaforma, evento: r.evento, esito: r.esito, quando: r.quando }));
     }

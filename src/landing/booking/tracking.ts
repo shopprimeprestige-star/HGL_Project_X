@@ -366,9 +366,20 @@ function detectBot(): boolean {
 let adminCheckPromise: Promise<boolean> | null = null;
 let adminResolved: boolean | null = null;
 
+/** Il segno «amministratore» ricordato nella sessione. Archivio bloccato = nessun segno: mai un'eccezione, perché
+ *  `isAdminLogged` sta sul percorso dell'invio del lead (dopo l'insert un'eccezione qui toglie la conferma). Senza segno
+ *  decide `getSession`, e un visitatore normale vale «non admin». */
+function leggiSegnoAdmin(): string | null {
+  try {
+    return sessionStorage.getItem(ADMIN_FLAG);
+  } catch {
+    return null;
+  }
+}
+
 export function initAdminCheck(): Promise<boolean> {
   if (typeof window === "undefined") return Promise.resolve(false);
-  const cached = sessionStorage.getItem(ADMIN_FLAG);
+  const cached = leggiSegnoAdmin();
   if (cached === "1") {
     adminResolved = true;
     return Promise.resolve(true);
@@ -409,7 +420,7 @@ export function subscribeAdminStatus(listener: (isAdmin: boolean) => void) {
 export function isAdminLogged(): boolean {
   if (typeof window === "undefined") return false;
   if (adminResolved !== null) return adminResolved;
-  const cached = sessionStorage.getItem(ADMIN_FLAG);
+  const cached = leggiSegnoAdmin();
   if (cached === "1") return true;
   if (cached === "0") return false;
   // Se non ancora risolto: avvia check ma blocca per sicurezza

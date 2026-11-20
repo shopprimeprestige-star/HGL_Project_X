@@ -244,6 +244,46 @@ export async function prove(_mod, { c, gruppo, radice }) {
     c("valore rotto in `lp_source_data`: captureSourceData riparte da zero senza lanciare", [null, "meta"], [errore, s?.utm_source]);
   });
 
+  /* ── 7d. archivio della sessione bloccato dopo l'insert: il flusso arriva alla conferma (nota 7 del revisore) ──
+   *  `submit` di BookingFunnel non gira qui (è React): si ripete l'ordine di quello che fa dopo l'insert riuscito, con le
+   *  funzioni VERE di tracking.ts: firePixel("Lead") → fireCapi → trackEvent → goNext. Un'eccezione nel mezzo = niente conferma. */
+  const bloccaSessione = (modo) => {
+    const lancia = () => { throw new Error("SecurityError: sessionStorage"); };
+    for (const o of [globalThis.window, globalThis]) {
+      if (modo === "al tocco") Object.defineProperty(o, "sessionStorage", { get: lancia, configurable: true });
+      else Object.defineProperty(o, "sessionStorage", { value: { getItem: lancia, setItem: lancia, removeItem: lancia }, configurable: true, writable: true });
+    }
+  };
+  for (const modo of ["al tocco", "in lettura e scrittura"]) {
+    for (const [nomeVia, prima] of [["senza chiamare prima initAdminCheck", false], ["dopo initAdminCheck", true]]) {
+      await con({ consenso: MARKETING, href: URL_ADS, cookie: COOKIE }, async (v) => {
+        bloccaSessione(modo);
+        const rifiutate = [];
+        const ascolta = (e) => rifiutate.push(String(e));
+        process.on("unhandledRejection", ascolta);
+        const errori = [];
+        let goNext = 0;
+        let admin;
+        try {
+          if (prima) admin = await v.T.initAdminCheck();
+          const r = await v.T.inserisciLeadConRipiego(async (riga) => { globalThis.__sb.inserti.push(riga); return { error: null }; }, { nome: "Prova" });
+          if (r.error) throw r.error;
+          v.T.firePixel("Lead", { content_name: "booking_lead", value: 1, currency: "EUR" }, "ev-lead", { customName: "LeadInviato" });
+          void v.T.fireCapi("Lead", "ev-lead", { email: "a@example.com" }, { value: 1 });
+          void v.T.trackEvent("Lead", 6, { event_id: "ev-lead" });
+          goNext++;
+        } catch (e) { errori.push(String(e)); }
+        await new Promise((ok) => setTimeout(ok, 20));
+        process.off("unhandledRejection", ascolta);
+        let sync = null;
+        try { v.T.isAdminLogged(); } catch (e) { sync = String(e); }
+        c(`sessionStorage bloccato ${modo}, ${nomeVia}: dopo l'insert nessuna eccezione e goNext parte`, [[], 1, []], [errori, goNext, rifiutate]);
+        c(`…e il controllo amministratore non lancia: initAdminCheck vale «non admin» (nessuna sessione), isAdminLogged non lancia`, [prima ? false : undefined, null, false], [admin, sync, sync ? null : v.T.isAdminLogged()]);
+        c(`…i pixel e capi partono lo stesso (visitatore normale, con marketing): Lead al pixel, una chiamata a capi, una riga in lp_events`, [1, 1, 2], [v.pixel.filter((p) => p[1] === "Lead").length, v.fetches.length, v.righe().length]);
+      });
+    }
+  }
+
   /* ── 8. il testo di BookingFunnel.tsx ── */
   const funnel = readFileSync(join(radice, "src/landing/booking/BookingFunnel.tsx"), "utf8");
   const senzaCommenti = funnel.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/[^\n]*/g, "$1");
