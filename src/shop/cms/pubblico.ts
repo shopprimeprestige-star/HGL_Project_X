@@ -12,6 +12,8 @@
  *   chiamante passa `anteprima: { slug }` DOPO aver verificato la chiave (`anteprima.ts`), e solo per quello slug.
  *  ⚠️ Le colonne si leggono con `righe.ts` (snake_case → tipi del modello): qui non si rifà. Una colonna di filtro
  *   (`stato`, `attiva`, `liberatoria_ok`, `ritrae_persone`, `rimosso_il`) che manca tiene la riga FUORI: vedi `righe.ts`.
+ *  ⚠️ D39: Invisible Derm esce SENZA prezzo (`prezzoDaCent` e `prezzoCent` delle varianti `null`, `acquistabile: false`, varianti non
+ *   disponibili) e non si scarta per il prezzo: il numero si ferma qui, come la giacenza. Vedi `eInvisibleDerm`.
  *  ⚠️ Righe di forma sbagliata non lanciano: si scartano. Un prezzo che non è un intero positivo scarta la variante
  *   (mai un prezzo inventato). Due foto nello stesso slot: vince una sola, sempre la stessa (`ordine`, poi `id`). */
 import {
@@ -32,6 +34,10 @@ export interface OpzioniPubblico {
   /** La chiave d'anteprima è stata verificata per QUESTO indirizzo: la sua bozza esce, con le modifiche non pubblicate. */
   anteprima?: { slug: string };
 }
+
+/** D39: Invisible Derm è sempre senza prezzo. Una funzione sola, per nome (anche «Invisible-Derm», «InvisibleDerm», «invisible_derm»):
+ *  da qui in poi il prezzo non esiste più nei dati che escono dal server. */
+export const eInvisibleDerm = (nome: unknown): boolean => typeof nome === "string" && /invisible[\s\-_]*derm/i.test(nome);
 
 const SLOT_PRODOTTO = SLOT.filter((s) => s !== "campione");
 /** Come si ordinano le foto nella scheda (Design §4.4.3): la principale, la foto di scala come seconda, le altre, il video. */
@@ -99,17 +105,21 @@ export function costruisciPubblico(righe: unknown, opzioni: OpzioniPubblico = {}
     const nome = testo(campi.nome);
     if (!nome) continue;
 
+    // D39: Invisible Derm si riconosce dal nome (anche quello nuovo della bozza), dal nome della riga o dallo slug: senza prezzo, non si compra
+    const senzaPrezzo = eInvisibleDerm(nome) || eInvisibleDerm(prodotto.nome) || eInvisibleDerm(slug);
+
     // le varianti ATTIVE, col prezzo che conta (D25); la giacenza serve solo a dire «disponibile». Quelle spente non contano per niente.
     const varianti = tutteLeVarianti
       .filter((v) => v.prodottoId === id && v.attiva)
       .map((v, i) => ({ v, i }))
       .sort((a, b) => a.v.ordine - b.v.ordine || a.i - b.i)
-      .flatMap(({ v }) => {
+      .flatMap(({ v }): ProdottoPubblico["varianti"] => {
+        if (senzaPrezzo) return [{ sku: v.sku, nome: v.nome || v.sku, opzioni: v.opzioni, prezzoCent: null, disponibile: false }];
         const prezzoCent = prezzoEffettivo(prodotto, v);
         return prezzoCent > 0 ? [{ sku: v.sku, nome: v.nome || v.sku, opzioni: v.opzioni, prezzoCent, disponibile: v.disponibile }] : [];
       });
-    const prezzoDaCent = varianti.length ? Math.min(...varianti.map((v) => v.prezzoCent)) : prodotto.prezzoCent;
-    if (prezzoDaCent <= 0) continue;
+    const prezzoDaCent = senzaPrezzo ? null : varianti.length ? Math.min(...varianti.map((v) => v.prezzoCent ?? 0)) : prodotto.prezzoCent;
+    if (prezzoDaCent !== null && prezzoDaCent <= 0) continue;
 
     // i media: fuori i rimossi e le persone senza liberatoria (D30); per ogni slot ne vince UNO, sempre lo stesso.
     // Il campione è la pallina di un valore (uno per valore), non una foto del prodotto.
@@ -160,7 +170,7 @@ export function costruisciPubblico(righe: unknown, opzioni: OpzioniPubblico = {}
       caratteristiche: caratteristiche.filter((x) => x.stato === "confermato").map(({ etichetta, valore }) => ({ etichetta, valore })),
       passi: testi(campi.passi), confezione: testi(campi.confezione), avvertenze: testi(campi.avvertenze), faq: faq(campi.faq),
       categorie: categorieDi(riga, id), media, opzioni: opzioniPubbliche, varianti,
-      prezzoDaCent, reso: { consentito: booleano(campi.resoConsentito), giorni: intero(campi.resoGiorni) }, boxConsulenza: campi.boxConsulenza === true,
+      prezzoDaCent, acquistabile: !senzaPrezzo, reso: { consentito: booleano(campi.resoConsentito), giorni: intero(campi.resoGiorni) }, boxConsulenza: campi.boxConsulenza === true,
       correlato: null, seo: { titolo: testo(campi.seoTitolo), descrizione: testo(campi.seoDescrizione), immagine: seoFoto?.w1600 ?? null },
       gtin: prodotto.gtin, aggiornatoIl: prodotto.aggiornatoIl,
     };

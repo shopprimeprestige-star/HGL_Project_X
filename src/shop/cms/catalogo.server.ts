@@ -226,7 +226,8 @@ export function creaCatalogo(porte: PorteCatalogo) {
     return chiesti.map((sku): RigaCarrelloServer => {
       for (const p of prodotti) {
         const v = p.varianti.find((x) => x.sku === sku);
-        if (v) return { sku, nome: p.nome, varianteNome: v.nome === v.sku ? null : v.nome, prezzoCent: v.prezzoCent, disponibile: v.disponibile, foto: p.media.find((m) => m.slot === "principale")?.src ?? null, slug: p.slug };
+        // D39: Invisible Derm (senza prezzo, non acquistabile) non entra mai nel carrello: «non più disponibile»
+        if (v && p.acquistabile && v.prezzoCent !== null) return { sku, nome: p.nome, varianteNome: v.nome === v.sku ? null : v.nome, prezzoCent: v.prezzoCent, disponibile: v.disponibile, foto: p.media.find((m) => m.slot === "principale")?.src ?? null, slug: p.slug };
       }
       return { sku, nonPiuDisponibile: true };
     });
