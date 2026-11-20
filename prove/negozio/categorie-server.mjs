@@ -157,7 +157,7 @@ export async function prove(mod, { c, gruppo, radice }) {
     const r = await esegui({ azione: nome, id: C1 });
     c(`azione «${nome}» → 400 azione_sconosciuta (elenco chiuso, non un oggetto che eredita), nessuna chiamata`, [400, "azione_sconosciuta", 0], [r.stato, r.corpo.motivo, r.db.chiamate]);
   }
-  c("le azioni del modulo", ["categoria_ordina", "categoria_salva", "categoria_visibile", "prodotto_categorie"], [...K.AZIONI_CATEGORIE].sort());
+  c("le azioni del modulo", ["categoria_foto", "categoria_ordina", "categoria_salva", "categoria_visibile", "prodotto_categorie"], [...K.AZIONI_CATEGORIE].sort());
 
   // ── le categorie di un prodotto: prodotto_categorie ──
   const P_PUB = uuid(0x200), P_BOZZA = uuid(0x201);
@@ -208,4 +208,39 @@ export async function prove(mod, { c, gruppo, radice }) {
   let senzaFiltri = null;
   try { await dl.from("shop_prodotti_categorie").delete(); await dl.from("shop_prodotti_categorie").delete().then(() => {}); } catch (e) { senzaFiltri = e.message; }
   c("il finto cancella solo dal legame (e solo con un filtro): prodotti no", [true, true], [/cancella/.test(lancio ?? ""), /senza filtri/.test(senzaFiltri ?? "")]);
+
+  // ── la foto della categoria: categoria_foto ──
+  const PATH = "foto/abcdefghijkl.webp", PATH2 = "foto/mnopqrstuvwx.jpg";
+  const cf = (extra = {}) => ({ azione: "categoria_foto", categoriaId: C1, path: PATH, alt: "Scaffale con tre patch di prova", versione: ISTANTE, ...extra });
+  const media = (db) => db.tabelle.shop_media.filter((m) => m.categoria_id === C1);
+  const g0 = await esegui(cf(), { porte: { guardia: guardiaNo(403) } });
+  c("categoria_foto: guardia negata (403) → nessuna chiamata", [403, 0], [g0.stato, g0.db.chiamate]);
+  const f1 = await esegui(cf());
+  c("foto: la categoria ha il percorso nuovo (è la colonna che le viste pubbliche leggono)", [200, true, PATH, ADESSO], [f1.stato, f1.corpo.ok, cat(f1.db, C1).foto_path, cat(f1.db, C1).aggiornato_il]);
+  c("…e una riga in shop_media (slot principale, della categoria, con il testo alternativo e il percorso)", [1, "principale", "foto", PATH, "Scaffale con tre patch di prova", null], ((m) => [media(f1.db).length, m?.slot, m?.tipo, m?.path_960, m?.alt, m?.rimosso_il])(media(f1.db)[0]));
+  c("…la risposta porta id, slug e la versione riletta", [C1, "categoria-prova", ADESSO], [f1.corpo.categoria?.id, f1.corpo.categoria?.slug, f1.corpo.categoria?.versione]);
+  c("…lo storico ha UNA riga: campo foto, prima vuoto, dopo il percorso, chi", [[{ entita: "categoria", entita_id: C1, campo: "foto", prima: null, dopo: PATH, chi: "Titolare Prova" }]],
+    [f1.db.tabelle.shop_storico.map(({ entita, entita_id, campo, prima, dopo, chi }) => ({ entita, entita_id, campo, prima, dopo, chi }))]);
+  const sost = fintoDb({ tabelle: tabelle() });
+  await K.gestisciPOST(post(cf()), porte({ db: sost }).d);
+  const f2 = await esegui(cf({ path: PATH2, alt: "Altra foto di prova", versione: ADESSO }), { db: sost });
+  c("seconda foto: la prima si «rimuove» (rimosso_il, mai cancellata), la nuova è l'unica attiva", [2, 1, ADESSO, PATH2], [media(sost).length, media(sost).filter((m) => !m.rimosso_il).length, media(sost).find((m) => m.path_960 === PATH)?.rimosso_il, cat(sost, C1).foto_path]);
+  c("…lo storico dice com'era prima (il vecchio percorso)", [PATH, PATH2], [sost.tabelle.shop_storico[1]?.prima, sost.tabelle.shop_storico[1]?.dopo]);
+  for (const [nome, extra] of [["percorso con ..", { path: "foto/../altro.webp" }], ["percorso di un video", { path: "video/abcdefghijkl.mp4" }], ["percorso di una copertina", { path: "copertina/abcdefghijkl.jpg" }], ["percorso con il nome del file", { path: "foto/capelli-mario.jpg" }], ["percorso troppo corto", { path: "foto/abc.webp" }], ["percorso con i segni sbagliati (maiuscole)", { path: "foto/ABCDEFGHIJKL.webp" }], ["percorso con indirizzo", { path: "https://sito.test/foto/abcdefghijkl.webp" }], ["percorso che non è testo", { path: 5 }], ["senza percorso", { path: undefined }],
+    ["senza testo alternativo", { alt: undefined }], ["testo alternativo vuoto", { alt: "   " }], ["testo alternativo oltre 125", { alt: "x".repeat(126) }], ["testo alternativo non testo", { alt: 5 }], ["testo con un prezzo accanto a Invisible Derm", { alt: "Invisible Derm a 3.900 euro" }], ["categoria non UUID", { categoriaId: "x" }], ["senza versione", { versione: undefined }]]) {
+    const r = await esegui(cf(extra));
+    c(`foto con ${nome} → 400, niente scritto, nessuna chiamata`, [400, 0, 0], [r.stato, r.db.scritture.length, r.db.chiamate]);
+  }
+  const av = await esegui(cf({ alt: "Il kit premium di prova" }));
+  c("testo con una parola da non usare: si salva ma la risposta avvisa", [200, true], [av.stato, Array.isArray(av.corpo.avvisi) && av.corpo.avvisi.length > 0 && /premium/.test(av.corpo.avvisi[0])]);
+  const pulito = await esegui(cf());
+  c("testo pulito: nessun avviso", [], pulito.corpo.avvisi);
+  const fv = await esegui(cf({ versione: "2026-01-01T00:00:00.000Z" }));
+  c("versione vecchia → 409, niente scritto", [409, "conflitto", 0], [fv.stato, fv.corpo.motivo, fv.db.scritture.length]);
+  const fn = await esegui(cf({ categoriaId: uuid(0x1ee) }));
+  c("categoria che non c'è → 404", [404, "non_trovato"], [fn.stato, fn.corpo.motivo]);
+  const fcorsa = await esegui(cf(), { db: fintoDb({ tabelle: tabelle(), prima: { "shop_categorie.update": (t) => { t.shop_categorie.find((x) => x.id === C1).aggiornato_il = "2026-11-20T11:00:00.000Z"; } } }) });
+  c("categoria cambiata un istante prima dello scambio → 409, nessuna riga in shop_media", [409, 0], [fcorsa.stato, media(fcorsa.db).length]);
+  const fm = await esegui(cf(), { db: fintoDb({ tabelle: tabelle(), mancante: true }) });
+  c("S1 non applicata → 409 migrazione", [409, "migrazione"], [fm.stato, fm.corpo.motivo]);
 }

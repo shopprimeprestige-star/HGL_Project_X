@@ -5,6 +5,7 @@
  *  POST { azione: "categoria_salva", id?, nome, slug?, tipo?, frase?, seoTitolo?, seoDescrizione?, versione? }
  *       { azione: "categoria_ordina", ids: [uuid, …] }    → l'elenco completo, nell'ordine voluto
  *       { azione: "categoria_visibile", id, visibile, versione }
+ *       { azione: "categoria_foto", categoriaId, path, alt, versione }   → la foto della categoria (già caricata con il permesso di `media.server.ts`)
  *       { azione: "prodotto_categorie", prodottoId, categorie: [uuid, …], versione }   → sostituisce l'insieme delle categorie di un prodotto
  *
  *  ── LE REGOLE ───────────────────────────────────────────────────────────────
@@ -21,9 +22,11 @@
  *    PRODOTTO e si fa avanzare (confronto-e-scambio): due persone che cambiano le categorie insieme non si sovrascrivono. */
 import { TETTI, slugDa, slugValido } from "@/shop/cms/modello";
 import { categoriaDaRiga } from "@/shop/cms/righe";
+import { controllaTesto } from "@/shop/cms/testi";
+import { percorsoShopValido } from "./media.server";
 import { azioneDi, conflitto, dati, eUuid, gestisci, guasto, leggiCorpo, rifiuta, righe, stessoIstante, versioneAttuale, type PorteDb } from "./comune";
 
-export const AZIONI_CATEGORIE = ["categoria_salva", "categoria_ordina", "categoria_visibile", "prodotto_categorie"] as const;
+export const AZIONI_CATEGORIE = ["categoria_salva", "categoria_ordina", "categoria_visibile", "categoria_foto", "prodotto_categorie"] as const;
 const MAX_NOME = 60;
 const MAX_FRASE = 200;
 const MAX_CATEGORIE = 100;
@@ -214,6 +217,37 @@ async function ordina(corpo: Riga, chi: string, d: PorteDb) {
   return { storico };
 }
 
+/** La foto della categoria. Il percorso è quello che ha dato `media.server.ts` (cartella `foto/`); l'alt è obbligatorio.
+ *  Si scrive in due posti: `shop_categorie.foto_path` (la colonna che le viste pubbliche leggono) e una riga di `shop_media`
+ *  (slot «principale» della categoria) che porta il testo alternativo, perché `shop_categorie` non ha una colonna per l'alt.
+ *  La foto di prima non si cancella: la sua riga di `shop_media` prende `rimosso_il`. */
+async function fotoDellaCategoria(corpo: Riga, chi: string, d: PorteDb) {
+  const id = idDi(corpo.categoriaId);
+  const versione = versioneDi(corpo.versione);
+  const path = corpo.path;
+  if (!percorsoShopValido(path) || !path.startsWith("foto/")) throw rifiuta("valore", 400, "Il percorso della foto non è valido: carica prima la foto dal pannello.");
+  const alt = typeof corpo.alt === "string" ? corpo.alt.trim() : "";
+  if (!alt) throw rifiuta("valore", 400, "Descrivi la foto per chi non la vede: il testo alternativo è obbligatorio.");
+  if (alt.length > TETTI.alt) throw rifiuta("valore", 400, `Il testo alternativo può avere al massimo ${TETTI.alt} caratteri.`);
+  const testo = controllaTesto(alt);
+  if (testo.bloccanti.length) throw rifiuta("valore", 400, testo.bloccanti[0].frase);
+
+  const corrente = (await leggiTutte(d)).find((r) => r.id === id);
+  if (!corrente) throw rifiuta("non_trovato", 404, "Categoria non trovata.");
+  if (!stessoIstante(versione, corrente.aggiornato_il)) throw conflitto("La categoria è stata modificata da qualcun altro nel frattempo: ricarica e riprova.");
+  await aggiorna(d, id, String(corrente.aggiornato_il), { foto_path: path });
+  // shortcut: tre scritture senza transazione (categoria, vecchia foto tolta, foto nuova); se cade a metà basta ripetere il salvataggio
+  const adesso = d.adesso().toISOString();
+  dati(d, "foto", await d.db.from("shop_media").update({ rimosso_il: adesso }).eq("categoria_id", id).is("rimosso_il", null));
+  dati(d, "foto", await d.db.from("shop_media").insert({ categoria_id: id, slot: "principale", tipo: "foto", path_960: path, alt, ordine: 0 }));
+  const storico = await scriviStorico(d, "categoria", id, [{ campo: "foto", prima: corrente.foto_path ?? null, dopo: path }], chi);
+  return {
+    categoria: { id, slug: String(corrente.slug), versione: await versioneAttuale(d, "shop_categorie", id) },
+    avvisi: testo.avvisi.map((a) => a.frase),
+    storico,
+  };
+}
+
 const MAX_CATEGORIE_PRODOTTO = 20;
 
 /** Sostituisce l'insieme delle categorie di un prodotto. Una riga di storico (campo «categorie», prima e dopo come elenchi di slug). */
@@ -254,6 +288,7 @@ export async function eseguiCategorie(azione: string, corpo: Riga, chi: string, 
   if (azione === "categoria_salva") return salva(corpo, chi, d);
   if (azione === "categoria_visibile") return visibile(corpo, chi, d);
   if (azione === "prodotto_categorie") return categorieDelProdotto(corpo, chi, d);
+  if (azione === "categoria_foto") return fotoDellaCategoria(corpo, chi, d);
   return ordina(corpo, chi, d);
 }
 
