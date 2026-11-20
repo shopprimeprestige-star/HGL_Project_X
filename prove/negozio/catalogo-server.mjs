@@ -134,16 +134,16 @@ export async function prove(mod, { c, gruppo, radice }) {
   const avvelenato = nuovo({ extra: { shop_v_categorie: [...viste(negozio()).shop_v_categorie, { id: uuid(0x1ff), slug: "vuota-in-vista", nome: "X", tipo: "categoria", visibile: true, ordine: 0, quanti: 0 }, { id: uuid(0x1fe), slug: "nascosta-in-vista", nome: "Y", tipo: "categoria", visibile: false, ordine: 0, quanti: 5 }] } });
   c("categorie: se per errore la vista mostra una vuota o una nascosta, non escono (difesa doppia)", ["categoria-prova"], (await avvelenato.catalogo.categorie()).map((x) => x.slug));
   c("costruisciCategorie: ordine per `ordine` poi nome; foto solo se ha le tre misure; righe strane scartate", ["a-prima", "b-seconda", "z-ultima"], PUB.costruisciCategorie({
-    categorie: [{ id: "1", slug: "z-ultima", nome: "Z", ordine: 9, quanti: 1 }, { id: "2", slug: "b-seconda", nome: "B", ordine: 1, quanti: 1 }, { id: "3", slug: "a-prima", nome: "A", ordine: 1, quanti: 1 }, null, 4, { id: "9", slug: "X Y", nome: "N", quanti: 1 }],
-    media: [{ id: "m", categoria_id: "2", slot: "principale", path_480: "x", path_960: null, path_1600: "z" }],
+    categorie: [{ id: "1", slug: "z-ultima", nome: "Z", ordine: 9, quanti: 1, visibile: true }, { id: "2", slug: "b-seconda", nome: "B", ordine: 1, quanti: 1, visibile: true }, { id: "3", slug: "a-prima", nome: "A", ordine: 1, quanti: 1, visibile: true }, null, 4, { id: "9", slug: "X Y", nome: "N", quanti: 1, visibile: true }, { id: "8", slug: "senza-visibile", nome: "S", quanti: 1 }],
+    media: [{ id: "m", categoria_id: "2", slot: "principale", path_480: "x", path_960: null, path_1600: "z", rimosso_il: null, ritrae_persone: false, liberatoria_ok: false }],
   }).map((x) => x.slug));
 
   const tre = { path_480: "a", path_960: "b", path_1600: "c" };
   c("costruisciCategorie: la foto è solo la «principale» della categoria, non rimossa, e di nessuna persona senza liberatoria", [null, null, { w480: "a", w960: "b", w1600: "c" }],
     ((r) => ["1", "2", "3"].map((id) => r.find((x) => x.slug === `cat-${id}`).foto))(PUB.costruisciCategorie({
-      categorie: ["1", "2", "3"].map((id) => ({ id, slug: `cat-${id}`, nome: id, ordine: 0, quanti: 1 })),
-      media: [{ id: "m1", categoria_id: "1", slot: "foto2", ...tre }, { id: "m2", categoria_id: "2", slot: "principale", ...tre, rimosso_il: ISTANTE },
-        { id: "m3", categoria_id: "3", slot: "principale", ...tre }, { id: "m4", categoria_id: "3", slot: "principale", ordine: -1, ritrae_persone: true, liberatoria_ok: false, path_480: "x", path_960: "y", path_1600: "z" }],
+      categorie: ["1", "2", "3"].map((id) => ({ id, slug: `cat-${id}`, nome: id, ordine: 0, quanti: 1, visibile: true })),
+      media: [{ id: "m1", categoria_id: "1", slot: "foto2", ...tre, rimosso_il: null, ritrae_persone: false, liberatoria_ok: false }, { id: "m2", categoria_id: "2", slot: "principale", ...tre, rimosso_il: ISTANTE, ritrae_persone: false, liberatoria_ok: false },
+        { id: "m3", categoria_id: "3", slot: "principale", ...tre, rimosso_il: null, ritrae_persone: false, liberatoria_ok: false }, { id: "m4", categoria_id: "3", slot: "principale", ordine: -1, rimosso_il: null, ritrae_persone: true, liberatoria_ok: false, path_480: "x", path_960: "y", path_1600: "z" }],
     })));
 
   // ── una bozza non esce da NESSUNA funzione, nemmeno se la vista sbaglia ──

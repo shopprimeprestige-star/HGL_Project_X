@@ -10,20 +10,21 @@
  *   `disponibile`, e il numero si ferma qui.
  *  ⚠️ Il filtro «solo pubblicati» c'è anche qui, oltre che nella vista (D1): due difese. La bozza esce soltanto se il
  *   chiamante passa `anteprima: { slug }` DOPO aver verificato la chiave (`anteprima.ts`), e solo per quello slug.
- *  ⚠️ Le colonne si leggono con `righe.ts` (snake_case → tipi del modello): qui non si rifà. Le colonne di filtro
- *   (`stato`, `attiva`, `liberatoria_ok`, `rimosso_il`) nelle viste possono mancare: vedi `righe.ts`.
+ *  ⚠️ Le colonne si leggono con `righe.ts` (snake_case → tipi del modello): qui non si rifà. Una colonna di filtro
+ *   (`stato`, `attiva`, `liberatoria_ok`, `ritrae_persone`, `rimosso_il`) che manca tiene la riga FUORI: vedi `righe.ts`.
  *  ⚠️ Righe di forma sbagliata non lanciano: si scartano. Un prezzo che non è un intero positivo scarta la variante
- *   (mai un prezzo inventato). Due foto nello stesso slot: vince una sola, sempre la stessa (ordine, creato_il, id). */
+ *   (mai un prezzo inventato). Due foto nello stesso slot: vince una sola, sempre la stessa (`ordine`, poi `id`). */
 import {
   SLOT,
   normalizzaCaratteristiche,
   prezzoEffettivo,
   type CampiProdotto,
   type CategoriaPubblica,
+  type Media,
   type ProdottoPubblico,
   type SrcFoto,
 } from "./modello";
-import { categoriaDaRiga, booleano, faq, intero, mediaDaRiga, oggetto, prodottoDaRiga, righeDi, testi, testo, varianteDaRiga, type MediaLetto } from "./righe";
+import { categoriaDaRiga, booleano, faq, intero, mediaDaRiga, oggetto, prodottoDaRiga, righeDi, testi, testo, varianteDaRiga } from "./righe";
 
 export interface OpzioniPubblico {
   /** Dove stanno le foto (`…/storage/v1/object/public/shop-media`): si antepone ai percorsi. Senza, restano com'erano. */
@@ -44,9 +45,8 @@ const CAMPI_DELLA_BOZZA = [
   "faq", "resoConsentito", "resoGiorni", "boxConsulenza", "correlatoId", "seoTitolo", "seoDescrizione", "seoMediaId",
 ] as const satisfies readonly (keyof CampiProdotto)[];
 
-/** Tra due media dello stesso slot: prima `ordine`, poi `creato_il` (se c'è), poi `id`. Mai l'ordine in cui sono arrivati. */
-const prima = (a: MediaLetto, b: MediaLetto) =>
-  a.ordine - b.ordine || (a.creatoIl ?? "").localeCompare(b.creatoIl ?? "") || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+/** Tra due media dello stesso slot: prima `ordine`, poi `id`. Mai l'ordine in cui sono arrivati. Una regola sola, nel pubblico e in anteprima. */
+const prima = (a: Media, b: Media) => a.ordine - b.ordine || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
 
 type Url = (percorso: string | null) => string | null;
 /** I percorsi del database → indirizzi completi (con `baseMedia`), o com'erano se non c'è. */
@@ -55,7 +55,7 @@ const creaUrl = (baseMedia?: string): Url => {
   return (percorso) => (percorso ? (base ? `${base}/${percorso.replace(/^\/+/, "")}` : percorso) : null);
 };
 /** Una foto vale solo con tutte e tre le misure. */
-const creaFoto = (url: Url) => (m: MediaLetto): SrcFoto | null => {
+const creaFoto = (url: Url) => (m: Media): SrcFoto | null => {
   const w480 = url(m.path480), w960 = url(m.path960), w1600 = url(m.path1600);
   return w480 && w960 && w1600 ? { w480, w960, w1600 } : null;
 };
@@ -114,7 +114,7 @@ export function costruisciPubblico(righe: unknown, opzioni: OpzioniPubblico = {}
     // i media: fuori i rimossi e le persone senza liberatoria (D30); per ogni slot ne vince UNO, sempre lo stesso.
     // Il campione è la pallina di un valore (uno per valore), non una foto del prodotto.
     const candidati = tuttiIMedia.filter((m) => m.prodottoId === id && !m.rimossoIl && !(m.ritraePersone && !m.liberatoriaOk)).sort(prima);
-    const scelti = new Map<string, MediaLetto>();
+    const scelti = new Map<string, Media>();
     for (const m of candidati) {
       const chiave = m.slot === "campione" ? `campione:${(m.valoreOpzione ?? "").toLowerCase()}` : m.slot;
       if (!scelti.has(chiave)) scelti.set(chiave, m);
@@ -170,6 +170,8 @@ export function costruisciPubblico(righe: unknown, opzioni: OpzioniPubblico = {}
       const daConfermare = caratteristiche.filter((x) => x.stato !== "confermato").length;
       if (daConfermare) nascosti.push({ blocco: "caratteristiche", motivo: `${daConfermare} ${daConfermare === 1 ? "riga" : "righe"} da confermare` });
       if (!principale) nascosti.push({ blocco: "foto principale", motivo: "slot vuoto" });
+      const senzaLiberatoria = tuttiIMedia.filter((m) => m.prodottoId === id && !m.rimossoIl && m.ritraePersone && !m.liberatoriaOk).length;
+      if (senzaLiberatoria) nascosti.push({ blocco: "foto", motivo: `${senzaLiberatoria} foto senza liberatoria` });
       if (!prodotto.classeSpedizione && !((prodotto.pesoG ?? 0) > 0)) nascosti.push({ blocco: "spedizione", motivo: "manca la spedizione" });
       pubblico.anteprima = { nascosti };
     }

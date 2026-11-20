@@ -1,10 +1,15 @@
 /** ── NEGOZIO · T07 · DALLE RIGHE DEL DATABASE AI TIPI DEL MODELLO ───────────
  *  `src/shop/cms/righe.ts`: l'UNICO punto in cui le colonne snake_case di S1 diventano i tipi camelCase del modello.
- *  Valgono per le righe delle tabelle (tutte le colonne) e per quelle delle viste (meno colonne, e le colonne di filtro
- *  `stato`, `attiva`, `liberatoria_ok`, `rimosso_il` possono mancare). Dati inventati (`dati.mjs`). */
+ *  Valgono per le righe delle tabelle (tutte le colonne) e per quelle delle viste (meno colonne).
+ *  ⚠️ Le colonne di FILTRO (`stato`, `attiva`, `visibile`, `liberatoria_ok`, `ritrae_persone`, `rimosso_il`) fanno CHIUDERE la
+ *  riga se mancano: una dimenticata non deve mai far uscire una bozza, una variante spenta o una foto senza liberatoria.
+ *  Una prova legge la migrazione S1 e controlla che le viste le abbiano tutte. Dati inventati (`dati.mjs`). */
+import { execFileSync } from "node:child_process";
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { ISTANTE, categoriaProva, mediaProva, prodottoProva, uuid, varianteProva } from "./dati.mjs";
 
-export async function prove(mod, { c, gruppo }) {
+export async function prove(mod, { c, gruppo, radice }) {
   const R = mod["shop/cms/righe"];
   gruppo("NEGOZIO · LE RIGHE DEL DATABASE → I TIPI DEL MODELLO (20/11/2026)");
 
@@ -25,11 +30,13 @@ export async function prove(mod, { c, gruppo }) {
   c("prodotto: i canali sono booleani veri (solo `true` è sì)", { sito: true, meta: true, google: false, tiktok: false }, tab.canali);
   c("prodotto: la bozza di modifica passa com'è, e la data", [{ nome: "Nuovo" }, ISTANTE], [tab.bozzaModifiche, tab.bozzaModificataIl]);
 
-  // una vista: meno colonne, e anche senza `stato`
-  const vista = { id: uuid(0x200), sku: "PROVA-001", slug: "prodotto-di-prova", nome: "Prodotto di prova", tipo: "cura", prezzo_cent: 2890, descrizione_breve: "x", aggiornato_il: ISTANTE };
+  // una vista: meno colonne (ma `stato` c'è: è una colonna di filtro)
+  const vista = { id: uuid(0x200), sku: "PROVA-001", slug: "prodotto-di-prova", nome: "Prodotto di prova", tipo: "cura", stato: "pubblicato", prezzo_cent: 2890, descrizione_breve: "x", aggiornato_il: ISTANTE };
   const v = R.prodottoDaRiga(vista);
-  c("prodotto (vista senza `stato`): vale «pubblicato»; le colonne private sono neutre", ["pubblicato", null, null, null, null, "", false, true],
+  c("prodotto (vista): le colonne private che non porta sono neutre", ["pubblicato", null, null, null, null, "", false, true],
     [v.stato, v.fornitore, v.noteInterne, v.bozzaModifiche, v.idCodice, v.creatoIl, v.canali.sito, v.canali.sito === v.canali.meta]);
+  const { stato: _s, ...senzaStato } = vista;
+  c("prodotto SENZA `stato` (colonna di filtro dimenticata) → null: mai «pubblicato» per default", [null, null], [R.prodottoDaRiga(senzaStato), R.prodottoDaRiga({ ...vista, stato: undefined })]);
   c("prodotto: lo stato scritto conta (bozza e archiviato restano tali)", ["bozza", "archiviato"], [R.prodottoDaRiga({ ...vista, stato: "bozza" }).stato, R.prodottoDaRiga({ ...vista, stato: "archiviato" }).stato]);
   const storti = [
     ["non è un oggetto", null], ["non è un oggetto (testo)", "x"], ["non è un oggetto (lista)", []],
@@ -51,8 +58,9 @@ export async function prove(mod, { c, gruppo }) {
   const dallaVista = (({ giacenza, ...resto }) => resto)(varianteProva());
   c("variante (vista): senza giacenza → `null` e `disponibile` dalla colonna; mai un numero inventato", [null, true, false],
     [R.varianteDaRiga({ ...dallaVista, disponibile: true }).giacenza, R.varianteDaRiga({ ...dallaVista, disponibile: true }).disponibile, R.varianteDaRiga({ ...dallaVista, disponibile: false }).disponibile]);
-  c("variante (vista senza `attiva`): vale «attiva»; con `attiva:false` no", [true, false],
-    [R.varianteDaRiga({ ...dallaVista, attiva: undefined, disponibile: true }).attiva, R.varianteDaRiga({ ...dallaVista, attiva: false, disponibile: true }).disponibile]);
+  c("variante SENZA `attiva` (colonna dimenticata): spenta e non disponibile, anche se la vista dice `disponibile`; solo `true` accende", [false, false, false, false, true],
+    [R.varianteDaRiga({ ...dallaVista, attiva: undefined, disponibile: true }).attiva, R.varianteDaRiga({ ...dallaVista, attiva: undefined, disponibile: true }).disponibile,
+      R.varianteDaRiga({ ...dallaVista, attiva: null, disponibile: true }).attiva, R.varianteDaRiga({ ...dallaVista, attiva: "true", disponibile: true }).attiva, R.varianteDaRiga({ ...dallaVista, attiva: true, disponibile: true }).attiva]);
   c("variante: un prezzo PROPRIO storto (negativo, con virgola, testo) → null, non ripiega sul prodotto", [null, null, null],
     [-5, 12.5, "10"].map((p) => R.varianteDaRiga(varianteProva({ prezzo_cent: p }))));
   c("variante: senza id, prodotto o SKU → null; e non lancia con righe strane", [null, null, null, null, null],
@@ -60,13 +68,19 @@ export async function prove(mod, { c, gruppo }) {
 
   // ── media ──
   const m = R.mediaDaRiga(mediaProva({ slot: "foto2", sotto_ruolo: "macro_attaccatura", ritrae_persone: true, liberatoria_ok: true, valore_opzione: "Nero", ordine: 3, creato_il: ISTANTE, sottotitoli_ok: true }));
-  c("media (tabella): campi in camelCase", ["foto2", "macro_attaccatura", "foto", "prova/aaaaaaaaaaaa-480.webp", "Foto di prova del prodotto", true, true, "Nero", 3, null, ISTANTE, uuid(0x200)],
-    [m.slot, m.sottoRuolo, m.tipo, m.path480, m.alt, m.ritraePersone, m.liberatoriaOk, m.valoreOpzione, m.ordine, m.rimossoIl, m.creatoIl, m.prodottoId]);
+  c("media (tabella): campi in camelCase", ["foto2", "macro_attaccatura", "foto", "prova/aaaaaaaaaaaa-480.webp", "Foto di prova del prodotto", true, true, "Nero", 3, null, null, uuid(0x200)],
+    [m.slot, m.sottoRuolo, m.tipo, m.path480, m.alt, m.ritraePersone, m.liberatoriaOk, m.valoreOpzione, m.ordine, m.rimossoIl, null, m.prodottoId]);
   c("media: il video è video anche se `tipo` dice altro; un sotto-ruolo sconosciuto → null", ["video", null],
     [R.mediaDaRiga(mediaProva({ slot: "video", tipo: "foto" })).tipo, R.mediaDaRiga(mediaProva({ sotto_ruolo: "boh" })).sottoRuolo]);
-  const { liberatoria_ok, rimosso_il, creato_il, ...dallaVistaMedia } = mediaProva();
-  const mv = R.mediaDaRiga(dallaVistaMedia);
-  c("media (vista senza `liberatoria_ok`, `rimosso_il`, `creato_il`): in regola, non rimosso, senza data", [true, null, null], [mv.liberatoriaOk, mv.rimossoIl, mv.creatoIl]);
+  // le colonne di filtro dei media, una alla volta: se una manca la foto resta fuori
+  const senza = (...colonne) => { const r = mediaProva(); for (const k of colonne) delete r[k]; return r; };
+  c("media SENZA `rimosso_il` (colonna dimenticata) → null: vale come rimossa", [null, null], [R.mediaDaRiga(senza("rimosso_il")), R.mediaDaRiga({ ...mediaProva(), rimosso_il: undefined })]);
+  c("media SENZA `ritrae_persone`: ritrae (e senza liberatoria non esce); `false` scritto la libera; `null` o testo non la liberano", [true, false, true, true],
+    [R.mediaDaRiga(senza("ritrae_persone")).ritraePersone, R.mediaDaRiga(mediaProva({ ritrae_persone: false })).ritraePersone, R.mediaDaRiga(mediaProva({ ritrae_persone: null })).ritraePersone, R.mediaDaRiga(mediaProva({ ritrae_persone: "false" })).ritraePersone]);
+  c("media SENZA `liberatoria_ok`: non c'è liberatoria; solo `true` scritto vale", [false, false, false, true],
+    [R.mediaDaRiga(senza("liberatoria_ok")).liberatoriaOk, R.mediaDaRiga(mediaProva({ liberatoria_ok: null })).liberatoriaOk, R.mediaDaRiga(mediaProva({ liberatoria_ok: "true" })).liberatoriaOk, R.mediaDaRiga(mediaProva({ liberatoria_ok: true })).liberatoriaOk]);
+  const { creato_il, ...dallaVistaMedia } = mediaProva();
+  c("media (vista com'è: con tutte le colonne di filtro, senza `creato_il`): si legge, non è rimosso, la liberatoria c'è solo se scritta", [true, null, false], [R.mediaDaRiga(dallaVistaMedia) !== null, R.mediaDaRiga(dallaVistaMedia).rimossoIl, R.mediaDaRiga(dallaVistaMedia).liberatoriaOk]);
   c("media: `liberatoria_ok:false` scritto resta falso (anche `null`)", [false, false], [R.mediaDaRiga(mediaProva({ liberatoria_ok: false })).liberatoriaOk, R.mediaDaRiga(mediaProva({ liberatoria_ok: null })).liberatoriaOk]);
   c("media: la rimozione si vede", ISTANTE, R.mediaDaRiga(mediaProva({ rimosso_il: ISTANTE })).rimossoIl);
   c("media: slot sconosciuto, senza id o non oggetto → null", [null, null, null], [mediaProva({ slot: "boh" }), mediaProva({ id: "" }), "x"].map((x) => R.mediaDaRiga(x)));
@@ -75,8 +89,29 @@ export async function prove(mod, { c, gruppo }) {
   const ca = R.categoriaDaRiga(categoriaProva({ tipo: "collezione", frase: "Una frase", foto_path: "prova/c.webp", ordine: 4, pubblicata_il: ISTANTE }));
   c("categoria (tabella): campi in camelCase", ["categoria-prova", "Categoria di prova", "collezione", "Una frase", "prova/c.webp", 4, true, ISTANTE],
     [ca.slug, ca.nome, ca.tipo, ca.frase, ca.fotoPath, ca.ordine, ca.visibile, ca.pubblicataIl]);
-  c("categoria: `visibile:false` scritto resta falso; in una vista senza la colonna vale «visibile»", [false, true],
-    [R.categoriaDaRiga(categoriaProva({ visibile: false })).visibile, R.categoriaDaRiga(categoriaProva({ visibile: undefined })).visibile]);
+  c("categoria: `visibile` vale solo se è `true`; mancante, `false`, `null` o testo → nascosta", [false, false, false, false, true],
+    [R.categoriaDaRiga(categoriaProva({ visibile: false })).visibile, R.categoriaDaRiga(categoriaProva({ visibile: undefined })).visibile, R.categoriaDaRiga(categoriaProva({ visibile: null })).visibile, R.categoriaDaRiga(categoriaProva({ visibile: "true" })).visibile, R.categoriaDaRiga(categoriaProva({ visibile: true })).visibile]);
   c("categoria: tipo strano → «categoria»; slug non valido, senza nome o non oggetto → null", ["categoria", null, null, null],
     [R.categoriaDaRiga(categoriaProva({ tipo: "x" })).tipo, R.categoriaDaRiga(categoriaProva({ slug: "A B" })), R.categoriaDaRiga(categoriaProva({ nome: "" })), R.categoriaDaRiga(5)]);
+
+  // ── le viste di S1 portano TUTTE le colonne di filtro (altrimenti questa chiusura le farebbe sparire) ──
+  const FILE = "supabase/migrations/20261120120000_shop_catalogo.sql";
+  let sql = null;
+  if (existsSync(join(radice, FILE))) sql = readFileSync(join(radice, FILE), "utf8");
+  else {
+    try { sql = execFileSync("git", ["show", `shop-r1-b:${FILE}`], { cwd: radice, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }); } catch { /* ramo assente */ }
+  }
+  if (sql === null) console.log(`  --  SALTATA: le viste di S1 hanno le colonne di filtro (${FILE} non c'è su questo ramo né su shop-r1-b)`);
+  else {
+    const FILTRO = { shop_v_prodotti: ["stato"], shop_v_varianti: ["attiva"], shop_v_media: ["ritrae_persone", "liberatoria_ok", "rimosso_il"], shop_v_categorie: ["visibile"] };
+    const mancanti = [];
+    for (const [vista, colonne] of Object.entries(FILTRO)) {
+      const m = new RegExp(`CREATE OR REPLACE VIEW public\\.${vista} AS\\s+SELECT([\\s\\S]*?)\\nFROM`).exec(sql);
+      if (!m) { mancanti.push(`${vista}: vista non trovata`); continue; }
+      for (const col of colonne) if (!new RegExp(`(\\.${col}\\b|\\bAS ${col}\\b)`).test(m[1])) mancanti.push(`${vista}.${col}`);
+    }
+    c("la migrazione S1: ognuna delle 4 viste espone TUTTE le sue colonne di filtro (stato, attiva, ritrae_persone, liberatoria_ok, rimosso_il, visibile)", [], mancanti);
+    c("(il metodo funziona: una vista senza `rimosso_il` verrebbe segnalata)", ["shop_v_media.rimosso_il"],
+      (() => { const finta = sql.replace(/\n\s*m\.rimosso_il\n/, "\n"); const m = /CREATE OR REPLACE VIEW public\.shop_v_media AS\s+SELECT([\s\S]*?)\nFROM/.exec(finta); return /(\.rimosso_il\b|\bAS rimosso_il\b)/.test(m[1]) ? [] : ["shop_v_media.rimosso_il"]; })());
+  }
 }

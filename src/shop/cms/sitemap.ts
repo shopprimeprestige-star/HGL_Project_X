@@ -2,8 +2,9 @@
  *  Commessa 2026-11-20-shop-completo (T07). Modulo PURO. Restituisce le voci `{ percorso, aggiornato }` nella forma
  *  `VoceMappa` di `src/seo/regole.ts` (è `sitemapXml` che le trasforma in XML e scarta i doppioni).
  *
- *  ⚠️ Solo i prodotti PUBBLICATI (una bozza o un archiviato non compaiono mai; se la vista non porta `stato`, vale «pubblicato»), e solo le categorie visibili con almeno
- *   un prodotto pubblicato (`quanti`, che calcola la vista `shop_v_categorie`). Righe di forma sbagliata si scartano. */
+ *  ⚠️ Solo i prodotti PUBBLICATI (una bozza o un archiviato non compaiono mai; senza `stato` la riga non si usa), e solo le
+ *   categorie `visibile` (scritto `true`) con almeno un prodotto pubblicato (`quanti`, che calcola la vista `shop_v_categorie`).
+ *   Righe di forma sbagliata si scartano. Chi la usa passa le righe dei soli prodotti che `costruisciPubblico` mostra davvero. */
 import { categoriaDaRiga, oggetto, prodottoDaRiga, righeDi } from "./righe";
 
 export interface VoceShop {

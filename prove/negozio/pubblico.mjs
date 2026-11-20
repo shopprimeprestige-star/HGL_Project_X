@@ -171,34 +171,39 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("prezzoDaCent: nessuna variante attiva → nessuna variante in vendita e il prezzo è quello del prodotto", [[], 2890], conSpente([false, false, false]));
   c("una variante spenta non rende disponibile né fa comparire le sue opzioni", [false, false], [JSON.stringify(P.opzioni).includes("Rosso"), JSON.stringify(P.opzioni).includes('"40"')]);
 
-  // due foto attive nello stesso slot: ne vince UNA, sempre la stessa, in qualunque ordine arrivino (ordine, poi creato_il, poi id)
-  const gara = (righe) => {
+  // due foto attive nello stesso slot: ne vince UNA, sempre la stessa, in qualunque ordine arrivino (`ordine`, poi `id`: una regola sola, nel pubblico e in anteprima)
+  const gara = (righe, o = opz) => {
     const r = righeTabelle();
-    r.media = righe.map((x, i) => mediaProva({ id: uuid(0x600 + i), prodotto_id: uuid(0x200), slot: "principale", alt: `gara-${i}`, creato_il: "2026-11-20T09:00:00.000Z", ...x }));
-    const alt = (m) => PUB.costruisciPubblico(m, opz)[0].media.map((x) => x.alt);
+    r.media = righe.map((x, i) => mediaProva({ id: uuid(0x600 + i), prodotto_id: uuid(0x200), slot: "principale", alt: `gara-${i}`, ...x }));
+    const alt = (m) => PUB.costruisciPubblico(m, o)[0].media.map((x) => x.alt);
     const dritto = alt(r), rovescio = alt({ ...r, media: [...r.media].reverse() });
     return [dritto, rovescio];
   };
   c("stesso slot: vince l'`ordine` più basso (e le altre non escono), in qualunque ordine arrivino", [["gara-1"], ["gara-1"]], gara([{ ordine: 5 }, { ordine: 2 }, { ordine: 9 }]));
-  c("stesso slot, stesso `ordine`: vince la più vecchia (`creato_il`)", [["gara-2"], ["gara-2"]],
+  c("stesso slot, stesso `ordine`: vince l'`id` più piccolo (mai l'ordine d'arrivo, e `creato_il` non conta)", [["gara-0"], ["gara-0"]],
     gara([{ ordine: 1, creato_il: "2026-11-20T09:30:00.000Z" }, { ordine: 1, creato_il: "2026-11-20T09:20:00.000Z" }, { ordine: 1, creato_il: "2026-11-20T09:10:00.000Z" }]));
-  c("stesso slot, stesso `ordine` e stesso `creato_il`: vince l'`id` più piccolo (mai l'ordine d'arrivo)", [["gara-0"], ["gara-0"]], gara([{ ordine: 1 }, { ordine: 1 }, { ordine: 1 }]));
+  c("la stessa regola in anteprima (dalle tabelle): `ordine`, poi `id`", [["gara-1"], ["gara-1"]], gara([{ ordine: 3 }, { ordine: 1 }, { ordine: 1 }], { ...opz, anteprima: { slug: "prodotto-di-prova" } }));
   c("una foto rimossa o di persona senza liberatoria non vince nemmeno se ha l'`ordine` più basso", [["gara-2"], ["gara-2"]],
     gara([{ ordine: 0, rimosso_il: ISTANTE }, { ordine: 0, ritrae_persone: true, liberatoria_ok: false }, { ordine: 3 }]));
-  c("senza `creato_il` (le viste non lo danno) si decide comunque: `ordine`, poi `id`", [["gara-0"], ["gara-0"]], gara([{ ordine: 4, creato_il: undefined }, { ordine: 4, creato_il: undefined }, { ordine: 9, creato_il: undefined }]));
 
-  // le viste possono perdere le colonne di filtro (`stato`, `attiva`, `liberatoria_ok`, `rimosso_il`): la vista ha già filtrato
-  const senzaFiltri = (() => {
+  // ── LE COLONNE DI FILTRO DIMENTICATE FANNO CHIUDERE (le viste di S1 le hanno tutte; se una sparisse non deve uscire niente di più) ──
+  const senza = (tabella, colonna) => {
     const v = righeViste();
-    v.prodotti = v.prodotti.map(({ stato, ...x }) => x);
-    v.varianti = v.varianti.map(({ attiva, ...x }) => x);
-    v.media = v.media.map(({ liberatoria_ok, rimosso_il, ...x }) => x);
-    return v;
-  })();
-  c("viste senza `stato`: i prodotti escono (la vista è già filtrata)", ["prodotto-di-prova", "altro-prodotto"], PUB.costruisciPubblico(senzaFiltri, opz).map((p) => p.slug));
-  c("viste senza `liberatoria_ok` né `rimosso_il`: le foto già filtrate escono tutte e le persone non spariscono", ["principale", "scala", "foto4", "video"],
-    PUB.costruisciPubblico(senzaFiltri, opz)[0].media.map((m) => m.slot));
-  c("…ma una colonna PRESENTE vale: `stato: bozza` o `liberatoria_ok: false` anche da una vista fanno uscire la riga", [["altro-prodotto"], "Foto principale"],
+    v[tabella] = v[tabella].map((r) => { const { [colonna]: _tolta, ...resto } = r; return resto; });
+    return PUB.costruisciPubblico(v, opz);
+  };
+  c("vista prodotti senza `stato`: non esce nessun prodotto", [], senza("prodotti", "stato"));
+  c("vista varianti senza `attiva`: nessuna variante in vendita (e il prezzo «da» è quello del prodotto)", [[], [], 2890], ((r) => [r[0].varianti, r[0].opzioni, r[0].prezzoDaCent])(senza("varianti", "attiva")));
+  c("vista media senza `rimosso_il`: nessuna foto", [], senza("media", "rimosso_il")[0].media);
+  c("vista media senza `liberatoria_ok`: le foto di persone non escono (le altre sì: ritraggono solo cose se `ritrae_persone` è `false`)", ["principale", "scala", "video"],
+    senza("media", "liberatoria_ok")[0].media.map((m) => m.slot));
+  c("vista media senza `ritrae_persone`: ritraggono persone e senza liberatoria non escono (resta solo chi ha la liberatoria scritta)", ["foto4"],
+    senza("media", "ritrae_persone")[0].media.map((m) => m.slot));
+  c("una colonna presente e storta (`null`, testo) chiude come una assente", [[], []], [
+    PUB.costruisciPubblico({ ...righeViste(), prodotti: righeViste().prodotti.map((p) => ({ ...p, stato: null })) }, opz),
+    PUB.costruisciPubblico({ ...righeViste(), varianti: righeViste().varianti.map((v) => ({ ...v, attiva: "true" })) }, opz)[0].varianti,
+  ]);
+  c("…e le colonne scritte contano: `stato: bozza` o una foto di persona senza liberatoria anche da una vista restano fuori", [["altro-prodotto"], "Foto principale"],
     (() => {
       const v = righeViste();
       v.prodotti[0].stato = "bozza";
@@ -243,6 +248,8 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("con l'anteprima di quel indirizzo la bozza esce, e SOLO quella (l'altra bozza e l'archiviato no)", ["altro-prodotto", "prodotto-di-prova", "prodotto-in-bozza"], BOZZA.map((p) => p.slug).sort());
   c("la bozza porta `anteprima.nascosti`: righe da confermare, slot vuoto, manca la spedizione",
     [{ blocco: "caratteristiche", motivo: "2 righe da confermare" }, { blocco: "foto principale", motivo: "slot vuoto" }, { blocco: "spedizione", motivo: "manca la spedizione" }], B.anteprima?.nascosti);
+  c("in anteprima, una foto scartata per la liberatoria si dice (la rimossa no): «1 foto senza liberatoria»", [{ blocco: "foto", motivo: "1 foto senza liberatoria" }, { blocco: "spedizione", motivo: "manca la spedizione" }],
+    trova(PUB.costruisciPubblico(righeTabelle(), { ...opz, anteprima: { slug: "prodotto-di-prova" } }), "prodotto-di-prova").anteprima.nascosti);
   c("gli altri prodotti dell'uscita non hanno `anteprima`", [false, false], [trova(BOZZA, "prodotto-di-prova").anteprima !== undefined, trova(BOZZA, "altro-prodotto").anteprima !== undefined]);
   c("anche in anteprima: nessuna giacenza, nessuna chiave vietata", [false, []], [/7341/.test(JSON.stringify(BOZZA)), vietate(BOZZA)]);
   c("una bozza e un archiviato di un ALTRO indirizzo non escono con l'anteprima della prima", [false, false], [BOZZA.some((p) => p.slug === "altra-bozza"), BOZZA.some((p) => p.slug === "prodotto-archiviato")]);
@@ -350,6 +357,9 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("senza varianti non si inventa un'offerta", false, "offers" in LD.datiStrutturatiProdotto({ ...P, varianti: [] }, SITO));
   const testo = LD.serializzaJsonLd(LD.datiStrutturatiProdotto({ ...P, nome: "</script><script>alert(1)</script>" }, SITO));
   c("serializzaJsonLd: un nome con </script> non chiude il tag e si rilegge identico", [false, "</script><script>alert(1)</script>"], [/<\/script/i.test(testo) || /<script/i.test(testo), JSON.parse(testo).name]);
+  const inAnteprima = trova(PUB.costruisciPubblico(righeTabelle(), { ...opz, anteprima: { slug: "prodotto-in-bozza" } }), "prodotto-in-bozza");
+  c("in anteprima NON si emette il JSON-LD: `null`, e il testo da scrivere nella pagina è vuoto", [null, ""], [LD.datiStrutturatiProdotto(inAnteprima, SITO), LD.serializzaJsonLd(LD.datiStrutturatiProdotto(inAnteprima, SITO))]);
+  c("la lista non include i prodotti in anteprima", ["Prodotto di prova"], LD.datiStrutturatiLista([inAnteprima, tab[0]], SITO).itemListElement.map((x) => x.name));
   const lista = LD.datiStrutturatiLista(tab, SITO);
   c("lista: ItemList con posizione, indirizzo e nome", { "@context": "https://schema.org", "@type": "ItemList", itemListElement: [
     { "@type": "ListItem", position: 1, url: `${SITO}/shop/prodotto/prodotto-di-prova`, name: "Prodotto di prova" },
@@ -368,5 +378,9 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("la data dell'ultimo aggiornamento viaggia con la voce (come `VoceMappa` di seo/regole)", ISTANTE, voci[0].aggiornato);
   c("nessuna voce porta il nome di una bozza (nemmeno per errore di chiave)", false, /bozza|archiviato|vuota|nascosta/.test(JSON.stringify(voci)));
   c("senza righe o con righe strane: elenco vuoto, mai un'eccezione", [[], [], []], [SM.vociSitemapShop({ prodotti: [], categorie: [] }), SM.vociSitemapShop(null), SM.vociSitemapShop({ prodotti: [null, 4, { stato: "pubblicato" }], categorie: "x" })]);
+  c("sitemap: riga prodotto senza `stato` o categoria senza `visibile` (colonne di filtro dimenticate) → fuori", [[], []], [
+    SM.vociSitemapShop({ prodotti: righeTabelle().prodotti.map(({ stato, ...r }) => r), categorie: [] }),
+    SM.vociSitemapShop({ prodotti: [], categorie: catV.map(({ visibile, ...r }) => r) }),
+  ]);
   c("uno slug non valido non entra in sitemap (niente indirizzi rotti)", [], SM.vociSitemapShop({ prodotti: [prodottoProva({ slug: "Con Spazi/E?Query" })], categorie: [] }));
 }
