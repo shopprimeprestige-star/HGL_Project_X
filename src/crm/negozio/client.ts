@@ -67,6 +67,13 @@ export const AZIONI_NEGOZIO = [
 ] as const;
 export type AzioneNegozio = (typeof AZIONI_NEGOZIO)[number];
 
+/** Le azioni che modificano ciò che la scheda ha già visto vogliono la `versione` (l'`aggiornato_il` letto): senza, il server non può dire 409.
+ *  Il client non le fa partire nemmeno. (`categoria_salva` la vuole solo se la categoria esiste già, cioè se c'è l'`id`.) */
+function mancaVersione(azione: string, dati: Record<string, unknown>): boolean {
+  const richiesta = ["prodotto_salva", "categoria_visibile", "prodotto_categorie"].includes(azione) || (azione === "categoria_salva" && dati.id != null);
+  return richiesta && !(typeof dati.versione === "string" && dati.versione !== "");
+}
+
 /* ══ GLI ERRORI ═════════════════════════════════════════════════════════════ */
 
 export type TipoErrore =
@@ -79,11 +86,14 @@ export type TipoErrore =
   | "valore" //            400: la richiesta non è valida
   | "non_trovato" //       404
   | "chiave" //            503: manca la chiave di servizio (anteprima)
+  | "cancello" //          409: lo shop non si può aprire (porta le condizioni, riga per riga)
   | "server" //            500, o una risposta che non si capisce
   | "rete"; //             la richiesta non è arrivata
 export interface ErroreNegozio {
   tipo: TipoErrore;
   messaggio: string;
+  /** Solo per «cancello»: ciò che il server risponde in più (le righe delle condizioni di uscita, D26). */
+  condizioni?: unknown;
   /** Solo per «non_pubblicabile»: cosa manca, campo per campo (il pannello «Prima di pubblicare» li usa). */
   bloccanti?: Voce[];
 }
@@ -98,6 +108,7 @@ const FRASI: Record<TipoErrore, string> = {
   valore: "La richiesta non è valida: controlla i dati e riprova.",
   non_trovato: "Prodotto non trovato.",
   chiave: "L'anteprima non è disponibile in questo momento.",
+  cancello: "Lo shop non si può ancora aprire: mancano delle condizioni.",
   server: "Qualcosa non ha funzionato: riprova tra un momento.",
   rete: "Non riesco a collegarmi al server: controlla la connessione e riprova.",
 };
@@ -110,6 +121,7 @@ const DA_MOTIVO: Record<string, TipoErrore> = {
   valore: "valore",
   non_trovato: "non_trovato",
   chiave: "chiave",
+  cancello: "cancello",
 };
 
 const eOggetto = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
@@ -123,6 +135,7 @@ function erroreDaRisposta(stato: number, corpo: Record<string, unknown> | null):
   const e = errore(tipo, typeof frase === "string" && frase.trim() ? frase.trim().slice(0, MAX_MESSAGGIO) : FRASI[tipo]);
   if (tipo === "non_pubblicabile" && Array.isArray(corpo?.bloccanti))
     e.bloccanti = (corpo.bloccanti as unknown[]).flatMap((b) => (eOggetto(b) && typeof b.campo === "string" && typeof b.frase === "string" ? [{ campo: b.campo, frase: b.frase }] : []));
+  if (tipo === "cancello" && corpo?.condizioni !== undefined) e.condizioni = corpo.condizioni;
   return e;
 }
 
@@ -185,14 +198,15 @@ export interface SchedaProdotto {
   controllo: { bloccanti: Voce[]; informativi: Voce[] };
 }
 
-export type RisultatoElenco = { ok: true; prodotti: RigaElenco[] } | { ok: false; errore: ErroreNegozio };
+/** `troncato`: l'elenco ha superato il tetto del server e non è completo (la pagina lo deve dire). */
+export type RisultatoElenco = { ok: true; prodotti: RigaElenco[]; troncato: boolean } | { ok: false; errore: ErroreNegozio };
 export async function leggiElenco(f: FetchRotta, filtri?: FiltriElenco): Promise<RisultatoElenco> {
   const url = urlProdotti(filtri);
   if (!url) return { ok: false, errore: errore("valore") };
   const g = await chiama(f, url);
   if ("errore" in g) return { ok: false, errore: g.errore };
   if (!Array.isArray(g.corpo.prodotti)) return { ok: false, errore: errore("server") };
-  return { ok: true, prodotti: g.corpo.prodotti as RigaElenco[] };
+  return { ok: true, prodotti: g.corpo.prodotti as RigaElenco[], troncato: g.corpo.troncato === true };
 }
 
 export type RisultatoScheda = { ok: true; scheda: SchedaProdotto } | { ok: false; errore: ErroreNegozio };
@@ -221,6 +235,7 @@ export type RisultatoAzione = RisultatoDati;
 
 export async function eseguiAzione(f: FetchRotta, azione: string, dati: Record<string, unknown> = {}): Promise<RisultatoAzione> {
   if (!(AZIONI_NEGOZIO as readonly string[]).includes(azione)) return { ok: false, errore: errore("valore") };
+  if (mancaVersione(azione, dati)) return { ok: false, errore: errore("valore", "Manca la versione di ciò che stai modificando: ricarica la pagina e riprova.") };
   const g = await chiama(f, ROTTA, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -286,6 +301,8 @@ export interface StatoNegozio {
   inAggiornamento: boolean;
   /** l'errore dell'ULTIMA lettura; i prodotti sono quelli dell'ultima lettura buona */
   errore: ErroreNegozio | null;
+  /** l'elenco è incompleto (oltre il tetto del server) */
+  troncato: boolean;
   /** quando (ms) è finita l'ultima lettura buona; `oraHHmm` lo scrive */
   ultimoAggiornamento: number | null;
   filtri: FiltriElenco;
@@ -294,12 +311,12 @@ export interface StatoNegozio {
 /** 403, o 401 dopo il tentativo già fatto da `fetchCRM`: riprovare ogni 30 s non serve a niente. */
 const eAccessoNegato = (e: ErroreNegozio): boolean => e.tipo === "permesso" || e.tipo === "sessione";
 /** Errori dopo i quali l'elenco non è più quello che la pagina credeva: si rilegge da soli. */
-const DA_RILEGGERE: readonly TipoErrore[] = ["conflitto", "non_trovato", "migrazione", "permesso", "sessione", "duplicato"];
+const DA_RILEGGERE: readonly TipoErrore[] = ["conflitto", "non_trovato", "migrazione", "permesso", "sessione", "duplicato", "cancello"];
 
 export function creaArchivioNegozio(opz: { fetch: FetchRotta; porte: PorteTempo; filtri?: FiltriElenco }) {
   const { fetch: f, porte } = opz;
   let stato: StatoNegozio = {
-    prodotti: [], caricato: false, inCaricamento: true, inAggiornamento: false, errore: null, ultimoAggiornamento: null, filtri: opz.filtri ?? {},
+    prodotti: [], caricato: false, inCaricamento: true, inAggiornamento: false, errore: null, troncato: false, ultimoAggiornamento: null, filtri: opz.filtri ?? {},
   };
   let versione = 0; // sale a ogni azione riuscita (e a ogni cambio di filtri)
   let ascoltatori: Array<() => void> = [];
@@ -320,10 +337,10 @@ export function creaArchivioNegozio(opz: { fetch: FetchRotta; porte: PorteTempo;
     if (!r.ok) {
       //  Senza permesso (o senza sessione) i prodotti già letti non devono restare a schermo.
       const negato = eAccessoNegato(r.errore);
-      imposta({ errore: r.errore, inCaricamento: false, inAggiornamento: false, ...(negato && { prodotti: [], caricato: false, ultimoAggiornamento: null }) });
+      imposta({ errore: r.errore, inCaricamento: false, inAggiornamento: false, ...(negato && { prodotti: [], caricato: false, ultimoAggiornamento: null, troncato: false }) });
       return !negato;
     }
-    imposta({ prodotti: r.prodotti, caricato: true, inCaricamento: false, inAggiornamento: false, errore: null, ultimoAggiornamento: porte.adesso() });
+    imposta({ prodotti: r.prodotti, troncato: r.troncato, caricato: true, inCaricamento: false, inAggiornamento: false, errore: null, ultimoAggiornamento: porte.adesso() });
   };
   const lettore = creaLettore({ ogniMs: RILEGGI_PRODOTTI_MS, leggi, porte });
 

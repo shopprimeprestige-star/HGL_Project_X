@@ -77,6 +77,7 @@ export async function prove(mod, { c, gruppo, radice }) {
     const r = await K.leggiElenco(f, { segmento: "bozze" });
     c("elenco: le righe, una sola richiesta GET sull'indirizzo giusto", [true, 2, ["/api/crm/negozio?prodotti&segmento=bozze"], [undefined]], [r.ok, r.prodotti.length, f.chiamate.map((x) => x.url), f.chiamate.map((x) => x.init?.method)]);
     const storto = await K.leggiElenco(fetchFinto(risposta({ ok: true })));
+    c("elenco: `troncato` arriva, e se manca vale falso", [true, false], [(await K.leggiElenco(fetchFinto(risposta({ ok: true, prodotti: [], troncato: true })))).troncato, (await K.leggiElenco(fetchFinto(risposta(elenco())))).troncato]);
     c("risposta buona ma senza l'elenco → errore «server», non un elenco vuoto", [false, "server"], [storto.ok, storto.errore.tipo]);
     const nessun = fetchFinto(risposta(elenco()));
     c("filtro storto: non parte nessuna richiesta", [false, "valore", 0], await (async () => { const r2 = await K.leggiElenco(nessun, { segmento: "boh" }); return [r2.ok, r2.errore.tipo, nessun.chiamate.length]; })());
@@ -86,8 +87,8 @@ export async function prove(mod, { c, gruppo, radice }) {
     c("scheda con un id che non è un id: nessuna richiesta", [false, 0], [(await K.leggiScheda(no, "x/y")).ok, no.chiamate.length]);
     c("scheda: risposta senza prodotto → «server»", "server", (await K.leggiScheda(fetchFinto(risposta({ ok: true })), ID)).errore.tipo);
     const cat = await K.leggiCategorie(fetchFinto(risposta({ ok: true, categorie: [{ id: "c" }] })));
-    const int = await K.leggiInterruttori(fetchFinto(risposta({ ok: true, valori: { catalogo_sito: "codice" }, condizioni: [] })));
-    c("categorie e interruttori: la risposta passa com'è, senza il `ok` (la forma è di T09)", [true, [{ id: "c" }], true, { catalogo_sito: "codice" }, false], [cat.ok, cat.dati.categorie, int.ok, int.dati.valori, "ok" in int.dati]);
+    const int = await K.leggiInterruttori(fetchFinto(risposta({ ok: true, interruttori: { catalogo_sito: "codice" }, condizioni: { puoAprire: false, righe: [] } })));
+    c("categorie e interruttori: la risposta passa com'è, senza il `ok` (la forma è di T09)", [true, [{ id: "c" }], true, { catalogo_sito: "codice" }, false], [cat.ok, cat.dati.categorie, int.ok, int.dati.interruttori, "ok" in int.dati]);
     c("…e una risposta che non è un oggetto buono → «server»", ["server", "server"], [(await K.leggiCategorie(fetchFinto(risposta("[]")))).errore.tipo, (await K.leggiInterruttori(fetchFinto(risposta({ ok: false }, 200)))).errore.tipo]);
   }
 
@@ -118,6 +119,8 @@ export async function prove(mod, { c, gruppo, radice }) {
   {
     const nomi = [...K.AZIONI_NEGOZIO];
     c("le azioni del server dei prodotti (T08) ci sono tutte", [], [...SRV.AZIONI_PRODOTTI].filter((a) => !nomi.includes(a)));
+    const esportate = ["negozio/giacenza.server:AZIONI_GIACENZA", "negozio/categorie.server:AZIONI_CATEGORIE", "negozio/interruttori.server:AZIONI_INTERRUTTORI"].flatMap((x) => { const [m, n] = x.split(":"); return mod[m]?.[n] ? [...mod[m][n]] : []; });
+    c("…e quelle esportate dai server di T09 (giacenza, categorie, interruttori), quando ci sono nel ramo", [], esportate.filter((a) => !nomi.includes(a)));
     c("…più quelle di giacenza, categorie e interruttori del contratto §3.3", [], ["giacenza_muovi", "giacenza_imposta", "categoria_salva", "categoria_ordina", "categoria_visibile", "interruttore_imposta", "prodotto_categorie"].filter((a) => !nomi.includes(a)));
     const f = fetchFinto(risposta({ ok: true, versione: "v2", storico: true }));
     const r = await K.eseguiAzione(f, "prodotto_salva", { prodottoId: ID, versione: "v1", campi: { nome: "Nuovo" } });
@@ -130,17 +133,41 @@ export async function prove(mod, { c, gruppo, radice }) {
     const f3 = fetchFinto(risposta({ ok: true }));
     const sconosciuta = await K.eseguiAzione(f3, "elimina_tutto", {});
     c("un'azione che non esiste non parte nemmeno", [false, "valore", 0], [sconosciuta.ok, sconosciuta.errore.tipo, f3.chiamate.length]);
-    const nonSalvata = await K.eseguiAzione(fetchFinto(risposta({ ok: false, motivo: "conflitto", frase: "Un'altra persona ha modificato questo prodotto." }, 409)), "prodotto_salva", { prodottoId: ID });
+    const nonSalvata = await K.eseguiAzione(fetchFinto(risposta({ ok: false, motivo: "conflitto", frase: "Un'altra persona ha modificato questo prodotto." }, 409)), "prodotto_salva", { prodottoId: ID, versione: "v1" });
     c("409 su un'azione: errore «conflitto» con la frase del server", [false, "conflitto", "Un'altra persona ha modificato questo prodotto."], [nonSalvata.ok, nonSalvata.errore.tipo, nonSalvata.errore.messaggio]);
     const bloccata = await K.eseguiAzione(fetchFinto(risposta({ ok: false, motivo: "non_pubblicabile", frase: FRASE, bloccanti: [{ campo: "fotoPrincipale", frase: FRASE }] }, 422)), "prodotto_stato", { prodottoId: ID, stato: "pubblicato" });
     c("pubblicare senza foto: l'errore porta la frase e l'elenco dei bloccanti", ["non_pubblicabile", FRASE, 1], [bloccata.errore.tipo, bloccata.errore.messaggio, bloccata.errore.bloccanti.length]);
-    const rete = await K.eseguiAzione(fetchFinto(new TypeError("Failed to fetch")), "prodotto_salva", { prodottoId: ID });
+    // la versione: le azioni che modificano ciò che la scheda ha visto la vogliono sempre (T09: categoria_salva con id, categoria_visibile, prodotto_categorie)
+    const fv = fetchFinto(risposta({ ok: true }));
+    const senzaV = [
+      await K.eseguiAzione(fv, "prodotto_salva", { prodottoId: ID, campi: {} }),
+      await K.eseguiAzione(fv, "categoria_salva", { id: ID, nome: "Patch" }),
+      await K.eseguiAzione(fv, "categoria_visibile", { id: ID, visibile: true }),
+      await K.eseguiAzione(fv, "prodotto_categorie", { prodottoId: ID, categorie: [] }),
+      await K.eseguiAzione(fv, "categoria_salva", { id: ID, nome: "Patch", versione: "" }),
+      await K.eseguiAzione(fv, "categoria_visibile", { id: ID, visibile: true, versione: 5 }),
+    ];
+    c("senza `versione` (o con una che non è testo) queste azioni non partono: «valore» con la frase, nessuna richiesta", [Array(6).fill("valore"), 0, true], [senzaV.map((x) => x.errore?.tipo), fv.chiamate.length, /versione/.test(senzaV[0].errore.messaggio)]);
+    const conV = fetchFinto(risposta({ ok: true }));
+    await K.eseguiAzione(conV, "categoria_salva", { nome: "Nuova categoria" });
+    await K.eseguiAzione(conV, "categoria_visibile", { id: ID, visibile: true, versione: "2026-11-20T10:00:00+00:00" });
+    await K.eseguiAzione(conV, "giacenza_muovi", { varianteId: ID, delta: 1, motivo: "carico" });
+    c("una categoria NUOVA (senza id) non ha versione e parte; con la versione parte; la giacenza non la vuole", 3, conV.chiamate.length);
+    const cancello = await K.eseguiAzione(fetchFinto(risposta({ ok: false, motivo: "cancello", frase: "Lo shop non si può ancora aprire. Manca la cassa.", condizioni: { puoAprire: false, righe: [{ chiave: "cassa", ok: false }] } }, 409)), "interruttore_imposta", { chiave: "catalogo_sito", atteso: "codice", nuovo: "cms" });
+    c("aprire lo shop con le condizioni non vere: errore «cancello» con la frase e le righe delle condizioni", ["cancello", "Lo shop non si può ancora aprire. Manca la cassa.", false], [cancello.errore.tipo, cancello.errore.messaggio, cancello.errore.condizioni?.puoAprire]);
+    const ar = fetchFinto(risposta(elenco(riga(1))), risposta({ ok: false, motivo: "cancello", frase: "Lo shop non si può ancora aprire.", condizioni: { puoAprire: false } }, 409), risposta(elenco(riga(1))));
+    const arch = K.creaArchivioNegozio({ fetch: ar, porte: porteFinte().porte });
+    arch.avvia(); await sfiata();
+    const rc = await arch.esegui("interruttore_imposta", { chiave: "catalogo_sito", atteso: "codice", nuovo: "cms" });
+    await sfiata();
+    c("…e l'archivio, dopo un rifiuto del cancello, rilegge (le condizioni possono essere cambiate)", [false, "cancello", 3], [rc.ok, rc.errore.tipo, ar.chiamate.length]);
+    const rete = await K.eseguiAzione(fetchFinto(new TypeError("Failed to fetch")), "prodotto_salva", { prodottoId: ID, versione: "v1" });
     c("rete caduta durante un'azione: non si sa se è stata salvata, e lo dice", ["rete", true], [rete.errore.tipo, /Non so se la modifica sia stata salvata/.test(rete.errore.messaggio)]);
     c("un'azione riuscita che porta un avviso (liberatoria revocata) lo lascia passare", [true, true, "x"], await (async () => {
       const a = await K.eseguiAzione(fetchFinto(risposta({ ok: true, avviso: "x", tornatoInBozza: true })), "media_rimuovi", { mediaId: ID, liberatoriaRevocata: true });
       return [a.ok, a.dati.tornatoInBozza, a.dati.avviso];
     })());
-    c("risposta 200 senza `ok:true` → «server», mai un finto successo", [false, "server"], ((a) => [a.ok, a.errore.tipo])(await K.eseguiAzione(fetchFinto(risposta({ ok: false })), "prodotto_salva", {})));
+    c("risposta 200 senza `ok:true` → «server», mai un finto successo", [false, "server"], ((a) => [a.ok, a.errore.tipo])(await K.eseguiAzione(fetchFinto(risposta({ ok: false })), "prodotto_salva", { versione: "v1" })));
   }
 
   // ── il permesso di caricamento e il caricamento ──
@@ -174,7 +201,7 @@ export async function prove(mod, { c, gruppo, radice }) {
     c("prima della lettura: in caricamento, niente prodotti", [true, false, []], [a.stato().inCaricamento, a.stato().caricato, a.stato().prodotti]);
     const ferma = a.avvia();
     await sfiata();
-    c("dopo la lettura: i prodotti, caricato, l'ora dell'ultima lettura buona", [2, true, false, null, p.t], [a.stato().prodotti.length, a.stato().caricato, a.stato().inCaricamento, a.stato().errore, a.stato().ultimoAggiornamento]);
+    c("dopo la lettura: i prodotti, caricato, l'ora dell'ultima lettura buona (e non troncato)", [2, true, false, null, p.t, false], [a.stato().prodotti.length, a.stato().caricato, a.stato().inCaricamento, a.stato().errore, a.stato().ultimoAggiornamento, a.stato().troncato]);
     await p.avanza(30_000);
     c("si rilegge da sola ogni 30 s a scheda visibile", 2, f.chiamate.length);
     ferma();

@@ -99,8 +99,12 @@ export async function prove(mod, { c, gruppo }) {
     a.modifica({ v: 2 });
     await b.p.avanza(5000);
     c("una modifica arrivata mentre salva NON fa partire un secondo salvataggio in parallelo", [1, 1], [b.p.salvataggi.length, b.p.picco]);
+    const insistente = a.subito();
+    await sfiata();
+    c("«Salva subito» mentre si sta già salvando non ne fa partire un altro", [1, 1], [b.p.salvataggi.length, b.p.picco]);
     sblocca();
     await sfiata(); await sfiata();
+    await insistente;
     await b.p.avanza(2000);
     c("finito il primo, la modifica nuova si salva (dopo i suoi 2 s)", [2, { v: 2 }, 1], [b.p.salvataggi.length, b.p.salvataggi[1]?.contenuto, b.p.picco]);
     sblocca?.();
