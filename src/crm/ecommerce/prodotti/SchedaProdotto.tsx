@@ -72,7 +72,7 @@ import { slugDa, type Media, type Prodotto, type Variante } from "@/shop/cms/mod
 import type { SkuUsato, Voce } from "@/shop/cms/pubblicazione";
 import { EditorMedia } from "./EditorMedia";
 import { EditorVarianti } from "./EditorVarianti";
-import { proponiSkuCopia } from "./elenco-puro";
+import { proponiCopia } from "./elenco-puro";
 import {
   SEZIONI,
   avvisiCampi,
@@ -564,12 +564,15 @@ function SchedaAperta({
   const duplica = () =>
     lavora(async () => {
       if (!(await auto.subito())) return setEsito(nonSalvato("Non ho duplicato niente."));
-      const usati = new Set(negozioRef.current.prodotti.map((r) => r.sku));
+      const skuUsati = new Set(negozioRef.current.prodotti.map((r) => r.sku));
+      const slugUsati = new Set(negozioRef.current.prodotti.map((r) => r.slug));
       let ultimo = "Non sono riuscito a duplicare il prodotto.";
       for (let prova = 0; prova < 3; prova++) {
-        const sku = proponiSkuCopia(dati.prodotto.sku, usati);
-        const r = await scrivi("prodotto_duplica", { prodottoId: id, sku });
-        usati.add(sku);
+        //  Come nell'elenco: SKU e indirizzo con lo stesso suffisso (shop_prodotti.slug è UNIQUE, senza indirizzo nuovo la seconda copia darebbe «duplicato»).
+        const { sku, slug } = proponiCopia(dati.prodotto.sku, dati.prodotto.slug, skuUsati, slugUsati);
+        const r = await scrivi("prodotto_duplica", { prodottoId: id, sku, slug });
+        skuUsati.add(sku);
+        slugUsati.add(slug);
         if (r.ok) {
           const nuovo = r.dati.prodotto as { id?: unknown } | undefined;
           return typeof nuovo?.id === "string" ? apri(nuovo.id) : apri(null);
