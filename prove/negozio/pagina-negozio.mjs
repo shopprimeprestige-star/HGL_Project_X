@@ -156,10 +156,14 @@ export async function prove(_mod, { c, gruppo, radice }) {
     const esiste = existsSync(p);
     const testo = esiste ? readFileSync(p, "utf8") : "";
     c(`${nome}.tsx esiste ed esporta \`${nome}\` con la firma finale`, true, esiste && new RegExp(`export function ${nome}\\(`).test(testo));
-    const m = esiste ? await caricaTsx(p).catch(() => ({})) : {};
+    //  T15 ha riempito SchedaProdotto ed EditorVarianti: «ritorna null» e «nessun import» valgono solo per i segnaposto che restano (T16, T17).
+    //  La firma di quei due la controlla `scheda-sorgente.mjs`.
+    const m = esiste && compito !== "T15" ? await caricaTsx(p).catch(() => ({})) : {};
+    if (compito !== "T15")
     c(`${nome} ritorna null (segnaposto: lo riempie ${compito})`, null, typeof m[nome] === "function" ? m[nome](PROPS_DI_ESEMPIO[nome]) : "non è una funzione");
     const testa = testo.slice(0, testo.indexOf("*/") + 2);
     c(`${nome}: in cima c'è il commento con le props pensate per ${compito}`, [true, true], [new RegExp(compito).test(testa), /props/i.test(testa) && /export interface Props/.test(testo)]);
+    if (compito !== "T15")
     c(`${nome}: nessun import di React o di moduli del CRM (un segnaposto non porta pesi)`, false, /^\s*import\s+(?!type\b)/m.test(senzaCommenti(testo)));
   }
 
