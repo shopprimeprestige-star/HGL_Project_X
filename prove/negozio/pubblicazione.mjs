@@ -147,6 +147,11 @@ export async function prove(mod, { c, gruppo }) {
   c("foto con persone senza liberatoria → informativo (non esce)", [[], ["media"], true], [campi(persone), persone.informativi.map((i) => i.campo), /non esce/.test(persone.informativi[0].frase)]);
   c("foto con persone e liberatoria → niente", [], vai({ media: [media(), media({ id: "m2", slot: "foto2", ritraePersone: true, liberatoriaOk: true })] }).informativi);
 
+  // ── i testi vietati valgono anche per i nomi delle varianti e per gli alt ──
+  c("nome di una variante con «sconto del» → bloccante sul campo «varianti»", ["varianti"], campi(vai({ varianti: [variante({ nome: "Oggi sconto del 20%" })] })));
+  c("alt con cifra vicino a «Invisible Derm» → bloccante sul campo «alt»", ["alt"], campi(vai({ media: [media({ alt: "Invisible Derm da 3900 €" })] })));
+  c("un alt con una parola da non usare → solo informativo", [[], ["alt"]], ((r) => [campi(r), r.informativi.map((i) => i.campo)])(vai({ media: [media({ alt: "Patch invisibile" })] })));
+
   // ── dati storti: non lancia ──
   c("tuttiGliSku mancante, passi/confezione/avvertenze/faq che non sono elenchi, contesto vuoto → nessuna eccezione", [true, true], (() => {
     const r = P.controllaPubblicazione(prodotto({ passi: "uno", confezione: { a: 1 }, avvertenze: 5, faq: "x", caratteristiche: "boh" }), [variante()], [media()], [{ id: "k1" }], { spedizioneImpostata: true });

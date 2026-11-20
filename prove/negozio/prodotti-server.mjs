@@ -352,10 +352,124 @@ export async function prove(mod, { c, gruppo, radice }) {
     c("un id che non è un id (con barre, apici) → 400 prima del database", [400, 0], await (async () => { const db = fintoDb({ tabelle: tab() }); return [(await POST(db, { azione: "prodotto_stato", prodottoId: "x'; drop", stato: "bozza" })).stato, db.chiamate]; })());
   }
 
+  // ── note del revisore (20/11/2026) ──
+  {
+    // 1 · lo smistamento delle azioni guarda solo le azioni vere, non ciò che ogni oggetto eredita
+    const db = fintoDb({ tabelle: tab() });
+    const nomi = ["constructor", "toString", "__proto__", "hasOwnProperty", "valueOf"];
+    const esiti = [];
+    for (const azione of nomi) esiti.push((await POST(db, { azione, prodottoId: P1 })).stato);
+    c("azione «constructor», «toString», «__proto__»…: 400 con la frase, database mai toccato", [nomi.map(() => 400), 0], [esiti, db.chiamate]);
+
+    // 2 · la versione è quella che il database ha scritto, e si confronta come istante
+    const pg = (iso) => iso.replace(/\.(\d{3})Z$/, ".$1456+00:00"); // come PostgREST: microsecondi e +00:00
+    const alFormatoPostgrest = (base) => ({
+      from(t) {
+        const b = base.from(t);
+        const aggiorna = b.update;
+        b.update = (patch) => aggiorna(typeof patch?.aggiornato_il === "string" ? { ...patch, aggiornato_il: pg(patch.aggiornato_il) } : patch);
+        return b;
+      },
+    });
+    const sotto = fintoDb({ tabelle: tab((t) => { t.shop_prodotti[1].aggiornato_il = "2026-11-20T10:00:00.123456+00:00"; }) });
+    const via = alFormatoPostgrest(sotto);
+    const uno = await POST(via, { azione: "prodotto_salva", prodottoId: P2, versione: "2026-11-20T10:00:00.123Z", campi: { nome: "Uno" } });
+    c("la versione scritta nel formato del database (…Z contro +00:00, microsecondi) è la stessa: 1° salvataggio ok", [200, "2026-11-20T12:00:00.000456+00:00"], [uno.stato, uno.json.versione]);
+    c("…la versione che torna è QUELLA DEL DATABASE (riletta), non l'ora del server", [true, "2026-11-20T12:00:00.000456+00:00"], [uno.json.versione !== ADESSO.toISOString(), riga(sotto, P2).aggiornato_il]);
+    const due = await POST(via, { azione: "prodotto_salva", prodottoId: P2, versione: uno.json.versione, campi: { nome: "Due" } });
+    const tre = await POST(via, { azione: "prodotto_salva", prodottoId: P2, versione: due.json.versione, campi: { nome: "Tre" } });
+    c("due salvataggi di fila con la versione che il server ha restituito: nessun 409", [200, 200, "Tre"], [due.stato, tre.stato, riga(sotto, P2).nome]);
+    c("una versione di un altro istante → 409", 409, (await POST(via, { azione: "prodotto_salva", prodottoId: P2, versione: "2026-11-20T10:00:00.123456+00:00", campi: { nome: "Quattro" } })).stato);
+    const z = fintoDb({ tabelle: tab() });
+    c("«…+00:00» e «…Z» dello stesso istante valgono lo stesso (anche per pubblicare e scartare)", [200, 200], [
+      (await POST(z, { azione: "prodotto_salva", prodottoId: P2, versione: "2026-11-20T10:00:00+00:00", campi: { nome: "Z" } })).stato,
+      (await POST(z, { azione: "prodotto_scarta_modifiche", prodottoId: P2, versione: "2026-11-20T12:00:00+00:00" })).stato]);
+    const stato = fintoDb({ tabelle: bozzaPronta });
+    const pub = await POST(stato, { azione: "prodotto_stato", prodottoId: P4, stato: "pubblicato" });
+    c("anche lo stato restituisce la versione riletta", ADESSO.toISOString(), pub.json.versione);
+
+    // 3 · i testi vietati ovunque si scrivano
+    const v = fintoDb({ tabelle: tab() });
+    const stati = [
+      (await POST(v, { azione: "prodotto_crea", nome: "Kit Invisible Derm da 3.900 €", tipo: "kit", sku: "HG-V01" })).stato,
+      (await POST(v, { azione: "variante_salva", prodottoId: P2, variante: { sku: "PROVA-002-Z", nome: "Oggi sconto del 20%" } })).stato,
+      (await POST(v, { azione: "variante_salva", prodottoId: P2, variante: { id: uuid(0x301), nome: "Con risparmi sicuri" } })).stato,
+      (await POST(v, { azione: "media_alt", mediaId: uuid(0x400), alt: "Invisible Derm 3900 euro" })).stato,
+      (await POST(v, { azione: "media_registra", prodottoId: P2, slot: "foto2", alt: "sconto del 10%", path480: "p/a-480.webp", path960: "p/a-960.webp", path1600: "p/a-1600.webp" })).stato,
+      (await POST(v, { azione: "media_flag", mediaId: uuid(0x400), flag: { testoParlato: "Invisible Derm costa 3900 euro" } })).stato,
+    ];
+    c("cifra vicino a «Invisible Derm» o «sconto del»: rifiutati nel nome del prodotto, della variante, nell'alt e nel testo parlato", [Array(6).fill(400), 0], [stati, v.scritture.length]);
+    const pubVariante = fintoDb({ tabelle: tab(completo(4), (t) => { t.shop_varianti.find((x) => x.prodotto_id === P4).nome = "Offerta: sconto del 30%"; }) });
+    const rv = await POST(pubVariante, { azione: "prodotto_stato", prodottoId: P4, stato: "pubblicato" });
+    c("pubblicare con un nome di variante vietato → rifiutato (campo «varianti»)", [422, ["varianti"], 0], [rv.stato, rv.json.bloccanti?.map((b) => b.campo), pubVariante.scritture.length]);
+    const pubAlt = fintoDb({ tabelle: tab(completo(4), (t) => { t.shop_media.find((x) => x.prodotto_id === P4).alt = "Invisible Derm da 3900 €"; }) });
+    const ra = await POST(pubAlt, { azione: "prodotto_stato", prodottoId: P4, stato: "pubblicato" });
+    c("pubblicare con un alt vietato → rifiutato (campo «alt»)", [422, ["alt"]], [ra.stato, ra.json.bloccanti?.map((b) => b.campo)]);
+
+    // 4 · la bozza di modifica rimasta indietro non si applica mai sopra valori più nuovi
+    const b1 = fintoDb({ tabelle: tab() });
+    await POST(b1, { azione: "prodotto_salva", prodottoId: P1, versione: ISTANTE, campi: { nome: "Nome della vecchia bozza" } });
+    const giu = await POST(b1, { azione: "prodotto_stato", prodottoId: P1, stato: "bozza" });
+    c("un pubblicato con una bozza di modifica torna in bozza: la bozza si azzera", [true, null, null, "bozza"], [giu.json.ok, riga(b1, P1).bozza_modifiche, riga(b1, P1).bozza_modificata_il, riga(b1, P1).stato]);
+    await POST(b1, { azione: "prodotto_salva", prodottoId: P1, versione: giu.json.versione, campi: { nome: "Nome più recente" } });
+    const su = await POST(b1, { azione: "prodotto_stato", prodottoId: P1, stato: "pubblicato" });
+    c("…ripubblicato, il nome è quello PIÙ RECENTE (la bozza vecchia non lo sovrascrive)", [true, "Nome più recente"], [su.json.ok, riga(b1, P1).nome]);
+    c("…e «Pubblica le modifiche» non ha più niente da applicare", 400, (await POST(b1, { azione: "prodotto_pubblica_modifiche", prodottoId: P1 })).stato);
+    c("…con la riga di storico che dice che la bozza è stata scartata", true, storicoDi(b1).some((x) => x.campo === "bozza" && x.dopo === null && x.prima?.nome === "Nome della vecchia bozza"));
+    const b2 = fintoDb({ tabelle: tab((t) => { Object.assign(t.shop_prodotti[1], { bozza_modifiche: { nome: "Nome stantio" }, bozza_modificata_il: ISTANTE }); }) });
+    await POST(b2, { azione: "prodotto_salva", prodottoId: P2, versione: ISTANTE, campi: { rigaPresentazione: "Una riga" } });
+    c("una bozza che salva le colonne vive con una bozza di modifica rimasta: la bozza di modifica si azzera", [null, "Una riga"], [riga(b2, P2).bozza_modifiche, riga(b2, P2).riga_presentazione]);
+    const b3 = fintoDb({ tabelle: tab((t) => { Object.assign(t.shop_media[0], { ritrae_persone: true, liberatoria_ok: true }); Object.assign(t.shop_prodotti[0], { bozza_modifiche: { nome: "Bozza" }, bozza_modificata_il: ISTANTE }); }) });
+    await POST(b3, { azione: "media_flag", mediaId: uuid(0x400), flag: { liberatoriaOk: false } });
+    c("il ritiro per liberatoria riporta in bozza E azzera la bozza di modifica", ["bozza", null], [riga(b3, P1).stato, riga(b3, P1).bozza_modifiche]);
+    const b4 = fintoDb({ tabelle: tab() });
+    await POST(b4, { azione: "prodotto_salva", prodottoId: P1, versione: ISTANTE, campi: { nome: "Bozza" } });
+    await POST(b4, { azione: "prodotto_stato", prodottoId: P1, stato: "archiviato" });
+    c("archiviare azzera la bozza di modifica", [null, "archiviato"], [riga(b4, P1).bozza_modifiche, riga(b4, P1).stato]);
+
+    // gruppo: al massimo 20
+    const g20 = fintoDb({ tabelle: tab() });
+    const venti = Array.from({ length: 20 }, (_, i) => uuid(0x900 + i));
+    const r20 = await POST(g20, { azione: "gruppo_stato", ids: venti, stato: "pubblicato" });
+    const r21 = await POST(g20, { azione: "gruppo_stato", ids: [...venti, uuid(0x999)], stato: "pubblicato" });
+    c("gruppo_stato: 20 prodotti sì (anche se non esistono: restano con il motivo), 21 → 400 con la frase", [200, 20, 400, true], [r20.stato, r20.json.restano.length, r21.stato, /al massimo 20/.test(r21.json.frase)]);
+
+    // ritiro: va in bozza solo se è stato il ritiro a renderlo non pubblicabile
+    const gia = fintoDb({ tabelle: tab((t) => { t.shop_prodotti_categorie.length = 0; t.shop_media.push(mediaProva({ id: uuid(0x4f5), prodotto_id: P1, slot: "foto2", ritrae_persone: true, liberatoria_ok: true })); }) });
+    const rg = await POST(gia, { azione: "media_flag", mediaId: uuid(0x4f5), flag: { liberatoriaOk: false } });
+    c("un pubblicato che era GIÀ non pubblicabile per un'altra ragione (niente categoria) e perde una foto non principale per liberatoria: resta com'è, nessun avviso", ["pubblicato", undefined], [riga(gia, P1).stato, rg.json.avviso]);
+
+    // sottoRuolo
+    const sr = fintoDb({ tabelle: tab() });
+    const reg = async (sottoRuolo) => (await POST(sr, { azione: "media_registra", prodottoId: P2, slot: "foto3", sottoRuolo, alt: "Una foto", path480: "p/a-480.webp", path960: "p/a-960.webp", path1600: "p/a-1600.webp" })).stato;
+    c("sottoRuolo: uno vero passa, uno inventato o un numero → 400", [200, 400, 400], [await reg("retro_base"), await reg("boh"), await reg(7)]);
+  }
+
+  // ── gli SKU si chiedono al database, e l'elenco dice quando è troncato ──
+  {
+    const molti = (n) => (t) => {
+      for (let i = 0; i < n; i++) t.shop_prodotti.push(prodottoProva({ id: uuid(0x10000 + i), sku: `MASSA-${i}`, slug: `massa-${i}`, nome: `Massa ${i}`, stato: "bozza", pubblicato_il: null, id_codice: null }));
+    };
+    const grande = fintoDb({ tabelle: tab(molti(1500)) });
+    const dup = await POST(grande, { azione: "prodotto_crea", nome: "Doppione", tipo: "cura", sku: "MASSA-1400" });
+    c("uno SKU già usato da uno dei 1500 prodotti (oltre ogni tetto di lettura) è trovato lo stesso: 409", [409, "duplicato"], [dup.stato, dup.json.motivo]);
+    const sku = fintoDb({ tabelle: tab() });
+    await POST(sku, { azione: "prodotto_crea", nome: "Nuovo", tipo: "cura", sku: "HG-N01" });
+    const letture = sku.registro.filter((x) => x.op === "select" && /sku/.test(x.cols ?? ""));
+    c("la verifica dello SKU interroga il database per QUELLO SKU (filtro `in`), senza caricare l'elenco", [true, true], [
+      letture.length >= 2 && letture.every((x) => x.filtri.some(([t, col, val]) => t === "in" && col === "sku" && val.length === 1 && val[0] === "HG-N01")),
+      sku.registro.every((x) => !(x.tab === "shop_prodotti" && x.op === "select" && x.cols === "*" && x.limite === 1000)),
+    ]);
+    const el = (await GET(fintoDb({ tabelle: tab(molti(1000)) }), "?prodotti")).json;
+    c("elenco oltre il tetto di 1000 prodotti: `troncato: true`, e non si mostrano più di 1000 righe", [true, 1000], [el.troncato, el.prodotti.length]);
+    c("elenco sotto il tetto: `troncato: false`", false, (await GET(fintoDb({ tabelle: tab() }), "?prodotti")).json.troncato);
+  }
+
   // ── il sorgente ──
   {
     const src = readFileSync(join(radice, "src/crm/negozio/prodotti.server.ts"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
     c("il sorgente: nessun delete, nessun process.env, nessun console, nessun client creato qui", [false, false, false, false], [/\.delete\(|\bDELETE\b/.test(src), /process\.env/.test(src), /console\./.test(src), /client\.server|createClient/.test(src)]);
+    c("il sorgente: lo smistamento usa `hasOwnProperty`, mai `in`", [true, false], [/hasOwnProperty\.call\(AZIONI/.test(src), /azione in AZIONI/.test(src)]);
     c("il sorgente: la guardia viene prima di leggere il corpo (POST) e i parametri (GET)", [true, true], [src.indexOf("d.guardia(request)") < src.indexOf("request.text()"), src.indexOf("d.guardia(request)") < src.indexOf("new URL(request.url).searchParams")]);
   }
 }

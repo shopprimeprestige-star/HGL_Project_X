@@ -22,6 +22,7 @@
 import {
   MAX_CENT,
   SLOT,
+  SOTTO_RUOLI,
   TETTI,
   combinazioni,
   normalizzaCaratteristiche,
@@ -62,6 +63,7 @@ export interface Costruttore extends PromiseLike<EsitoDb> {
   insert(righe: Record<string, unknown> | Record<string, unknown>[]): Costruttore;
   update(patch: Record<string, unknown>): Costruttore;
   eq(colonna: string, valore: unknown): Costruttore;
+  in(colonna: string, valori: string[]): Costruttore;
   is(colonna: string, valore: null): Costruttore;
   order(colonna: string, opzioni?: { ascending?: boolean }): Costruttore;
   limit(n: number): Costruttore;
@@ -91,7 +93,8 @@ export const AZIONI_PRODOTTI = [
 
 const MANCANTI = ["42703", "42P01", "PGRST204", "PGRST205", "PGRST202"];
 const MAX_CORPO = 100_000;
-const MAX_GRUPPO = 100;
+/** Ogni prodotto pubblicato è una scrittura con i suoi controlli: poche per richiesta. */
+const MAX_GRUPPO = 20;
 const MAX_VARIANTI = 50;
 /** shortcut: l'elenco legge fino a questo numero di prodotti (il catalogo parte da 33); si pagina se un giorno serve. */
 const MAX_PRODOTTI = 1000;
@@ -167,17 +170,22 @@ async function carica(d: DipendenzeProdotti, id: unknown): Promise<Stato> {
   };
 }
 
-/** Tutti gli SKU in uso, di prodotti e di varianti, col prodotto a cui appartengono. */
-async function skuNoti(d: DipendenzeProdotti): Promise<SkuNoto[]> {
+/** Gli SKU `skus` che sono già in uso, di prodotti e di varianti, col prodotto a cui appartengono. Si chiede al database
+ *  proprio di QUEGLI SKU (non si carica un elenco): vale anche con un catalogo che supera ogni tetto. */
+async function skuNoti(d: DipendenzeProdotti, skus: readonly string[]): Promise<SkuNoto[]> {
+  const lista = [...new Set(skus.filter((x): x is string => typeof x === "string" && x !== ""))];
+  if (!lista.length) return [];
   const [p, v] = await Promise.all([
-    q(d, "sku", d.db.from("shop_prodotti").select("id,sku").limit(MAX_PRODOTTI)),
-    q(d, "sku", d.db.from("shop_varianti").select("id,prodotto_id,sku").limit(MAX_PRODOTTI * 5)),
+    q(d, "sku", d.db.from("shop_prodotti").select("id,sku").in("sku", lista)),
+    q(d, "sku", d.db.from("shop_varianti").select("id,prodotto_id,sku").in("sku", lista)),
   ]);
   return [
     ...righe(p).flatMap((r) => (typeof r.id === "string" && typeof r.sku === "string" ? [{ sku: r.sku, prodottoId: r.id, varianteId: null }] : [])),
     ...righe(v).flatMap((r) => (typeof r.id === "string" && typeof r.prodotto_id === "string" && typeof r.sku === "string" ? [{ sku: r.sku, prodottoId: r.prodotto_id, varianteId: r.id }] : [])),
   ];
 }
+/** Gli SKU di un prodotto: il suo e quelli delle sue varianti. */
+const skusDi = (s: Stato): string[] => [s.prodotto.sku, ...s.varianti.map((v) => v.sku)];
 
 /** Gli stessi controlli del pannello «Prima di pubblicare». Nel R1 la spedizione non è ancora valutabile (`null`). */
 const controlla = (s: Stato, tutti: readonly SkuUsato[]): EsitoPubblicazione =>
@@ -317,10 +325,7 @@ function validaCampi(campi: unknown): Record<string, unknown> {
     const f = VALIDA[k];
     if (!f) throw valore(`Il campo «${k}» non si può cambiare così.`);
     fuori[k] = f(v);
-    for (const t of testiDi(fuori[k])) {
-      const b = controllaTesto(t).bloccanti[0];
-      if (b) throw valore(b.frase);
-    }
+    nessunTestoVietato(fuori[k]);
   }
   return fuori;
 }
@@ -361,15 +366,32 @@ async function registra(c: Ctx, rr: ReturnType<typeof rigaStorico>[]): Promise<b
     return false;
   }
 }
-/** Scrive il prodotto solo se nessuno l'ha toccato dopo la `versione` letta (0 righe = 409). */
+/** Due versioni sono la stessa se sono lo stesso ISTANTE: `…Z` e `…+00:00` (il formato di PostgREST) non sono due versioni. */
+const stessaVersione = (a: unknown, b: unknown): boolean =>
+  typeof a === "string" && typeof b === "string" && (a === b || (Number.isFinite(Date.parse(a)) && Date.parse(a) === Date.parse(b)));
+
+/** Scrive il prodotto solo se nessuno l'ha toccato dopo la `versione` letta (0 righe = 409). Restituisce la versione nuova
+ *  COME L'HA SCRITTA IL DATABASE (riletta, non quella che gli abbiamo mandato). */
 async function scriviProdotto(c: Ctx, s: Stato, patch: Record<string, unknown>): Promise<string> {
-  const r = await q(
-    c.d,
-    "prodotto",
-    c.d.db.from("shop_prodotti").update({ ...patch, aggiornato_il: c.ora }).eq("id", s.prodotto.id).eq("aggiornato_il", s.riga.aggiornato_il).select("id"),
+  const r = righe(
+    await q(
+      c.d,
+      "prodotto",
+      c.d.db.from("shop_prodotti").update({ ...patch, aggiornato_il: c.ora }).eq("id", s.prodotto.id).eq("aggiornato_il", s.riga.aggiornato_il).select("aggiornato_il"),
+    ),
   );
-  if (righe(r).length === 0) throw CONFLITTO();
-  return c.ora;
+  if (r.length === 0) throw CONFLITTO();
+  return typeof r[0].aggiornato_il === "string" ? r[0].aggiornato_il : c.ora;
+}
+/** La bozza di modifica rimasta indietro non deve MAI essere applicata sopra valori più recenti: quando il prodotto cambia stato o si scrivono le colonne vive, si azzera. */
+const AZZERA_BOZZA = { bozza_modifiche: null, bozza_modificata_il: null };
+
+/** Un testo che non si può scrivere (cifre vicino a «Invisible Derm», sconti) è un rifiuto, ovunque stia. */
+function nessunTestoVietato(...valori: unknown[]): void {
+  for (const t of testiDi(valori)) {
+    const b = controllaTesto(t).bloccanti[0];
+    if (b) throw valore(b.frase);
+  }
 }
 
 /** Il prodotto com'è dopo aver messo i campi (camelCase) sopra. */
@@ -385,8 +407,8 @@ const prodotto_crea: Azione = async (c, corpo) => {
   const tipo = VALIDA.tipo(corpo.tipo) as string;
   const sku = VALIDA.sku(corpo.sku) as string;
   const slug = VALIDA.slug(corpo.slug ?? slugDa(nome)) as string;
-  const tutti = await skuNoti(c.d);
-  if (!skuLibero(sku, tutti, null)) throw rifiuta("duplicato", 409, `Lo SKU “${sku}” è già usato da un altro prodotto.`);
+  nessunTestoVietato(nome);
+  if (!skuLibero(sku, await skuNoti(c.d, [sku]), null)) throw rifiuta("duplicato", 409, `Lo SKU “${sku}” è già usato da un altro prodotto.`);
   const r = righe(await q(c.d, "crea", c.d.db.from("shop_prodotti").insert({ sku, slug, nome, tipo, stato: "bozza", prezzo_cent: 0, creato_il: c.ora, aggiornato_il: c.ora }).select("*")))[0];
   const p = r && prodottoDaRiga(r);
   if (!p) throw rifiuta("interno", 500, "Il prodotto non è stato creato: riprova.");
@@ -396,12 +418,12 @@ const prodotto_crea: Azione = async (c, corpo) => {
 
 const prodotto_salva: Azione = async (c, corpo) => {
   const s = await carica(c.d, corpo.prodottoId);
-  if (typeof corpo.versione !== "string" || corpo.versione !== s.riga.aggiornato_il) throw CONFLITTO();
+  if (!stessaVersione(corpo.versione, s.riga.aggiornato_il)) throw CONFLITTO();
   const nuovi = validaCampi(corpo.campi);
   const pubblicato = s.prodotto.stato === "pubblicato";
   if (("sku" in nuovi || "slug" in nuovi) && s.prodotto.pubblicatoIl)
     throw valore("Lo SKU e l'indirizzo di un prodotto già pubblicato non si cambiano: i collegamenti e gli ordini li usano.");
-  if ("sku" in nuovi && !skuLibero(nuovi.sku as string, await skuNoti(c.d), s.prodotto.id))
+  if ("sku" in nuovi && !skuLibero(nuovi.sku as string, await skuNoti(c.d, [nuovi.sku as string]), s.prodotto.id))
     throw rifiuta("duplicato", 409, `Lo SKU “${nuovi.sku}” è già usato da un altro prodotto.`);
   if ((nuovi.boxConsulenza ?? effettivo(s, "boxConsulenza")) === true && (nuovi.tipo ?? effettivo(s, "tipo")) !== "patch")
     throw valore("Il box consulenza si mostra solo sulle patch.");
@@ -419,8 +441,16 @@ const prodotto_salva: Azione = async (c, corpo) => {
   }
   if (!righeStorico.length) return { cambiati: [], versione: s.prodotto.aggiornatoIl, bozza: false, storico: true };
 
-  if (Object.keys(vivi).length) nonPeggiora(s, conCampi(s, vivi), await skuNoti(c.d));
+  if (Object.keys(vivi).length) {
+    const dopo = conCampi(s, vivi);
+    nonPeggiora(s, dopo, await skuNoti(c.d, [...skusDi(s), ...skusDi(dopo)]));
+  }
   const patch = inColonne(vivi, s.riga.contenuto);
+  // un prodotto che non è sul sito scrive le colonne vive: una bozza di modifica rimasta indietro non deve più essere applicata
+  if (!pubblicato && s.prodotto.bozzaModifiche) {
+    Object.assign(patch, AZZERA_BOZZA);
+    righeStorico.push(rigaStorico(c, "prodotto", s.prodotto.id, "bozza", s.prodotto.bozzaModifiche, null));
+  }
   if (Object.keys(inBozza).length) {
     patch.bozza_modifiche = { ...(s.prodotto.bozzaModifiche ?? {}), ...inBozza };
     patch.bozza_modificata_il = c.ora;
@@ -433,25 +463,25 @@ const prodotto_salva: Azione = async (c, corpo) => {
 /** Applica la bozza di modifica ai campi vivi, se i controlli lo permettono. */
 const prodotto_pubblica_modifiche: Azione = async (c, corpo) => {
   const s = await carica(c.d, corpo.prodottoId);
-  if (corpo.versione !== undefined && corpo.versione !== s.riga.aggiornato_il) throw CONFLITTO();
+  if (corpo.versione !== undefined && !stessaVersione(corpo.versione, s.riga.aggiornato_il)) throw CONFLITTO();
   const bozza = s.prodotto.bozzaModifiche;
   if (s.prodotto.stato !== "pubblicato" || !bozza || !Object.keys(bozza).length) throw valore("Non ci sono modifiche da pubblicare.");
   const campi = validaCampi(Object.fromEntries(Object.entries(bozza).filter(([k]) => (CAMPI_BOZZA as readonly string[]).includes(k))));
   if ((campi.boxConsulenza ?? s.prodotto.boxConsulenza) === true && (campi.tipo ?? s.prodotto.tipo) !== "patch") throw valore("Il box consulenza si mostra solo sulle patch.");
   const dopo = conCampi(s, campi);
-  const esito = controlla(dopo, await skuNoti(c.d));
+  const esito = controlla(dopo, await skuNoti(c.d, skusDi(dopo)));
   if (esito.bloccanti.length) throw rifiuta("non_pubblicabile", 422, `${esito.bloccanti[0].frase} Le modifiche restano in bozza.`, { bloccanti: esito.bloccanti });
   const cambiati = Object.entries(campi).filter(([k, v]) => !uguali(effettivo(s, k), v));
-  const versione = await scriviProdotto(c, s, { ...inColonne(campi, s.riga.contenuto), bozza_modifiche: null, bozza_modificata_il: null });
+  const versione = await scriviProdotto(c, s, { ...inColonne(campi, s.riga.contenuto), ...AZZERA_BOZZA });
   const storico = await registra(c, cambiati.map(([k, v]) => rigaStorico(c, "prodotto", s.prodotto.id, k, effettivo(s, k), v)));
   return { cambiati: cambiati.map(([k]) => k), versione, storico };
 };
 
 const prodotto_scarta_modifiche: Azione = async (c, corpo) => {
   const s = await carica(c.d, corpo.prodottoId);
-  if (corpo.versione !== undefined && corpo.versione !== s.riga.aggiornato_il) throw CONFLITTO();
+  if (corpo.versione !== undefined && !stessaVersione(corpo.versione, s.riga.aggiornato_il)) throw CONFLITTO();
   if (!s.prodotto.bozzaModifiche) return { versione: s.prodotto.aggiornatoIl, storico: true };
-  const versione = await scriviProdotto(c, s, { bozza_modifiche: null, bozza_modificata_il: null });
+  const versione = await scriviProdotto(c, s, AZZERA_BOZZA);
   const storico = await registra(c, [rigaStorico(c, "prodotto", s.prodotto.id, "bozza", s.prodotto.bozzaModifiche, null)]);
   return { versione, storico };
 };
@@ -460,25 +490,27 @@ const prodotto_scarta_modifiche: Azione = async (c, corpo) => {
 async function cambiaStato(c: Ctx, id: unknown, nuovo: unknown, versione?: unknown): Promise<Record<string, unknown>> {
   if (typeof nuovo !== "string" || !STATI.includes(nuovo)) throw valore("Lo stato deve essere bozza, pubblicato o archiviato.");
   const s = await carica(c.d, id);
-  if (versione !== undefined && versione !== s.riga.aggiornato_il) throw CONFLITTO();
+  if (versione !== undefined && !stessaVersione(versione, s.riga.aggiornato_il)) throw CONFLITTO();
   if (s.prodotto.stato === nuovo) return { versione: s.prodotto.aggiornatoIl, cambiato: false, storico: true };
   if (nuovo === "pubblicato") {
     if (s.prodotto.origine === "codice") throw rifiuta("non_pubblicabile", 422, "Prima usa questo prodotto dal «Vecchio catalogo»: poi puoi completarlo e pubblicarlo.");
-    const esito = controlla(s, await skuNoti(c.d));
+    const esito = controlla(s, await skuNoti(c.d, skusDi(s)));
     if (esito.bloccanti.length) {
       const mancano = esito.bloccanti.length;
       throw rifiuta("non_pubblicabile", 422, mancano === 1 ? esito.bloccanti[0].frase : `Mancano ${mancano} cose: ${esito.bloccanti[0].frase}`, { bloccanti: esito.bloccanti });
     }
   }
-  const versioneNuova = await scriviProdotto(c, s, { stato: nuovo, ...(nuovo === "pubblicato" && !s.prodotto.pubblicatoIl ? { pubblicato_il: c.ora } : {}) });
-  const storico = await registra(c, [rigaStorico(c, "prodotto", s.prodotto.id, "stato", s.prodotto.stato, nuovo)]);
+  // chi torna in bozza (o si archivia, o si pubblica da bozza) lascia dietro la bozza di modifica: le colonne vive sono le uniche valide
+  const conBozza = s.prodotto.bozzaModifiche !== null;
+  const versioneNuova = await scriviProdotto(c, s, { stato: nuovo, ...(nuovo === "pubblicato" && !s.prodotto.pubblicatoIl ? { pubblicato_il: c.ora } : {}), ...(conBozza ? AZZERA_BOZZA : {}) });
+  const storico = await registra(c, [rigaStorico(c, "prodotto", s.prodotto.id, "stato", s.prodotto.stato, nuovo), ...(conBozza ? [rigaStorico(c, "prodotto", s.prodotto.id, "bozza", s.prodotto.bozzaModifiche, null)] : [])]);
   return { versione: versioneNuova, cambiato: true, storico };
 }
 const prodotto_stato: Azione = (c, corpo) => cambiaStato(c, corpo.prodottoId, corpo.stato, corpo.versione);
 
 const gruppo_stato: Azione = async (c, corpo) => {
   const ids = corpo.ids;
-  if (!Array.isArray(ids) || ids.length === 0 || ids.length > MAX_GRUPPO || !ids.every(eId)) throw valore(`Scegli da 1 a ${MAX_GRUPPO} prodotti.`);
+  if (!Array.isArray(ids) || ids.length === 0 || ids.length > MAX_GRUPPO || !ids.every(eId)) throw valore(`Si possono cambiare al massimo ${MAX_GRUPPO} prodotti alla volta: scegline meno e ripeti.`);
   if (corpo.stato !== "pubblicato" && corpo.stato !== "bozza") throw valore("Qui si può solo pubblicare o rimettere in bozza.");
   let cambiati = 0;
   const restano: { id: string; motivo: string }[] = [];
@@ -505,8 +537,8 @@ const prodotto_adotta: Azione = async (c, corpo) => {
 const prodotto_duplica: Azione = async (c, corpo) => {
   const s = await carica(c.d, corpo.prodottoId);
   const sku = VALIDA.sku(corpo.sku) as string;
-  const tutti = await skuNoti(c.d);
   const nuoviSku = s.varianti.map((v, k) => ({ v, sku: (v.sku.startsWith(s.prodotto.sku) ? sku + v.sku.slice(s.prodotto.sku.length) : `${sku}-${k + 1}`).slice(0, 40) }));
+  const tutti = await skuNoti(c.d, [sku, ...nuoviSku.map((n) => n.sku)]);
   for (const x of [sku, ...nuoviSku.map((n) => n.sku)])
     if (!skuValido(x) || !skuLibero(x, tutti, null)) throw rifiuta("duplicato", 409, `Lo SKU “${x}” non è valido o è già usato da un altro prodotto.`);
   const slug = VALIDA.slug(corpo.slug ?? slugDa(`${s.prodotto.nome} copia`)) as string;
@@ -574,7 +606,8 @@ const variante_salva: Azione = async (c, corpo) => {
   const nuovi = Object.fromEntries(Object.entries(campi).map(([k, v]) => [k, VALIDA_VARIANTE[k](v)]));
   if (!esistente && (typeof nuovi.sku !== "string" || typeof nuovi.nome !== "string")) throw valore("Una variante nuova ha bisogno di SKU e nome.");
   if (!esistente && s.varianti.length >= MAX_VARIANTI) throw valore(`Un prodotto ha al massimo ${MAX_VARIANTI} varianti.`);
-  const tutti = await skuNoti(c.d);
+  nessunTestoVietato(nuovi.nome, nuovi.opzioni);
+  const tutti = await skuNoti(c.d, [...skusDi(s), ...(typeof nuovi.sku === "string" ? [nuovi.sku] : [])]);
   if (typeof nuovi.sku === "string" && nuovi.sku !== esistente?.sku && !skuVarianteLibero(nuovi.sku, s.prodotto.id, esistente?.id ?? null, tutti))
     throw rifiuta("duplicato", 409, `Lo SKU “${nuovi.sku}” è già usato da un altro prodotto o da un'altra variante.`);
 
@@ -608,7 +641,7 @@ const varianti_genera: Azione = async (c, corpo) => {
   const noti = new Set(s.varianti.map((v) => v.sku));
   const nuove = g.varianti.filter((v) => !noti.has(v.sku));
   if (s.varianti.length + nuove.length > MAX_VARIANTI) throw valore(`Un prodotto ha al massimo ${MAX_VARIANTI} varianti.`);
-  const tutti = await skuNoti(c.d);
+  const tutti = await skuNoti(c.d, [...skusDi(s), ...nuove.map((v) => v.sku)]);
   const occupato = nuove.find((v) => !skuVarianteLibero(v.sku, s.prodotto.id, null, tutti));
   if (occupato) throw rifiuta("duplicato", 409, `Lo SKU “${occupato.sku}” è già usato da un altro prodotto: cambia lo SKU del prodotto o i valori.`);
   if (!nuove.length) return { create: [], esistenti: g.varianti.length, storico: true };
@@ -627,7 +660,7 @@ const variante_attiva: Azione = async (c, corpo) => {
   const v = s.varianti.find((x) => x.id === corpo.varianteId);
   if (!v) throw rifiuta("non_trovato", 404, "Variante non trovata.");
   if (v.attiva === corpo.attiva) return { storico: true };
-  nonPeggiora(s, { ...s, varianti: s.varianti.map((x) => (x.id === v.id ? { ...x, attiva: corpo.attiva as boolean } : x)) }, await skuNoti(c.d));
+  nonPeggiora(s, { ...s, varianti: s.varianti.map((x) => (x.id === v.id ? { ...x, attiva: corpo.attiva as boolean } : x)) }, await skuNoti(c.d, skusDi(s)));
   await q(c.d, "attiva", c.d.db.from("shop_varianti").update({ attiva: corpo.attiva, aggiornato_il: c.ora }).eq("id", v.id).eq("prodotto_id", s.prodotto.id).select("id"));
   return { storico: await registra(c, [rigaStorico(c, "variante", v.id, "attiva", v.attiva, corpo.attiva)]) };
 };
@@ -640,10 +673,13 @@ const percorso = (nome: string) => (v: unknown) => {
 };
 const altOk = testoOpz("Testo alternativo", TETTI.alt);
 
-/** Il ritiro di una foto per liberatoria revocata: se il prodotto resta non pubblicabile, torna in bozza (con un avviso) invece di rifiutare. */
+/** Il ritiro di una foto per liberatoria revocata: se è STATO IL RITIRO a rendere il prodotto non pubblicabile (non una cosa che mancava già),
+ *  il prodotto torna in bozza (con un avviso) invece di rifiutare. */
 async function ritiroPerLiberatoria(c: Ctx, s: Stato, dopo: Stato, tutti: readonly SkuUsato[]): Promise<string | null> {
-  if (s.prodotto.stato !== "pubblicato" || controlla(dopo, tutti).bloccanti.length === 0) return null;
-  await q(c.d, "bozza", c.d.db.from("shop_prodotti").update({ stato: "bozza", aggiornato_il: c.ora }).eq("id", s.prodotto.id).eq("stato", "pubblicato").select("id"));
+  if (s.prodotto.stato !== "pubblicato") return null;
+  const vecchi = new Set(controlla(s, tutti).bloccanti.map(chiaveVoce));
+  if (!controlla(dopo, tutti).bloccanti.some((b) => !vecchi.has(chiaveVoce(b)))) return null;
+  await q(c.d, "bozza", c.d.db.from("shop_prodotti").update({ stato: "bozza", aggiornato_il: c.ora, ...AZZERA_BOZZA }).eq("id", s.prodotto.id).eq("stato", "pubblicato").select("id"));
   await registra(c, [rigaStorico(c, "prodotto", s.prodotto.id, "stato", "pubblicato", "bozza")]);
   return "La foto è stata ritirata perché manca la liberatoria. Senza una foto principale valida il prodotto non può stare sul sito: è tornato in bozza.";
 }
@@ -654,6 +690,8 @@ const media_registra: Azione = async (c, corpo) => {
   const slot = corpo.slot;
   const video = slot === "video";
   const alt = altOk(corpo.alt ?? null);
+  if (corpo.sottoRuolo != null && !(SOTTO_RUOLI as readonly string[]).includes(corpo.sottoRuolo as string)) throw valore("Il ruolo della foto non esiste.");
+  nessunTestoVietato(alt, corpo.testoParlato);
   const riga: Record<string, unknown> = {
     prodotto_id: s.prodotto.id, slot, tipo: video ? "video" : "foto", sotto_ruolo: corpo.sottoRuolo ?? null, alt: alt ?? "",
     ordine: s.media.length + 1, creato_il: c.ora,
@@ -680,7 +718,7 @@ const media_registra: Azione = async (c, corpo) => {
   const vecchie = s.media.filter((m) => m.slot === slot && (slot !== "campione" || m.valoreOpzione === riga.valore_opzione));
   const nuova = mediaDaRiga({ ...riga, id: "nuova" });
   if (!nuova) throw valore("La foto non è valida.");
-  const tutti = await skuNoti(c.d);
+  const tutti = await skuNoti(c.d, skusDi(s));
   nonPeggiora(s, { ...s, media: [...s.media.filter((m) => !vecchie.includes(m)), nuova] }, tutti);
   const messa = righe(await q(c.d, "media", c.d.db.from("shop_media").insert(riga).select("*")))[0];
   const m = messa && mediaDaRiga(messa);
@@ -712,8 +750,9 @@ async function caricaDaMedia(d: DipendenzeProdotti, mediaId: unknown): Promise<{
 const media_alt: Azione = async (c, corpo) => {
   const { s, m } = await caricaDaMedia(c.d, corpo.mediaId);
   const alt = altOk(corpo.alt) ?? "";
+  nessunTestoVietato(alt);
   if (alt === m.alt) return { storico: true };
-  nonPeggiora(s, { ...s, media: s.media.map((x) => (x.id === m.id ? { ...x, alt } : x)) }, await skuNoti(c.d));
+  nonPeggiora(s, { ...s, media: s.media.map((x) => (x.id === m.id ? { ...x, alt } : x)) }, await skuNoti(c.d, skusDi(s)));
   await q(c.d, "media", c.d.db.from("shop_media").update({ alt }).eq("id", m.id).select("id"));
   return { storico: await registra(c, [rigaStorico(c, "media", m.id, "alt", m.alt, alt)]) };
 };
@@ -727,11 +766,12 @@ const media_flag: Azione = async (c, corpo) => {
   const dati = oggetto(corpo.flag);
   if (!dati || !Object.keys(dati).length || Object.keys(dati).some((k) => !FLAG[k])) throw valore("Non so quali caratteristiche della foto cambiare.");
   const nuovi = Object.fromEntries(Object.entries(dati).map(([k, v]) => [k, FLAG[k][1](v)]));
+  nessunTestoVietato(nuovi.testoParlato);
   const attuale = m as unknown as Record<string, unknown>;
   const cambi = Object.entries(nuovi).filter(([k, v]) => !uguali(attuale[k], v));
   if (!cambi.length) return { storico: true };
   const dopo: Stato = { ...s, media: s.media.map((x) => (x.id === m.id ? { ...x, ...Object.fromEntries(cambi) } : x)) };
-  const tutti = await skuNoti(c.d);
+  const tutti = await skuNoti(c.d, skusDi(s));
   // togliere la liberatoria (o dire che ritrae persone) è un ritiro: non si rifiuta, se serve il prodotto torna in bozza
   const ritiro = nuovi.liberatoriaOk === false || nuovi.ritraePersone === true;
   if (!ritiro) nonPeggiora(s, dopo, tutti);
@@ -744,7 +784,7 @@ const media_flag: Azione = async (c, corpo) => {
 const media_rimuovi: Azione = async (c, corpo) => {
   const { s, m } = await caricaDaMedia(c.d, corpo.mediaId);
   const dopo: Stato = { ...s, media: s.media.filter((x) => x.id !== m.id) };
-  const tutti = await skuNoti(c.d);
+  const tutti = await skuNoti(c.d, skusDi(s));
   const revoca = corpo.liberatoriaRevocata === true;
   if (!revoca) nonPeggiora(s, dopo, tutti);
   await q(c.d, "media", c.d.db.from("shop_media").update({ rimosso_il: c.ora }).eq("id", m.id).select("id"));
@@ -766,18 +806,20 @@ async function elencoProdotti(d: DipendenzeProdotti, p: URLSearchParams) {
   const segmento = p.get("segmento") ?? "tutti";
   if (!SEGMENTI.includes(segmento)) throw valore("Il filtro non esiste.");
   const [rp, rv, rm, rc] = await Promise.all([
-    q(d, "elenco", d.db.from("shop_prodotti").select("*").order("nome").limit(MAX_PRODOTTI)),
-    q(d, "elenco", d.db.from("shop_varianti").select("*").limit(MAX_PRODOTTI * 5)),
-    q(d, "elenco", d.db.from("shop_media").select("*").is("rimosso_il", null).limit(MAX_PRODOTTI * 12)),
-    q(d, "elenco", d.db.from("shop_prodotti_categorie").select("*").limit(MAX_PRODOTTI * 5)),
+    q(d, "elenco", d.db.from("shop_prodotti").select("*").order("nome").limit(MAX_PRODOTTI + 1)),
+    q(d, "elenco", d.db.from("shop_varianti").select("*").limit(MAX_PRODOTTI * 5 + 1)),
+    q(d, "elenco", d.db.from("shop_media").select("*").is("rimosso_il", null).limit(MAX_PRODOTTI * 12 + 1)),
+    q(d, "elenco", d.db.from("shop_prodotti_categorie").select("*").limit(MAX_PRODOTTI * 5 + 1)),
   ]);
+  // Si chiede UNA riga in più del tetto: se arriva, l'elenco è incompleto e lo si dice (`troncato`), mai in silenzio.
+  const troncato = righe(rp).length > MAX_PRODOTTI || righe(rv).length > MAX_PRODOTTI * 5 || righe(rm).length > MAX_PRODOTTI * 12 || righe(rc).length > MAX_PRODOTTI * 5;
   const vs = righe(rv).flatMap((x) => varianteDaRiga(x) ?? []);
   const ms = righe(rm).flatMap((x) => mediaDaRiga(x) ?? []);
   const cs = righe(rc);
   const tutti: SkuUsato[] = [...righe(rp).flatMap((r) => (typeof r.id === "string" && typeof r.sku === "string" ? [{ sku: r.sku, prodottoId: r.id }] : [])), ...vs.map((v) => ({ sku: v.sku, prodottoId: v.prodottoId }))];
   const cerca = (p.get("q") ?? "").trim().toLowerCase();
   const categoria = p.get("categoria");
-  const lista = righe(rp).flatMap((riga) => {
+  const lista = righe(rp).slice(0, MAX_PRODOTTI).flatMap((riga) => {
     const prodotto = prodottoDaRiga(riga);
     if (!prodotto) return [];
     const categorie = cs.filter((x) => x.prodotto_id === prodotto.id).flatMap((x) => (typeof x.categoria_id === "string" ? [x.categoria_id] : []));
@@ -800,14 +842,14 @@ async function elencoProdotti(d: DipendenzeProdotti, p: URLSearchParams) {
       id: x.id, sku: x.sku, slug: x.slug, nome: x.nome, tipo: x.tipo, stato: x.stato, origine: x.origine, prezzoCent: x.prezzoCent,
       versione: x.aggiornatoIl, haModifiche: x.bozzaModifiche !== null, motivo,
     }));
-  return { prodotti: righeOut };
+  return { prodotti: righeOut, troncato };
 }
 
 async function schedaProdotto(d: DipendenzeProdotti, id: string) {
   const s = await carica(d, id);
   const [storico, tutti] = await Promise.all([
     q(d, "storico", d.db.from("shop_storico").select("id,entita,entita_id,campo,prima,dopo,chi,creato_il").eq("entita_id", id).order("creato_il", { ascending: false }).limit(50)),
-    skuNoti(d),
+    skuNoti(d, skusDi(s)),
   ]);
   const principale = s.media.filter((m) => m.slot === "principale")[0];
   return {
@@ -858,7 +900,7 @@ export async function gestisciPOST(request: Request, d: DipendenzeProdotti): Pro
     }
     const o = oggetto(corpo);
     const azione = o?.azione;
-    if (!o || typeof azione !== "string" || !(azione in AZIONI)) throw valore("Questa azione non esiste.");
+    if (!o || typeof azione !== "string" || !Object.prototype.hasOwnProperty.call(AZIONI, azione)) throw valore("Questa azione non esiste.");
     const chi = (typeof g.nome === "string" ? g.nome.trim().slice(0, 80) : "") || "Titolare";
     const esito = await AZIONI[azione as keyof typeof AZIONI]({ d, chi, ora: d.adesso().toISOString() }, o);
     return json({ ok: true, ...esito });

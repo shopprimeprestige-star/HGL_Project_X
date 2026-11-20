@@ -111,6 +111,8 @@ export function controllaPubblicazione(
     ["avvertenze", elenco(prodotto.avvertenze).join("\n")],
     ["faq", (Array.isArray(prodotto.faq) ? prodotto.faq : []).flatMap((f) => (f && typeof f === "object" ? [`${f.d}\n${f.r}`] : [])).join("\n")],
     ["seoTitolo", prodotto.seoTitolo], ["seoDescrizione", prodotto.seoDescrizione],
+    ["varianti", vs.map((v) => v?.nome).filter((t) => typeof t === "string").join("\n")],
+    ["alt", vivi.map((m) => m.alt).filter((t) => typeof t === "string").join("\n")],
   ];
   for (const [campo, testo] of testi) {
     const esito = controllaTesto(testo);
