@@ -149,6 +149,9 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("le pagine non importano il carattere nuovo (D29): niente `lib/carattere`, niente Inter", false, /lib\/carattere|\bInter\b/.test(tutto));
   c("l'elenco legge la modalità dal contesto del guscio (`useRouteContext`), non la rilegge (`modalitaCatalogo`)", [true, false], [/useRouteContext\(\)/.test(src.indice), /modalitaCatalogo/.test(src.indice + src.categoria + src.griglia)]);
   c("`ViewContent` della lista riparte anche se il banner si accetta DOPO il caricamento della pagina: `useListaVista` ascolta la scelta (EVENTO_CONSENSO) con `suScelta`", [true, true], [/EVENTO_CONSENSO/.test(src.griglia), /suScelta\(/.test(src.griglia)]);
+  //   La pulizia: l'effetto RESTITUISCE ciò che `suScelta` dà (la funzione che stacca l'ascolto da `window`). Senza `return` l'ascolto resta
+  //   attaccato dopo lo smontaggio (mutazione del revisore: `return suScelta(` → `suScelta(` restava verde).
+  c("`useListaVista` restituisce la pulizia di `suScelta` (nessun ascolto resta attaccato a `window`)", true, /return\s+suScelta\(/.test(src.griglia));
   c("il conteggio degli articoli passa da `etichettaArticoli` (singolare «1 articolo») in entrambe le pagine", [true, true, false], [/etichettaArticoli\(/.test(src.indice), /etichettaArticoli\(/.test(src.categoria), /articoli<\/span>|\} articoli/.test(src.indice + src.categoria)]);
   c("la categoria: codice → `notFound()`; CMS senza categoria o senza prodotti → `redirect` a /shop", [true, true], [/notFound\(\)/.test(src.categoria), /redirect\(\{\s*to:\s*"\/shop"/.test(src.categoria)]);
 
