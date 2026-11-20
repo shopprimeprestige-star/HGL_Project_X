@@ -19908,7 +19908,7 @@ async function proveDelLinkChiuso() {
  *  prova. */
 async function proveDelPrimoEventoDellaVisita() {
   const esbuild = chiedi("esbuild");
-  gruppo("TRACCIAMENTO: IL PRIMO EVENTO DI UNA VISITA NON SI PERDE");
+  gruppo("TRACCIAMENTO: IL PRIMO EVENTO DI UNA VISITA NON SI PERDE (senza consenso nessun pixel)");
   const finta = join(dove, "supabase-finta.js");
   writeFileSync(
     finta,
@@ -19924,38 +19924,45 @@ async function proveDelPrimoEventoDellaVisita() {
     platform: "node",
     write: false,
     logLevel: "error",
-    alias: { "@/integrations/supabase/client": finta },
+    //  `@` serve a `@/lib/consenso` e `@/lib/tracciamento/*` (il cancello del consenso, Shop R1 T28).
+    alias: { "@/integrations/supabase/client": finta, "@": join(radice, "src") },
     define: {
       "import.meta.env.VITE_SUPABASE_URL": '"http://127.0.0.1:9"',
       "import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY": '"finta"',
     },
   });
-  const scenario = async (nome, { admin, cache, bloccata }) => {
+  //  Il consenso sta nell'archivio finto come lo scrive il banner v2. Senza scelta: niente chiave.
+  const CONSENSI = {
+    marketing: JSON.stringify({ v: 2, statistiche: true, marketing: true, ts: 1 }),
+    necessari: JSON.stringify({ v: 2, statistiche: false, marketing: false, ts: 1 }),
+  };
+  const scenario = async (nome, { admin, cache, bloccata, consenso }) => {
     const memoria = new Map(cache ? [["lp_admin_skip", cache]] : []);
+    const archivioLocale = new Map(consenso ? [["hgl_cookie_consent_v2", CONSENSI[consenso]]] : []);
     const pixel = [];
     const ripristina = [];
     const metti = (k, v) => {
       ripristina.push([k, Object.getOwnPropertyDescriptor(globalThis, k)]);
       Object.defineProperty(globalThis, k, { value: v, configurable: true, writable: true });
     };
-    const store = () => ({
+    const store = (m) => ({
       getItem: (k) => {
         if (bloccata) throw new Error("SecurityError");
-        return memoria.has(k) ? memoria.get(k) : null;
+        return m.has(k) ? m.get(k) : null;
       },
-      setItem: (k, v) => void memoria.set(k, String(v)),
-      removeItem: (k) => void memoria.delete(k),
+      setItem: (k, v) => void m.set(k, String(v)),
+      removeItem: (k) => void m.delete(k),
     });
     globalThis.__sb = { inserti: [], risolvi: null };
     metti("window", {
       location: { href: "https://sito.test/", search: "", pathname: "/", hostname: "sito.test" },
-      sessionStorage: store(),
-      localStorage: store(),
+      sessionStorage: store(memoria),
+      localStorage: store(archivioLocale),
       fbq: (...a) => pixel.push(a),
       addEventListener() {},
       innerWidth: 390,
     });
-    metti("document", { referrer: "", cookie: "", addEventListener() {} });
+    metti("document", { referrer: "", cookie: "_fbp=fb.1.1700.99", addEventListener() {} });
     metti("sessionStorage", globalThis.window.sessionStorage);
     metti("localStorage", globalThis.window.localStorage);
     metti("navigator", { userAgent: "Mozilla/5.0 (iPhone) Safari" });
@@ -19970,18 +19977,29 @@ async function proveDelPrimoEventoDellaVisita() {
     await prima;
     await new Promise((ok) => setTimeout(ok, 5));
     const dopo = { inserti: globalThis.__sb.inserti.length, pixel: pixel.length };
+    const fbpInserito = globalThis.__sb.inserti[0]?.fbp;
     for (const [k, d] of ripristina.reverse()) d ? Object.defineProperty(globalThis, k, d) : delete globalThis[k];
-    return { nome, durante, dopo };
+    return { nome, durante, dopo, fbpInserito };
   };
 
+  //  ⚠️ Senza consenso marketing nessun pixel, mai (cancello del consenso, D13): il conteggio interno parte lo stesso, ma senza `fbp`.
   const visitatore = await scenario("visitatore", { admin: false });
   c("in attesa della risposta non parte niente", { inserti: 0, pixel: 0 }, visitatore.durante);
-  c("risposto «non sei admin»: l'evento e il pixel partono", { inserti: 1, pixel: 1 }, visitatore.dopo);
-  const admin = await scenario("admin", { admin: true });
-  c("risposto «sei admin»: niente evento, niente pixel", { inserti: 0, pixel: 0 }, admin.dopo);
-  const noto = await scenario("noto", { cache: "0" });
-  c("controllo già noto (visita in corso): parte subito", { inserti: 1, pixel: 1 }, noto.durante);
-  const adminNoto = await scenario("adminNoto", { cache: "1" });
+  c("visitatore SENZA SCELTA, risposto «non sei admin»: il conteggio interno parte, il pixel MAI (senza consenso nessun pixel)", { inserti: 1, pixel: 0 }, visitatore.dopo);
+  c("…e la riga inserita non porta `fbp` (nemmeno con il cookie presente)", null, visitatore.fbpInserito ?? null);
+  const solo = await scenario("solo necessari", { admin: false, consenso: "necessari" });
+  c("solo necessari: il conteggio interno parte, nessun pixel", { inserti: 1, pixel: 0 }, solo.dopo);
+  const mkt = await scenario("marketing", { admin: false, consenso: "marketing" });
+  c("in attesa della risposta, anche con il consenso marketing, non parte niente", { inserti: 0, pixel: 0 }, mkt.durante);
+  c("visitatore CON MARKETING, risposto «non sei admin»: l'evento e il pixel partono", { inserti: 1, pixel: 1 }, mkt.dopo);
+  c("…e la riga inserita porta `fbp` come prima", "fb.1.1700.99", mkt.fbpInserito);
+  const admin = await scenario("admin", { admin: true, consenso: "marketing" });
+  c("risposto «sei admin»: niente evento, niente pixel (anche con tutto il consenso)", { inserti: 0, pixel: 0 }, admin.dopo);
+  const noto = await scenario("noto", { cache: "0", consenso: "marketing" });
+  c("controllo già noto (visita in corso) e consenso marketing: parte subito", { inserti: 1, pixel: 1 }, noto.durante);
+  const notoSenza = await scenario("notoSenza", { cache: "0" });
+  c("controllo già noto ma senza scelta: il conteggio parte subito, il pixel no", { inserti: 1, pixel: 0 }, notoSenza.durante);
+  const adminNoto = await scenario("adminNoto", { cache: "1", consenso: "marketing" });
   c("admin già noto: mai niente", { inserti: 0, pixel: 0 }, adminNoto.dopo);
 }
 

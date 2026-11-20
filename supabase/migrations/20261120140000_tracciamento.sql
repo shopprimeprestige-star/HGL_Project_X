@@ -33,30 +33,37 @@
 --      utente con una sessione: senza questa tabella uno sconosciuto registrato
 --      potrebbe mettere i suoi pixel al posto dei tuoi. Protezione per riga
 --      accesa, NESSUNA policy, permessi tolti ad anon e authenticated, solo il
---      server (service_role) la legge. Si riempie da sola, UNA volta, con
---      l'utente della riga più vecchia che ha un pixel (Meta o TikTok), e solo
---      se la tabella è ancora vuota: rilanciare il file non cambia niente.
+--      server (service_role) la legge. NASCE VUOTA, di proposito: un seme
+--      automatico non sarebbe sicuro (tracking_config la scrivono gli utenti,
+--      data di creazione compresa, quindi un estraneo potrebbe risultare il
+--      "più vecchio"). Il proprietario lo scrivi TU, a mano, dopo la migrazione:
+--      vedi i due comandi qui sotto. Finché la tabella è vuota il sito non
+--      carica nessun pixel, non manda nessun evento e il CRM non manda nessun
+--      Purchase: la sicurezza resta chiusa.
 --   6. Chiede a PostgREST di ricaricare lo schema.
 --
--- ⚠️ DOPO AVER LANCIATO IL FILE, CONTROLLA CHE IL PROPRIETARIO SIA TU. Incolla
---    questa query nel SQL Editor e premi Run:
+-- ⚠️ DOPO AVER LANCIATO IL FILE, METTI IL PROPRIETARIO (UNA VOLTA). Nel SQL
+--    Editor scrivi la TUA email al posto del segnaposto e premi Run:
+--
+--      INSERT INTO public.tracciamento_proprietario (user_id) SELECT id FROM auth.users WHERE email = 'EMAIL-DEL-TITOLARE' ON CONFLICT DO NOTHING;
+--
+--    Poi controlla chi c'è dentro, con questa query:
 --
 --      select u.email, p.creato_il
 --        from public.tracciamento_proprietario p
 --        join auth.users u on u.id = p.user_id;
 --
---    Deve comparire UNA riga, con la tua email. Se è vuota (non c'era ancora
---    nessun pixel salvato): il sito non carica nessun pixel e non manda nessun
---    evento finché non c'è un proprietario. Dopo aver salvato gli ID dalle
---    Impostazioni, rilancia questo file e ricontrolla. Se la riga è di
---    qualcun altro: NON salvare gli ID, fermati e dillo alla squadra.
+--    Deve comparire UNA riga, con la tua email. Se è vuota, l'email era
+--    sbagliata: riprova. Se c'è qualcun altro: NON salvare gli ID dei pixel,
+--    fermati e dillo alla squadra. Gli ID di Meta, TikTok e Google si salvano
+--    dalle Impostazioni con questo stesso utente: il sito legge SOLO la sua riga.
 --
 -- COSA NON FA
 --   · Non crea né cambia policy: né su tracking_config né su public_leads (quella
 --     di inserimento del modulo di consulenza resta com'è e vale anche per le
 --     due colonne nuove).
 --   · Non cancella, non rinomina, non modifica niente di esistente; non scrive
---     dati, a parte la riga del proprietario (punto 5); non cambia il tipo di
+--     dati (la riga del proprietario la scrivi tu); non cambia il tipo di
 --     nessuna colonna.
 --   · Non apre transazioni (il SQL Editor ne usa già una).
 --
@@ -110,15 +117,5 @@ ALTER TABLE public.tracciamento_proprietario ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON public.tracciamento_proprietario FROM anon, authenticated;
 
 GRANT SELECT ON public.tracciamento_proprietario TO service_role;
-
--- Il seme: l'utente della riga più vecchia che ha un pixel, solo se la tabella è ancora vuota.
-INSERT INTO public.tracciamento_proprietario (user_id)
-SELECT user_id
-  FROM public.tracking_config
- WHERE (nullif(btrim(meta_pixel_id), '') IS NOT NULL OR nullif(btrim(tiktok_pixel_id), '') IS NOT NULL)
-   AND NOT EXISTS (SELECT 1 FROM public.tracciamento_proprietario)
- ORDER BY created_at
- LIMIT 1
-ON CONFLICT DO NOTHING;
 
 NOTIFY pgrst, 'reload schema';

@@ -18,23 +18,27 @@ const MARKETING = { scelto: true, statistiche: true, marketing: true, ts: 1 };
 const TUTTO_NEGATO = { analytics_storage: "denied", ad_storage: "denied", ad_user_data: "denied", ad_personalization: "denied" };
 
 /** Il mondo finto: documento, finestra, e il registro di quel che succede. */
-function mondo({ host = "www.sito.test", path = "/shop", search = "", cookie = "", admin = false, cornice = false, referrer = "" } = {}) {
-  const m = { scripts: [], cookieScritti: [], reloads: 0, cookie, localStorage: {}, rimossi: [], pushate: [], sostituite: [], navigazioni: [] };
+function mondo({ host = "www.sito.test", path = "/shop", search = "", cookie = "", admin = false, cornice = false, referrer = "", tiktok = true } = {}) {
+  const m = { scripts: [], cookieScritti: [], reloads: 0, cookie, localStorage: {}, rimossi: [], pushate: [], sostituite: [], navigazioni: [], ascoltatori: [], meta: null };
   m.documento = {
     referrer,
     get cookie() { return m.cookie; },
     set cookie(v) { m.cookieScritti.push(String(v)); },
-    createElement: (tag) => ({ tag }),
+    createElement: (tag) => (tag === "meta" ? { tag, remove() { m.meta = null; } } : { tag }),
+    querySelector: (sel) => (sel === "#hgl-referrer" ? m.meta : null),
     head: {
-      appendChild: (n) => m.scripts.push({ src: n.src, async: n.async, dl: (m.finestra.dataLayer ?? []).length, fq: m.finestra.fbq?.queue?.length ?? -1, dp: m.finestra.fbq?.disablePushState }),
+      appendChild: (n) => n.tag === "meta" ? void (m.meta = n) : m.scripts.push({ src: n.src, async: n.async, dl: (m.finestra.dataLayer ?? []).length, fq: m.finestra.fbq?.queue?.length ?? -1, dp: m.finestra.fbq?.disablePushState }),
     },
   };
   m.finestra = {
     location: { hostname: host, pathname: path, search, origin: `https://${host}`, reload: () => { m.reloads++; }, assign: (u) => m.navigazioni.push(u) },
+    addEventListener: (tipo, f, cattura) => m.ascoltatori.push({ tipo, f, cattura, scriptGiaDentro: m.scripts.length }),
     history: { pushState(...a) { m.pushate.push({ questo: this === m.finestra.history, a }); }, replaceState(...a) { m.sostituite.push({ questo: this === m.finestra.history, a }); } },
     localStorage: { removeItem: (k) => m.rimossi.push(k), getItem: (k) => m.localStorage[k] ?? null, setItem: (k, v) => { m.localStorage[k] = String(v); } },
   };
-  m.porte = { documento: m.documento, finestra: m.finestra, admin: () => admin, inCornice: () => cornice };
+  m.porte = { documento: m.documento, finestra: m.finestra, admin: () => admin, inCornice: () => cornice, tiktokNelBrowser: tiktok };
+  /** Indietro/avanti: l'indirizzo cambia, poi scattano gli ascoltatori di `popstate` (prima quelli in cattura). */
+  m.indietro = (pathname, search = "") => { m.finestra.location.pathname = pathname; m.finestra.location.search = search; for (const a of [...m.ascoltatori].filter((x) => x.tipo === "popstate").sort((x, y) => Number(!!y.cattura) - Number(!!x.cattura))) a.f(); };
   return m;
 }
 const chiamate = (lista) => (lista ?? []).map((x) => Array.from(x));
@@ -151,6 +155,40 @@ export async function prove(mod, { c, gruppo }) {
   c("senza `history` (ambiente senza router) non lancia", null, eh);
   c("dentro una cornice non c'è nessuno script: nessuna deviazione, la navigazione prosegue", [1, 0], (() => { const x = nuovo({ cornice: true }); x.car.applicaConsenso(MARKETING, CONFIG); x.finestra.history.pushState(null, "", "/shop/ordine/x?t=1"); return [x.pushate.length, x.navigazioni.length]; })());
 
+  /* ── indietro/avanti (popstate): l'indirizzo è già cambiato, si spegne prima che parta un evento ── */
+  const po = nuovo({ path: "/shop" });
+  c("l'ascoltatore di popstate è registrato alla creazione, in fase di cattura, quando non c'è ancora nessuno script", [1, true, 0], [po.ascoltatori.filter((x) => x.tipo === "popstate").length, po.ascoltatori[0]?.cattura, po.ascoltatori[0]?.scriptGiaDentro]);
+  po.car.applicaConsenso(MARKETING, CONFIG);
+  c("…e resta uno solo anche dopo aver caricato gli script", 1, po.ascoltatori.filter((x) => x.tipo === "popstate").length);
+  po.indietro("/shop/carrello");
+  c("indietro/avanti verso una pagina AMMESSA: niente sospensione, niente ricarica", [false, 0], [po.car.sospeso(), po.reloads]);
+  po.indietro("/shop/ordine/HG-1", "?t=abc");
+  c("indietro/avanti verso una pagina NON ammessa con gli script caricati: sospendi e ricarica subito", [true, 1], [po.car.sospeso(), po.reloads]);
+  c("…Meta e Google già a tacere (consent revoke / tutto denied) e `ga-disable` acceso", [true, true, true], [fq(po).some((x) => x[0] === "consent" && x[1] === "revoke"), JSON.stringify(dl(po).filter((x) => x[1] === "update").at(-1)?.[2]) === JSON.stringify(TUTTO_NEGATO), po.finestra["ga-disable-G-TEST1234"] === true]);
+  const pq = nuovo({ path: "/shop" });
+  pq.car.applicaConsenso(MARKETING, CONFIG);
+  pq.indietro("/shop", "?ref_code=X");
+  c("indietro verso un indirizzo con una chiave sconosciuta (lista bianca): stessa sospensione", [true, 1], [pq.car.sospeso(), pq.reloads]);
+  const pn = nuovo({ path: "/shop" });
+  pn.indietro("/CRM/leads");
+  c("senza script caricati popstate non fa niente", [false, 0], [pn.car.sospeso(), pn.reloads]);
+  const pa = nuovo({ path: "/shop", admin: true });
+  pa.indietro("/CRM/leads");
+  c("a un amministratore (nessuno script) nemmeno", [false, 0], [pa.car.sospeso(), pa.reloads]);
+  const pg = mondo({ path: "/shop" });
+  delete pg.finestra.addEventListener;
+  let ep = null;
+  try { K.creaCaricatore(pg.porte).applicaConsenso(MARKETING, CONFIG); } catch (e) { ep = String(e); }
+  c("senza addEventListener non lancia", null, ep);
+
+  /* ── TikTok nel browser: spento di default ── */
+  const tt = mondo({ path: "/shop" });
+  delete tt.porte.tiktokNelBrowser;
+  const ttc = K.creaCaricatore(tt.porte);
+  ttc.applicaConsenso(MARKETING, CONFIG);
+  c("TikTok nel browser è spento di default: nessuno script e nessun `ttq` (gli eventi vanno a TikTok dal server); Meta e Google caricano", [false, 2, true], ["ttq" in tt.finestra || tt.scripts.some((x) => /tiktok/.test(x.src)), tt.scripts.length, ttc.caricati().meta && ttc.caricati().google && !ttc.caricati().tiktok]);
+  c("con `tiktokNelBrowser: true` (come nelle altre prove) TikTok si carica e l'API gli manda gli eventi", true, "ttq" in k.finestra);
+
   /* ── dove non si carica: admin, cornice, pagine non ammesse ── */
   const casiNo = [
     ["admin loggato", { admin: true }],
@@ -195,6 +233,41 @@ export async function prove(mod, { c, gruppo }) {
   dip.car.applicaConsenso(STATISTICHE, CONFIG);
   c("anche con solo Google caricato, andare in /CRM sospende e ricarica", [true, 1], [dip.car.sospeso(), dip.reloads]);
 
+  /* ── la revoca: prima si sospende, poi si ripulisce (anche i `_gac_` di Google Ads) ── */
+  const rv = nuovo({ host: "www.sito.test", cookie: "_gac_UA-123=1; _gac_gb_G-TEST1234=2; _gaxyz=no; sessione=tienimi" });
+  rv.car.applicaConsenso(MARKETING, CONFIG);
+  rv.cookieScritti.length = 0;
+  rv.car.revoca();
+  c("revoca: cancella anche i cookie `_gac_*` di Google Ads (e non quelli che gli somigliano)", [true, true, false, false], [rv.cookieScritti.some((x) => x.startsWith("_gac_UA-123=;")), rv.cookieScritti.some((x) => x.startsWith("_gac_gb_G-TEST1234=;")), rv.cookieScritti.some((x) => x.startsWith("_gaxyz=")), rv.cookieScritti.some((x) => x.startsWith("sessione="))]);
+  c("revoca chiama `sospendi()` all'inizio: Meta `consent revoke`, Google tutto negato e `ga-disable`, e non si emette più niente", [true, true, true, true], [fq(rv).some((x) => x[0] === "consent" && x[1] === "revoke"), JSON.stringify(dl(rv).filter((x) => x[1] === "update").at(-1)?.[2]) === JSON.stringify(TUTTO_NEGATO), rv.finestra["ga-disable-G-TEST1234"] === true, rv.car.sospeso()]);
+  const rvOrdine = nuovo({ cookie: "_fbp=x" });
+  rvOrdine.car.applicaConsenso(MARKETING, CONFIG);
+  const eventiPrima = rvOrdine.cookieScritti.length;
+  rvOrdine.car.revoca();
+  c("revoca: la sospensione precede la cancellazione dei cookie (il `consent revoke` è già in coda e i cookie si scrivono dopo)", [true, true], [fq(rvOrdine).some((x) => x[0] === "consent" && x[1] === "revoke"), rvOrdine.cookieScritti.length > eventiPrima]);
+
+  /* ── su una pagina non ammessa il referrer completo non esce ── */
+  const rf = nuovo({ path: "/shop/ordine/HG-1", search: "?t=abc" });
+  rf.car.applicaConsenso(NIENTE, CONFIG);
+  c("pagina non ammessa: c'è `<meta name=\"referrer\" content=\"strict-origin\">` (esce solo l'origine; con no-referrer YouTube rifiuta i lettori, errore 153), anche senza consenso e senza script", [true, "referrer", "strict-origin", 0], [!!rf.meta, rf.meta?.name, rf.meta?.content, rf.scripts.length]);
+  rf.car.applicaConsenso(NIENTE, CONFIG);
+  c("…una volta sola, non si duplica", true, !!rf.meta);
+  rf.finestra.location.pathname = "/shop";
+  rf.finestra.location.search = "";
+  rf.car.applicaConsenso(NIENTE, CONFIG);
+  c("tornando in una pagina ammessa il meta si toglie", null, rf.meta);
+  const rfa = nuovo({ path: "/shop" });
+  rfa.car.applicaConsenso(MARKETING, CONFIG);
+  c("pagina ammessa: nessun meta", null, rfa.meta);
+  const rfc = nuovo({ path: "/shop", cornice: true });
+  rfc.car.applicaConsenso(NIENTE, CONFIG);
+  c("in una cornice (non ammessa) c'è", true, !!rfc.meta);
+  const rfd = nuovo({ path: "/CRM/leads" });
+  delete rfd.documento.querySelector;
+  let er = null;
+  try { rfd.car.applicaConsenso(NIENTE, CONFIG); } catch (e) { er = String(e); }
+  c("documento senza querySelector: non lancia", null, er);
+
   /* ── la revoca ── */
   const COOKIE = "_fbp=fb.1.2; _fbc=fb.1.3; _ga=GA1.2; _ga_ABC123=GS1; _gid=GA1.3; _gcl_au=1.1; _gcl_aw=2; _ttp=tt; lp_external_id=x; sessione=tienimi; _gatto=non_mio";
   const r = nuovo({ host: "www.sito.test", cookie: COOKIE });
@@ -207,7 +280,8 @@ export async function prove(mod, { c, gruppo }) {
   c("revoca: ogni cookie delle piattaforme si cancella su host, `host`, `.host` e sul dominio padre", [], ["_fbp", "_fbc", "_ga", "_ga_ABC123", "_gid", "_gcl_au", "_gcl_aw", "_ttp", "lp_external_id"].filter((nome) => JSON.stringify(dominiDi(nome)) !== JSON.stringify(DOMINI)).map((nome) => [nome, dominiDi(nome)]));
   c("revoca: ogni cancellazione ha path=/ e una scadenza nel passato", true, scritti.length > 0 && scritti.every((x) => /path=\//.test(x) && /expires=Thu, 01 Jan 1970/.test(x) && /max-age=0/.test(x)));
   c("revoca: i cookie che non sono delle piattaforme non si toccano (nemmeno «_gatto», che somiglia a «_ga»)", [], scritti.filter((x) => /^(sessione|_gatto)=/.test(x)));
-  c("revoca: `lp_external_id` si toglie anche dall'archivio del browser, e si chiede la ricarica (una sola)", [true, 1], [r.rimossi.includes("lp_external_id"), r.reloads]);
+  c("revoca: `lp_external_id` e la storia dei contatti `lp_touch_history` si tolgono dall'archivio del browser, e si chiede la ricarica (una sola)", [true, true, 1], [r.rimossi.includes("lp_external_id"), r.rimossi.includes("lp_touch_history"), r.reloads]);
+  c("revoca: se l'archivio lancia sulla prima chiave, la seconda si toglie lo stesso", true, (() => { const x = nuovo({}); const tolte = []; x.finestra.localStorage.removeItem = (k) => { if (k === "lp_external_id") throw new Error("bloccato"); tolte.push(k); }; x.car.revoca(); return tolte.includes("lp_touch_history"); })());
   c("revoca: cancella anche i cookie che non erano in elenco ma cominciano per `_ga_` o `_gcl_`", true, (() => { const x = nuovo({ cookie: "_ga_ZZZ999=1; _gcl_dc=2" }); x.car.revoca(); return x.cookieScritti.some((s) => s.startsWith("_ga_ZZZ999=;")) && x.cookieScritti.some((s) => s.startsWith("_gcl_dc=;")); })());
   const r2 = nuovo({ host: "sito.test" });
   r2.car.revoca();

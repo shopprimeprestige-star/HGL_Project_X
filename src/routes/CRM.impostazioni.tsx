@@ -29,6 +29,7 @@ import { ImpostazioniWebinar } from "@/crm/ImpostazioniWebinar";
 import { EditorMessaggi } from "@/crm/EditorMessaggi";
 import { ImpostazioniAI } from "@/crm/ImpostazioniAI";
 import { ClassificaTagli } from "@/crm/ClassificaTagli";
+import { PannelloTracciamento } from "@/crm/tracciamento/PannelloTracciamento";
 import { ImpostazioniMeetly } from "@/crm/ImpostazioniMeetly";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -694,6 +695,9 @@ function ImpostazioniPage() {
             <TabsTrigger value="tiktok" className="shrink-0 gap-1.5 whitespace-nowrap px-3 py-1.5 text-xs">
               <Music2 className="h-3.5 w-3.5" /> TikTok Ads
             </TabsTrigger>
+            <TabsTrigger value="tracciamento" className="shrink-0 gap-1.5 whitespace-nowrap px-3 py-1.5 text-xs">
+              <Activity className="h-3.5 w-3.5" /> Tracciamento
+            </TabsTrigger>
             <TabsTrigger value="whatsapp" className="shrink-0 gap-1.5 whitespace-nowrap px-3 py-1.5 text-xs">
               <MessageCircle className="h-3.5 w-3.5" /> WhatsApp
             </TabsTrigger>
@@ -743,6 +747,11 @@ function ImpostazioniPage() {
               </TabsTrigger>
             )}
           </TabsList>
+
+          {/* === TRACCIAMENTO: proprietario, ID di Google, salute degli invii (Shop R1 · T30) === */}
+          <TabsContent value="tracciamento" className="mt-4">
+            <PannelloTracciamento />
+          </TabsContent>
 
           {/* === META ADS TAB === */}
           <TabsContent value="meta" className="space-y-4 mt-4">
