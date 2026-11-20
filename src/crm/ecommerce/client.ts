@@ -64,7 +64,7 @@ const FRASI: Record<TipoErrore, string> = {
   permesso: "Il tuo utente non può gestire gli ordini e-commerce: chiedi a un amministratore.",
   conflitto: "L'ordine è stato modificato da qualcun altro: aggiorna e riprova.",
   migrazione:
-    "Mancano gli aggiornamenti del database: applica il file ecommerce_ordini.sql dal SQL Editor.",
+    "Mancano gli aggiornamenti del database: chiedi a chi gestisce il database di applicare l'aggiornamento degli ordini.",
   valore: "La richiesta non è valida: controlla i dati e riprova.",
   non_trovato: "Ordine non trovato.",
   server: "Qualcosa non ha funzionato: riprova tra un momento.",

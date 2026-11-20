@@ -107,7 +107,7 @@ const SENZA_MIGRAZIONE = () =>
   rifiuta(
     "migrazione",
     409,
-    "Mancano gli aggiornamenti del database: applica il file ecommerce_ordini.sql dal SQL Editor.",
+    "Mancano gli aggiornamenti del database: chiedi a chi gestisce il database di applicare l'aggiornamento degli ordini.",
   );
 const CONFLITTO = () =>
   rifiuta(

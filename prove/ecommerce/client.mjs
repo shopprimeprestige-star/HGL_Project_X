@@ -116,13 +116,13 @@ export async function prove(mod, { c, gruppo, radice }) {
     const e403 = await caso(403, { ok: false, error: "permesso", permesso: "pagamenti", reason: "Non hai il permesso.", ordini: [] });
     const e500 = await caso(500, { ok: false, error: "interno", messaggio: "Il database non ha risposto: riprova tra un momento." });
     const e502 = await caso(502, "<html>Bad gateway</html>");
-    const e409 = await caso(409, { ok: false, error: "migrazione", messaggio: "Mancano gli aggiornamenti del database: applica il file ecommerce_ordini.sql dal SQL Editor." });
+    const e409 = await caso(409, { ok: false, error: "migrazione", messaggio: "Mancano gli aggiornamenti del database: chiedi a chi gestisce il database di applicare l'aggiornamento degli ordini." });
     c("401 → «sessione» (rientra), non «permesso»", "sessione", e401.tipo);
     c("403 → «permesso» (chiedi a un amministratore), non «sessione»", "permesso", e403.tipo);
     c("401 e 403 hanno frasi diverse e leggibili", true, e401.messaggio !== e403.messaggio && /rientra|accedi|sessione/i.test(e401.messaggio) && /permess|amministrator/i.test(e403.messaggio));
     c("500 → «server», con la frase della rotta", ["server", "Il database non ha risposto: riprova tra un momento."], [e500.tipo, e500.messaggio]);
     c("502 con una pagina HTML → «server» con frase nostra, senza l'HTML", ["server", false], [e502.tipo, /html|gateway/i.test(e502.messaggio)]);
-    c("409 migrazione → «migrazione» con la frase della rotta", ["migrazione", true], [e409.tipo, /ecommerce_ordini\.sql/.test(e409.messaggio)]);
+    c("409 migrazione → «migrazione» con la frase della rotta", ["migrazione", true], [e409.tipo, /applicare l.aggiornamento degli ordini/.test(e409.messaggio)]);
     c("ogni errore ha un messaggio non vuoto", true, [e401, e403, e500, e502, e409].every((e) => typeof e.messaggio === "string" && e.messaggio.trim().length > 0));
     const lungo = await caso(400, { ok: false, error: "valore", messaggio: "x".repeat(5000) });
     c("messaggio della rotta oltre 300 caratteri → tagliato", true, lungo.messaggio.length <= 300);
