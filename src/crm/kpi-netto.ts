@@ -35,6 +35,7 @@
 
 import type { AdSpending, Lead } from "@/crm/types";
 import { eConversione, ricavoLordo, type FiltroPeriodo } from "@/crm/kpi-calcoli";
+import { soloNeiKpi } from "@/crm/conta-nei-kpi";
 import { totaleAltriCosti, totaleCostiPratica } from "@/crm/costi-pratica";
 
 // ── PERCHÉ NON C'È PIÙ UN INTERRUTTORE LORDO/NETTO ──────────────────────────
@@ -333,7 +334,7 @@ export function calcolaContoNetto(
   //  Le schede senza `data` si scartano PRIMA di `eConversione`, che legge
   //  `lead.data.stato` senza rete: nell'archivio importato quella proprietà a
   //  volte non c'è, e qui basterebbe una scheda così per spegnere la pagina.
-  const clienti = leads.filter(
+  const clienti = soloNeiKpi(leads).filter(
     (l) =>
       !!l &&
       typeof l === "object" &&

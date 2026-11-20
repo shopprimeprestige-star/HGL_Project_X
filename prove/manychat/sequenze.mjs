@@ -747,6 +747,11 @@ export async function proveSequenze(mod, { c, gruppo }) {
   const chiaveA = (ora, ymd = "2026-10-27") => `a|${t9(1)}|${ymd}T${ora}`;
   const quali = (r) => r.filter((x) => x.tipo === "invia").map((x) => x.extra.quale);
 
+  //  «Solo blocco orario» (17/11/2026): né il messaggio del mattino né quello di prima del meet.
+  const m18blocco = { ...m18, data: { ...m18.data, soloBlocco: true } };
+  c("blocco orario: nessun messaggio del giorno del meet (la stessa scheda senza spunta lo riceve)", [[], 1],
+    [giorno([m18blocco], alle("09:00")), giorno([m18], alle("09:00")).filter((x) => x.tipo === "invia").length]);
+
   //  Meet delle 18:00.
   const mattina = giorno([m18], alle("09:00"));
   c(
@@ -1254,6 +1259,10 @@ export async function proveSequenze(mod, { c, gruppo }) {
   const chiaveD = (ora, ymd = "2026-10-27") => `d|${t9(1)}|${ymd}T${ora}`;
   const uno = (r) => ((x) => [x?.tipo, x?.motivo ?? x?.chiave])(unica(r));
   const m18d = md("18:00");
+  //  «Solo blocco orario» (17/11/2026): niente promemoria 24 ore prima, e il numero non si legge nemmeno.
+  const m18dBlocco = md("18:00", { soloBlocco: true });
+  c("blocco orario: nessun meet_domani e nessun telefono da leggere (senza spunta sì)", [[], [], 1],
+    [domani([m18dBlocco], lun("18:00")), S.telefoniMeetDomani([m18dBlocco], t(lun("10:00")), []), S.telefoniMeetDomani([m18d], t(lun("10:00")), []).length]);
 
   //  Il bersaglio è l'ora del meet, il giorno prima (a ora di Roma).
   const d18 = domani([m18d], lun("18:00"));

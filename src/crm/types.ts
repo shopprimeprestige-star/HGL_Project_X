@@ -1604,6 +1604,13 @@ export interface LeadData {
   dataMeeting?: string;
   oraMeeting?: string;
   durataMeeting?: number;
+  /** ── SOLO BLOCCO ORARIO (17/11/2026) ─────────────────────────────────────
+   *  Il meet occupa lo slot ma non conta in nessun KPI. La regola è in
+   *  crm/conta-nei-kpi (`contaNeiKpi`): non leggerlo direttamente nei calcoli.
+   *  `soloBloccoIl` = quando è stato spuntato (ISO), `soloBloccoDa` = chi. */
+  soloBlocco?: boolean;
+  soloBloccoIl?: string;
+  soloBloccoDa?: string;
   linkMeeting?: string;
   // follow-up
   dataRicontatto?: string;

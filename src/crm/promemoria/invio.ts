@@ -27,6 +27,7 @@
  *   · altrimenti → invia
  *  ───────────────────────────────────────────────────────────────────────── */
 import { eAppuntamento, type LeadData, type PromemoriaWhatsapp } from "../types";
+import { eSoloBlocco } from "../conta-nei-kpi";
 import { chiaveTelefono } from "../telefono-doppio";
 import {
   finestraAperta,
@@ -113,6 +114,9 @@ export function decidiInvio(i: IngressoInvio): Decisione {
   const { d, adesso } = i;
   const niente = { azione: "niente" } as const;
   if (!eAppuntamento(d.stato)) return niente;
+  //  Un «solo blocco orario» non è un appuntamento col cliente: nessun promemoria, e
+  //  nessun segno sulla scheda (se la spunta si toglie prima, il promemoria parte).
+  if (eSoloBlocco({ data: d })) return niente;
   const chiave = chiaveAppuntamento(d);
   const giorno = String(d.dataMeeting ?? "").trim();
   if (!chiave || !giornoParlato(giorno)) return niente;

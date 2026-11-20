@@ -120,7 +120,7 @@ interface Quota {
 }
 
 export function TelefonoScheda({ dentro }: { dentro: FiltroPeriodo }) {
-  const { leads } = useCRM();
+  const { leadsKpi: leads } = useCRM();
 
   const dati = useMemo(() => {
     //  Il filtro del periodo è lo stesso di tutte le altre schede, comprese le

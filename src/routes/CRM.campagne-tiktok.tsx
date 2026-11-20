@@ -22,6 +22,7 @@
 //
 //  Sorgente dati: tiktok_ad_spend, attribuzione lead via ttclid.
 
+import { contaNeiKpi } from "@/crm/conta-nei-kpi";
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/crm/AuthContext";
@@ -293,7 +294,7 @@ function TikTokAdsManagerPage() {
           isWon: pl.status === "vinto" || pl.status === "venduto",
         });
       }
-      for (const cl of (crmRes.data as Array<{ data: Record<string, unknown> }> | null) || []) {
+      for (const cl of ((crmRes.data as Array<{ data: Record<string, unknown> }> | null) || []).filter(contaNeiKpi)) {
         const d = cl.data || {};
         const tracking = (d as { tracking?: Record<string, unknown> }).tracking || {};
         const ttclid = (d as { ttclid?: string }).ttclid || (tracking as { ttclid?: string }).ttclid || null;
