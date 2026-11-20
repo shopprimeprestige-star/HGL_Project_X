@@ -128,7 +128,7 @@ export async function prove(mod, { c, gruppo, radice }) {
     const una = U.unaPerVolta(async (x) => { chiamate.push(x); await new Promise((r) => sblocchi.push(r)); return `fatto-${x}`; });
     const p1 = una("a");
     const p2 = una("b"); // il secondo clic, prima che il primo sia finito
-    const r2 = await p2;
+    const r2 = await Promise.race([p2, new Promise((r) => setTimeout(() => r("ancora in attesa"), 30))]); // senza il blocco p2 aspetterebbe la prima: non si deve appendere la prova
     c("unaPerVolta: la seconda chiamata mentre la prima lavora NON parte e vale «no»", [["a"], false], [chiamate.slice(), r2]);
     sblocchi.shift()();
     c("…e la prima finisce con il suo risultato", "fatto-a", await p1);
