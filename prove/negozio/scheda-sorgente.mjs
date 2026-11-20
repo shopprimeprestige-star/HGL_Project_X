@@ -72,23 +72,37 @@ export async function prove(_mod, { c, gruppo, radice }) {
     /f-(prezzoBarrato|sconto|stelle)/i.test(codice.SchedaProdotto),
   );
 
-  // «Pubblica» solo dopo `await subito()` che dà true
+  // «Pubblica» solo dopo `await subito()` che dà true. Si guarda SOLO il corpo di `pubblica()`: lo stesso controllo c'è anche
+  // in scarta, duplica e cambiaStato, e una mutazione che lo toglie da `pubblica()` non deve restare verde per colpa loro.
+  const corpoDi = (src, firma) => {
+    const i = src.indexOf(firma);
+    if (i < 0) return null;
+    const inizio = src.indexOf("{", src.indexOf(")", i));
+    let n = 0;
+    for (let k = inizio; k < src.length; k++) {
+      if (src[k] === "{") n++;
+      else if (src[k] === "}" && --n === 0) return src.slice(inizio, k + 1);
+    }
+    return null;
+  };
+  const corpoPubblica = corpoDi(codice.SchedaProdotto, "async function pubblica(");
+  const guardia = corpoPubblica?.search(/if \(!\(await [\w.]*subito\(\)\)\)\s*return\b/) ?? -1;
+  const scrittura = corpoPubblica?.search(/prodotto_stato|prodotto_pubblica_modifiche/) ?? -1;
+  c("pubblica() esiste", true, corpoPubblica !== null);
   c(
-    "«Pubblica» aspetta `await subito()` e si ferma se non dà true",
+    "dentro pubblica(): `if (!(await subito())) return …` (il risultato non si ignora e si esce)",
     true,
-    /if \(!\(await [\w.]*subito\(\)\)\)/.test(codice.SchedaProdotto),
+    guardia >= 0,
   );
   c(
-    "le azioni che pubblicano vengono DOPO il controllo di subito()",
+    "dentro pubblica(): la scrittura (prodotto_stato / prodotto_pubblica_modifiche) viene DOPO la guardia",
     true,
-    (() => {
-      const i = codice.SchedaProdotto.indexOf("async function pubblica");
-      if (i < 0) return false;
-      const corpo = codice.SchedaProdotto.slice(i, i + 3500);
-      const s = corpo.search(/await [\w.]*subito\(\)/);
-      const p = corpo.search(/prodotto_stato|prodotto_pubblica_modifiche/);
-      return s >= 0 && p > s;
-    })(),
+    guardia >= 0 && scrittura > guardia,
+  );
+  c(
+    "dentro pubblica(): c'è una sola chiamata a subito() (nessuna che ne ignori il risultato)",
+    1,
+    (corpoPubblica?.match(/subito\(\)/g) ?? []).length,
   );
   const sorgente = codice.SchedaProdotto;
   const tasti = [...sorgente.matchAll(/void pubblica\(\)/g)].map((m) =>
@@ -142,6 +156,36 @@ export async function prove(_mod, { c, gruppo, radice }) {
     "bersagli da 44 px sul telefono (min-h-11 / h-11)",
     [true, true],
     [/(min-h-11|h-11)/.test(codice.SchedaProdotto), /(min-h-11|h-11)/.test(codice.EditorVarianti)],
+  );
+
+  // «Applica il nuovo prezzo»: spento con il campo vuoto o a zero, e la funzione non parte lo stesso
+  const sorg = codice.SchedaProdotto;
+  const iPrezzo = sorg.indexOf("void applicaPrezzo()");
+  c(
+    "il tasto «Applica il nuovo prezzo» è spento con prezzo vuoto o zero (`!campi.prezzoCent`)",
+    true,
+    iPrezzo >= 0 &&
+      /disabled=\{[^}]*!campi\.prezzoCent/.test(sorg.slice(Math.max(0, iPrezzo - 300), iPrezzo)),
+  );
+  c(
+    "applicaPrezzo() non manda un prezzo vuoto o zero",
+    true,
+    /if \(!cent \|\|/.test(corpoDi(sorg, "const applicaPrezzo = () =>") ?? ""),
+  );
+  // lo storico che non si è scritto (`storico: false`) si dice
+  c(
+    "ogni scrittura passa da scrivi(), che alza l'avviso se la risposta ha storico:false",
+    [true, 1, 2],
+    [
+      /storico === false/.test(sorg),
+      (sorg.match(/negozioRef\.current\.esegui\(/g) ?? []).length,
+      (sorg.match(/esegui=\{scrivi\}/g) ?? []).length,
+    ],
+  );
+  c(
+    "l'avviso dello storico è a schermo",
+    true,
+    /senzaStorico &&/.test(sorg) && /traccia nello storico/.test(sorg),
   );
 
   // il perimetro

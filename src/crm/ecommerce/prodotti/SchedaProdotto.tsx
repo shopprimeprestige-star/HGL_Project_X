@@ -68,7 +68,7 @@ import { Avviso } from "@/crm/ecommerce/Avviso";
 import { porteBrowser } from "@/crm/ecommerce/client";
 import { creaAutosalva } from "@/crm/negozio/autosalva";
 import type { ErroreNegozio, SchedaProdotto as DatiScheda } from "@/crm/negozio/client";
-import { centDaEuro, slugDa, type Media, type Prodotto, type Variante } from "@/shop/cms/modello";
+import { slugDa, type Media, type Prodotto, type Variante } from "@/shop/cms/modello";
 import type { SkuUsato, Voce } from "@/shop/cms/pubblicazione";
 import { EditorMedia } from "./EditorMedia";
 import { EditorVarianti } from "./EditorVarianti";
@@ -236,6 +236,7 @@ function SchedaAperta({
   );
   const [categorieErrore, setCategorieErrore] = useState<string | null>(null);
   const [salvandoCategorie, setSalvandoCategorie] = useState(false);
+  const [senzaStorico, setSenzaStorico] = useState(false);
 
   const negozioRef = useRef(negozio);
   negozioRef.current = negozio;
@@ -246,6 +247,14 @@ function SchedaAperta({
   const coda = useRef<Promise<unknown>>(Promise.resolve());
   const conflittoRef = useRef(false);
   conflittoRef.current = conflitto;
+
+  /** TUTTE le scritture passano da qui (anche quelle degli editor): se il server dice `storico: false` il dato è salvo ma
+   *  la riga dello storico (chi, quando, prima e dopo) no, e il titolare lo deve sapere. */
+  const scrivi = useCallback<Negozio["esegui"]>(async (azione, dati) => {
+    const r = await negozioRef.current.esegui(azione, dati);
+    if (r.ok && r.dati.storico === false) setSenzaStorico(true);
+    return r;
+  }, []);
 
   /** Le scritture sul prodotto (versione condivisa) una dopo l'altra. */
   const serializza = useCallback(<T,>(f: () => Promise<T>): Promise<T> => {
@@ -275,7 +284,7 @@ function SchedaAperta({
           const pubblicato = statoRef.current === "pubblicato";
           const patch = patchCampi(salvati.current, campiDaModulo(m).campi, { pubblicato });
           if (Object.keys(patch).length === 0) return true;
-          const r = await negozioRef.current.esegui("prodotto_salva", {
+          const r = await scrivi("prodotto_salva", {
             prodottoId: id,
             versione: versione.current,
             campi: patch,
@@ -364,7 +373,7 @@ function SchedaAperta({
     setSalvandoCategorie(true);
     setCategorieErrore(null);
     const r = await serializza(() =>
-      negozioRef.current.esegui("prodotto_categorie", {
+      scrivi("prodotto_categorie", {
         prodottoId: id,
         categorie: nuove,
         versione: versione.current,
@@ -477,7 +486,7 @@ function SchedaAperta({
         return setEsito(nonSalvato("Non ho pubblicato niente: premi di nuovo «Pubblica»."));
       const sulSito = statoRef.current === "pubblicato";
       const r = await serializza(() =>
-        negozioRef.current.esegui(sulSito ? "prodotto_pubblica_modifiche" : "prodotto_stato", {
+        scrivi(sulSito ? "prodotto_pubblica_modifiche" : "prodotto_stato", {
           prodottoId: id,
           versione: versione.current,
           ...(sulSito ? {} : { stato: "pubblicato" }),
@@ -504,7 +513,7 @@ function SchedaAperta({
     lavora(async () => {
       if (!(await auto.subito())) return setEsito(nonSalvato("Non ho scartato niente."));
       const r = await serializza(() =>
-        negozioRef.current.esegui("prodotto_scarta_modifiche", {
+        scrivi("prodotto_scarta_modifiche", {
           prodottoId: id,
           versione: versione.current,
         }),
@@ -516,13 +525,14 @@ function SchedaAperta({
   const applicaPrezzo = () =>
     lavora(async () => {
       const cent = campi.prezzoCent;
-      if (cent === undefined || errori.prezzo)
+      if (!cent || errori.prezzo)
         return setEsito({
           tono: "errore",
-          testo: errori.prezzo ?? "Scrivi il prezzo in euro, per esempio 19,90.",
+          testo:
+            errori.prezzo ?? "Scrivi il prezzo in euro, per esempio 19,90 (zero non è un prezzo).",
         });
       const r = await serializza(() =>
-        negozioRef.current.esegui("prodotto_salva", {
+        scrivi("prodotto_salva", {
           prodottoId: id,
           versione: versione.current,
           campi: { prezzoCent: cent },
@@ -539,7 +549,7 @@ function SchedaAperta({
     lavora(async () => {
       if (!(await auto.subito())) return setEsito(nonSalvato("Non ho cambiato lo stato."));
       const r = await serializza(() =>
-        negozioRef.current.esegui("prodotto_stato", {
+        scrivi("prodotto_stato", {
           prodottoId: id,
           stato: nuovo,
           versione: versione.current,
@@ -558,7 +568,7 @@ function SchedaAperta({
       let ultimo = "Non sono riuscito a duplicare il prodotto.";
       for (let prova = 0; prova < 3; prova++) {
         const sku = proponiSkuCopia(dati.prodotto.sku, usati);
-        const r = await negozioRef.current.esegui("prodotto_duplica", { prodottoId: id, sku });
+        const r = await scrivi("prodotto_duplica", { prodottoId: id, sku });
         usati.add(sku);
         if (r.ok) {
           const nuovo = r.dati.prodotto as { id?: unknown } | undefined;
@@ -572,9 +582,7 @@ function SchedaAperta({
 
   const adotta = () =>
     lavora(async () => {
-      const r = await serializza(() =>
-        negozioRef.current.esegui("prodotto_adotta", { prodottoId: id }),
-      );
+      const r = await serializza(() => scrivi("prodotto_adotta", { prodottoId: id }));
       if (!r.ok) return riferisci(r.errore, (testo) => setEsito({ tono: "errore", testo }));
       nuovaVersione(r.dati);
       setOrigine(null);
@@ -590,7 +598,7 @@ function SchedaAperta({
       setEsito(nonSalvato("L'anteprima mostra ciò che è salvato."));
       return null;
     }
-    const r = await negozioRef.current.esegui("anteprima_chiave", { prodottoId: id });
+    const r = await scrivi("anteprima_chiave", { prodottoId: id });
     if (!r.ok) {
       setEsito({ tono: "errore", testo: r.errore.messaggio });
       return null;
@@ -866,6 +874,12 @@ function SchedaAperta({
         >
           Questo articolo viene dal vecchio catalogo: per pubblicarlo devi prima farne un tuo
           prodotto.
+        </Avviso>
+      )}
+      {senzaStorico && (
+        <Avviso>
+          La modifica è salvata, ma non è rimasta traccia nello storico (chi l'ha fatta e quando).
+          Avvisa chi gestisce il database.
         </Avviso>
       )}
       {letturaFallita && (
@@ -1156,7 +1170,10 @@ function SchedaAperta({
                       type="button"
                       className={tastoGrande}
                       disabled={
-                        spento || centDaEuro(modulo.prezzo) === prezzoVivo || !!errori.prezzo
+                        spento ||
+                        !!errori.prezzo ||
+                        !campi.prezzoCent ||
+                        campi.prezzoCent === prezzoVivo
                       }
                       onClick={() => void applicaPrezzo()}
                     >
@@ -1180,7 +1197,7 @@ function SchedaAperta({
                 versione: versione.current,
               }}
               varianti={dati.varianti}
-              esegui={negozio.esegui}
+              esegui={scrivi}
               aggiorna={rileggi}
             />,
             true,
@@ -1190,7 +1207,7 @@ function SchedaAperta({
             <EditorMedia
               prodotto={{ id, nome: modulo.nome, pubblicato }}
               media={dati.media}
-              esegui={negozio.esegui}
+              esegui={scrivi}
               aggiorna={rileggi}
             />,
             true,
