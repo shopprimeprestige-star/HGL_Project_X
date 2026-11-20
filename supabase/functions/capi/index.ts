@@ -4,6 +4,7 @@
 // Deduplicazione browser/server tramite event_id univoco.
 // deno-lint-ignore-file no-explicit-any
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { decidi, normalizzaNome } from "./filtro.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -185,6 +186,37 @@ Deno.serve(async (req) => {
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     { auth: { autoRefreshToken: false, persistSession: false } },
   );
+
+  // ── T29 · INIZIO · chi chiama decide cosa può mandare (D17, nota A, D35) ─────────
+  // Un chiamante senza utente del CRM passa solo con i nomi dell'elenco (filtro.ts); il proprietario
+  // (sessione valida E presente in tracciamento_proprietario) può mandare anche Purchase, e per lui
+  // admin_user_id è l'id verificato, non quello dichiarato. ⚠️ Avere una riga in tracking_config NON prova
+  // niente: chiunque abbia una sessione può scriversela. Tabella mancante, vuota o illeggibile = false.
+  // Si decide PRIMA di ogni invio e di ogni scrittura.
+  const bearer = (req.headers.get("authorization") ?? "").replace(/^Bearer\s+/i, "").trim();
+  let autenticato = false;
+  let membroCrm = false;
+  let utenteId = "";
+  if (bearer) {
+    const { data: sessione } = await supabase.auth.getUser(bearer);
+    if (sessione?.user?.id) {
+      autenticato = true;
+      utenteId = sessione.user.id;
+      const { data: riga, error: erroreProprietario } = await supabase
+        .from("tracciamento_proprietario").select("user_id").eq("user_id", utenteId).limit(1);
+      membroCrm = !erroreProprietario && (riga?.length ?? 0) > 0;
+    }
+  }
+  const esito = decidi({ nome: payload.event_name, autenticato, membroCrm });
+  if (!esito.ok) {
+    return new Response(JSON.stringify({ error: "event_not_allowed" }), {
+      status: 403,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+  payload.event_name = normalizzaNome(payload.event_name);
+  if (autenticato && membroCrm) payload.admin_user_id = utenteId;
+  // ── T29 · FINE ────────────────────────────────────────────────────────────────
 
   let configs: Array<{
     user_id: string;
