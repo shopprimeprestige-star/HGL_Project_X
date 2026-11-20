@@ -31,6 +31,7 @@ import { controllaFile, disegnaMisure, pianoFoto, type FileMisura } from "@/crm/
 import { cn } from "@/lib/utils";
 import type { Media, SottoRuolo } from "@/shop/cms/modello";
 import { leggiImmagine, leggiVideo, portaCanvas } from "./media-browser";
+import { pulisciVideo, tipoDaFirma } from "./video-pulito";
 import {
   GALLERIA,
   MAX_ALT,
@@ -92,6 +93,8 @@ interface Bozza {
   testoParlato: string;
   durataS: number | null;
   copertina: Blob | null;
+  /** Solo per il video: i byte SENZA metadati (niente posizione) e col tipo letto dalla firma. È questo che parte, mai `file`. */
+  pulito: Blob | null;
   copertinaUrl: string | null;
   /** Il caricamento a passi: ricorda cosa è già salito, per riprendere da dove si è fermato. */
   lavoro: Lavoro | null;
@@ -162,7 +165,7 @@ export function EditorMedia({ prodotto, media, esegui, aggiorna }: PropsEditorMe
       return {
         id: `b${conta.current}`, slot, tipo: "foto", file, anteprima: URL.createObjectURL(file), larghezza: img.larghezza, altezza: img.altezza,
         punto: { x: 0.5, y: 0.5 }, avvisi: piano.piano.avvisi.map((a) => a.frase), alt: altProposto(prodotto.nome, slot, null), sottoRuolo: null,
-        ritraePersone: false, liberatoriaOk: false, muto: false, sottotitoliOk: false, testoParlato: "", durataS: null, copertina: null, copertinaUrl: null,
+        ritraePersone: false, liberatoriaOk: false, muto: false, sottotitoliOk: false, testoParlato: "", durataS: null, copertina: null, pulito: null, copertinaUrl: null,
         lavoro: null, fase: "pronta", passo: { fatti: 0, totale: 0 }, frase: null, definitivo: false,
       };
     } catch (e) {
@@ -191,15 +194,22 @@ export function EditorMedia({ prodotto, media, esegui, aggiorna }: PropsEditorMe
     const file = elenco?.[0];
     if (!file) return;
     try {
+      //  Il tipo si legge dalla FIRMA del file (`ftyp`), non da ciò che dice il browser; peso e tipo si controllano subito, la durata dopo.
+      const mime = tipoDaFirma(new Uint8Array(await file.slice(0, 4096).arrayBuffer()));
+      const prima = controllaFile({ tipo: "video", mime, byte: file.size, durataS: 1 });
+      if (!prima.ok) return setMessaggio({ tono: "errore", testo: prima.frase });
       const v = await leggiVideo(file);
-      const idoneo = controllaFile({ tipo: "video", mime: file.type, byte: file.size, durataS: v.durataS });
+      const idoneo = controllaFile({ tipo: "video", mime, byte: file.size, durataS: v.durataS });
       if (!idoneo.ok) return setMessaggio({ tono: "errore", testo: idoneo.frase });
+      //  Fuori la posizione e gli altri dati nascosti: se non si riesce, il video NON si carica.
+      const pulito = pulisciVideo(new Uint8Array(await file.arrayBuffer()));
+      if (!pulito.ok) return setMessaggio({ tono: "errore", testo: pulito.frase });
       conta.current++;
       const bozza: Bozza = {
         id: `b${conta.current}`, slot: "video", tipo: "video", file, anteprima: URL.createObjectURL(file), larghezza: 0, altezza: 0, punto: { x: 0.5, y: 0.5 },
         avvisi: v.copertina ? [] : ["Non sono riuscito a prendere la copertina dal video: puoi sceglierne una tu."], alt: altProposto(prodotto.nome, "video", null),
         sottoRuolo: null, ritraePersone: false, liberatoriaOk: false, muto: false, sottotitoliOk: false, testoParlato: "", durataS: v.durataS,
-        copertina: v.copertina, copertinaUrl: v.copertina ? URL.createObjectURL(v.copertina) : null,
+        copertina: v.copertina, pulito: new Blob([pulito.dati as BlobPart], { type: pulito.mime }), copertinaUrl: v.copertina ? URL.createObjectURL(v.copertina) : null,
         lavoro: null, fase: "pronta", passo: { fatti: 0, totale: 0 }, frase: null, definitivo: false,
       };
       setBozze((l) => [...l.filter((b) => b.slot !== "video"), bozza]);
@@ -243,7 +253,8 @@ export function EditorMedia({ prodotto, media, esegui, aggiorna }: PropsEditorMe
       const misure = await dal(b.file, b.punto);
       return misure.map((m) => ({ chiave: String(m.lato), tipo: "foto" as const, blob: m.blob, mime: "image/jpeg", per: m.per }));
     }
-    const file: FileDaCaricare[] = [{ chiave: "video", tipo: "video", blob: b.file, mime: b.file.type }];
+    if (!b.pulito) throw new Error("Non riesco a preparare questo video: esportalo di nuovo dal telefono.");
+    const file: FileDaCaricare[] = [{ chiave: "video", tipo: "video", blob: b.pulito, mime: b.pulito.type }];
     if (b.copertina) {
       //  shortcut: la copertina si ritaglia al centro e si carica alla misura 960 (un solo file); da rendere spostabile se serve.
       const misure = await dal(b.copertina, { x: 0.5, y: 0.5 });
@@ -444,7 +455,7 @@ function PannelloBozza({ def, etichetta, nome, b, agg, salva, scarta, cambiaCope
                 {b.copertinaUrl ? <img src={b.copertinaUrl} alt="La copertina scelta" className="h-16 w-16 rounded-md object-cover ring-1 ring-sky-200" /> : null}
                 <Button type="button" variant="outline" className="min-h-11" disabled={inCorso} onClick={cambiaCopertina}>Cambia copertina</Button>
               </div>
-              {b.durataS !== null && <p className="text-[12px] text-muted-foreground">Durata: {Math.round(b.durataS)} secondi. La copertina è il fotogramma a 1 secondo.</p>}
+              {b.durataS !== null && <p className="text-[12px] text-muted-foreground">Durata: {Math.round(b.durataS)} secondi. La copertina è il fotogramma a 1 secondo. Prima di caricarlo tolgo dal video la posizione e gli altri dati nascosti.</p>}
             </div>
           )}
           {b.tipo === "foto" && asse && (

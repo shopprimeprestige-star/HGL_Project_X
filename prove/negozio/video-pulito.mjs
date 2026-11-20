@@ -26,26 +26,52 @@ const metaGps = () => box("meta", u32(0), box("hdlr", new Uint8Array(24)), box("
 const PAYLOAD = enc("PRIMO-CHUNK!SECONDO-CHUNK"); // 11 + 14
 const stco = (...off) => box("stco", u32(0), u32(off.length), ...off.map(u32));
 const co64 = (...off) => box("co64", u32(0), u32(off.length), ...off.map(u64));
-const trak = (stbl, extra = []) => box("trak", box("tkhd", new Uint8Array(84)), ...extra, box("mdia", box("mdhd", new Uint8Array(24)), box("hdlr", new Uint8Array(24)), box("minf", box("stbl", box("stsd", new Uint8Array(8)), stbl))));
+const hdlr = (tipo) => box("hdlr", u32(0), u32(0), enc(tipo), new Uint8Array(13));
+const tkhd = (id) => box("tkhd", u32(0), u32(0), u32(0), u32(id), new Uint8Array(68));
+const mvhd = (prossima) => box("mvhd", new Uint8Array(96), u32(prossima));
+const stsc1 = () => box("stsc", u32(0), u32(1), u32(1), u32(1), u32(1)); // un campione per chunk
+const stszFisso = (misura, quanti) => box("stsz", u32(0), u32(misura), u32(quanti));
+const trak = (tabelle, { extra = [], id = 1, tipo = "vide", senzaHdlr = false } = {}) =>
+  box("trak", tkhd(id), ...extra, box("mdia", box("mdhd", new Uint8Array(24)), ...(senzaHdlr ? [] : [hdlr(tipo)]), box("minf", box("stbl", box("stsd", new Uint8Array(8)), ...tabelle))));
 
 /** Costruisce il file; `opz.prima`: moov prima di mdat. Due giri: la grandezza non dipende dagli offset. */
 function costruisci(opz = {}) {
   const giro = (o1, o2) => {
     const conMeta = opz.pulito !== true;
     const ftyp = box("ftyp", enc(opz.marca ?? "isom"), u32(512), enc(["heic", "avif"].includes(opz.marca) ? "mif1miaf" : "isomiso2mp41"));
-    const tab = (o) => (opz.co64 ? co64(...o) : stco(...o));
-    const moov = box("moov", box("mvhd", new Uint8Array(100)),
+    const tab = (o, misura) => [opz.co64 ? co64(...o) : stco(...o), stsc1(), stszFisso(misura, 1)];
+    const moov = box("moov", mvhd(3),
       ...(conMeta ? [udtaGps(), metaGps()] : []),
-      trak(tab([o1]), conMeta ? [udtaGps()] : []),
-      trak(tab([o2]), conMeta ? [box("meta", u32(0), xyz())] : []));
+      trak(tab([o1], 12), { id: 1, extra: conMeta ? [udtaGps()] : [] }),
+      trak(tab([o2], 13), { id: 2, extra: conMeta ? [box("meta", u32(0), xyz())] : [] }));
     const mdat = box("mdat", PAYLOAD);
     const extra = opz.uuid ? [box("uuid", enc("XMP-FINTO-"), GPS)] : [];
-    const pre = [ftyp, ...extra];
+    const pre = [ftyp, ...extra, ...(opz.liberi ? [box("free", GPS), box("wide", new Uint8Array(0)), box("skip", enc("zz"))] : [])];
     const f = opz.prima ? cat(...pre, moov, mdat) : cat(...pre, mdat, moov);
     return { file: f, inizioPayload: (opz.prima ? [...pre, moov] : pre).reduce((a, x) => a + x.length, 0) + 8 };
   };
   const g0 = giro(0, 0);
   return giro(g0.inizioPayload, g0.inizioPayload + 12);
+}
+
+/** Un video con una traccia di coordinate (`gpmd`), atomi sconosciuti dappertutto e `uuid` con le coordinate. `ordine`: come stanno i pezzi in mdat. */
+const VA = enc("VIDEO-AAAA"), VB = enc("VIDEO-BBBB");
+function costruisciGps({ prima = true, ordine = "gps-prima", tipoGps = "gpmd", senzaStsz = false, sovrapposta = false, soloGps = false } = {}) {
+  const pezzi = ordine === "gps-prima" ? [GPS, VA, VB] : ordine === "in-mezzo" ? [VA, GPS, VB] : [VA, VB, GPS];
+  const giro = (inizio) => {
+    const pos = (k) => inizio + pezzi.slice(0, k).reduce((n, x) => n + x.length, 0);
+    const oA = pos(pezzi.indexOf(VA)), oB = pos(pezzi.indexOf(VB)), oG = sovrapposta ? oA : pos(pezzi.indexOf(GPS));
+    const video = trak([stco(oA, oB), stsc1(), stszFisso(10, 2), box("sdtp", new Uint8Array(4))], { id: 1, extra: [box("uuid", enc("UUID-IN-TRAK-"), GPS)] });
+    const gps = trak([stco(oG), stsc1(), senzaStsz ? box("stz2", new Uint8Array(12)) : stszFisso(18, 1)], { id: 2, tipo: tipoGps });
+    const moov = box("moov", mvhd(3), box("uuid", enc("UUID-IN-MOOV-"), GPS), box("xxxx", GPS), ...(soloGps ? [gps] : [video, gps]));
+    const mdat = box("mdat", ...pezzi);
+    const ftyp = box("ftyp", enc("isom"), u32(512), enc("isomiso2mp41"));
+    const alto = [ftyp, box("free", GPS), box("wide", new Uint8Array(0)), box("uuid", enc("XMP-FINTO-"), GPS), box("skip", GPS)];
+    const f = prima ? cat(...alto, moov, mdat) : cat(...alto, mdat, moov);
+    return { file: f, dati: alto.reduce((n, x) => n + x.length, 0) + (prima ? moov.length : 0) + 8 };
+  };
+  const g0 = giro(0);
+  return giro(g0.dati).file;
 }
 const trova = (file, seq) => { for (let i = 0; i + seq.length <= file.length; i++) if (seq.every((b, k) => file[i + k] === b)) return i; return -1; };
 const XYZ = [0xa9, 0x78, 0x79, 0x7a];
@@ -111,6 +137,39 @@ export async function prove(_mod, { c, gruppo, radice }) {
   const rp = V.pulisciVideo(p.file);
   c("un file senza metadati torna identico", [true, 0], [rp.ok && rp.dati.length === p.file.length && rp.dati.every((b, i) => b === p.file[i]), rp.ok ? rp.tolti : -1]);
   c("la copia non è lo stesso oggetto dell'originale (l'originale non si tocca)", true, rp.ok && rp.dati !== p.file && a.file.length === costruisci({ prima: true }).file.length);
+
+  // ── la LISTA BIANCA: una traccia di coordinate, atomi sconosciuti, uuid ──
+  const letti = (f, n = 2) => offsets(f).slice(0, n).map((o, i) => testo(f.slice(o, o + 10)));
+  for (const [nome, opz] of [["moov prima di mdat, coordinate PRIMA del video", { prima: true, ordine: "gps-prima" }], ["moov prima, coordinate IN MEZZO ai due pezzi di video", { prima: true, ordine: "in-mezzo" }], ["moov dopo mdat, coordinate in fondo", { prima: false, ordine: "gps-dopo" }], ["moov dopo mdat, coordinate in mezzo", { prima: false, ordine: "in-mezzo" }]]) {
+    const g = costruisciGps(opz);
+    const r = V.pulisciVideo(g);
+    c(`${nome}: pulizia riuscita`, true, r.ok);
+    if (!r.ok) continue;
+    c("…le coordinate non ci sono più, in nessun posto (né uuid, né xxxx, né free, né la traccia gpmd, né i suoi byte in mdat)", [-1, -1, -1, -1], [trova(r.dati, [...GPS]), trova(r.dati, [...enc("gpmd")]), trova(r.dati, [...enc("uuid")]), trova(r.dati, [...enc("XMP-")])]);
+    c("…restano solo `ftyp`, `moov`, `mdat` a livello del file (niente free, wide, skip)", ["ftyp", "mdat", "moov"], (() => { const dv = new DataView(r.dati.buffer); const t = []; let q = 0; while (q < r.dati.length) { const sz = dv.getUint32(q); t.push(testo(r.dati.slice(q + 4, q + 8))); q += sz; } return t.sort(); })());
+    c("…i byte del video sono intatti e di fila: il `mdat` ora contiene solo VIDEO-AAAAVIDEO-BBBB", true, trova(r.dati, [...enc("VIDEO-AAAAVIDEO-BBBB")]) >= 0);
+    c("…gli offset tornano: puntano ai due pezzi del video", ["VIDEO-AAAA", "VIDEO-BBBB"], letti(r.dati));
+    c("…una sola traccia (la traccia gpmd è sparita intera), e `next_track_ID` è 2", [1, 2], [r.dati.join(",").split(enc("trak").join(",")).length - 1, new DataView(r.dati.buffer).getUint32(trova(r.dati, [...enc("mvhd")]) + 4 + 96)]);
+    c("…le tabelle restano, l'atomo sconosciuto `sdtp` (non è nella lista) no", [true, -1], [trova(r.dati, [...enc("stsz")]) >= 0, trova(r.dati, [...enc("sdtp")])]);
+    c("…i file sono più corti di quanto tolto, e la somma delle grandezze torna", true, r.tolti === g.length - r.dati.length && (() => { const dv = new DataView(r.dati.buffer); let q = 0; while (q < r.dati.length) { q += dv.getUint32(q); } return q === r.dati.length; })());
+  }
+  const gtx = costruisciGps({ prima: true });
+  const rtx = V.pulisciVideo(gtx);
+  c("pulire il risultato ancora una volta non cambia niente (è già nella lista bianca)", true, rtx.ok && (() => { const di = V.pulisciVideo(rtx.dati); return di.ok && di.dati.length === rtx.dati.length && di.dati.every((x, i) => x === rtx.dati[i]); })());
+  for (const tipo of ["meta", "mebx", "text", "camm", "sbtl", "subt", "tmcd"]) {
+    const r = V.pulisciVideo(costruisciGps({ tipoGps: tipo, ordine: "in-mezzo" }));
+    c(`una traccia «${tipo}» si toglie intera, con i suoi byte`, [true, -1, ["VIDEO-AAAA", "VIDEO-BBBB"]], r.ok ? [true, trova(r.dati, [...GPS]), letti(r.dati)] : [false]);
+  }
+  const rsn = V.pulisciVideo(costruisciGps({ tipoGps: "soun", ordine: "in-mezzo" }));
+  c("una traccia audio (`soun`) resta, con i suoi byte", rsn.ok ? [true, true] : "no", rsn.ok ? [true, trova(rsn.dati, [...GPS]) >= 0] : "no");
+  const rif = (nome, bytes) => { const r = V.pulisciVideo(bytes); c(`${nome}: rifiutato con la frase, nessun dato`, [false, FRASE, undefined], [r.ok, r.frase, r.dati]); };
+  rif("la traccia da togliere ha le misure compatte (`stz2`): non so dove stanno i suoi byte", costruisciGps({ senzaStsz: true }));
+  rif("i byte della traccia da togliere si sovrappongono a quelli di una traccia che resta", costruisciGps({ sovrapposta: true }));
+  rif("nessuna traccia video o audio (solo coordinate)", costruisciGps({ soloGps: true }));
+  rif("una traccia senza `hdlr`: non so cos'è, non la tengo né la tolgo", costruisci({ prima: true }).file.length ? (() => { const f = costruisci({ prima: true }); const i = trova(f, [...enc("hdlr")]); const g = new Uint8Array(f); for (const k of [0, 1, 2, 3]) g[i + k] = "xxxx".charCodeAt(k); return g; })() : null);
+  const conLiberi = V.pulisciVideo(costruisci({ prima: true, liberi: true }).file);
+  const senzaLiberi = V.pulisciVideo(costruisci({ prima: true }).file);
+  c("`free`, `wide`, `skip` a livello del file si scartano, e gli offset si correggono: stesso risultato che senza", true, conLiberi.ok && senzaLiberi.ok && conLiberi.dati.length === senzaLiberi.dati.length && conLiberi.dati.every((x, i) => x === senzaLiberi.dati[i]) && trova(conLiberi.dati, [...GPS]) === -1);
 
   // ── se non si può analizzare, NON si carica ──
   const no = (nome, bytes) => { const r = V.pulisciVideo(bytes); c(`non analizzabile — ${nome}: rifiutato con la frase, nessun dato`, [false, FRASE, undefined], [r.ok, r.frase, r.dati]); };

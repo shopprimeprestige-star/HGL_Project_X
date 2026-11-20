@@ -19,7 +19,8 @@ export async function prove(_mod, { c, gruppo, radice }) {
   const ed = senzaCommenti(grezzo);
   const br = senzaCommenti(leggi(join(dir, "media-browser.ts")));
   const pu = senzaCommenti(leggi(join(dir, "media-puro.ts")));
-  const tutto = ed + br + pu;
+  const vp = senzaCommenti(leggi(join(dir, "video-pulito.ts")));
+  const tutto = ed + br + pu + vp;
 
   c("EditorMedia.tsx esporta `EditorMedia` e `PropsEditorMedia` con la firma di T14", [true, true, true], [
     /export function EditorMedia\(/.test(ed), /export interface PropsEditorMedia/.test(ed),
@@ -33,6 +34,14 @@ export async function prove(_mod, { c, gruppo, radice }) {
   c("il nome del file di chi carica non si legge mai (`.name`) né finisce in un percorso o in un dato", false, /\.name\b|webkitRelativePath|lastModified/.test(tutto));
   c("il percorso non lo costruisce la schermata: nessuna stringa «foto/», «video/» o «copertina/»", false, /["'`](foto|copertina)\/|["'`]video\/(?!\*|mp4|quicktime)|\$\{[^}]*\}\.(jpe?g|mp4|mov)/.test(tutto));
   c("l'originale non esce: il permesso e l'invio ricevono solo i blob ridimensionati (`disegnaMisure`), mai `file` o `File`", [true, false], [/disegnaMisure\(/.test(ed), /caricaConPermesso\([^)]*\bfile\b/.test(ed)]);
+
+  // ── il video: niente posizione, tipo dalla firma ──
+  c("il video si pulisce (`pulisciVideo`) e il tipo si legge dalla firma (`tipoDaFirma`) prima di tutto", [true, true], [/pulisciVideo\(/.test(ed), /tipoDaFirma\(/.test(ed)]);
+  c("se la pulizia non riesce il video NON si carica: si dice la frase e ci si ferma (`!pulito.ok` → ritorno)", true, /if \(!pulito\.ok\) return setMessaggio/.test(ed));
+  c("al server parte solo il video pulito (`b.pulito`), mai il file scelto (`b.file`); il tipo è quello della firma, non `file.type`", [true, false, false], [/blob:\s*b\.pulito/.test(ed), /blob:\s*b\.file\b[^,}]*,\s*mime:\s*b\.file/.test(ed), /mime:\s*b\.file\.type/.test(ed)]);
+  c("il controllo del tipo usa la firma: `controllaFile` riceve il tipo di `tipoDaFirma`, non `file.type`", [true, false], [/controllaFile\(\{\s*tipo:\s*"video",\s*mime,/.test(ed), /controllaFile\(\{\s*tipo:\s*"video",\s*mime:\s*file\.type/.test(ed)]);
+  c("`video-pulito.ts` è puro: nessun import, nessun browser (`window`, `document`, `fetch`, `Blob`)", false, /^\s*import\s/m.test(vp) || /\b(window|document|fetch|Blob|FileReader)\b/.test(vp));
+  c("`video-pulito.ts` lavora con una LISTA BIANCA: tiene ftyp, moov, mdat, le tracce vide e soun, e corregge stco e co64", true, ["ftyp", "moov", "mdat", "mvhd", "trak", "stco", "co64", "stsc", "stsz", "vide", "soun"].every((a) => vp.includes(`"${a}"`)));
 
   // ── alt obbligatorio ──
   c("la descrizione si controlla con `controllaAlt` e il contatore `contaAlt` (0/125)", [true, true, true], [/controllaAlt\(/.test(ed), /contaAlt\(/.test(ed), /maxLength|MAX_ALT/.test(ed)]);
@@ -86,7 +95,7 @@ export async function prove(_mod, { c, gruppo, radice }) {
     toccati = null; // shortcut: il commit di partenza non c'è (repository nuovo): non si può confrontare; si toglie quando BASE non serve più
   }
   if (toccati) {
-    const ammessi = /^src\/crm\/ecommerce\/prodotti\/(EditorMedia\.tsx|media-puro\.ts|media-browser\.ts)$|^prove\/negozio\/(media-puro|media-sorgente|pagina-negozio)\.mjs$/;
+    const ammessi = /^src\/crm\/ecommerce\/prodotti\/(EditorMedia\.tsx|media-puro\.ts|media-browser\.ts|video-pulito\.ts)$|^prove\/negozio\/(media-puro|media-sorgente|video-pulito|pagina-negozio)\.mjs$/;
     c("nel diff ci sono solo i file di T16 (non `CRM.ecommerce.tsx`, non gli altri segnaposto, non `routeTree.gen.ts`, non `client.ts`)", [], toccati.filter((f) => !ammessi.test(f)));
   }
 }
