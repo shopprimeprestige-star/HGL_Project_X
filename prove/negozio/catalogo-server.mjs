@@ -270,11 +270,20 @@ export async function prove(mod, { c, gruppo, radice }) {
   const sano = nuovo();
   c("schedaEsito: trovato (con il prodotto), non trovato (bozza, archiviato, sconosciuto, slug storto, vuoto)", ["trovato", "prodotto-di-prova", "non_trovato", "non_trovato", "non_trovato", "non_trovato", "non_trovato"],
     [await es(sano, "prodotto-di-prova"), (await sano.catalogo.schedaEsito("prodotto-di-prova")).prodotto?.slug, await es(sano, "prodotto-in-bozza"), await es(sano, "prodotto-archiviato"), await es(sano, "non-esiste"), await es(sano, "A B/.."), await es(sano, "")]);
-  c("schedaEsito: database giù, errore di una vista o rete che lancia → «guasto» (non «non trovato»)", ["guasto", "guasto", "guasto"],
-    [await es(nuovo({ db: { mancante: true } }), "prodotto-di-prova"), await es(nuovo({ db: { errori: { "shop_v_media.select": { error: { code: "XX000" } } } } }), "prodotto-di-prova"), await es(nuovo({ db: { errori: { "shop_v_prodotti.select": { lancia: new Error("rete") } } } }), "prodotto-di-prova")]);
+  c("schedaEsito: errore di una vista o rete che lancia → «guasto» (non «non trovato»)", ["guasto", "guasto", "guasto"],
+    [await es(nuovo({ db: { errori: { "shop_v_prodotti.select": { error: { code: "08006" } } } } }), "prodotto-di-prova"), await es(nuovo({ db: { errori: { "shop_v_media.select": { error: { code: "XX000" } } } } }), "prodotto-di-prova"), await es(nuovo({ db: { errori: { "shop_v_prodotti.select": { lancia: new Error("rete") } } } }), "prodotto-di-prova")]);
   const Kb = await AN.emettiChiaveAnteprima(CHIAVE, "prodotto-in-bozza", T0);
   c("schedaEsito con la chiave: bozza trovata; chiave valida ma tabelle giù → «guasto»; chiave sbagliata e viste giù → «guasto»; chiave sbagliata e tutto ok → «non trovato»", ["trovato", "guasto", "guasto", "non_trovato"],
-    [await es(nuovo(), "prodotto-in-bozza", Kb), await es(nuovo({ db: { errori: { "shop_prodotti.select": { lancia: new Error("rete") } } } }), "prodotto-in-bozza", Kb), await es(nuovo({ db: { mancante: true } }), "prodotto-in-bozza", "1.abc"), await es(nuovo(), "prodotto-in-bozza", "1.abc")]);
+    [await es(nuovo(), "prodotto-in-bozza", Kb), await es(nuovo({ db: { errori: { "shop_prodotti.select": { lancia: new Error("rete") } } } }), "prodotto-in-bozza", Kb), await es(nuovo({ db: { errori: { "shop_v_prodotti.select": { lancia: new Error("rete") } } } }), "prodotto-in-bozza", "1.abc"), await es(nuovo(), "prodotto-in-bozza", "1.abc")]);
+  // migrazione non applicata (S1 manca): vista o colonna assente = «non trovato» (come la modalità dà `codice`), non «guasto»
+  const mig = (db) => es(nuovo({ db }), "xyz-sconosciuto");
+  c("schedaEsito: migrazione non applicata (42P01, PGRST205, 42703, PGRST204) → «non trovato», mai «guasto»", ["non_trovato", "non_trovato", "non_trovato", "non_trovato", "non_trovato"],
+    [await mig({ mancante: true }), await mig({ mancante: true, codiceMancante: "PGRST205" }), await mig({ mancante: ["shop_v_prodotti"] }),
+      await mig({ errori: { "shop_v_media.select": { error: { code: "42703" } } } }), await mig({ errori: { "shop_v_varianti.select": { error: { code: "PGRST204" } } } })]);
+  c("…anche con la chiave d'anteprima valida (tabelle assenti), e la categoria/elenco restano vuoti", ["non_trovato", []],
+    [await es(nuovo({ db: { mancante: true } }), "prodotto-in-bozza", Kb), await nuovo({ db: { mancante: true } }).catalogo.elenco()]);
+  c("…ma un codice che non è di migrazione resta «guasto» (non si nasconde un guasto vero)", ["guasto", "guasto"],
+    [await mig({ errori: { "shop_v_media.select": { error: { code: "57P01" } } } }), await mig({ errori: { "shop_v_prodotti.select": { error: { code: "PGRST301" } } } })]);
   c("`scheda` resta com'era: il prodotto, oppure `null` (anche per un guasto: chi vuole distinguere usa `schedaEsito`)", ["prodotto-di-prova", null, null], [(await sano.catalogo.scheda("prodotto-di-prova"))?.slug, await sano.catalogo.scheda("prodotto-in-bozza"), await nuovo({ db: { mancante: true } }).catalogo.scheda("prodotto-di-prova")]);
   const sorg = (f) => readFileSync(join(radice, f), "utf8");
 
@@ -298,9 +307,18 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("sorgente: la lettura dell'interruttore è ESATTAMENTE `select(\"valore\")` + `eq(\"chiave\", \"catalogo_sito\")` + `maybeSingle()`, e `shop_impostazioni` si nomina una volta sola", [1, 1],
     [(codice(server).match(/\.from\("shop_impostazioni"\)\s*\.select\("valore"\)\s*\.eq\("chiave", "catalogo_sito"\)\s*\.maybeSingle\(\)/g) ?? []).length, (codice(server).match(/shop_impostazioni/g) ?? []).length]);
   c("le tabelle non si scrivono mai: nessun insert, update, upsert, delete né rpc", false, /\.(insert|update|upsert|delete|rpc)\(/.test(codice(server)));
+  // ── l'intestazione di memoria vale solo per la chiamata del browser, mai per l'HTML della pagina ──
+  const cache = CAT.cacheDellaRisposta;
+  c("cache: dal browser (/_serverFn/…) l'intestazione resta com'è", ["public, max-age=30", "no-store"], [cache("public, max-age=30", "/_serverFn/abc"), cache("no-store", "/_serverFn/abc")]);
+  c("cache: durante il rendering della PAGINA (percorso che non è /_serverFn) il `public` NON si imposta: la pagina resta no-cache", [null, null, null, null],
+    ["/shop/prodotto/x", "/shop/carrello", "/shop/checkout", "/shop"].map((p) => cache("public, max-age=30", p)));
+  c("cache: nel rendering le intestazioni che restringono (private, no-store) passano, e un percorso strano non fa mai `public`", ["private, no-store", "no-store", null, null],
+    [cache("private, no-store", "/shop/prodotto/x"), cache("no-store", "/shop/carrello"), cache("public, max-age=30", ""), cache("public, max-age=30", "/x/_serverFn/")]);
   const funzioni = sorg("src/shop/cms/catalogo.functions.ts");
   c("l'involucro delle funzioni non nomina nessuna tabella", [], nomi(funzioni));
   c("l'involucro: sei funzioni, memoria `public, max-age=30`, e senza memoria (`no-store`) per l'anteprima", [6, true, true], [(funzioni.match(/createServerFn\(/g) ?? []).length, /public, max-age=30/.test(funzioni), /data\.chiave \|\| r\.esito === "guasto" \? "private, no-store" : "public, max-age=30"/.test(funzioni)]);
+  c("l'involucro mette l'intestazione solo tramite `cacheDellaRisposta` con il percorso della richiesta (mai `setResponseHeader` con il valore diretto)", [true, true, 1],
+    [/cacheDellaRisposta\(/.test(funzioni) && /getRequestUrl/.test(funzioni), /import \{[^}]*cacheDellaRisposta/.test(funzioni), (codice(funzioni).match(/setResponseHeader\(/g) ?? []).length]);
   c("l'involucro legge SHOP_CATALOGO_FORZA solo se c'è, e il client del server lo importa a richiesta (mai a livello di modulo)", [true, true, false],
     [/SHOP_CATALOGO_FORZA/.test(funzioni), /await import\("@\/integrations\/supabase\/client\.server"\)/.test(funzioni), /^import .*client\.server/m.test(funzioni)]);
   c("nessuna chiave scritta nel codice", false, /(?:eyJ[A-Za-z0-9_-]{20,}|sb_secret_|service_role\s*[:=]\s*["'])/.test(server + funzioni));

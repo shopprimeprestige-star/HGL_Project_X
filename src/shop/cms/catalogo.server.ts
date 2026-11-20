@@ -65,6 +65,8 @@ const MEMORIA_CATALOGO_MS = 30_000;
 const MEMORIA_MODALITA_MS = 15_000;
 /** Quanto si ricorda un guasto (modalità e catalogo). */
 const MEMORIA_GUASTO_MS = 5_000;
+/** Gli errori di Postgres/PostgREST che dicono «tabella, vista o colonna assente»: la migrazione S1 non è ancora applicata. */
+const MIGRAZIONE_ASSENTE = new Set(["42P01", "42703", "PGRST204", "PGRST205"]);
 const MAX_SKU_CARRELLO = 50;
 const MAX_TESTO_RICERCA = 80;
 
@@ -73,6 +75,13 @@ interface Caricato {
   categorie: CategoriaPubblica[];
   /** Le righe delle viste, per la sitemap. */
   righe: { prodotti: unknown[]; categorie: unknown[] };
+}
+
+/** L'intestazione `Cache-Control` di una risposta delle funzioni, o `null` se non va messa. Il `public` vale solo per la chiamata
+ *  del browser (`/_serverFn/…`): durante il rendering della PAGINA la funzione gira dentro la richiesta della pagina, e l'HTML
+ *  deve restare `no-cache, must-revalidate` (regola di `src/server.ts`). Le intestazioni che restringono passano sempre. */
+export function cacheDellaRisposta(cache: string, percorso: string): string | null {
+  return /^public\b/.test(cache) && !percorso.startsWith("/_serverFn/") ? null : cache;
 }
 
 export function creaCatalogo(porte: PorteCatalogo) {
@@ -178,7 +187,8 @@ export function creaCatalogo(porte: PorteCatalogo) {
       return prodotto ? { esito: "trovato", prodotto } : { esito: "non_trovato" };
     } catch (e) {
       segnala(e);
-      return { esito: "guasto" };
+      // S1 non applicata (vista o colonna assente): come per la modalità (`codice`), è «non trovato», non un guasto
+      return { esito: MIGRAZIONE_ASSENTE.has(String((e as { code?: unknown } | null)?.code)) ? "non_trovato" : "guasto" };
     }
   }
   /** Come `schedaEsito`, ma con `null` per tutto ciò che non è un prodotto trovato (anche un guasto). */
