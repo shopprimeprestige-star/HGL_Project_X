@@ -156,11 +156,14 @@ export async function prove(_mod, { c, gruppo, radice }) {
     const esiste = existsSync(p);
     const testo = esiste ? readFileSync(p, "utf8") : "";
     c(`${nome}.tsx esiste ed esporta \`${nome}\` con la firma finale`, true, esiste && new RegExp(`export function ${nome}\\(`).test(testo));
-    const m = esiste ? await caricaTsx(p).catch(() => ({})) : {};
-    c(`${nome} ritorna null (segnaposto: lo riempie ${compito})`, null, typeof m[nome] === "function" ? m[nome](PROPS_DI_ESEMPIO[nome]) : "non è una funzione");
+    //  Quando il compito che lo riempie (T15, T16, T17) sostituisce il contenuto, il commento «SEGNAPOSTO» sparisce: le due prove
+    //  «ritorna null» e «nessun import» valgono solo finché il file è ancora un segnaposto; la firma e il commento delle props restano.
+    const riempito = esiste && !/SEGNAPOSTO/.test(testo);
+    const m = esiste && !riempito ? await caricaTsx(p).catch(() => ({})) : {};
+    if (!riempito) c(`${nome} ritorna null (segnaposto: lo riempie ${compito})`, null, typeof m[nome] === "function" ? m[nome](PROPS_DI_ESEMPIO[nome]) : "non è una funzione");
     const testa = testo.slice(0, testo.indexOf("*/") + 2);
     c(`${nome}: in cima c'è il commento con le props pensate per ${compito}`, [true, true], [new RegExp(compito).test(testa), /props/i.test(testa) && /export interface Props/.test(testo)]);
-    c(`${nome}: nessun import di React o di moduli del CRM (un segnaposto non porta pesi)`, false, /^\s*import\s+(?!type\b)/m.test(senzaCommenti(testo)));
+    if (!riempito) c(`${nome}: nessun import di React o di moduli del CRM (un segnaposto non porta pesi)`, false, /^\s*import\s+(?!type\b)/m.test(senzaCommenti(testo)));
   }
 
   // ── l'elenco ──
