@@ -42,7 +42,7 @@ function costruisci(opz = {}) {
     const tab = (o, misura) => [opz.co64 ? co64(...o) : stco(...o), stsc1(), stszFisso(misura, 1)];
     const moov = box("moov", mvhd(3),
       ...(conMeta ? [udtaGps(), metaGps()] : []),
-      trak(tab([o1], 12), { id: 1, extra: conMeta ? [udtaGps()] : [] }),
+      trak(tab([o1], 12), { id: 1, extra: [...(conMeta ? [udtaGps()] : []), ...(opz.tref ? [box("tref", box("chap", u32(2)))] : [])] }),
       trak(tab([o2], 13), { id: 2, extra: conMeta ? [box("meta", u32(0), xyz())] : [] }));
     const mdat = box("mdat", PAYLOAD);
     const extra = opz.uuid ? [box("uuid", enc("XMP-FINTO-"), GPS)] : [];
@@ -72,6 +72,64 @@ function costruisciGps({ prima = true, ordine = "gps-prima", tipoGps = "gpmd", s
   };
   const g0 = giro(0);
   return giro(g0.dati).file;
+}
+
+/** Il blocco `mdat` in tre forme: normale, con grandezza 0 («fino alla fine del file») e con intestazione a 64 bit (grandezza 1 + 8 byte). */
+const mdatBox = (modo, ...pezzi) => {
+  const c = cat(...pezzi);
+  if (modo === "zero") return { b: cat(u32(0), enc("mdat"), c), testa: 8 };
+  if (modo === "largo") return { b: cat(u32(1), enc("mdat"), u64(16 + c.length), c), testa: 16 };
+  return { b: box("mdat", c), testa: 8 };
+};
+/** Video + traccia di coordinate. `mdat`: normale | zero | largo | due (due blocchi: [VA] e [GPS, VB]). `tref`: la traccia video punta a quella delle coordinate. */
+function costruisciVariante({ prima = true, mdat = "normale", tref = false } = {}) {
+  const giro = (inizio) => {
+    const gruppi = mdat === "due" ? [[VA], [GPS, VB]] : [[GPS, VA, VB]];
+    const modo = mdat === "due" ? "normale" : mdat;
+    const scatole = gruppi.map((g) => mdatBox(modo, ...g));
+    const pos = new Map();
+    let q = inizio;
+    gruppi.forEach((g, i) => { q += scatole[i].testa; for (const x of g) { pos.set(x, q); q += x.length; } });
+    const video = trak([stco(pos.get(VA), pos.get(VB)), stsc1(), stszFisso(10, 2)], { id: 1, extra: tref ? [box("tref", box("chap", u32(2)))] : [] });
+    const gps = trak([stco(pos.get(GPS)), stsc1(), stszFisso(18, 1)], { id: 2, tipo: "gpmd" });
+    const moov = box("moov", mvhd(3), video, gps);
+    const ftyp = box("ftyp", enc("isom"), u32(512), enc("isomiso2mp41"));
+    const dati = cat(...scatole.map((x) => x.b));
+    return { file: prima ? cat(ftyp, moov, dati) : cat(ftyp, dati, moov), start: ftyp.length + (prima ? moov.length : 0) };
+  };
+  return giro(giro(0).start).file;
+}
+
+/** Un file con una struttura DOPPIA nello stesso contenitore (la seconda copia porta la traccia di coordinate): non si carica. */
+function costruisciDoppio(cosa) {
+  const giro = (oA, oB, oG) => {
+    const stblV = (extra = []) => [stsc1(), stszFisso(10, 2), ...extra];
+    const mdiaDi = (tipo, tab, extra = {}) => box("mdia", box("mdhd", new Uint8Array(24)), hdlr(tipo), ...(extra.hdlr2 ? [hdlr("gpmd")] : []), box("minf", box("stbl", box("stsd", new Uint8Array(8)), ...tab)));
+    const tabV = [stco(oA, oB), ...stblV(cosa === "stco" ? [stco(oG)] : cosa === "stsz" ? [stszFisso(11, 2)] : [])];
+    const tabG = [stco(oG), stsc1(), stszFisso(18, 1)];
+    const tracciaV = cosa === "mdia" ? box("trak", tkhd(1), mdiaDi("vide", tabV), mdiaDi("gpmd", tabG))
+      : cosa === "tkhd" ? box("trak", tkhd(1), tkhd(2), mdiaDi("vide", tabV))
+      : box("trak", tkhd(1), mdiaDi("vide", tabV, { hdlr2: cosa === "hdlr" }));
+    const moov = box("moov", mvhd(2), ...(cosa === "mvhd" ? [mvhd(5)] : []), tracciaV);
+    const ftyp = box("ftyp", enc("isom"), u32(512), enc("isomiso2mp41"));
+    const m = mdatBox("normale", VA, VB, GPS);
+    return { file: cat(ftyp, moov, m.b), start: ftyp.length + moov.length + 8 };
+  };
+  const g0 = giro(0, 0, 0);
+  return giro(g0.start, g0.start + 10, g0.start + 20).file;
+}
+
+/** Una traccia da togliere con una tabella enorme (300 milioni di campioni da 1 byte): non deve far girare il browser. */
+function costruisciEnorme() {
+  const giro = (oA) => {
+    const video = trak([stco(oA), stsc1(), stszFisso(10, 1)], { id: 1 });
+    const gps = trak([stco(oA), box("stsc", u32(0), u32(1), u32(1), u32(300000000), u32(1)), stszFisso(1, 300000000)], { id: 2, tipo: "gpmd" });
+    const moov = box("moov", mvhd(3), video, gps);
+    const ftyp = box("ftyp", enc("isom"), u32(512), enc("isomiso2mp41"));
+    const m = mdatBox("normale", VA);
+    return { file: cat(ftyp, moov, m.b), start: ftyp.length + moov.length + 8 };
+  };
+  return giro(giro(0).start).file;
 }
 const trova = (file, seq) => { for (let i = 0; i + seq.length <= file.length; i++) if (seq.every((b, k) => file[i + k] === b)) return i; return -1; };
 const XYZ = [0xa9, 0x78, 0x79, 0x7a];
@@ -170,6 +228,36 @@ export async function prove(_mod, { c, gruppo, radice }) {
   const conLiberi = V.pulisciVideo(costruisci({ prima: true, liberi: true }).file);
   const senzaLiberi = V.pulisciVideo(costruisci({ prima: true }).file);
   c("`free`, `wide`, `skip` a livello del file si scartano, e gli offset si correggono: stesso risultato che senza", true, conLiberi.ok && senzaLiberi.ok && conLiberi.dati.length === senzaLiberi.dati.length && conLiberi.dati.every((x, i) => x === senzaLiberi.dati[i]) && trova(conLiberi.dati, [...GPS]) === -1);
+
+  // ── i casi limite del `mdat` e di `tref` ──
+  const x_albero = (f) => { const dv = new DataView(f.buffer, f.byteOffset); const t = []; let q = 0; while (q < f.length) { let sz = dv.getUint32(q); let testa = 8; const tipo = testo(f.slice(q + 4, q + 8)); if (sz === 1) { sz = Number(dv.getBigUint64(q + 8)); testa = 16; } else if (sz === 0) sz = f.length - q; t.push({ tipo, q, sz, testa, grezza: dv.getUint32(q) }); q += sz; } return t; };
+  const x_VV = "VIDEO-AAAAVIDEO-BBBB";
+  const x_rz = V.pulisciVideo(costruisciVariante({ prima: true, mdat: "zero" }));
+  c("`mdat` con grandezza 0 («fino alla fine»): pulito; l'intestazione resta 0, il blocco è l'ultimo e contiene solo il video, di fila", x_rz.ok ? [true, 0, x_VV, "mdat"] : "no", x_rz.ok ? (() => { const a = x_albero(x_rz.dati).at(-1); return [true, a.grezza, testo(x_rz.dati.slice(a.q + 8)), a.tipo]; })() : "no");
+  c("…e le coordinate non ci sono più e gli offset puntano al video", x_rz.ok ? [-1, ["VIDEO-AAAA", "VIDEO-BBBB"]] : "no", x_rz.ok ? [trova(x_rz.dati, [...GPS]), letti(x_rz.dati)] : "no");
+  const x_rl = V.pulisciVideo(costruisciVariante({ prima: true, mdat: "largo" }));
+  c("`mdat` con intestazione a 64 bit (grandezza 1): pulito; l'intestazione resta di 16 byte e la grandezza DICE LA VERITÀ (16 + 20)", x_rl.ok ? [true, 1, 16, 36, x_VV] : "no", x_rl.ok ? (() => { const a = x_albero(x_rl.dati).at(-1); return [true, a.grezza, a.testa, a.sz, testo(x_rl.dati.slice(a.q + 16, a.q + a.sz))]; })() : "no");
+  c("…la somma delle grandezze dei blocchi è la lunghezza del file, e gli offset puntano al video", x_rl.ok ? [x_rl.dati.length, ["VIDEO-AAAA", "VIDEO-BBBB"]] : "no", x_rl.ok ? [x_albero(x_rl.dati).reduce((n, a) => n + a.sz, 0), letti(x_rl.dati)] : "no");
+  const x_rl2 = V.pulisciVideo(costruisciVariante({ prima: false, mdat: "largo" }));
+  c("`mdat` a 64 bit con `moov` DOPO: pulito e gli offset tornano", x_rl2.ok ? [-1, ["VIDEO-AAAA", "VIDEO-BBBB"]] : "no", x_rl2.ok ? [trova(x_rl2.dati, [...GPS]), letti(x_rl2.dati)] : "no");
+  const x_rd = V.pulisciVideo(costruisciVariante({ prima: true, mdat: "due" }));
+  c("DUE `mdat` (le coordinate nel secondo): puliti, restano due blocchi con un pezzo di video ciascuno", x_rd.ok ? [["mdat", "mdat"], ["VIDEO-AAAA", "VIDEO-BBBB"], -1] : "no", x_rd.ok ? [x_albero(x_rd.dati).filter((a) => a.tipo === "mdat").map((a) => a.tipo), x_albero(x_rd.dati).filter((a) => a.tipo === "mdat").map((a) => testo(x_rd.dati.slice(a.q + 8, a.q + a.sz))), trova(x_rd.dati, [...GPS])] : "no");
+  c("…e gli offset puntano ai due pezzi (il secondo si è spostato per i byte tolti)", x_rd.ok ? ["VIDEO-AAAA", "VIDEO-BBBB"] : "no", x_rd.ok ? letti(x_rd.dati) : "no");
+  const x_rtf = V.pulisciVideo(costruisciVariante({ prima: true, tref: true }));
+  c("`tref` della traccia che resta, se una traccia è sparita: si toglie (non può puntare al vuoto)", x_rtf.ok ? -1 : "no", x_rtf.ok ? trova(x_rtf.dati, [...enc("tref")]) : "no");
+  const x_rts = V.pulisciVideo(costruisci({ prima: true, tref: true }).file);
+  c("…ma se nessuna traccia è sparita `tref` resta", x_rts.ok ? true : "no", x_rts.ok ? trova(x_rts.dati, [...enc("tref")]) >= 0 : "no");
+  const rif2 = (nome, bytes) => { const r = V.pulisciVideo(bytes); c(`${nome}: rifiutato con la frase, nessun dato`, [false, FRASE, undefined], [r.ok, r.frase, r.dati]); };
+  const alto64 = costruisciVariante({ prima: true, mdat: "largo" });
+  const a64 = x_albero(alto64).at(-1);
+  alto64.set(u32(1), a64.q + 8); // parte alta ≠ 0: oltre 4 GB
+  rif2("`mdat` a 64 bit con la parte alta della grandezza diversa da zero", alto64);
+  rif2("`mdat` con grandezza 0 che NON è l'ultimo (ingoia il `moov`)", costruisciVariante({ prima: false, mdat: "zero" }));
+  for (const cosa of ["mdia", "mvhd", "stco", "stsz", "tkhd", "hdlr"]) rif2(`doppio «${cosa}» nello stesso contenitore (il secondo poteva nascondere la traccia di coordinate)`, costruisciDoppio(cosa));
+  c("due `trak` e due `mdat` sono normali (provato sopra); un file con una sola copia di ogni cosa passa", true, V.pulisciVideo(costruisciVariante({ prima: true })).ok);
+  const x_t0 = performance.now();
+  const x_re = V.pulisciVideo(costruisciEnorme());
+  c("una tabella di 300 milioni di campioni a misura fissa: rifiutata, e in meno di 100 ms (nessun giro per campione)", [false, true], [x_re.ok, performance.now() - x_t0 < 100]);
 
   // ── se non si può analizzare, NON si carica ──
   const no = (nome, bytes) => { const r = V.pulisciVideo(bytes); c(`non analizzabile — ${nome}: rifiutato con la frase, nessun dato`, [false, FRASE, undefined], [r.ok, r.frase, r.dati]); };
