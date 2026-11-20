@@ -20,7 +20,7 @@ export async function prove(mod, { c, gruppo }) {
   const variante = (extra = {}) => ({ sku: "PROVA-001", nome: "Unica", prezzoCent: null, attiva: true, ...extra });
   const media = (extra = {}) => ({
     id: "m1", slot: "principale", tipo: "foto", alt: "Foto di prova", muto: false, sottotitoliOk: false,
-    ritraePersone: false, liberatoriaOk: false, rimossoIl: null, ...extra,
+    ritraePersone: false, liberatoriaOk: false, rimossoIl: null, pathCopertina: null, ...extra,
   });
   const contesto = (extra = {}) => ({ spedizioneImpostata: true, tuttiGliSku: [], ...extra });
   const vai = (o = {}) =>
@@ -37,6 +37,11 @@ export async function prove(mod, { c, gruppo }) {
   c("con sole foto 2-5, senza la principale → rifiutato", ["fotoPrincipale"], campi(vai({ media: [media({ slot: "foto2" })] })));
   c("la principale tolta (rimosso_il) non vale", ["fotoPrincipale"], campi(vai({ media: [media({ rimossoIl: "2026-11-20T10:00:00Z" })] })));
   c("un video nello slot principale non è una foto", ["fotoPrincipale"], campi(vai({ media: [media({ tipo: "video", muto: true })] })));
+
+  c("la principale con persone SENZA liberatoria non esce, quindi non vale (come il trigger di S1)", [["fotoPrincipale"], "Manca la foto principale: il prodotto resta in bozza."],
+    ((r) => [campi(r), frasi(r)[0]])(vai({ media: [media({ ritraePersone: true, liberatoriaOk: false })] })));
+  c("la principale con persone e liberatoria vale", [], campi(vai({ media: [media({ ritraePersone: true, liberatoriaOk: true })] })));
+  c("con la principale senza liberatoria ma un'altra principale in regola → passa", [], campi(vai({ media: [media({ ritraePersone: true }), media({ id: "m2", ritraePersone: false })] })));
 
   // ── testo alternativo ──
   const dueSenzaAlt = vai({ media: [media(), media({ id: "m2", slot: "foto2", alt: "" }), media({ id: "m3", slot: "foto3", alt: "   " })] });
@@ -88,6 +93,14 @@ export async function prove(mod, { c, gruppo }) {
   c("video parlato con i sottotitoli impressi → passa", [], campi(vai({ media: [media(), { ...parlato, sottotitoliOk: true }] })));
   c("video muto → passa", [], campi(vai({ media: [media(), { ...parlato, muto: true }] })));
   c("video parlato tolto → non conta", [], campi(vai({ media: [media(), { ...parlato, rimossoIl: "2026-11-20T10:00:00Z" }] })));
+
+  const conCopertina = { ...parlato, sottotitoliOk: true, pathCopertina: "prova/copertina.webp" };
+  const senzaCop = vai({ media: [media(), { ...parlato, sottotitoliOk: true }] });
+  c("video senza copertina → informativo (non blocca)", [[], [{ campo: "video", frase: "Manca la copertina del video." }]], [campi(senzaCop), senzaCop.informativi]);
+  c("video con copertina → nessun informativo", [], vai({ media: [media(), conCopertina] }).informativi);
+  c("due video senza copertina → una frase sola, col numero", ["Mancano le copertine di 2 video."],
+    vai({ media: [media(), { ...parlato, sottotitoliOk: true }, { ...parlato, id: "m10", sottotitoliOk: true }] }).informativi.map((i) => i.frase));
+  c("video tolto senza copertina → niente", [], vai({ media: [media(), { ...parlato, rimossoIl: "2026-11-20T10:00:00Z" }] }).informativi);
 
   // ── canali ──
   const nessunCanale = { sito: false, meta: false, google: false, tiktok: false };

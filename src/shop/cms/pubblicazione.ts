@@ -36,7 +36,7 @@ type ProdottoIn = Pick<
   | "caratteristiche" | "passi" | "confezione" | "avvertenze" | "faq" | "canali" | "seoTitolo" | "seoDescrizione"
 >;
 type VarianteIn = Pick<Variante, "sku" | "nome" | "prezzoCent" | "attiva">;
-type MediaIn = Pick<Media, "id" | "slot" | "tipo" | "alt" | "muto" | "sottotitoliOk" | "ritraePersone" | "liberatoriaOk" | "rimossoIl">;
+type MediaIn = Pick<Media, "id" | "slot" | "tipo" | "alt" | "muto" | "sottotitoliOk" | "ritraePersone" | "liberatoriaOk" | "rimossoIl" | "pathCopertina">;
 
 /** Lo SKU è libero se nessun altro prodotto (o sue varianti) lo usa; `escludi` è l'id del prodotto che lo sta scrivendo. */
 export const skuLibero = (sku: string, tuttiGliSku: readonly SkuUsato[], escludi?: string | null): boolean =>
@@ -61,8 +61,9 @@ export function controllaPubblicazione(
   const vivi = (media ?? []).filter((m) => !m.rimossoIl);
   const foto = vivi.filter((m) => m.tipo === "foto");
 
-  // Foto: la principale, e il testo alternativo di ognuna (per chi non vede).
-  if (!foto.some((m) => m.slot === "principale")) b("fotoPrincipale", "Manca la foto principale: il prodotto resta in bozza.");
+  // Foto: la principale (come nel trigger di S1: se ritrae persone serve la liberatoria, altrimenti non esce e non vale),
+  // e il testo alternativo di ognuna (per chi non vede).
+  if (!foto.some((m) => m.slot === "principale" && (!m.ritraePersone || m.liberatoriaOk))) b("fotoPrincipale", "Manca la foto principale: il prodotto resta in bozza.");
   const senzaAlt = foto.filter((m) => !pieno(m.alt)).length;
   if (senzaAlt > 0) b("alt", `Manca il testo alternativo di ${senzaAlt} foto.`);
 
@@ -119,6 +120,8 @@ export function controllaPubblicazione(
     i("seoDescrizione", `La descrizione SEO è lunga ${prodotto.seoDescrizione!.length} segni: oltre ${TETTI.seoDescrizione} i motori di ricerca la tagliano.`);
   const nonQuadrate = foto.filter((m) => contesto.mediaNonQuadrati?.includes(m.id)).length;
   if (nonQuadrate > 0) i("media", nonQuadrate === 1 ? "Una foto non è quadrata: nella scheda viene ritagliata." : `${nonQuadrate} foto non sono quadrate: nella scheda vengono ritagliate.`);
+  const senzaCopertina = vivi.filter((m) => m.tipo === "video" && !pieno(m.pathCopertina)).length;
+  if (senzaCopertina > 0) i("video", senzaCopertina === 1 ? "Manca la copertina del video." : `Mancano le copertine di ${senzaCopertina} video.`);
   const senzaLiberatoria = vivi.filter((m) => m.ritraePersone && !m.liberatoriaOk).length;
   if (senzaLiberatoria > 0)
     i("media", senzaLiberatoria === 1 ? "Una foto ritrae persone e manca la liberatoria: non esce nella scheda." : `${senzaLiberatoria} foto ritraggono persone e manca la liberatoria: non escono nella scheda.`);

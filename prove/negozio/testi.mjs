@@ -37,7 +37,7 @@ export async function prove(mod, { c, gruppo }) {
     invisibile: "Una patch invisibile", garantito: "Risultato garantito", premium: "Qualità premium",
     "cura la calvizie": "Cura la calvizie", ricrescita: "Aiuta la ricrescita", "riduce la caduta": "Riduce la caduta",
     definitivo: "Un metodo definitivo", Remy: "Capelli Remy", europei: "Capelli europei",
-    indistinguibile: "Una patch indistinguibile", "best seller": "Il nostro best seller",
+    indistinguibile: "Una patch indistinguibile", "best seller": "Il nostro best seller", "più venduto": "Il più venduto del mese",
   };
   for (const [parola, testo] of Object.entries(elenco)) c(`avviso per «${parola}»`, [parola.toLowerCase()], parole(testo).map((p) => p.toLowerCase()));
   c("il messaggio è quello del piano, parola per parola", "Il testo contiene “invisibile”: è una parola da non usare. Controlla.", T.controllaTesto("Una patch invisibile").avvisi[0].frase);
@@ -53,5 +53,7 @@ export async function prove(mod, { c, gruppo }) {
   c("testo vuoto, spazi, o non testo → niente, senza errori", [[], [], [], []], [T.controllaTesto("").avvisi, T.controllaTesto("   ").avvisi, T.controllaTesto(null).avvisi, T.controllaTesto(undefined).bloccanti]);
   const r = T.controllaTesto("Invisible Derm 3900 invisibile");
   c("blocchi e avvisi insieme: i due elenchi sono separati", [1, 1], [r.bloccanti.length, r.avvisi.length]);
-  c("le parole vietate sono le undici del piano", ["invisibile", "garantito", "premium", "cura la calvizie", "ricrescita", "riduce la caduta", "definitivo", "Remy", "europei", "indistinguibile", "best seller"], [...T.PAROLE_DA_NON_USARE]);
+  c("«più venduta», «piu venduti» (senza accento), «PIÙ VENDUTO»: avviso", [["più venduta"], ["piu venduti"], ["PIÙ VENDUTO"]], ["La più venduta", "I piu venduti", "IL PIÙ VENDUTO"].map((t) => parole(t)));
+  c("«venduto» da solo o «più» da solo: nessun avviso", [], parole("Un prodotto venduto in tutta Italia, più morbido"));
+  c("le parole vietate sono le undici del piano più «più venduto»", ["invisibile", "garantito", "premium", "cura la calvizie", "ricrescita", "riduce la caduta", "definitivo", "Remy", "europei", "indistinguibile", "best seller", "più venduto"], [...T.PAROLE_DA_NON_USARE]);
 }
