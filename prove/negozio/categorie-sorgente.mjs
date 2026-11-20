@@ -97,7 +97,7 @@ export async function prove(_mod, { c, gruppo, radice }) {
   c("stati: errore con «Riprova», conflitto di versione, S1 assente («migrazione»), nessuna categoria", true, /Riprova/.test(src) && /"conflitto"/.test(src) && /"migrazione"/.test(src) && /Nessuna categoria|Non c'è ancora nessuna categoria/.test(grezzo));
   c("una lettura che fallisce non svuota l'elenco già letto (ultima lettura buona + errore)", true, /ultimoBuono|ultimaBuona|elenco:\s*\w+\.elenco|\.\.\.\w+,\s*errore/.test(src));
   c("dopo ogni modifica riuscita chiama `cambiate()`", true, /cambiate\(\)/.test(src));
-  c("nessun `fetch` diretto verso il CRM (solo `fetchCRM` per il permesso), nessun log", [false, false], [/(?<!Nudo)(?<![A-Za-z])fetch\s*\(/.test(src.replace(/fetchCRM/g, "")), /console\./.test(src)]);
+  c("nessun `fetch` diretto verso il CRM (solo `fetchCRM` per il permesso; `window.fetch` è il caricamento nudo allo Storage), nessun log", [false, false], [/(?<!Nudo)(?<![A-Za-z])fetch\s*\(/.test(src.replace(/fetchCRM/g, "").replace(/window\.fetch\(/g, "")), /console\./.test(src)]);
   c("telefono: card in colonna (`flex-col`) e bersagli da 44 px; movimento ridotto rispettato", [true, true], [/flex-col/.test(src) && /min-h-11|h-11/.test(src), /motion-reduce/.test(src) || !/animate-/.test(src)]);
   c("lo slot vuoto della foto non è grigio: riquadro tratteggiato azzurro (come T16)", [false, true], [/border-dashed[^"`]*(gray|slate|neutral|zinc)-/.test(src), !/border-dashed/.test(src) || /border-dashed[^"`]*(sky|blue|primary)/.test(src)]);
 }
