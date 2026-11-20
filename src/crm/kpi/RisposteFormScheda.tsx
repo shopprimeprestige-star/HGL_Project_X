@@ -104,7 +104,7 @@ interface Props {
 }
 
 export function RisposteFormScheda({ dentro, intervallo, canale }: Props) {
-  const { leads: leadCrm } = useCRM();
+  const { leadsKpi: leadCrm } = useCRM();
   const [risposte, setRisposte] = useState<PublicLeadLite[]>([]);
   const [caricando, setCaricando] = useState(true);
   const [gruppo, setGruppo] = useState<Raggruppamento>("urgenza");

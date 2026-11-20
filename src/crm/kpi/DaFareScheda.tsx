@@ -784,7 +784,7 @@ export function DaFareScheda({
    *  pagina sua e il periodo è un suo comando. */
   onTuttoLoStorico: () => void;
 }) {
-  const { leads, consultants, updateLead } = useCRM();
+  const { leads, leadsKpi, consultants, updateLead } = useCRM();
 
   /** ── CHI PUÒ CARICARE UNA LISTA ──────────────────────────────────────────
    *  Importare un CSV crea schede in archivio per tutto lo studio: è il
@@ -991,9 +991,9 @@ export function DaFareScheda({
       senzaConsulente,
       //  Si conta su TUTTI i lead, non su `insieme`: chi ha l'appuntamento è
       //  uscito dalla lista per definizione, quindi in `insieme` non c'è.
-      diventatiAppuntamento: leads.filter(eDiventatoAppuntamento).length,
+      diventatiAppuntamento: leadsKpi.filter(eDiventatoAppuntamento).length,
     };
-  }, [insieme, leads]);
+  }, [insieme, leadsKpi]);
 
   /** Quanti lead ci sono in ciascuna lente: il numero sta sul pulsante, così
    *  si sceglie dove andare senza entrare e tornare indietro. */

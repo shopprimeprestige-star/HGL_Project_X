@@ -95,7 +95,9 @@ import { postiLiberi } from "./slot-liberi";
 import { DURATA_PREDEFINITA } from "./invito";
 //  La spunta «quest'ora solo per questa persona»: la stessa di tutto il CRM.
 import { SpuntaSoloUnaPersona, useModiFascia } from "@/crm/ModoDellaFascia";
-import { intestazioniCRM } from "@/crm/AuthContext";
+import { intestazioniCRM, useConsulenteCollegato } from "@/crm/AuthContext";
+import { SpuntaSoloBlocco } from "@/crm/SoloBlocco";
+import { patchSoloBlocco } from "@/crm/conta-nei-kpi";
 //  Chi può fare una consulenza si chiede lì, e solo lì: la testata di quel file
 //  spiega perché il filtro non si riscrive in ogni schermata.
 import { NotaSoloConsulenti, consulentiPerConsulenza } from "./chi-fa-la-consulenza";
@@ -1780,6 +1782,9 @@ function ProceduraQuando({
       tutte le disponibilità tutte insieme». */
   const [consulenteId, setConsulenteId] = useState<string | null>(null);
   const [nota, setNota] = useState("");
+  //  «Solo blocco orario»: parte da com'è sulla scheda (spenta se mai spuntata).
+  const [soloBlocco, setSoloBlocco] = useState(false);
+  const chiHaSpuntato = useConsulenteCollegato()?.nome;
   //  La strada a mano per l'appuntamento: serve quando la squadra non ha buchi,
   //  quando l'orario è stato concordato fuori agenda, o quando il calcolo della
   //  disponibilità non riesce. Senza, un guasto altrove impedirebbe di fissare.
@@ -1879,6 +1884,7 @@ function ProceduraQuando({
     setOra(futura ? oraGia : "");
     setConsulenteId(consulente);
     setNota("");
+    setSoloBlocco(lead.data.soloBlocco === true);
     setAMano(false);
     //  ⚠️ Riparte da quella della SCHEDA, non dall'ultima scelta: la finestra
     //   si riapre su un altro cliente, e un'ora e mezza rimasta accesa dal
@@ -2089,6 +2095,8 @@ function ProceduraQuando({
         patch.dataMeeting = data;
         patch.oraMeeting = ora || undefined;
         patch.durataMeeting = durata;
+        //  «Solo blocco orario»: occupa lo slot, non entra nei numeri (crm/conta-nei-kpi).
+        Object.assign(patch, patchSoloBlocco(soloBlocco, chiHaSpuntato, new Date(), lead.data.soloBlocco === true));
         //  Chi fa la consulenza si scrive INSIEME al quando: l'agenda considera
         //  occupato uno slot solo se sa di chi è, e senza quel nome lo stesso
         //  orario verrebbe offerto di nuovo a un altro cliente.
@@ -2390,6 +2398,9 @@ function ProceduraQuando({
               durata={durata}
               className="mb-3"
             />
+          )}
+          {richiesta.chiaveData === "dataMeeting" && (
+            <SpuntaSoloBlocco acceso={soloBlocco} onCambia={setSoloBlocco} className="mb-3" />
           )}
           <Textarea
             ref={areaRef}

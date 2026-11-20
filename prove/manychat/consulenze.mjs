@@ -66,6 +66,8 @@ export async function proveConsulenze(mod, { c, gruppo, radice }) {
     c("promemoria del giorno prima senza risposta da 3 ore: va chiamato", true,
       !!K.confermaMancata(d, t("2026-10-29T17:00:00.000Z")));
     c("…non prima delle 3 ore", null, K.confermaMancata(d, t("2026-10-29T16:59:00.000Z")));
+    c("«solo blocco orario»: nessuna conferma da fare a voce (senza spunta, sopra, sì)", null,
+      K.confermaMancata({ ...d, soloBlocco: true }, t("2026-10-29T17:00:00.000Z")));
     c("…e dice da quando aspetta e quando inizia", [DOMANI_INV, "2026-10-30T14:00:00.000Z"],
       (() => {
         const m = K.confermaMancata(d, t("2026-10-30T10:00:00.000Z"));

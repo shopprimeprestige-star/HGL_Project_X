@@ -192,6 +192,9 @@ export async function proveQuando(mod, { c, gruppo }) {
     alle1510?.extra.inizioMeet.toISOString(),
   );
   c("…la scheda è quella giusta", "lead-m", alle1510?.scheda.id);
+  //  «Solo blocco orario» (17/11/2026): non è un appuntamento col cliente, il promemoria non parte.
+  const blocco1530 = { ...m1530, data: { ...m1530.data, soloBlocco: true } };
+  c("blocco orario alle 15:30, ore 15:10: nessun promemoria (senza spunta, sopra, parte)", [], decidi([blocco1530], "2026-10-23T15:10:00+02:00"));
   c(
     "ore 15:20 (−10', ultimo minuto utile) → invia",
     ["invia"],
