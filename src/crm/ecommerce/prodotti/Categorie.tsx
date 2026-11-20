@@ -241,14 +241,16 @@ export function Categorie({ negozio, cambiate }: PropsCategorie) {
             L&apos;ordine qui è quello del sito. Una categoria non si toglie: si nasconde.
           </p>
         </div>
-        <Button
-          type="button"
-          className="min-h-11 text-[12.5px] sm:min-h-9"
-          onClick={() => setFinestra({ id: null })}
-        >
-          <Plus className="mr-1.5 h-4 w-4" aria-hidden="true" />
-          Nuova categoria
-        </Button>
+        {elenco.length > 0 && (
+          <Button
+            type="button"
+            className="min-h-11 text-[12.5px] sm:min-h-9"
+            onClick={() => setFinestra({ id: null })}
+          >
+            <Plus className="mr-1.5 h-4 w-4" aria-hidden="true" />
+            Nuova categoria
+          </Button>
+        )}
       </div>
 
       {lettura.errore && (
@@ -448,6 +450,18 @@ function FinestraCategoria({
               : "Nome, indirizzo e frase si salvano con «Salva». La foto si salva da sola con il suo tasto."}
           </DialogDescription>
         </DialogHeader>
+        {categoria ? (
+          <FotoCategoria
+            categoria={{ ...categoria, versione }}
+            esegui={esegui}
+            fatto={fatto}
+            nuovaVersione={setVersione}
+          />
+        ) : (
+          <p className="text-[12px] text-muted-foreground">
+            La foto si aggiunge dopo aver creato la categoria.
+          </p>
+        )}
         <form
           className="flex flex-col gap-3"
           onSubmit={(e) => {
@@ -531,18 +545,6 @@ function FinestraCategoria({
             </Button>
           </DialogFooter>
         </form>
-        {categoria ? (
-          <FotoCategoria
-            categoria={{ ...categoria, versione }}
-            esegui={esegui}
-            fatto={fatto}
-            nuovaVersione={setVersione}
-          />
-        ) : (
-          <p className="text-[12px] text-muted-foreground">
-            La foto si aggiunge dopo aver creato la categoria.
-          </p>
-        )}
       </DialogContent>
     </Dialog>
   );
@@ -698,7 +700,7 @@ function FotoCategoria({
 
   const altOk = alt.trim().length > 0 && alt.trim().length <= TETTI.alt;
   return (
-    <fieldset className="flex flex-col gap-3 border-t border-border pt-3" disabled={fase !== null}>
+    <fieldset className="flex flex-col gap-3 border-b border-border pb-3" disabled={fase !== null}>
       <legend className="sr-only">Foto della categoria</legend>
       <p className="text-[12.5px] font-medium">Foto della categoria</p>
       <div className="flex items-center gap-3">

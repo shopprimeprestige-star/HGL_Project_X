@@ -9,14 +9,14 @@
  *    **in produzione lo shop non si può aprire** (D26): la schermata lo dice, non lo nasconde.
  *  · Tornare a chiuso è UN clic e non guarda le condizioni: «Chiudi lo shop».
  *  · Le regole senza schermo sono in `interruttore-puro.ts`. Nessun `fetch` da qui: tutto passa da `negozio`.
- *  · Permesso o sessione negati: non si disegna niente (l'elenco sotto lo dice già, una volta sola).
+ *  · Permesso o sessione negati, o S1 assente («migrazione»): non si disegna niente (l'elenco sotto lo dice già, una volta sola).
  *  ⚠️ Nessun log da qui, mai.
  *
  *  ── LE PROPS (da tenere così) ────────────────────────────────────────────────
  *   · `negozio`  `Pick<Negozio, "interruttori" | "esegui">`: `interruttori()` legge `{ interruttori, condizioni }`,
  *                `esegui("interruttore_imposta", { chiave, valore, atteso })` li cambia. */
 import { useCallback, useEffect, useRef, useState } from "react";
-import { CircleAlert, CircleCheck, Clock, Lock, RefreshCw, Store } from "lucide-react";
+import { ChevronDown, CircleAlert, CircleCheck, Clock, Lock, RefreshCw, Store } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -152,10 +152,13 @@ export function ApriShop({ negozio }: PropsApriShop) {
         <span className="sr-only">Controllo lo shop…</span>
       </div>
     );
-  //  Senza permesso o sessione l'elenco dei prodotti lo dice già: qui non si ripete.
+  //  Senza permesso, senza sessione o senza le tabelle del catalogo (S1 assente) l'elenco dei prodotti lo dice già,
+  //  con la sua frase e il suo «Riprova»: qui non si ripete.
   if (
     !lettura.stato &&
-    (lettura.errore?.tipo === "permesso" || lettura.errore?.tipo === "sessione")
+    (lettura.errore?.tipo === "permesso" ||
+      lettura.errore?.tipo === "sessione" ||
+      lettura.errore?.tipo === "migrazione")
   )
     return null;
   if (!lettura.stato)
@@ -173,9 +176,7 @@ export function ApriShop({ negozio }: PropsApriShop) {
           </Button>
         }
       >
-        {lettura.errore?.tipo === "migrazione"
-          ? "Non posso controllare lo shop: gli aggiornamenti del database del catalogo non sono ancora applicati. Chiedi a chi gestisce il database di applicarli."
-          : `Non riesco a controllare se lo shop è aperto. ${lettura.errore?.messaggio ?? ""}`}
+        Non riesco a controllare se lo shop è aperto. {lettura.errore?.messaggio}
       </Avviso>
     );
 
@@ -365,8 +366,14 @@ function Pannello({
                       <p className="text-[12.5px] leading-snug text-muted-foreground">
                         {fraseCondizione(r)}
                       </p>
+                      {/* sul telefono lo stato sta sotto il testo: a destra gli toglieva metà riga */}
+                      <p className={cn("mt-0.5 text-[11.5px] font-medium sm:hidden", classe)}>
+                        {testo}
+                      </p>
                     </div>
-                    <span className={cn("shrink-0 text-[11.5px] font-medium", classe)}>
+                    <span
+                      className={cn("hidden shrink-0 text-[11.5px] font-medium sm:block", classe)}
+                    >
                       {testo}
                     </span>
                   </li>
@@ -418,9 +425,13 @@ function ImpostazioniCatalogo({
   const valida = valore !== null && valore <= MAX_SOGLIA;
   const cambiata = valida && valore !== stato.soglia;
   return (
-    <details className="rounded-xl border border-border bg-card px-4 text-[12.5px]">
-      <summary className="flex min-h-11 cursor-pointer items-center font-medium sm:min-h-9">
+    <details className="group rounded-xl border border-border bg-card px-4 text-[12.5px]">
+      <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between font-medium sm:min-h-9 [&::-webkit-details-marker]:hidden">
         Impostazioni del catalogo
+        <ChevronDown
+          className="h-4 w-4 text-muted-foreground transition-transform group-open:rotate-180 motion-reduce:transition-none"
+          aria-hidden="true"
+        />
       </summary>
       <form
         className="flex flex-wrap items-end gap-3 pb-3"
