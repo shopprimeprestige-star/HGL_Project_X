@@ -8,11 +8,16 @@
     ⚠️ Un pixel già caricato non si scarica: per questo `sospendi()` lo mette a tacere e la navigazione verso
        una pagina non ammessa RICARICA la pagina (senza script, perché la pagina non è ammessa); la revoca
        ricarica anch'essa. La ricarica non perde il modulo di consulenza: `BookingFunnel` lo persiste.
-    ⚠️ I pixel, da soli, seguono i cambi di pagina delle app a pagina singola (`pushState`) e mandano il PageView con
-       l'indirizzo COMPLETO, saltando il nostro filtro: Meta si ferma con `fbq.disablePushState = true`; per TikTok non
-       conosco un'opzione equivalente (da verificare). In ogni caso `pushState`/`replaceState` sono sorvegliati: se la
-       destinazione non è ammessa e ci sono script caricati, si spegne tutto e si naviga con una pagina nuova, SENZA
-       che l'indirizzo cambi sotto i pixel.
+    ⚠️ I pixel, da soli, seguono i cambi di pagina delle app a pagina singola (`pushState`, `popstate`) e mandano il
+       PageView con l'indirizzo COMPLETO, saltando il nostro filtro. Tre difese: (1) Meta si ferma con
+       `fbq.disablePushState = true`; (2) `pushState`/`replaceState` sono sorvegliati: verso una pagina non ammessa, con
+       script caricati, si spegne tutto e si naviga con una pagina nuova SENZA che l'indirizzo cambi sotto i pixel;
+       (3) un ascoltatore di `popstate` (indietro/avanti), in fase di cattura e registrato PRIMA di caricare qualunque
+       script (quindi prima di quelli dei pixel), sospende e ricarica se la nuova pagina non è ammessa.
+    ⚠️ TikTok: non risulta (non ho potuto verificarlo) un'opzione documentata per fermare il suo tracciamento automatico
+       della cronologia, e `disableCookie` non ferma gli invii. Quindi il pixel di TikTok NEL BROWSER resta spento
+       (`tiktokNelBrowser`, falso se non detto): gli eventi arrivano a TikTok dal server (Events API, `mittente.ts`),
+       con l'indirizzo ricostruito. Si riaccende con una riga quando c'è un'opzione verificata.
     ⚠️ Gli ID arrivano dalla configurazione pubblica ma finiscono in un indirizzo: si controlla la FORMA di ognuno
        e, se non torna, quella piattaforma non si carica (nessun codice dentro gli indirizzi). */
 import { modoGoogle, puoCaricare, type Consenso } from "../consenso";
@@ -30,12 +35,15 @@ export type PorteCarica = {
     location: { hostname: string; pathname: string; search: string; origin?: string; reload(): void; assign?(url: string): void };
     localStorage?: { removeItem(k: string): void };
     history?: { pushState: (...a: any[]) => void; replaceState: (...a: any[]) => void };
+    addEventListener?: (tipo: string, f: () => void, cattura?: boolean) => void;
     [chiave: string]: any;
   };
   /** Un amministratore già riconosciuto non si traccia (come `isAdminLogged`). */
   admin?: () => boolean;
   /** La pagina è dentro un iframe (l'anteprima del CMS)? */
   inCornice?: () => boolean;
+  /** Carica il pixel di TikTok nel browser? Spento di default: vedi sopra (nessuna opzione verificata contro l'auto-tracciamento della cronologia). */
+  tiktokNelBrowser?: boolean;
 };
 
 export type Caricatore = {
@@ -236,8 +244,28 @@ export function creaCaricatore(porte: PorteCarica): Caricatore {
       };
     }
   }
-  // shortcut: `popstate` (indietro/avanti) non si può fermare prima: lo gestisce `applicaConsenso` appena il provider lo richiama, con sospendi e ricarica; si cambia se i pixel mandano un PageView in quel momento.
   installaGuardia();
+
+  /** Indietro/avanti: l'indirizzo è GIÀ cambiato quando arriva `popstate`, quindi si ascolta in fase di cattura e prima
+   *  di qualunque script dei pixel (registrato qui, alla creazione): se la nuova pagina non è ammessa, si spegne tutto e si ricarica. */
+  function ascoltaPopstate() {
+    try {
+      finestra.addEventListener?.(
+        "popstate",
+        () => {
+          if (!(stato.meta || stato.tiktok || stato.google) || porte.admin?.()) return;
+          if (!paginaAmmessa()) {
+            sospendi();
+            ricarica();
+          }
+        },
+        true,
+      );
+    } catch {
+      /* ambiente senza eventi */
+    }
+  }
+  ascoltaPopstate();
 
   return {
     applicaConsenso(c, config) {
@@ -251,7 +279,7 @@ export function creaCaricatore(porte: PorteCarica): Caricatore {
         return;
       }
       if (!stato.meta && puoCaricare("meta", c) && valido(ID_META, config.meta?.pixelId)) caricaMeta(config.meta!.pixelId);
-      if (!stato.tiktok && puoCaricare("tiktok", c) && valido(ID_TIKTOK, config.tiktok?.pixelId)) caricaTikTok(config.tiktok!.pixelId);
+      if (porte.tiktokNelBrowser && !stato.tiktok && puoCaricare("tiktok", c) && valido(ID_TIKTOK, config.tiktok?.pixelId)) caricaTikTok(config.tiktok!.pixelId);
       if (puoCaricare("google", c) && config.google) {
         if (!stato.google) caricaGoogle(config.google, c);
         else

@@ -18,8 +18,8 @@ const MARKETING = { scelto: true, statistiche: true, marketing: true, ts: 1 };
 const TUTTO_NEGATO = { analytics_storage: "denied", ad_storage: "denied", ad_user_data: "denied", ad_personalization: "denied" };
 
 /** Il mondo finto: documento, finestra, e il registro di quel che succede. */
-function mondo({ host = "www.sito.test", path = "/shop", search = "", cookie = "", admin = false, cornice = false, referrer = "" } = {}) {
-  const m = { scripts: [], cookieScritti: [], reloads: 0, cookie, localStorage: {}, rimossi: [], pushate: [], sostituite: [], navigazioni: [] };
+function mondo({ host = "www.sito.test", path = "/shop", search = "", cookie = "", admin = false, cornice = false, referrer = "", tiktok = true } = {}) {
+  const m = { scripts: [], cookieScritti: [], reloads: 0, cookie, localStorage: {}, rimossi: [], pushate: [], sostituite: [], navigazioni: [], ascoltatori: [] };
   m.documento = {
     referrer,
     get cookie() { return m.cookie; },
@@ -31,10 +31,13 @@ function mondo({ host = "www.sito.test", path = "/shop", search = "", cookie = "
   };
   m.finestra = {
     location: { hostname: host, pathname: path, search, origin: `https://${host}`, reload: () => { m.reloads++; }, assign: (u) => m.navigazioni.push(u) },
+    addEventListener: (tipo, f, cattura) => m.ascoltatori.push({ tipo, f, cattura, scriptGiaDentro: m.scripts.length }),
     history: { pushState(...a) { m.pushate.push({ questo: this === m.finestra.history, a }); }, replaceState(...a) { m.sostituite.push({ questo: this === m.finestra.history, a }); } },
     localStorage: { removeItem: (k) => m.rimossi.push(k), getItem: (k) => m.localStorage[k] ?? null, setItem: (k, v) => { m.localStorage[k] = String(v); } },
   };
-  m.porte = { documento: m.documento, finestra: m.finestra, admin: () => admin, inCornice: () => cornice };
+  m.porte = { documento: m.documento, finestra: m.finestra, admin: () => admin, inCornice: () => cornice, tiktokNelBrowser: tiktok };
+  /** Indietro/avanti: l'indirizzo cambia, poi scattano gli ascoltatori di `popstate` (prima quelli in cattura). */
+  m.indietro = (pathname, search = "") => { m.finestra.location.pathname = pathname; m.finestra.location.search = search; for (const a of [...m.ascoltatori].filter((x) => x.tipo === "popstate").sort((x, y) => Number(!!y.cattura) - Number(!!x.cattura))) a.f(); };
   return m;
 }
 const chiamate = (lista) => (lista ?? []).map((x) => Array.from(x));
@@ -150,6 +153,40 @@ export async function prove(mod, { c, gruppo }) {
   try { K.creaCaricatore(gn.porte).applicaConsenso(MARKETING, CONFIG); } catch (e) { eh = String(e); }
   c("senza `history` (ambiente senza router) non lancia", null, eh);
   c("dentro una cornice non c'è nessuno script: nessuna deviazione, la navigazione prosegue", [1, 0], (() => { const x = nuovo({ cornice: true }); x.car.applicaConsenso(MARKETING, CONFIG); x.finestra.history.pushState(null, "", "/shop/ordine/x?t=1"); return [x.pushate.length, x.navigazioni.length]; })());
+
+  /* ── indietro/avanti (popstate): l'indirizzo è già cambiato, si spegne prima che parta un evento ── */
+  const po = nuovo({ path: "/shop" });
+  c("l'ascoltatore di popstate è registrato alla creazione, in fase di cattura, quando non c'è ancora nessuno script", [1, true, 0], [po.ascoltatori.filter((x) => x.tipo === "popstate").length, po.ascoltatori[0]?.cattura, po.ascoltatori[0]?.scriptGiaDentro]);
+  po.car.applicaConsenso(MARKETING, CONFIG);
+  c("…e resta uno solo anche dopo aver caricato gli script", 1, po.ascoltatori.filter((x) => x.tipo === "popstate").length);
+  po.indietro("/shop/carrello");
+  c("indietro/avanti verso una pagina AMMESSA: niente sospensione, niente ricarica", [false, 0], [po.car.sospeso(), po.reloads]);
+  po.indietro("/shop/ordine/HG-1", "?t=abc");
+  c("indietro/avanti verso una pagina NON ammessa con gli script caricati: sospendi e ricarica subito", [true, 1], [po.car.sospeso(), po.reloads]);
+  c("…Meta e Google già a tacere (consent revoke / tutto denied) e `ga-disable` acceso", [true, true, true], [fq(po).some((x) => x[0] === "consent" && x[1] === "revoke"), JSON.stringify(dl(po).filter((x) => x[1] === "update").at(-1)?.[2]) === JSON.stringify(TUTTO_NEGATO), po.finestra["ga-disable-G-TEST1234"] === true]);
+  const pq = nuovo({ path: "/shop" });
+  pq.car.applicaConsenso(MARKETING, CONFIG);
+  pq.indietro("/shop", "?ref_code=X");
+  c("indietro verso un indirizzo con una chiave sconosciuta (lista bianca): stessa sospensione", [true, 1], [pq.car.sospeso(), pq.reloads]);
+  const pn = nuovo({ path: "/shop" });
+  pn.indietro("/CRM/leads");
+  c("senza script caricati popstate non fa niente", [false, 0], [pn.car.sospeso(), pn.reloads]);
+  const pa = nuovo({ path: "/shop", admin: true });
+  pa.indietro("/CRM/leads");
+  c("a un amministratore (nessuno script) nemmeno", [false, 0], [pa.car.sospeso(), pa.reloads]);
+  const pg = mondo({ path: "/shop" });
+  delete pg.finestra.addEventListener;
+  let ep = null;
+  try { K.creaCaricatore(pg.porte).applicaConsenso(MARKETING, CONFIG); } catch (e) { ep = String(e); }
+  c("senza addEventListener non lancia", null, ep);
+
+  /* ── TikTok nel browser: spento di default ── */
+  const tt = mondo({ path: "/shop" });
+  delete tt.porte.tiktokNelBrowser;
+  const ttc = K.creaCaricatore(tt.porte);
+  ttc.applicaConsenso(MARKETING, CONFIG);
+  c("TikTok nel browser è spento di default: nessuno script e nessun `ttq` (gli eventi vanno a TikTok dal server); Meta e Google caricano", [false, 2, true], ["ttq" in tt.finestra || tt.scripts.some((x) => /tiktok/.test(x.src)), tt.scripts.length, ttc.caricati().meta && ttc.caricati().google && !ttc.caricati().tiktok]);
+  c("con `tiktokNelBrowser: true` (come nelle altre prove) TikTok si carica e l'API gli manda gli eventi", true, "ttq" in k.finestra);
 
   /* ── dove non si carica: admin, cornice, pagine non ammesse ── */
   const casiNo = [
