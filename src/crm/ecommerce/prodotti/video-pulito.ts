@@ -15,6 +15,10 @@
  *  sovrappongono a una traccia che resta, file a pezzi `moof`, nessuna traccia video/audio) il file si RIFIUTA: la schermata dice
  *  `FRASE_VIDEO` e non carica niente.
  *
+ *  Limiti dichiarati (R1): `mdat` si copia intero, tolti solo i pezzi delle tracce eliminate (i byte che nessuna traccia cita restano); gli atomi
+ *  copiati interi (`stsd`, `mvex`, `tref`, `sgpd`, `sbgp`, `elst`, `dref`) non si filtrano al loro interno; un video con dati dopo l'ultimo
+ *  atomo (coda «SEF» di alcuni Samsung) si rifiuta. Strutture doppie nello stesso contenitore (due `mdia`, due `stco`…): file rifiutato.
+ *
  *  Modulo PURO (nessuna libreria, nessun browser): si prova con un MP4 costruito in memoria (`prove/negozio/video-pulito.mjs`). */
 
 export const FRASE_VIDEO = "Non riesco a preparare questo video: esportalo di nuovo dal telefono.";
@@ -109,6 +113,21 @@ const CONTENITORI: Record<string, string[]> = {
   dinf: ["dref"],
   stbl: ["stsd", "stts", "stss", "ctts", "stsc", "stsz", "stz2", "stco", "co64", "sgpd", "sbgp"],
 };
+/** In ogni contenitore questi compaiono UNA volta sola: se ce ne sono due, il file è ambiguo (la copia che non guardiamo potrebbe nascondere dati) e si rifiuta. `trak` e `mdat` possono ripetersi. */
+const UNICI = [
+  "mvhd",
+  "tkhd",
+  "mdhd",
+  "mdia",
+  "minf",
+  "stbl",
+  "hdlr",
+  "stco",
+  "co64",
+  "stsc",
+  "stsz",
+  "stz2",
+];
 const A_LIVELLO_FILE = ["ftyp", "moov", "mdat"];
 const TRACCE_TENUTE = ["vide", "soun"];
 
@@ -172,15 +191,23 @@ function pezziDi(b: Uint8Array, traccia: Atomo): Pezzo[] {
     while (voce + 1 < nVoci && dv.getUint32(corpoDi(C) + 8 + (voce + 1) * 12) <= i) voce++;
     const quanti = dv.getUint32(corpoDi(C) + 8 + voce * 12 + 4);
     if (campione + quanti > nCampioni) no();
-    let lunghezza = 0;
-    for (let k = 0; k < quanti; k++)
-      lunghezza += misuraFissa || dv.getUint32(corpoDi(Z) + 12 + (campione + k) * 4);
+    let lunghezza = misuraFissa * quanti; // a misura fissa nessun giro per campione: la tabella può dichiararne miliardi
+    if (!misuraFissa)
+      for (let k = 0; k < quanti; k++)
+        lunghezza += dv.getUint32(corpoDi(Z) + 12 + (campione + k) * 4);
     campione += quanti;
     const p = corpoDi(T) + 8 + (i - 1) * largo;
     const inizio = largo === 4 ? dv.getUint32(p) : dv.getUint32(p) * 2 ** 32 + dv.getUint32(p + 4);
     pezzi.push({ inizio, fine: inizio + lunghezza });
   }
   return pezzi;
+}
+
+/** Rifiuta le strutture doppie, a ogni livello e in TUTTE le tracce (anche in quelle che poi si tolgono). */
+function senzaDoppi(b: Uint8Array, a: Atomo): void {
+  const figli = atomi(b, corpoDi(a), a.fine);
+  for (const tipo of UNICI) if (figli.filter((f) => f.tipo === tipo).length > 1) no();
+  for (const f of figli) if (CONTENITORI[f.tipo]) senzaDoppi(b, f);
 }
 
 /** `a` ricostruito con la lista bianca; le tracce in `fuori` (per posizione nel file) non ci sono più. */
@@ -277,6 +304,7 @@ export function pulisciVideo(b: Uint8Array): EsitoVideo {
     if (!mime || moov.length !== 1 || mdat.length === 0 || alto.some((a) => a.tipo === "moof"))
       no();
 
+    senzaDoppi(b, moov[0]);
     //  Le tracce: restano video e audio; le altre vanno via intere, con i loro byte.
     const tracce = atomi(b, corpoDi(moov[0]), moov[0].fine)
       .filter((a) => a.tipo === "trak")
