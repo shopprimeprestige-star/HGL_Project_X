@@ -40,12 +40,13 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("catalogo `cms`, prodotto pubblicato → la scheda", ["cms", "prodotto-di-prova"], await (async () => { const r = await S.cercaScheda(porte(catalogoDi()), "prodotto-di-prova", ""); return [r.tipo, r.prodotto?.slug]; })());
   c("catalogo `cms`: bozza, archiviato, slug che non c'è → «non trovato» (stessa pagina di oggi)", Array(3).fill("non_trovato"),
     await Promise.all(["prodotto-in-bozza", "prodotto-archiviato", "non-esiste"].map(async (s) => (await S.cercaScheda(porte(catalogoDi()), s, "")).tipo)));
-  c("catalogo `cms` con il database in difficoltà (migrazione assente, errore, rete): MAI «non trovato», sempre «temporaneo»", Array(4).fill("temporaneo"),
-    await Promise.all([{ mancante: true }, { errori: { "shop_v_prodotti.select": { error: { code: "XX000" } } } }, { errori: { "shop_v_media.select": { lancia: new Error("rete") } } }, { errori: { "shop_v_varianti.select": { error: { code: "57P01" } } } }]
+  c("catalogo `cms` con il database in difficoltà (errore, rete, riavvio): MAI «non trovato», sempre «temporaneo»", Array(4).fill("temporaneo"),
+    await Promise.all([{ errori: { "shop_v_prodotti.select": { error: { code: "57P01" } } } }, { errori: { "shop_v_prodotti.select": { error: { code: "XX000" } } } }, { errori: { "shop_v_media.select": { lancia: new Error("rete") } } }, { errori: { "shop_v_varianti.select": { error: { code: "57P01" } } } }]
       .map(async (db) => (await S.cercaScheda({ ...porte(catalogoDi("cms", { db })), modalita: async () => "cms" }, "prodotto-di-prova", "")).tipo)));
   c("la chiamata al server che lancia (rete del cliente) è «temporaneo», non «non trovato»", "temporaneo", (await S.cercaScheda({ modalita: async () => "cms", scheda: async () => { throw new Error("rete"); }, nelCodice: () => false }, "x-y", "")).tipo);
   c("catalogo `codice` e articolo del vecchio catalogo → la pagina di oggi, senza chiedere niente al server", ["codice", 0], await (async () => { let n = 0; const r = await S.cercaScheda({ modalita: async () => "codice", scheda: async () => { n++; return { esito: "guasto" }; }, nelCodice: () => true }, "parrucca-t01", ""); return [r.tipo, n]; })());
-  c("`codice`, indirizzo sconosciuto, database in difficoltà (può aver nascosto la modalità vera) → «temporaneo»", "temporaneo", (await S.cercaScheda(porte(catalogoDi("codice", { db: { mancante: true } })), "nuovo-prodotto", "")).tipo);
+  c("migrazione S1 non ancora applicata (tabella o vista assente): «non trovato», non un guasto (ramo d, bcbbfc8)", "non_trovato", (await S.cercaScheda({ ...porte(catalogoDi("cms", { db: { mancante: true } })), modalita: async () => "cms" }, "prodotto-di-prova", "")).tipo);
+  c("`codice`, indirizzo sconosciuto, database in difficoltà (può aver nascosto la modalità vera) → «temporaneo»", "temporaneo", (await S.cercaScheda(porte(catalogoDi("codice", { db: { errori: { "shop_v_prodotti.select": { error: { code: "57P01" } } } } })), "nuovo-prodotto", "")).tipo);
   c("`codice`, indirizzo sconosciuto, database sano → «non trovato»: un prodotto del CMS NON si espone con l'interruttore su `codice`", "non_trovato", (await S.cercaScheda(porte(catalogoDi("codice")), "prodotto-di-prova", "")).tipo);
   c("la modalità che non risponde (rete) vale `codice`: il sito di oggi", "codice", (await S.cercaScheda({ modalita: async () => { throw new Error("rete"); }, scheda: async () => ({ esito: "guasto" }), nelCodice: () => true }, "parrucca-t01", "")).tipo);
 
@@ -133,7 +134,24 @@ export async function prove(mod, { c, gruppo, radice }) {
 
   const idn = (await catalogoDi("cms", { modifica: (t) => { t.shop_prodotti.find((p) => p.sku === "PROVA-001").nome = "Invisible Derm Protocol"; t.shop_prodotti.find((p) => p.sku === "PROVA-001").slug = "invisible-derm-protocol"; } }).schedaEsito("invisible-derm-protocol")).prodotto;
   const hId = (await pagina("invisible-derm-protocol", cmsDi(idn))).html;
-  c("Invisible Derm: MAI un prezzo (nessun «€», nessun «Aggiungi», nessun «Acquista»), il costo si vede in consulenza", [false, false, false, true], [/€/.test(hId), hId.includes("Aggiungi al carrello"), hId.includes("Acquista ora"), hId.includes("il costo lo vedi in consulenza")]);
+  c("Invisible Derm: MAI un prezzo (nessun «€», nessun «Aggiungi», nessun «Acquista»), il costo si vede in consulenza", [false, false, false, true], [/€/.test(hId), hId.includes("Aggiungi al carrello"), hId.includes("Acquista ora"), hId.includes("Il costo lo vedi in consulenza.")]);
+
+  // ── D39: un prodotto non acquistabile (prezzi `null`) non mostra cifre né bottoni, qualunque sia il suo nome ──
+  const senzaCifre = { ...base, nome: "Sistema su misura", slug: "sistema-su-misura", acquistabile: false, prezzoDaCent: null, varianti: base.varianti.map((v) => ({ ...v, prezzoCent: null, disponibile: false })) };
+  const hSc = (await pagina("sistema-su-misura", cmsDi(senzaCifre))).html;
+  c("D39, `acquistabile: false` con prezzi `null` (nome qualunque): nessuna cifra, niente «Aggiungi» né «Acquista ora», «Il costo lo vedi in consulenza.», niente «Esaurito»",
+    [false, false, false, true, false], [/€|NaN/.test(hSc), hSc.includes("Aggiungi"), hSc.includes("Acquista ora"), hSc.includes("Il costo lo vedi in consulenza."), hSc.includes("Esaurito")]);
+  const hScP = (await pagina("sistema-su-misura", cmsDi({ ...senzaCifre, prezzoDaCent: 2890, varianti: base.varianti }))).html;
+  c("D39, `acquistabile: false` anche se i prezzi arrivassero valorizzati: la cifra e i bottoni non si disegnano comunque", [false, false, false, true], [/€/.test(hScP), hScP.includes("Aggiungi"), hScP.includes("Acquista ora"), hScP.includes("Il costo lo vedi in consulenza.")]);
+  c("D39, un prodotto acquistabile resta com'era: prezzo e bottoni", [true, true, true], [/28,90\s€/.test(hCms), hCms.includes("Aggiungi al carrello"), hCms.includes("Acquista ora")]);
+  const correlato = (prezzoDaCent) => ({ ...base, correlato: { slug: "un-altro-prodotto", nome: "Un altro prodotto", prezzoDaCent, foto: null } });
+  const sezione = (h) => h.slice(h.indexOf("Ti serve anche"));
+  const hCorN = sezione((await pagina("prodotto-di-prova", cmsDi(correlato(null)))).html);
+  const hCorP = sezione((await pagina("prodotto-di-prova", cmsDi(correlato(1250)))).html);
+  c("D39, «Ti serve anche» con prezzo `null`: il nome sì, né «€» né «0» né «NaN»", [true, false, false], [hCorN.includes("Un altro prodotto"), /€|NaN/.test(hCorN), />\s*0\s*</.test(hCorN)]);
+  c("D39, «Ti serve anche» con un prezzo vero: si vede (12,50 €)", true, /12,50\s€/.test(hCorP));
+  c("D39, evento senza prezzo: nessun `ViewContent`/`AddToCart` (mai un valore 0 o NaN)", [null, null], [S.datiEventoScheda(senzaCifre, "PROVA-001-A"), S.datiEventoScheda(senzaCifre, "PROVA-001-A", 2)]);
+  c("CMS, striscia di fiducia del vecchio catalogo: né «Qualità premium» né «Spedizione gratuita … €59» (neppure sotto il pulsante)", [false, false, false], [/qualit[àa] premium/i.test(hCms), /spedizione gratuita/i.test(hCms), /€\s?59|59\s?€/.test(hCms)]);
 
   c("«Prodotto non trovato.» è la stessa frase di oggi (bozza o archiviato senza chiave)", true, (await pagina("x-y", { scheda: { tipo: "non_trovato" }, anteprima: false })).html.includes("Prodotto non trovato."));
   // la `head` e il `loader` della rotta vera

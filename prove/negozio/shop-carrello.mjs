@@ -78,10 +78,10 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("`codice` e solo righe vecchie: niente da fare, nemmeno una chiamata al server", [0, 0], await (async () => { let n = 0; const r = await K.rivalida({ modo: "codice", chiediRighe: async () => { n++; return []; }, sonda: async () => { n++; return false; }, modalitaCerta: async () => { n++; return "incerto"; } }, [vecchia("t01")]); return [r.rimosse, n]; })());
 
   // ── un guasto del database NON svuota il carrello ──
-  const giu = catalogoDi("cms", { db: { mancante: true } });
+  const giu = catalogoDi("cms", { db: { errori: { "shop_v_prodotti.select": { error: { code: "57P01" } } } } });
   const rg = await K.rivalida(porte(giu), [ok]);
   c("`cms` con il database giù: il server dice «non più disponibile» a TUTTO, ma la sonda dice guasto → `non_verificabile`, nessuna riga tolta", ["non_verificabile", undefined], [rg.stato, rg.righe]);
-  const rg2 = await K.rivalida(porte(catalogoDi("codice", { db: { mancante: true } }), "codice"), [ok]);
+  const rg2 = await K.rivalida(porte(catalogoDi("codice", { db: { errori: { "shop_v_prodotti.select": { error: { code: "57P01" } }, "shop_impostazioni.select": { error: { code: "57P01" } } } } }), "codice"), [ok]);
   c("`codice` per un guasto (la modalità non si è letta): le righe CMS NON si tolgono, `non_verificabile`", ["non_verificabile", undefined], [rg2.stato, rg2.righe]);
   c("la rete che lancia (carrello o sonda): `non_verificabile`, mai un'eccezione", ["non_verificabile", "non_verificabile"], [
     (await K.rivalida({ modo: "cms", chiediRighe: async () => { throw new Error("rete"); }, sonda: async () => true }, [ok])).stato,

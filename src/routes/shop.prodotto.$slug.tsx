@@ -87,7 +87,9 @@ function SchedaVista({ slug }: { slug: string }) {
   const skuScelto = cms ? varianteDaOpzioni(cms, product?.variants?.length ? variant : {}) : null;
   const scelta = cms?.varianti.find((v) => v.sku === skuScelto) ?? null;
   const fuoriVendita = Boolean(cms && (anteprima || cms.anteprima)); // una bozza vista con la chiave non si compra
-  const senzaCifra = Boolean(cms && (senzaPrezzo(cms.nome) || senzaPrezzo(cms.slug)));
+  //  Il prezzo che si vede: quello della variante scelta, altrimenti il «da» del prodotto. `null` = il server non lo manda (D39).
+  const prezzoCent = cms ? (scelta ? scelta.prezzoCent : cms.prezzoDaCent) : null;
+  const senzaCifra = Boolean(cms && (!cms.acquistabile || prezzoCent === null || senzaPrezzo(cms.nome) || senzaPrezzo(cms.slug)));
 
   //  Una scheda vista: solo un conteggio, con il nome pubblico del prodotto (non in anteprima).
   useEffect(() => {
@@ -118,13 +120,13 @@ function SchedaVista({ slug }: { slug: string }) {
   //  Il box «Non è il prodotto giusto per te?» e il pop-up stanno solo sulle protesi (con il CMS: dove il titolare ha acceso il box).
   const eProtesi = cms ? cms.boxConsulenza : product.category === "toupee";
   const related = cms ? [] : PRODUCTS.filter((p) => p.category === product.category && p.id !== product.id).slice(0, 4);
-  const prezzo = cms ? (scelta ? scelta.prezzoCent : cms.prezzoDaCent) / 100 : product.price;
+  const prezzo = cms ? (prezzoCent ?? 0) / 100 : product.price;
   const esaurito = cms ? Boolean(scelta && !scelta.disponibile) : false;
   const nonAcquistabile = Boolean(cms && (fuoriVendita || senzaCifra || !scelta || esaurito));
 
   const addToCart = (go: boolean) => {
     if (cms) {
-      if (nonAcquistabile || !scelta) return;
+      if (nonAcquistabile || !scelta || scelta.prezzoCent === null) return;
       const foto = cms.media.find((m) => m.slot === "principale")?.src ?? null;
       add(product, qty, product.variants?.length ? variant : undefined, {
         sku: scelta.sku,
@@ -210,7 +212,7 @@ function SchedaVista({ slug }: { slug: string }) {
           </div>
 
           {senzaCifra ? (
-            <p className="text-white/70">Su misura: il costo lo vedi in consulenza.</p>
+            <p className="text-white/70">Il costo lo vedi in consulenza.</p>
           ) : (
           <div className="flex items-end gap-3">
             <span className="text-3xl font-bold">{formatPrice(prezzo)}</span>
@@ -284,6 +286,7 @@ function SchedaVista({ slug }: { slug: string }) {
           </div>
           )}
 
+          {!senzaCifra && (
           <p className="text-xs text-white/40">
             {(cms ? Boolean(scelta?.disponibile) : product.stock > 0) ? (
               <span className="text-emerald-300">● Disponibile</span>
@@ -292,6 +295,7 @@ function SchedaVista({ slug }: { slug: string }) {
             )}
             {!cms && " · Spedizione gratuita per ordini superiori a €59"}
           </p>
+          )}
 
           {eProtesi && <BoxProdottoGiusto prodotto={product.name} />}
 
@@ -363,7 +367,7 @@ function SchedaVista({ slug }: { slug: string }) {
             {cms.correlato.foto && <img src={cms.correlato.foto.w480} alt="" className="h-20 w-20 rounded-xl object-cover" loading="lazy" />}
             <div>
               <span className="line-clamp-2 text-sm font-medium text-white transition group-hover:text-brand">{cms.correlato.nome}</span>
-              {!senzaPrezzo(cms.correlato.nome) && !senzaPrezzo(cms.correlato.slug) && <span className="text-sm font-bold text-white/80">{formatPrice(cms.correlato.prezzoDaCent / 100)}</span>}
+              {cms.correlato.prezzoDaCent !== null && !senzaPrezzo(cms.correlato.nome) && !senzaPrezzo(cms.correlato.slug) && <span className="text-sm font-bold text-white/80">{formatPrice(cms.correlato.prezzoDaCent / 100)}</span>}
             </div>
           </Link>
         </section>

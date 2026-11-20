@@ -102,7 +102,8 @@ export function intestazioniScheda(s: { anteprima: boolean; errore: boolean }): 
 /** Cosa raccontare a Meta, TikTok e Google di una variante: lo SKU della VARIANTE, il nome del prodotto, i centesimi. */
 export function datiEventoScheda(p: ProdottoPubblico, skuVariante: string | null, quantita = 1): DatiEvento | null {
   const v = p.varianti.find((x) => x.sku === skuVariante);
-  if (!v || !Number.isInteger(quantita) || quantita < 1) return null;
+  // senza prezzo (D39) non c'è evento: mai un valore 0 o NaN
+  if (!v || v.prezzoCent === null || !Number.isInteger(quantita) || quantita < 1) return null;
   return { contentIds: [v.sku], contentName: p.nome, contentType: "product", valueCent: v.prezzoCent * quantita, numItems: quantita };
 }
 
