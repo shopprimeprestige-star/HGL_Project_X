@@ -76,28 +76,21 @@ export async function prove(_mod, { c, gruppo, radice }) {
     ["Due Parole", "A".repeat(41), "", "1Lead", "Lead!", "Purchase​"].map(membro));
   c("membro: 40 caratteri esatti → ok; 1 solo carattere → NO (forma ^[A-Za-z][A-Za-z0-9_]{1,39}$)", [true, false], ["A".repeat(40), "A"].map(membro));
   c("membro: « Purchase» (spazio davanti) passa come «Purchase» e il nome da mandare è quello pulito", ["Purchase", true], [decidi({ nome: " Purchase", autenticato: true, membroCrm: true }).nome, membro(" Purchase")]);
-
-  /* ── prova incrociata: l'Offline Conversion del CRM ── */
-  const crm = readFileSync(join(radice, "src/crm/CRMContext.tsx"), "utf8");
-  const corpoPurchase = (crm.match(/const dispatchPurchaseToAds = useCallback\([\s\S]*?\n {2}\);\n/) ?? [""])[0];
-  const nomePurchase = (corpoPurchase.match(/event_name:\s*"(\w+)"/) ?? [])[1];
-  c("il CRM manda l'Offline Conversion con event_name «Purchase» (lettura di dispatchPurchaseToAds)", "Purchase", nomePurchase);
+  /* ── prova incrociata: l'Offline Conversion del CRM ──
+     Da T34 il corpo si costruisce in src/crm/lead-ads.ts (corpoLead/corpoPurchase), non più dentro CRMContext.tsx:
+     si legge il nome dal corpo vero, con una scheda che ha il consenso. */
+  const ADS = await caricaTs(join(radice, "src/crm/lead-ads.ts"));
+  const scheda = { id: "l1", data: { email: "a@example.invalid", tracking: { consenso_marketing: true } } };
+  const nomePurchase = ADS.corpoPurchase(scheda, 100, "u1", "https://example.invalid")?.event_name;
+  c("il CRM manda l'Offline Conversion con event_name «Purchase» (corpoPurchase di lead-ads.ts)", "Purchase", nomePurchase);
   c("quel corpo con JWT di un membro del CRM (T34) → decidi ammette; con la sola apikey di oggi → NO (per questo il Worker va PRIMA, poi capi)", [true, false], [
     decidi({ nome: nomePurchase, autenticato: true, membroCrm: true }).ok,
     decidi({ nome: nomePurchase, autenticato: false, membroCrm: false }).ok,
   ]);
-  const corpoLead = (crm.match(/const dispatchLeadToAds = useCallback\([\s\S]*?\n {2}\);\n/) ?? [""])[0];
   c("il Lead del CRM passa anche senza JWT (è nell'elenco): nessuna regressione se la scheda è rimasta aperta", [true, true], [
-    (corpoLead.match(/event_name:\s*"(\w+)"/) ?? [])[1] === "Lead",
+    ADS.corpoLead(scheda, "u1", "https://example.invalid")?.event_name === "Lead",
     anonimo("Lead"),
   ]);
-  const lead = join(radice, "src/crm/lead-ads.ts");
-  if (existsSync(lead)) {
-    const L = await caricaTs(lead);
-    const corpo = L.corpoPurchase?.({ id: "l1", data: { tracking: { consenso_marketing: true }, email: "a@example.com" } }, 100, "u1", "https://example.invalid");
-    c("lead-ads.ts (T34): corpoPurchase costruisce un Purchase che decidi ammette con JWT di un membro", true, !corpo || decidi({ nome: corpo.event_name, autenticato: true, membroCrm: true }).ok);
-  }
-
   /* ── copertura: ogni nome che il sito manda a capi o al mittente è ammesso ── */
   const nomi = await caricaTs(join(radice, "src/lib/tracciamento/nomi.ts"));
   c("l'elenco di filtro.ts coincide con NOMI_CAPI_ANONIMI di src/lib/tracciamento/nomi.ts (stesso ordine)", [...nomi.NOMI_CAPI_ANONIMI], [...NOMI_AMMESSI]);
