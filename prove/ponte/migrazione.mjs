@@ -15,6 +15,7 @@
  *  `mod`: i moduli impacchettati da `prove/prove.mjs`. `aiuti`: `{ c, gruppo, radice }`. */
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { delNegozio } from "../_migrazioni-negozio.mjs";
 
 const FILE = "20261029120000_ponte_whatsapp.sql";
 
@@ -323,6 +324,6 @@ export async function provePonteMigrazione(mod, { c, gruppo, radice }) {
       /due volte non fa danni/i.test(grezzo),
     ],
   );
-  const altre = readdirSync(cartella).filter((n) => n.endsWith(".sql") && n !== FILE && !n.includes("risposte_ai") && !n.includes("riepilogo_serale") && !n.includes("ponte_invio_manuale") && !n.startsWith("20261030") && !n.startsWith("20261031") && !n.includes("chiamate_numeri_senza_scheda") && !n.includes("ponte_chat_flag") && !n.includes("ecommerce_ordini")).sort();
+  const altre = readdirSync(cartella).filter((n) => n.endsWith(".sql") && n !== FILE && !n.includes("risposte_ai") && !n.includes("riepilogo_serale") && !n.includes("ponte_invio_manuale") && !n.startsWith("20261030") && !n.startsWith("20261031") && !n.includes("chiamate_numeri_senza_scheda") && !n.includes("ponte_chat_flag") && !n.includes("ecommerce_ordini") && !delNegozio(n)).sort();
   c("il nome viene dopo l'ultima migrazione esistente", true, FILE > altre.at(-1));
 }

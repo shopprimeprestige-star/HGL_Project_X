@@ -15,6 +15,7 @@
  *  `mod`: i moduli impacchettati da `prove/prove.mjs`. `aiuti`: { c, gruppo, radice }. */
 import { readdirSync, readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
+import { delNegozio } from "../_migrazioni-negozio.mjs";
 
 const ID = "11111111-2222-4333-8444-555555555555";
 const SEG = "s".repeat(40);
@@ -381,7 +382,7 @@ export async function proveRispiega(mod, { c, gruppo, radice }) {
     "il nome è il più recente fra le migrazioni",
     true,
     readdirSync(join(radice, "supabase/migrations"))
-      .filter((n) => n.endsWith(".sql") && !n.includes("eco_entrata_contatti") && !n.includes("ponte_revoche") && !n.includes("ponte_media") && !n.includes("meetly_diagnosi") && !n.includes("messaggi_automatici") && !n.includes("whatsapp_chiavi_server") && !n.includes("chiamate_numeri_senza_scheda") && !n.includes("ponte_chat_flag") && !n.includes("ecommerce_ordini")) // l'eco sul contatto (eco-manychat-entrata), le revoche (ponte-revoche), i media (media-e-archiviazione), gli interruttori (messaggi_automatici, 31/10) e il segno ha_messaggio_ponte (ponte-chat-flag, 13/11) vengono dopo: hanno il loro ordine
+      .filter((n) => n.endsWith(".sql") && !n.includes("eco_entrata_contatti") && !n.includes("ponte_revoche") && !n.includes("ponte_media") && !n.includes("meetly_diagnosi") && !n.includes("messaggi_automatici") && !n.includes("whatsapp_chiavi_server") && !n.includes("chiamate_numeri_senza_scheda") && !n.includes("ponte_chat_flag") && !n.includes("ecommerce_ordini") && !delNegozio(n)) // l'eco sul contatto (eco-manychat-entrata), le revoche (ponte-revoche), i media (media-e-archiviazione), gli interruttori (messaggi_automatici, 31/10) e il segno ha_messaggio_ponte (ponte-chat-flag, 13/11) vengono dopo: hanno il loro ordine
       .sort()
       .at(-1) === nomi[0],
   );
