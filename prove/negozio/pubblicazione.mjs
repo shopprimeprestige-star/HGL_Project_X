@@ -38,15 +38,18 @@ export async function prove(mod, { c, gruppo }) {
   c("la principale tolta (rimosso_il) non vale", ["fotoPrincipale"], campi(vai({ media: [media({ rimossoIl: "2026-11-20T10:00:00Z" })] })));
   c("un video nello slot principale non è una foto", ["fotoPrincipale"], campi(vai({ media: [media({ tipo: "video", muto: true })] })));
 
-  c("la principale con persone SENZA liberatoria non esce, quindi non vale (come il trigger di S1)", [["fotoPrincipale"], "Manca la foto principale: il prodotto resta in bozza."],
+  c("la principale con persone SENZA liberatoria non esce, quindi non vale (come il trigger di S1)", [["fotoPrincipale"], "La foto principale non è valida: serve il testo alternativo e, se ritrae persone, la liberatoria."],
     ((r) => [campi(r), frasi(r)[0]])(vai({ media: [media({ ritraePersone: true, liberatoriaOk: false })] })));
+  c("la principale senza testo alternativo non vale: bloccante su fotoPrincipale (e anche su alt)", [["fotoPrincipale", "alt"], "La foto principale non è valida: serve il testo alternativo e, se ritrae persone, la liberatoria."],
+    ((r) => [campi(r), frasi(r)[0]])(vai({ media: [media({ alt: "  " })] })));
+  c("senza nessuna principale la frase resta quella del piano", "Manca la foto principale: il prodotto resta in bozza.", frasi(vai({ media: [media({ slot: "foto2" })] }))[0]);
   c("la principale con persone e liberatoria vale", [], campi(vai({ media: [media({ ritraePersone: true, liberatoriaOk: true })] })));
   c("con la principale senza liberatoria ma un'altra principale in regola → passa", [], campi(vai({ media: [media({ ritraePersone: true }), media({ id: "m2", ritraePersone: false })] })));
 
   // ── testo alternativo ──
   const dueSenzaAlt = vai({ media: [media(), media({ id: "m2", slot: "foto2", alt: "" }), media({ id: "m3", slot: "foto3", alt: "   " })] });
   c("due foto senza alt → «Manca il testo alternativo di 2 foto.»", [["alt"], ["Manca il testo alternativo di 2 foto."]], [campi(dueSenzaAlt), frasi(dueSenzaAlt)]);
-  c("la principale senza alt conta (1 foto)", ["Manca il testo alternativo di 1 foto."], frasi(vai({ media: [media({ alt: "" })] })));
+  c("la principale senza alt conta (1 foto)", true, frasi(vai({ media: [media({ alt: "" })] })).includes("Manca il testo alternativo di 1 foto."));
   c("una foto tolta senza alt non conta", [], campi(vai({ media: [media(), media({ id: "m2", slot: "foto2", alt: "", rimossoIl: "2026-11-20T10:00:00Z" })] })));
   c("un video muto senza alt non è una foto: non conta", [], campi(vai({ media: [media(), media({ id: "m2", slot: "video", tipo: "video", alt: "", muto: true })] })));
 
@@ -80,6 +83,8 @@ export async function prove(mod, { c, gruppo }) {
   c("SKU storto (minuscolo, spazi) → rifiutato", ["sku"], campi(vai({ varianti: [variante({ sku: "prova 1" })] })));
   c("prodotto senza SKU → rifiutato", ["sku"], campi(vai({ prodotto: prodotto({ sku: "" }) })));
   c("anche una variante non attiva ha lo SKU unico", ["sku"], campi(vai({ varianti: [variante(), variante({ sku: "PROVA-002-A", attiva: false })], contesto: contesto({ tuttiGliSku: altro }) })));
+  const doppia = vai({ prodotto: prodotto({ sku: "PROVA-002" }), varianti: [variante({ sku: "PROVA-002" })], contesto: contesto({ tuttiGliSku: altro }) });
+  c("lo stesso SKU già usato scritto sul prodotto e sulla sua variante: la frase compare una volta sola", [1, 1], [doppia.bloccanti.length, new Set(frasi(doppia)).size]);
   c("skuLibero: libero, usato da altri, usato da me", [true, false, true], [P.skuLibero("PROVA-009", altro, "p1"), P.skuLibero("PROVA-002", altro, "p1"), P.skuLibero("PROVA-001", altro, "p1")]);
   c("skuLibero: senza dire chi sono, uno SKU usato non è libero", false, P.skuLibero("PROVA-001", altro));
 
@@ -141,6 +146,18 @@ export async function prove(mod, { c, gruppo }) {
   const persone = vai({ media: [media(), media({ id: "m2", slot: "foto2", ritraePersone: true, liberatoriaOk: false })] });
   c("foto con persone senza liberatoria → informativo (non esce)", [[], ["media"], true], [campi(persone), persone.informativi.map((i) => i.campo), /non esce/.test(persone.informativi[0].frase)]);
   c("foto con persone e liberatoria → niente", [], vai({ media: [media(), media({ id: "m2", slot: "foto2", ritraePersone: true, liberatoriaOk: true })] }).informativi);
+
+  // ── i testi vietati valgono anche per i nomi delle varianti e per gli alt ──
+  c("nome di una variante con «sconto del» → bloccante sul campo «varianti»", ["varianti"], campi(vai({ varianti: [variante({ nome: "Oggi sconto del 20%" })] })));
+  c("alt con cifra vicino a «Invisible Derm» → bloccante sul campo «alt»", ["alt"], campi(vai({ media: [media({ alt: "Invisible Derm da 3900 €" })] })));
+  c("un alt con una parola da non usare → solo informativo", [[], ["alt"]], ((r) => [campi(r), r.informativi.map((i) => i.campo)])(vai({ media: [media({ alt: "Patch invisibile" })] })));
+
+  // ── dati storti: non lancia ──
+  c("tuttiGliSku mancante, passi/confezione/avvertenze/faq che non sono elenchi, contesto vuoto → nessuna eccezione", [true, true], (() => {
+    const r = P.controllaPubblicazione(prodotto({ passi: "uno", confezione: { a: 1 }, avvertenze: 5, faq: "x", caratteristiche: "boh" }), [variante()], [media()], [{ id: "k1" }], { spedizioneImpostata: true });
+    const r2 = P.controllaPubblicazione(prodotto({ faq: [null, 3, { d: "Dura?", r: "Sì." }] }), [variante()], [media()], [{ id: "k1" }], undefined);
+    return [r.bloccanti.length === 0, r2.bloccanti.length === 0];
+  })());
 
   // ── la funzione non cambia quello che riceve e non lancia ──
   const p = Object.freeze(prodotto()), vs = Object.freeze([Object.freeze(variante())]), ms = Object.freeze([Object.freeze(media())]);

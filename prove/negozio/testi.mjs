@@ -53,6 +53,7 @@ export async function prove(mod, { c, gruppo }) {
   c("testo vuoto, spazi, o non testo → niente, senza errori", [[], [], [], []], [T.controllaTesto("").avvisi, T.controllaTesto("   ").avvisi, T.controllaTesto(null).avvisi, T.controllaTesto(undefined).bloccanti]);
   const r = T.controllaTesto("Invisible Derm 3900 invisibile");
   c("blocchi e avvisi insieme: i due elenchi sono separati", [1, 1], [r.bloccanti.length, r.avvisi.length]);
+  c("«best  seller» (due spazi) e «best-seller» avvisano", [["best  seller"], ["best-seller"]], ["Il best  seller", "Il best-seller"].map((t) => parole(t)));
   c("«più venduta», «piu venduti» (senza accento), «PIÙ VENDUTO»: avviso", [["più venduta"], ["piu venduti"], ["PIÙ VENDUTO"]], ["La più venduta", "I piu venduti", "IL PIÙ VENDUTO"].map((t) => parole(t)));
   c("«venduto» da solo o «più» da solo: nessun avviso", [], parole("Un prodotto venduto in tutta Italia, più morbido"));
   c("le parole vietate sono le undici del piano più «più venduto»", ["invisibile", "garantito", "premium", "cura la calvizie", "ricrescita", "riduce la caduta", "definitivo", "Remy", "europei", "indistinguibile", "best seller", "più venduto"], [...T.PAROLE_DA_NON_USARE]);
