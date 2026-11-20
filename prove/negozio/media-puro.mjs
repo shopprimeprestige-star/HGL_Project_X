@@ -60,7 +60,7 @@ export async function prove(_mod, { c, gruppo, radice }) {
   c("tre file con tutto libero → principale, foto 2, foto 3", [["principale", "foto2", "foto3"], 0], (({ slot, inEccesso }) => [slot, inEccesso])(M.assegnaSlot(3, M.slotLiberiFoto([]))));
   c("più file degli slot liberi: ne prende quanti ce ne stanno e dice quanti restano fuori", [["foto2", "foto4", "foto5", "scala", "confezione"], 2], (({ slot, inEccesso }) => [slot, inEccesso])(M.assegnaSlot(7, M.slotLiberiFoto(m))));
   c("zero file → niente", [[], 0], (({ slot, inEccesso }) => [slot, inEccesso])(M.assegnaSlot(0, ["principale"])));
-  c("la frase per i file rimasti fuori", ["Ci sono posto solo per 5 foto: le ultime 2 non sono state prese.", "Ci sono posto solo per 5 foto: l'ultima non è stata presa."], [M.fraseInEccesso(5, 2), M.fraseInEccesso(5, 1)]);
+  c("la frase per i file rimasti fuori", ["C'è posto solo per 5 foto: le ultime 2 non sono state prese.", "C'è posto solo per 5 foto: l'ultima non è stata presa."], [M.fraseInEccesso(5, 2), M.fraseInEccesso(5, 1)]);
 
   // ── riordino (solo le foto 2-5) ──
   const g = [media("p", "principale", { ordine: 1 }), media("f2", "foto2", { ordine: 2 }), media("f3", "foto3", { ordine: 3 }), media("sc", "scala", { ordine: 4 }), media("f4", "foto4", { ordine: 5 }), media("v", "video", { ordine: 6 })];
