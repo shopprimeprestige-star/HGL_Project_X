@@ -92,7 +92,13 @@ export const gestisciGET = (request: Request, d: PorteInterruttori): Promise<Res
         return [k, { valore: x?.valore ?? null, aggiornatoIl: x?.aggiornato_il ?? null, aggiornatoDa: x?.aggiornato_da ?? null }];
       }),
     );
-    return { interruttori, condizioni: await condizioni(d) };
+    // Chiudere lo shop non deve mai dipendere dalle condizioni: se le loro query falliscono, lo stato aperto/chiuso arriva lo stesso,
+    // con le condizioni vuote (lo shop non si può aprire) e un avviso. Nessun testo dell'errore.
+    const cond = await condizioni(d).catch(() => {
+      d.log("condizioni");
+      return { puoAprire: false, righe: [], avviso: "Non riesco a controllare le condizioni ora: riprova tra un momento." };
+    });
+    return { interruttori, condizioni: cond };
   });
 
 export const gestisciPOST = (request: Request, d: PorteInterruttori): Promise<Response> =>

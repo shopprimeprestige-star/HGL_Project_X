@@ -50,6 +50,15 @@ export async function prove(mod, { c, gruppo, radice }) {
   const bz = await esegui("interruttori", { get: true, tabelle: (() => { const t = duePubblicati(); t.shop_prodotti.push(prodottoProva({ id: P3, sku: "PROVA-004", slug: "quarto", stato: "archiviato" })); return t; })() });
   c("un archiviato non conta fra i pubblicati", true, bz.corpo.condizioni.righe.find((x) => x.chiave === "foto_vere").ok);
   const altro = await esegui("categorie", { get: true });
+  // T32 (18): chiudere non deve mai dipendere dalle condizioni. Se le query del cancello falliscono, lo stato aperto/chiuso arriva lo stesso.
+  for (const tab of ["shop_prodotti", "shop_media"]) {
+    const gc = await esegui("interruttori", { get: true, db: fintoDb({ tabelle: conCms(tabelleProva()), errori: { [`${tab}.select`]: { error: { code: "57P01", message: "PROVA condizioni" } } } }) });
+    c(`GET ?interruttori con la lettura di ${tab} in errore: 200, l'interruttore c'è, condizioni senza righe e «non si apre»`, [200, "cms", 0, false, true],
+      [gc.stato, gc.corpo.interruttori?.catalogo_sito?.valore, gc.corpo.condizioni?.righe?.length, gc.corpo.condizioni?.puoAprire, typeof gc.corpo.condizioni?.avviso === "string"]);
+    c("…e nella risposta non esce il testo dell'errore", false, JSON.stringify(gc.corpo).includes("PROVA condizioni"));
+  }
+  const gl = await esegui("interruttori", { get: true, db: fintoDb({ tabelle: conCms(tabelleProva()), errori: { "shop_impostazioni.select": { error: { code: "57P01", message: "PROVA lettura" } } } }) });
+  c("se a fallire è la lettura dell'interruttore stesso, la risposta resta un errore (non si inventa uno stato)", true, gl.stato >= 500);
   c("GET senza ?interruttori → 400, nessuna chiamata", [400, 0], [altro.stato, altro.db.chiamate]);
 
   // ── aprire: D26 ──
