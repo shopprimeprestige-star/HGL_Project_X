@@ -510,7 +510,7 @@ function SchedaAperta({ scheda, negozio, apri, ricarica }: { scheda: DatiScheda;
             <div className="mt-1 flex flex-wrap items-center gap-2">
               <Chip tono={archiviato ? "chiusa" : pubblicato ? "vinta" : "neutro"}>{testoStato}</Chip>
               <span className="text-[12px] text-muted-foreground" role="status" aria-live="polite">
-                {statoAuto.testo || (statoAuto.fase === "fermo" ? "Si salva da solo." : "")}
+                {conflitto ? "Non salvato: qualcun altro ha modificato il prodotto." : statoAuto.testo || (statoAuto.fase === "fermo" ? "Si salva da solo." : "")}
               </span>
             </div>
           </div>

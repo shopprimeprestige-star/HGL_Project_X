@@ -195,7 +195,7 @@ export function EditorVarianti({ prodotto, varianti, esegui, aggiorna }: PropsEd
               aria-label={`Togli l'opzione ${o.nome || k + 1}`}
               disabled={opzioni.length === 1}
               onClick={() => setOpzioni((x) => x.filter((_, i) => i !== k))}
-              className="order-2 flex h-11 w-11 items-center justify-center rounded-md border border-border text-muted-foreground hover:text-foreground disabled:opacity-40 md:order-3 md:h-9 md:w-9"
+              className="flex h-11 w-11 items-center justify-center rounded-md border border-border text-muted-foreground hover:text-foreground disabled:opacity-40 md:order-3 md:h-9 md:w-9"
             >
               <X className="h-4 w-4" aria-hidden="true" />
             </button>
