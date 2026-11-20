@@ -26,7 +26,7 @@ function sorgenti(cartella, acc = []) {
 }
 
 export async function prove(_mod, { c, gruppo, radice }) {
-  gruppo("SHOP R1 · T29 · capi DECIDE IN BASE A CHI CHIAMA (20/11/2026)");
+  gruppo("SHOP R1 · T29 · capi DECIDE IN BASE A CHI CHIAMA (20/11/2026, con D35)");
   const dirCapi = join(radice, "supabase/functions/capi");
   const pFiltro = join(dirCapi, "filtro.ts");
   const pIndex = join(dirCapi, "index.ts");
@@ -63,14 +63,14 @@ export async function prove(_mod, { c, gruppo, radice }) {
   c("seconda rete: Pu-r_chase, p u r c h a s e, PURCHÁSE (anche se in elenco) → NO", [false, false, false],
     ["Pu-r_chase", "p u r c h a s e", "PURCHÁSE"].map((nome) => decidi({ nome, autenticato: false, membroCrm: false }, [nome]).ok));
 
-  /* ── nota A: un utente con sessione ma ESTRANEO al CRM vale come anonimo ── */
-  c("utente registrato ma ESTRANEO (nessuna riga in tracking_config): Purchase → NO (403)", [false, false, false],
+  /* ── nota A + D35: un utente con sessione ma ESTRANEO (non è il proprietario) vale come anonimo ── */
+  c("utente registrato ma ESTRANEO (non è il proprietario): Purchase → NO (403)", [false, false, false],
     ["Purchase", "CompletePayment", "PlaceAnOrder"].map(utente));
   c("utente estraneo: i nomi dell'elenco passano (come chiunque), il resto no", [true, true, false], [utente("Lead"), utente("PageView"), utente("Refund")]);
   c("membroCrm senza sessione valida non conta (autenticato:false) → NO", false, decidi({ nome: "Purchase", autenticato: false, membroCrm: true }).ok);
 
-  /* ── chi ha un utente verificato E una riga in tracking_config: qualunque nome ben formato ── */
-  c("membro del CRM: Purchase → ok (l'Offline Conversion continua)", true, membro("Purchase"));
+  /* ── il proprietario (utente verificato E in tracciamento_proprietario): qualunque nome ben formato ── */
+  c("proprietario: Purchase → ok (l'Offline Conversion continua)", true, membro("Purchase"));
   c("membro: nomi ben formati (Refund, Qualcosa_di_nuovo, A1, ViewContent) → ok", [true, true, true, true], ["Refund", "Qualcosa_di_nuovo", "A1", "ViewContent"].map(membro));
   c("membro: spazi interni, 41 caratteri, vuoto, cifra iniziale, simboli, invisibile → NO", [false, false, false, false, false, false],
     ["Due Parole", "A".repeat(41), "", "1Lead", "Lead!", "Purchase​"].map(membro));
@@ -125,11 +125,58 @@ export async function prove(_mod, { c, gruppo, radice }) {
   const iConfig = index.indexOf('.from("tracking_config").select(\n    "user_id,meta_pixel_id');
   c("decidi( viene prima della lettura delle configurazioni e prima dell'unica scrittura (capi_sent)", [true, true], [iDecidi < iConfig || iConfig < 0, iDecidi < iScrittura]);
   c("risponde 403 con {\"error\":\"event_not_allowed\"} quando decidi dice no", true, /status:\s*403/.test(index) && /event_not_allowed/.test(index));
-  c("l'utente si verifica con auth.getUser(token) e l'appartenenza al CRM si legge in tracking_config (nota A)", [true, true, true], [
+  c("l'utente si verifica con auth.getUser(token) e l'appartenenza si legge SOLO in tracciamento_proprietario (D35)", [true, true, true, false], [
     /supabase\.auth\.getUser\(/.test(index),
-    /\.from\("tracking_config"\)\s*\.select\("user_id"\)\s*\.eq\("user_id"/.test(index),
-    /membroCrm/.test(index),
+    /\.from\("tracciamento_proprietario"\)\s*\.select\("user_id"\)\s*\.eq\("user_id"/.test(index),
+    /membroCrm = !erroreProprietario && /.test(index),
+    /\.from\("tracking_config"\)\s*\.select\("user_id"\)/.test(index),
   ]);
+  /* il blocco vero, eseguito con un finto database: i casi che D35 chiede */
+  const blocco = (index.match(/\/\/ ── T29 · INIZIO[^\n]*\n([\s\S]*?)\/\/ ── T29 · FINE/) ?? [, ""])[1];
+  const AsyncFn = Object.getPrototypeOf(async () => {}).constructor;
+  const eseguiBlocco = new AsyncFn("req", "payload", "supabase", "corsHeaders", "decidi", "normalizzaNome", `${blocco}\nreturn null;`);
+  /** Finto client: sessioni per token, righe per tabella (una tabella può mancare o dare errore). */
+  const finto = ({ sessioni = {}, proprietari = [], tracking = [], proprietariMancante = false }) => ({
+    auth: { getUser: async (t) => (sessioni[t] ? { data: { user: { id: sessioni[t] } }, error: null } : { data: { user: null }, error: { message: "jwt" } }) },
+    from: (tab) => {
+      const stato = { tab, uid: null };
+      const q = {
+        select: () => q,
+        eq: (_c, v) => ((stato.uid = v), q),
+        limit: async () =>
+          tab === "tracciamento_proprietario" && proprietariMancante
+            ? { data: null, error: { message: 'relation "tracciamento_proprietario" does not exist' } }
+            : { data: (tab === "tracciamento_proprietario" ? proprietari : tracking).filter((u) => u === stato.uid).map((user_id) => ({ user_id })), error: null },
+      };
+      return q;
+    },
+  });
+  const chiama = async (nome, bearer, db, adminDichiarato) => {
+    const payload = { event_name: nome, event_id: "e1", admin_user_id: adminDichiarato };
+    const req = { headers: { get: (k) => (k === "authorization" && bearer ? `Bearer ${bearer}` : null) } };
+    const r = await eseguiBlocco(req, payload, finto(db), {}, decidi, normalizzaNome);
+    return { status: r ? r.status : 200, corpo: r ? await r.json() : null, payload };
+  };
+  const PROPRIETARIO = "u-titolare", ESTRANEO = "u-registrato";
+  const mondo = { sessioni: { tp: PROPRIETARIO, te: ESTRANEO }, proprietari: [PROPRIETARIO], tracking: [PROPRIETARIO, ESTRANEO] };
+  const A1 = await chiama("Purchase", "te", mondo, ESTRANEO);
+  c("D35: utente ESTRANEO con una SUA riga in tracking_config manda Purchase → 403 event_not_allowed", [403, "event_not_allowed"], [A1.status, A1.corpo?.error]);
+  const A2 = await chiama("Purchase", "tp", mondo, "altro");
+  c("D35: il PROPRIETARIO manda Purchase → passa, e admin_user_id è il suo id verificato (non quello dichiarato)", [200, "Purchase", PROPRIETARIO], [A2.status, A2.payload.event_name, A2.payload.admin_user_id]);
+  const A3 = await chiama("Purchase", null, mondo, PROPRIETARIO);
+  c("senza Authorization (solo apikey, come il CRM di oggi) Purchase → 403", 403, A3.status);
+  const A4 = await chiama("Purchase", "token-sbagliato", mondo, PROPRIETARIO);
+  c("token non valido (anche il JWT anonimo) → come anonimo: Purchase 403", 403, A4.status);
+  const A5 = await chiama("Lead", "te", mondo, ESTRANEO);
+  c("l'estraneo manda Lead → passa (è nell'elenco) e admin_user_id resta quello dichiarato (non è il proprietario)", [200, ESTRANEO], [A5.status, A5.payload.admin_user_id]);
+  const A6 = await chiama("Purchase", "tp", { ...mondo, proprietari: [] }, "x");
+  c("tabella tracciamento_proprietario VUOTA: anche il titolare non manda Purchase (403)", 403, A6.status);
+  const A7 = await chiama("Purchase", "tp", { ...mondo, proprietariMancante: true }, "x");
+  c("tabella MANCANTE (S3 non applicata): nessun errore, Purchase 403", 403, A7.status);
+  const A8 = await chiama("Lead", "tp", { ...mondo, proprietariMancante: true }, "x");
+  c("tabella mancante: i nomi dell'elenco passano lo stesso (il sito non si rompe)", 200, A8.status);
+  const A9 = await chiama(" Lead ", null, mondo, undefined);
+  c("anonimo: « Lead » passa col nome ripulito", [200, "Lead"], [A9.status, A9.payload.event_name]);
   c("per un membro verificato admin_user_id è l'id verificato, mai quello dichiarato", true, /if \(autenticato && membroCrm\) payload\.admin_user_id = /.test(index));
   c("niente chiavi o indirizzi nuovi: il solo import nuovo è ./filtro.ts", [], [...index.matchAll(/^import .* from "([^"]+)"/gm)].map((m) => m[1]).filter((m) => !["https://esm.sh/@supabase/supabase-js@2.45.0", "./filtro.ts"].includes(m)));
   /* il resto del file è identico a quello del ramo base (tolti l'import e il blocco fra i due marcatori) */

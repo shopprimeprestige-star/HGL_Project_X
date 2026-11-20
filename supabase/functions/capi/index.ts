@@ -187,10 +187,12 @@ Deno.serve(async (req) => {
     { auth: { autoRefreshToken: false, persistSession: false } },
   );
 
-  // ── T29 · INIZIO · chi chiama decide cosa può mandare (D17, nota A) ─────────────
-  // Un chiamante senza utente del CRM passa solo con i nomi dell'elenco (filtro.ts); un membro del CRM
-  // (sessione valida E una riga in tracking_config) può mandare anche Purchase, e per lui admin_user_id
-  // è l'id verificato, non quello dichiarato. Si decide PRIMA di ogni invio e di ogni scrittura.
+  // ── T29 · INIZIO · chi chiama decide cosa può mandare (D17, nota A, D35) ─────────
+  // Un chiamante senza utente del CRM passa solo con i nomi dell'elenco (filtro.ts); il proprietario
+  // (sessione valida E presente in tracciamento_proprietario) può mandare anche Purchase, e per lui
+  // admin_user_id è l'id verificato, non quello dichiarato. ⚠️ Avere una riga in tracking_config NON prova
+  // niente: chiunque abbia una sessione può scriversela. Tabella mancante, vuota o illeggibile = false.
+  // Si decide PRIMA di ogni invio e di ogni scrittura.
   const bearer = (req.headers.get("authorization") ?? "").replace(/^Bearer\s+/i, "").trim();
   let autenticato = false;
   let membroCrm = false;
@@ -200,8 +202,9 @@ Deno.serve(async (req) => {
     if (sessione?.user?.id) {
       autenticato = true;
       utenteId = sessione.user.id;
-      const { data: riga } = await supabase.from("tracking_config").select("user_id").eq("user_id", utenteId).limit(1);
-      membroCrm = (riga?.length ?? 0) > 0;
+      const { data: riga, error: erroreProprietario } = await supabase
+        .from("tracciamento_proprietario").select("user_id").eq("user_id", utenteId).limit(1);
+      membroCrm = !erroreProprietario && (riga?.length ?? 0) > 0;
     }
   }
   const esito = decidi({ nome: payload.event_name, autenticato, membroCrm });

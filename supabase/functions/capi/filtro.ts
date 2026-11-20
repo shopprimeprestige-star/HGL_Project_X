@@ -1,17 +1,18 @@
 /*  ── `capi` DECIDE IN BASE A CHI CHIAMA (modulo puro) ──────────────────────────
     Shop R1 · T29 · PIANO D17 e nota A del revisore. Nessuna API di Deno e nessun import: lo si prova
-    con esbuild (prove/negozio/capi-filtro.mjs). `index.ts` raccoglie i fatti (la sessione, la riga in
-    `tracking_config`) e li passa qui; questo file decide soltanto.
+    con esbuild (prove/negozio/capi-filtro.mjs). `index.ts` raccoglie i fatti (la sessione, la presenza in
+    `tracciamento_proprietario`) e li passa qui; questo file decide soltanto.
 
     · Chi NON ha un utente verificato (il sito pubblico: solo apikey o il JWT anonimo, e anche un utente
-      registrato ma ESTRANEO al CRM, cioè senza riga in `tracking_config`) passa solo se il nome, dopo
+      registrato ma ESTRANEO al CRM, cioè non presente in `tracciamento_proprietario`) passa solo se il nome, dopo
       NFKC + trim, è ESATTAMENTE uno dell'elenco. Nessuna lista nera: un `Purchase`, ` Purchase`,
       `PURCHASE` o `PlaceAnOrder` non è nell'elenco e quindi non passa.
     · Seconda rete: anche se un nome d'acquisto entrasse nell'elenco per errore, un nome che ridotto a
       minuscole senza segni è `purchase`, `completepayment`… resta rifiutato.
-    · Chi ha un utente verificato E una riga in `tracking_config` (un membro del CRM) può mandare
+    · Il proprietario (utente verificato E presente in `tracciamento_proprietario`, D35) può mandare
       qualunque nome di forma ammessa: è la sua Offline Conversion `Purchase`.
-    ⚠️ Chiunque può registrarsi: «utente verificato» da solo NON basta (nota A). */
+    ⚠️ Chiunque può registrarsi e chiunque con una sessione può scriversi una riga in `tracking_config`:
+       né la sessione né quella riga bastano (nota A, D35). */
 
 /** I nomi che un chiamante senza utente del CRM può mandare (D17). Una prova li confronta con
  *  `NOMI_CAPI_ANONIMI` di `src/lib/tracciamento/nomi.ts`. `AddToCart` c'è per le schede già aperte nei browser. */
@@ -27,7 +28,7 @@ export type Chiamante = {
   nome: unknown;
   /** `auth.getUser(token)` ha riconosciuto un utente. */
   autenticato: boolean;
-  /** Quell'utente ha una riga in `tracking_config` (nota A). Senza `autenticato` non conta. */
+  /** Quell'utente è nella tabella `tracciamento_proprietario` (D35). Senza `autenticato` non conta. */
   membroCrm: boolean;
 };
 export type Esito = { ok: true; nome: string } | { ok: false; motivo: "event_not_allowed" };
