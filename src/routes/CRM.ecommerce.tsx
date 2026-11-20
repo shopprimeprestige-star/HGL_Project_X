@@ -15,10 +15,16 @@
  *
  *  ── LE SCHEDE SONO NELL'INDIRIZZO ─────────────────────────────────────────────
  *  `?scheda=ordini&stato=nuovo`: l'indirizzo si può condividere e il clic su uno stato della Panoramica porta all'elenco già
- *  filtrato. «Clienti» e «Da collegare» (SPEC §3.2) arrivano con i rilasci successivi: finché non ci sono non hanno linguetta. */
+ *  filtrato. «Clienti» e «Da collegare» (SPEC §3.2) arrivano con i rilasci successivi: finché non ci sono non hanno linguetta.
+ *
+ *  ── LA LINGUETTA «PRODOTTI» (Shop completo, T14) ───────────────────────────────
+ *  `?scheda=prodotti` è l'elenco del catalogo, `?scheda=prodotti&id=<id>` la scheda di un prodotto (T15). Il catalogo si legge
+ *  SOLO lì: `useNegozio()` sta in `LinguettaProdotti`, che si disegna solo con quella scheda e dopo il «return» di chi non ha il
+ *  permesso. Panoramica e Ordini non fanno nessuna lettura del CMS. Il periodo e «Aggiorna» della pagina sono degli ordini: nella
+ *  linguetta dei prodotti non compaiono. Il permesso è quello della pagina (`pagamenti`, permessi.ts); il rifiuto vero lo dà la rotta. */
 import { useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Lock, RefreshCw, ShoppingBag } from "lucide-react";
+import { ArrowLeft, Lock, RefreshCw, ShoppingBag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { BarraAzioni, Pagina, Titolo, Vuoto, dataBreve } from "@/crm/ui";
@@ -38,10 +44,24 @@ import { Avviso } from "@/crm/ecommerce/Avviso";
 import { Panoramica } from "@/crm/ecommerce/Panoramica";
 import { ElencoOrdini } from "@/crm/ecommerce/ElencoOrdini";
 import type { StatoOrdine } from "@/crm/ecommerce/ordine";
+import { useNegozio } from "@/crm/negozio/useNegozio";
+import { ElencoProdotti } from "@/crm/ecommerce/prodotti/ElencoProdotti";
+import { SchedaProdotto } from "@/crm/ecommerce/prodotti/SchedaProdotto";
+import { Categorie } from "@/crm/ecommerce/prodotti/Categorie";
+import { ApriShop } from "@/crm/ecommerce/prodotti/ApriShop";
+
+/** L'indirizzo della pagina: quello di T11 (Panoramica e Ordini) più `?scheda=prodotti` con l'`id` del prodotto aperto. */
+type RicercaPagina = Omit<RicercaEcommerce, "scheda"> & { scheda?: "ordini" | "prodotti"; id?: string };
+/** Come l'id valido per il server: lettere, numeri e trattini. Chi scrive a mano un id storto trova l'elenco. */
+const ID_PRODOTTO = /^[A-Za-z0-9-]{1,64}$/;
+function leggiRicercaPagina(raw: Record<string, unknown>): RicercaPagina {
+  if (raw.scheda !== "prodotti") return leggiRicerca(raw);
+  return typeof raw.id === "string" && ID_PRODOTTO.test(raw.id) ? { scheda: "prodotti", id: raw.id } : { scheda: "prodotti" };
+}
 
 export const Route = createFileRoute("/CRM/ecommerce")({
   head: () => ({ meta: [{ title: "E-commerce — CRM" }] }),
-  validateSearch: (raw: Record<string, unknown>): RicercaEcommerce => leggiRicerca(raw),
+  validateSearch: (raw: Record<string, unknown>): RicercaPagina => leggiRicercaPagina(raw),
   component: PaginaEcommerce,
 });
 
@@ -49,6 +69,7 @@ export const Route = createFileRoute("/CRM/ecommerce")({
 const LINGUETTE = [
   { scheda: undefined, titolo: "Panoramica", domanda: "Come sta andando lo shop" },
   { scheda: "ordini", titolo: "Ordini", domanda: "Stato, pagamenti, spedizioni" },
+  { scheda: "prodotti", titolo: "Prodotti", domanda: "Catalogo, giacenze, pubblicazione" },
 ] as const;
 
 /** «dal 20 ott al 18 nov», «solo il 5 nov», con «Tutto lo storico» davanti se non c'è nessuna data. */
@@ -129,9 +150,14 @@ function PaginaEcommerce() {
 
   return (
     <Pagina larga>
-      <Titolo testo="E-commerce" icona={ShoppingBag} nota="Gli ordini dello shop" azioni={azioni} />
+      <Titolo
+        testo="E-commerce"
+        icona={ShoppingBag}
+        nota={scheda === "prodotti" ? "I prodotti dello shop" : "Gli ordini dello shop"}
+        azioni={scheda === "prodotti" ? undefined : azioni}
+      />
 
-      <nav aria-label="Sezioni dell'e-commerce" className="grid grid-cols-2 gap-1.5 md:max-w-xl">
+      <nav aria-label="Sezioni dell'e-commerce" className="grid grid-cols-3 gap-1.5 md:max-w-2xl">
         {LINGUETTE.map((l) => {
           const attiva = (l.scheda ?? "panoramica") === scheda;
           return (
@@ -166,6 +192,14 @@ function PaginaEcommerce() {
         })}
       </nav>
 
+      {scheda === "prodotti" ? (
+        //  Il catalogo: qui e solo qui si legge il CMS (vedi la nota in cima al file).
+        <LinguettaProdotti
+          id={ricerca.id}
+          apri={(id) => void navigate({ search: id ? { scheda: "prodotti", id } : { scheda: "prodotti" } })}
+        />
+      ) : (
+        <>
       {/*  Il periodo vale per tutte le schede. Non è appiccicato in alto: sul telefono il filtro occupa più righe e coprirebbe la pagina. */}
       <BarraAzioni fissa={false} className="flex-col items-stretch gap-1.5">
         <DateRangeFilter value={range} onChange={setRange} />
@@ -261,6 +295,49 @@ function PaginaEcommerce() {
           />
         </div>
       )}
+        </>
+      )}
     </Pagina>
+  );
+}
+
+/** ── LA LINGUETTA «PRODOTTI» ────────────────────────────────────────────────────
+ *  Crea l'archivio del negozio UNA volta (una lettura, una rilettura ogni 30 s) e lo passa alle schermate di `prodotti/`.
+ *  Con un `id` apre la scheda di quel prodotto (T15) sotto il link «Tutti i prodotti»; senza, «Apri lo shop» (T17, se è spento),
+ *  l'elenco e le categorie (T17). Si disegna solo con `?scheda=prodotti`: nessun'altra linguetta legge il catalogo. */
+function LinguettaProdotti({ id, apri }: { id?: string; apri: (id: string | null) => void }) {
+  const negozio = useNegozio();
+  //  Sale a ogni modifica delle categorie: l'elenco rilegge i nomi del suo filtro.
+  const [categorieAggiornate, setCategorieAggiornate] = useState(0);
+  if (id)
+    return (
+      <div className="flex flex-col gap-3">
+        <div>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="-ml-2 min-h-11 text-[12.5px] sm:min-h-8"
+            onClick={() => apri(null)}
+          >
+            <ArrowLeft className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
+            Tutti i prodotti
+          </Button>
+        </div>
+        <SchedaProdotto id={id} negozio={negozio} apri={apri} />
+      </div>
+    );
+  return (
+    <div className="flex flex-col gap-4">
+      <ApriShop negozio={negozio} />
+      <ElencoProdotti negozio={negozio} apri={apri} categorieAggiornate={categorieAggiornate} />
+      <Categorie
+        negozio={negozio}
+        cambiate={() => {
+          setCategorieAggiornate((n) => n + 1);
+          void negozio.aggiorna();
+        }}
+      />
+    </div>
   );
 }
