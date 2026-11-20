@@ -339,10 +339,13 @@ export function creaCaricatore(porte: PorteCarica): Caricatore {
           }
         }
       }
-      try {
-        finestra.localStorage?.removeItem("lp_external_id");
-      } catch {
-        /* archivio bloccato */
+      // l'identificativo del dispositivo e la storia dei contatti (30 giorni): ognuno per conto suo, uno bloccato non ferma l'altro
+      for (const chiave of ["lp_external_id", "lp_touch_history"]) {
+        try {
+          finestra.localStorage?.removeItem(chiave);
+        } catch {
+          /* archivio bloccato */
+        }
       }
       ricarica();
     },

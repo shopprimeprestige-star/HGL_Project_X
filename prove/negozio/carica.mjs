@@ -280,7 +280,8 @@ export async function prove(mod, { c, gruppo }) {
   c("revoca: ogni cookie delle piattaforme si cancella su host, `host`, `.host` e sul dominio padre", [], ["_fbp", "_fbc", "_ga", "_ga_ABC123", "_gid", "_gcl_au", "_gcl_aw", "_ttp", "lp_external_id"].filter((nome) => JSON.stringify(dominiDi(nome)) !== JSON.stringify(DOMINI)).map((nome) => [nome, dominiDi(nome)]));
   c("revoca: ogni cancellazione ha path=/ e una scadenza nel passato", true, scritti.length > 0 && scritti.every((x) => /path=\//.test(x) && /expires=Thu, 01 Jan 1970/.test(x) && /max-age=0/.test(x)));
   c("revoca: i cookie che non sono delle piattaforme non si toccano (nemmeno «_gatto», che somiglia a «_ga»)", [], scritti.filter((x) => /^(sessione|_gatto)=/.test(x)));
-  c("revoca: `lp_external_id` si toglie anche dall'archivio del browser, e si chiede la ricarica (una sola)", [true, 1], [r.rimossi.includes("lp_external_id"), r.reloads]);
+  c("revoca: `lp_external_id` e la storia dei contatti `lp_touch_history` si tolgono dall'archivio del browser, e si chiede la ricarica (una sola)", [true, true, 1], [r.rimossi.includes("lp_external_id"), r.rimossi.includes("lp_touch_history"), r.reloads]);
+  c("revoca: se l'archivio lancia sulla prima chiave, la seconda si toglie lo stesso", true, (() => { const x = nuovo({}); const tolte = []; x.finestra.localStorage.removeItem = (k) => { if (k === "lp_external_id") throw new Error("bloccato"); tolte.push(k); }; x.car.revoca(); return tolte.includes("lp_touch_history"); })());
   c("revoca: cancella anche i cookie che non erano in elenco ma cominciano per `_ga_` o `_gcl_`", true, (() => { const x = nuovo({ cookie: "_ga_ZZZ999=1; _gcl_dc=2" }); x.car.revoca(); return x.cookieScritti.some((s) => s.startsWith("_ga_ZZZ999=;")) && x.cookieScritti.some((s) => s.startsWith("_gcl_dc=;")); })());
   const r2 = nuovo({ host: "sito.test" });
   r2.car.revoca();

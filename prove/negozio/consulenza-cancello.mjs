@@ -84,7 +84,7 @@ export async function prove(_mod, { c, gruppo, radice }) {
   /* ── 0. nessuna funzione esportata è sparita ── */
   const ESPORTATE = ["getTouchHistory", "appendTouch", "classifyJourneyClient", "buildJourneySnapshot", "getExternalId", "getSessionId", "eventId", "captureSourceData", "detectSource", "initAdminCheck", "subscribeAdminStatus", "isAdminLogged", "trackEvent", "firePixel", "fireCapi", "initHighQualityVisit", "initHeartbeat", "initScrollTracking", "trackClick", "initClickTracking", "initLivePresence", "subscribeLiveVisitorsCount"];
   await con({}, async (v) => c("nessuna funzione esportata da tracking.ts è sparita (le firme restano)", [], ESPORTATE.filter((n) => typeof v.T[n] !== "function")));
-  await con({}, async (v) => c("`colonnaConsensoMancante` è esportata (serve al ripiego di BookingFunnel)", "function", typeof v.T.colonnaConsensoMancante));
+  await con({}, async (v) => c("`colonnaConsensoMancante`, `inserisciLeadConRipiego` e `consensoCorrente` sono esportate (le usa BookingFunnel)", ["function", "function", "function"], [typeof v.T.colonnaConsensoMancante, typeof v.T.inserisciLeadConRipiego, typeof v.T.consensoCorrente]));
 
   /* ── 1. senza scelta / solo necessari / solo statistiche: nessun pixel, nessuna chiamata a capi ── */
   for (const [nome, consenso] of [["senza scelta", null], ["solo necessari", NECESSARI], ["solo statistiche", STATISTICHE], ["scelta v1 «accept» (non vale per le piattaforme)", null]]) {
@@ -185,6 +185,65 @@ export async function prove(_mod, { c, gruppo, radice }) {
     ]);
   });
 
+  /* ── 7b. l'invio del lead con il ripiego: il lead nasce UNA volta ── */
+  await con({}, async (v) => {
+    const riga = { nome: "Prova", email: "a@example.com", consenso_marketing: true, consenso_ts: "2026-11-20T10:00:00Z", utm_source: "meta" };
+    const finta = (risposte) => { const chiamate = []; const nate = []; return { chiamate, nate, inserisci: async (r) => { chiamate.push(r); const e = risposte[chiamate.length - 1] ?? null; if (!e) nate.push(r); return { error: e }; } }; };
+    const MANCA = { code: "PGRST204", message: "Could not find the 'consenso_marketing' column of 'public_leads' in the schema cache" };
+
+    const a = finta([MANCA, null]);
+    const ra = await v.T.inserisciLeadConRipiego(a.inserisci, riga);
+    c("S3 assente: PGRST204 al primo tentativo e ok al secondo → due tentativi, il lead nasce UNA volta e senza le due colonne del consenso", [2, null, 1, ["nome", "email", "utm_source"], [true, false]], [a.chiamate.length, ra.error, a.nate.length, Object.keys(a.nate[0] ?? {}), [("consenso_marketing" in a.chiamate[0]), ("consenso_marketing" in a.chiamate[1])]]);
+    c("…il primo tentativo porta tutte le colonne, e la riga di partenza non viene modificata", [true, true], [JSON.stringify(a.chiamate[0]) === JSON.stringify(riga), "consenso_ts" in riga]);
+
+    const b = finta([null]);
+    const rb = await v.T.inserisciLeadConRipiego(b.inserisci, riga);
+    c("S3 applicata: un solo tentativo, con le colonne del consenso", [1, null, 1, true], [b.chiamate.length, rb.error, b.nate.length, "consenso_ts" in (b.nate[0] ?? {})]);
+
+    const ALTRI = [
+      { code: "42501", message: "permission denied for table public_leads" },
+      { code: "PGRST204", message: "Could not find the 'ad_name' column of 'public_leads' in the schema cache" },
+      { code: "23505", message: "duplicate key value violates unique constraint" },
+      { message: "Failed to fetch" },
+    ];
+    const esitiAltri = [];
+    for (const err of ALTRI) { const x = finta([err]); const r = await v.T.inserisciLeadConRipiego(x.inserisci, riga); esitiAltri.push([x.chiamate.length, r.error === err, x.nate.length]); }
+    c("con QUALUNQUE altro errore: un solo tentativo, nessun nuovo tentativo, l'errore torna com'è, nessun lead scritto", ALTRI.map(() => [1, true, 0]), esitiAltri);
+
+    const d = finta([MANCA, { code: "42501", message: "permission denied" }]);
+    const rd = await v.T.inserisciLeadConRipiego(d.inserisci, riga);
+    c("il ripiego fallisce a sua volta: due tentativi (mai di più) e l'errore del secondo", [2, "42501", 0], [d.chiamate.length, rd.error?.code, d.nate.length]);
+    const e = finta([{ code: "42703", message: 'column "consenso_ts" of relation "public_leads" does not exist' }, null]);
+    c("anche 42703 sul consenso_ts ritenta, una volta", [2, 1], [(await v.T.inserisciLeadConRipiego(e.inserisci, riga), e.chiamate.length), e.nate.length]);
+  });
+
+  /* ── 7c. un archivio bloccato non ferma né il lead né la cattura dei dati ── */
+  await con({ consenso: MARKETING, href: URL_ADS, cookie: COOKIE }, async (v) => {
+    const vero = globalThis.window.localStorage;
+    Object.defineProperty(globalThis.window, "localStorage", { get() { throw new Error("SecurityError: localStorage"); }, configurable: true });
+    let errore = null; let c1;
+    try { c1 = v.T.consensoCorrente(); } catch (e) { errore = String(e); }
+    c("localStorage che lancia quando lo si tocca: consensoCorrente non lancia e vale «non scelto» (il lead parte lo stesso)", [null, false, false, false], [errore, c1?.scelto, c1?.marketing, c1?.statistiche]);
+    Object.defineProperty(globalThis.window, "localStorage", { value: vero, configurable: true, writable: true });
+  });
+  await con({ consenso: null, href: URL_ADS }, async (v) => {
+    const vera = globalThis.window.sessionStorage;
+    const guasta = { getItem() { throw new Error("SecurityError"); }, setItem() { throw new Error("QuotaExceeded"); }, removeItem() {} };
+    Object.defineProperty(globalThis.window, "sessionStorage", { value: guasta, configurable: true, writable: true });
+    Object.defineProperty(globalThis, "sessionStorage", { value: guasta, configurable: true, writable: true });
+    let errore = null; let s;
+    try { s = v.T.captureSourceData(); } catch (e) { errore = String(e); }
+    c("sessionStorage bloccato: captureSourceData non lancia e restituisce comunque UTM e id di campagna", [null, "meta", "77"], [errore, s?.utm_source, s?.ad_id]);
+    Object.defineProperty(globalThis.window, "sessionStorage", { value: vera, configurable: true, writable: true });
+    Object.defineProperty(globalThis, "sessionStorage", { value: vera, configurable: true, writable: true });
+  });
+  await con({ consenso: null, href: URL_ADS }, async (v) => {
+    v.mem.session.set("lp_source_data", "{non è json");
+    let errore = null; let s;
+    try { s = v.T.captureSourceData(); } catch (e) { errore = String(e); }
+    c("valore rotto in `lp_source_data`: captureSourceData riparte da zero senza lanciare", [null, "meta"], [errore, s?.utm_source]);
+  });
+
   /* ── 8. il testo di BookingFunnel.tsx ── */
   const funnel = readFileSync(join(radice, "src/landing/booking/BookingFunnel.tsx"), "utf8");
   const senzaCommenti = funnel.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/[^\n]*/g, "$1");
@@ -197,7 +256,7 @@ export async function prove(_mod, { c, gruppo, radice }) {
   ]);
   c("BookingFunnel: il PageView verso le piattaforme non c'è più (lo emette il provider, D19); resta il PageView interno", [false, false, true], [/firePixel\(\s*"PageView"/.test(senzaCommenti), /fireCapi\(\s*"PageView"/.test(senzaCommenti), /trackEvent\(\s*"PageView"/.test(senzaCommenti)]);
   c("BookingFunnel: il Lead c'è ancora (pixel e capi) e anche il ViewContent del modulo", [true, true, true], [/firePixel\(\s*"Lead"/.test(senzaCommenti), /fireCapi\(\s*"Lead"/.test(senzaCommenti), /fireCapi\(\s*"ViewContent"/.test(senzaCommenti)]);
-  c("BookingFunnel: l'insert scrive consenso_marketing e consenso_ts, e ritenta senza se la colonna manca", [true, true, true, true], [/consenso_marketing/.test(senzaCommenti), /consenso_ts/.test(senzaCommenti), /colonnaConsensoMancante\(/.test(senzaCommenti), /\.insert\(\s*(senza|riprova|payloadSenza)[A-Za-z]*\s+as never\)/.test(senzaCommenti)]);
+  c("BookingFunnel: l'insert scrive consenso_marketing e consenso_ts, ritenta senza se la colonna manca (inserisciLeadConRipiego) e legge il consenso con la funzione protetta", [true, true, true, true], [/consenso_marketing/.test(senzaCommenti), /consenso_ts/.test(senzaCommenti), /inserisciLeadConRipiego\(/.test(senzaCommenti), /consensoCorrente\(\)/.test(senzaCommenti) && !/leggiConsenso\(window\.localStorage\)/.test(senzaCommenti)]);
   c("BookingFunnel: fbp, fbc, fbclid, ttclid, external_id entrano nell'insert SOLO con il consenso marketing (condizione scritta nel codice)", [true, true, true, true, true], ["fbp", "fbc", "fbclid", "ttclid", "external_id"].map((k) => new RegExp(`${k}:\\s*marketing\\s*\\?`).test(senzaCommenti)));
   c("BookingFunnel: il modulo si persiste ancora (loadPersisted/clearPersisted/savePersisted): la ricarica per la revoca non lo perde", [true, true, true], [/function loadPersisted\(/.test(senzaCommenti), /function clearPersisted\(/.test(senzaCommenti), /savePersisted\(step, form\)/.test(senzaCommenti)]);
 

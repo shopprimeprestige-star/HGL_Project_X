@@ -33,14 +33,14 @@ import { haptic, sound, setAudioMode, setReverbWet } from "@/hooks/use-haptic";
 import {
   buildJourneySnapshot,
   captureSourceData,
-  colonnaConsensoMancante,
+  consensoCorrente,
   detectSource,
   eventId as makeEventId,
   fireCapi,
   firePixel,
+  inserisciLeadConRipiego,
   trackEvent,
 } from "./tracking";
-import { leggiConsenso } from "@/lib/consenso";
 import { emettiEvento } from "@/lib/tracciamento/api";
 import { PROBLEMI, TESTI_CONSULENZA, type IdProblema } from "@/landing/testi-sito";
 import {
@@ -567,7 +567,7 @@ export function BookingFunnel({ variant = "light" }: Props) {
         : null;
     // Il consenso dato nel banner, scritto sul lead (D32): il CRM manda il lead a Meta/TikTok solo con «sì».
     // È dichiarato dal browser: un'attestazione, non una prova. Gli identificativi delle piattaforme solo con il marketing.
-    const consenso = leggiConsenso(window.localStorage);
+    const consenso = consensoCorrente(); // protetta: un archivio bloccato vale «non scelto», il lead parte lo stesso
     const marketing = consenso.scelto && consenso.marketing;
     const baseDisagio = form.disagio || 5;
     const finalDisagio = form.portatore === "si" ? Math.min(10, baseDisagio + 2) : baseDisagio;
@@ -612,13 +612,9 @@ export function BookingFunnel({ variant = "light" }: Props) {
       days_to_convert: journey.days_to_convert,
       hours_to_convert: journey.hours_to_convert,
     };
-    let { error: err } = await supabase.from("public_leads").insert(insertPayload as never);
-    if (colonnaConsensoMancante(err)) {
-      // La migrazione S3 non è applicata: l'insert fallito non ha scritto niente, si ritenta senza le due colonne.
-      // Il lead nasce, con il consenso ignoto (il CRM non lo manda alle piattaforme).
-      const { consenso_marketing: _cm, consenso_ts: _ct, ...senzaColonne } = insertPayload;
-      ({ error: err } = await supabase.from("public_leads").insert(senzaColonne as never));
-    }
+    // Se la migrazione S3 non è applicata ritenta una volta senza le colonne del consenso: il lead nasce lo stesso,
+    // con il consenso ignoto (il CRM non lo manda alle piattaforme).
+    const { error: err } = await inserisciLeadConRipiego((riga) => supabase.from("public_leads").insert(riga as never), insertPayload);
     setSubmitting(false);
     if (err) {
       setError("Errore invio: " + err.message);

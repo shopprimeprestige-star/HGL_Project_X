@@ -19,8 +19,9 @@ const TOUCH_HISTORY_KEY = "lp_touch_history";
 const TOUCH_TTL_DAYS = 30;
 
 const NESSUNA_SCELTA: Consenso = { scelto: false, statistiche: false, marketing: false, ts: 0 };
-/** La scelta di adesso, letta dal browser; senza browser o con l'archivio bloccato vale «non scelto». */
-function consensoCorrente(): Consenso {
+/** La scelta di adesso, letta dal browser; senza browser o con l'archivio bloccato (anche solo toccare `localStorage`
+ *  può lanciare) vale «non scelto»: chi la chiama non si blocca mai. */
+export function consensoCorrente(): Consenso {
   if (typeof window === "undefined") return NESSUNA_SCELTA;
   try {
     return leggiConsenso(window.localStorage);
@@ -250,6 +251,20 @@ export function colonnaConsensoMancante(errore: { code?: string; message?: strin
   return !!errore && (errore.code === "PGRST204" || errore.code === "42703") && /consenso_(marketing|ts)/.test(errore.message ?? "");
 }
 
+/** Inserisce un lead; se mancano le colonne del consenso (S3 non applicata) ritenta UNA volta senza.
+ *  Il primo insert fallito non ha scritto niente: il lead nasce una volta sola. Ogni altro errore si restituisce così com'è,
+ *  senza nuovi tentativi. `inserisci` è la scrittura vera (`supabase.from("public_leads").insert`), qui passata come porta. */
+export async function inserisciLeadConRipiego<E extends { code?: string; message?: string }>(
+  inserisci: (riga: Record<string, unknown>) => PromiseLike<{ error: E | null }>,
+  riga: Record<string, unknown>,
+): Promise<{ error: E | null }> {
+  const primo = await inserisci(riga);
+  if (!colonnaConsensoMancante(primo.error)) return primo;
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { consenso_marketing: _cm, consenso_ts: _ct, ...senzaColonne } = riga;
+  return inserisci(senzaColonne);
+}
+
 function readCookie(name: string): string | undefined {
   if (typeof document === "undefined") return undefined;
   const m = document.cookie.match(new RegExp(`(^|;\\s*)${name}=([^;]+)`));
@@ -259,8 +274,14 @@ function readCookie(name: string): string | undefined {
 export function captureSourceData(): SourceData {
   if (typeof window === "undefined") return {};
   const url = new URL(window.location.href);
-  const stored = sessionStorage.getItem(SOURCE_KEY);
-  const prev: SourceData = stored ? JSON.parse(stored) : {};
+  // l'archivio della sessione può essere bloccato o contenere un valore rotto: allora si riparte da zero, senza lanciare
+  let prev: SourceData = {};
+  try {
+    const stored = sessionStorage.getItem(SOURCE_KEY);
+    if (stored) prev = JSON.parse(stored) as SourceData;
+  } catch {
+    prev = {};
+  }
   const q = (k: string) => url.searchParams.get(k) || undefined;
   const marketing = conMarketing();
 
@@ -301,7 +322,11 @@ export function captureSourceData(): SourceData {
     creative_name: q("creative") || q("creative_name") || prev.creative_name,
     external_id: marketing ? getExternalId() : undefined,
   };
-  sessionStorage.setItem(SOURCE_KEY, JSON.stringify(next));
+  try {
+    sessionStorage.setItem(SOURCE_KEY, JSON.stringify(next));
+  } catch {
+    // archivio bloccato: i dati di questa chiamata servono lo stesso
+  }
   // Append touch to multi-touch history (localStorage 30gg con le statistiche, altrimenti la sessione)
   try {
     appendTouch(next);
