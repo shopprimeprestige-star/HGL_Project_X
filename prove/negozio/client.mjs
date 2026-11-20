@@ -161,6 +161,56 @@ export async function prove(mod, { c, gruppo, radice }) {
     const rc = await arch.esegui("interruttore_imposta", { chiave: "catalogo_sito", atteso: "codice", nuovo: "cms" });
     await sfiata();
     c("…e l'archivio, dopo un rifiuto del cancello, rilegge (le condizioni possono essere cambiate)", [false, "cancello", 3], [rc.ok, rc.errore.tipo, ar.chiamate.length]);
+    // i motivi di T09: ognuno ha il suo tipo, senza finire tutti in «server»
+    {
+      const e = async (stato, motivo, extra = {}, azione = "categoria_salva") => (await K.eseguiAzione(fetchFinto(risposta({ ok: false, motivo, ...extra }, stato)), azione, { nome: "Capelli" })).errore;
+      const slug = await e(409, "slug_occupato", { frase: "Questo indirizzo è già usato da un'altra categoria." });
+      c("T09 «slug_occupato» (409) → «duplicato», con la frase del server", ["duplicato", "Questo indirizzo è già usato da un'altra categoria."], [slug.tipo, slug.messaggio]);
+      const nuovi = ["slug_bloccato", "giacenza_negativa", "variante_inesistente", "categoria_inesistente", "categoria_mancante"];
+      const tipi = [];
+      const frasi = [];
+      for (const m of nuovi) {
+        const x = await e(409, m); // il server non manda la frase: vale la nostra
+        tipi.push(x.tipo); frasi.push(x.messaggio);
+      }
+      c("T09 slug_bloccato, giacenza_negativa, variante_inesistente, categoria_inesistente, categoria_mancante: ognuno il suo tipo", nuovi, tipi);
+      c("…ognuno con una frase nostra, diversa dalle altre e non quella generica «server»", [5, true], [new Set(frasi).size, frasi.every((f) => f.length > 20 && !/Qualcosa non ha funzionato/.test(f))]);
+      const serv = await e(500, "interno", { frase: "Il database non ha risposto: riprova tra un momento." });
+      c("T09 «interno» resta «server»", "server", serv.tipo);
+      const cf = await e(409, "conflitto", { frase: "Questo interruttore è stato cambiato.", valore: "cms" }, "interruttore_imposta");
+      c("conflitto sull'interruttore: conserva il `valore` attuale (la schermata lo rilegge senza chiamare)", ["conflitto", "cms"], [cf.tipo, cf.valore]);
+      const senzaV = await e(409, "conflitto", { frase: "Modificato da altri." }, "prodotto_salva");
+      c("un conflitto senza `valore` non ne inventa uno", [false], [Object.hasOwn(senzaV, "valore")]);
+      // rilettura: se l'elenco non è più quello che la pagina credeva
+      for (const m of ["variante_inesistente", "categoria_inesistente", "giacenza_negativa", "slug_bloccato"]) {
+        const ar = fetchFinto(risposta(elenco(riga(1))), risposta({ ok: false, motivo: m, frase: "x" }, 409), risposta(elenco(riga(1))));
+        const arch = K.creaArchivioNegozio({ fetch: ar, porte: porteFinte().porte });
+        arch.avvia(); await sfiata();
+        await arch.esegui("giacenza_muovi", { varianteId: ID, delta: 1, motivo: "carico" });
+        await sfiata();
+        c(`«${m}»: l'archivio rilegge l'elenco`, 3, ar.chiamate.length);
+      }
+    }
+    // «categoria_foto» (T09): azione con la versione obbligatoria
+    {
+      const f = fetchFinto(risposta({ ok: true }));
+      const senza = await K.eseguiAzione(f, "categoria_foto", { id: ID, path: "foto/x.jpg", alt: "Una foto" });
+      c("categoria_foto senza `versione`: non parte, errore «valore»", [false, "valore", 0], [senza.ok, senza.errore.tipo, f.chiamate.length]);
+      const con = await K.eseguiAzione(f, "categoria_foto", { id: ID, path: "foto/x.jpg", alt: "Una foto", versione: "2026-11-20T10:00:00+00:00" });
+      c("categoria_foto con la `versione`: parte come POST, col nome dell'azione", [true, 1, "categoria_foto"], [con.ok, f.chiamate.length, JSON.parse(f.chiamate[0].init.body).azione]);
+      c("…ed è nell'elenco delle azioni", true, K.AZIONI_NEGOZIO.includes("categoria_foto"));
+    }
+    // 502/503/504 senza `motivo` (timeout dell'hosting) su un'azione: può aver scritto, come la rete caduta
+    {
+      const t = [];
+      for (const st of [502, 503, 504]) t.push((await K.eseguiAzione(fetchFinto(risposta("<html>Gateway Timeout</html>", st)), "prodotto_salva", { prodottoId: ID, versione: "v1" })).errore);
+      c("502, 503 e 504 non JSON su un'azione: «non so se è stata salvata»", [[true, true, true], false], [t.map((x) => /Non so se la modifica sia stata salvata/.test(x.messaggio)), t.some((x) => /html|gateway/i.test(x.messaggio))]);
+      const x500 = (await K.eseguiAzione(fetchFinto(risposta("<html>boom</html>", 500)), "prodotto_salva", { prodottoId: ID, versione: "v1" })).errore;
+      c("un 500 non JSON resta «server» (il server non ha scritto)", [ "server", false], [x500.tipo, /Non so se/.test(x500.messaggio)]);
+      const c503 = (await K.eseguiAzione(fetchFinto(risposta({ ok: false, motivo: "chiave", frase: "Manca la chiave." }, 503)), "anteprima_chiave", { prodottoId: ID })).errore;
+      c("un 503 col suo `motivo` (chiave) resta «chiave»", ["chiave", "Manca la chiave."], [c503.tipo, c503.messaggio]);
+      c("una LETTURA con 504 non dice «non so se è stata salvata» (non scrive niente)", false, /Non so se/.test((await K.leggiElenco(fetchFinto(risposta("<html>", 504)))).errore.messaggio));
+    }
     const rete = await K.eseguiAzione(fetchFinto(new TypeError("Failed to fetch")), "prodotto_salva", { prodottoId: ID, versione: "v1" });
     c("rete caduta durante un'azione: non si sa se è stata salvata, e lo dice", ["rete", true], [rete.errore.tipo, /Non so se la modifica sia stata salvata/.test(rete.errore.messaggio)]);
     c("un'azione riuscita che porta un avviso (liberatoria revocata) lo lascia passare", [true, true, "x"], await (async () => {
@@ -182,6 +232,13 @@ export async function prove(mod, { c, gruppo, radice }) {
     c("tipo o peso storti: non parte nessuna richiesta", [false, 0], [(await K.chiediPermesso(f3, { tipo: "pdf", mime: "x", peso: 1 })).ok, f3.chiamate.length]);
     c("permesso negato dal server (mime non ammesso): la frase del server", [false, "valore", "Questo tipo di file non è ammesso."], ((r2) => [r2.ok, r2.errore.tipo, r2.errore.messaggio])(await K.chiediPermesso(fetchFinto(risposta({ ok: false, motivo: "valore", frase: "Questo tipo di file non è ammesso." }, 400)), { tipo: "foto", mime: "application/pdf", peso: 5 })));
 
+    c("l'indirizzo firmato deve essere https: (http, altri schemi, testo storto → «server»)", [true, "server", "server", "server"], [
+      (await K.chiediPermesso(fetchFinto(risposta(buono)), { tipo: "foto", mime: "image/jpeg", peso: 1 })).ok,
+      ...(await Promise.all(["http://storage.example.com/x?token=t", "javascript:alert(1)", "non un indirizzo"].map(async (url) => (await K.chiediPermesso(fetchFinto(risposta({ ...buono, url })), { tipo: "foto", mime: "image/jpeg", peso: 1 })).errore?.tipo))),
+    ]);
+    const nudoHttp = fetchFinto(risposta("", 200));
+    const noHttp = await K.caricaConPermesso(nudoHttp, { ...buono, url: "http://storage.example.com/x" }, new Blob(["x"]));
+    c("…e il caricamento non parte verso un indirizzo non https:", [false, 0], [noHttp.ok, nudoHttp.chiamate.length]);
     const blob = new Blob(["contenuto finto"], { type: "image/jpeg" });
     const nudo = fetchFinto(risposta("", 200));
     const up = await K.caricaConPermesso(nudo, buono, blob);

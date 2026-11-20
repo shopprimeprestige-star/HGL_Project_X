@@ -5,7 +5,10 @@
  *   · ogni modifica annulla il timer e ne riparte uno: tre modifiche in un secondo = UN salvataggio;
  *   · lo stesso contenuto già salvato non si salva di nuovo;
  *   · mai due salvataggi insieme: una modifica arrivata mentre si salva aspetta, poi riparte il suo timer;
- *   · se salvare fallisce lo si dice e NON si ritenta da soli: si riprova alla prossima modifica (o con `subito`);
+ *   · se salvare fallisce lo si dice e NON si ritenta da soli: si riprova alla prossima modifica, oppure con `subito`
+ *     (che ritenta l'ultima modifica fallita UNA volta per chiamata);
+ *   · `subito` risolve solo quando non c'è più niente in coda né in volo: `true` = tutto salvato, `false` = un salvataggio
+ *     è fallito. Chi pubblica deve controllare il `true`: con `false` la versione sul server è quella vecchia;
  *   · nel testo di stato non entra mai il messaggio di un errore (può contenere dati). */
 import { oraHHmm } from "../ecommerce/client";
 
@@ -39,6 +42,8 @@ export function creaAutosalva<T>(opz: {
   const chiave = opz.chiave ?? ((c: T) => JSON.stringify(c));
   let salvata: string | null = opz.contenutoIniziale === undefined ? null : chiave(opz.contenutoIniziale);
   let attesa: { c: T; k: string } | null = null;
+  /** L'ultimo contenuto che non si è riusciuto a salvare (e non c'è niente di più nuovo): `subito` lo ritenta. */
+  let fallita: { c: T; k: string } | null = null;
   let timer: unknown = null;
   let inCorso: Promise<void> | null = null;
   let fermato = false;
@@ -68,6 +73,7 @@ export function creaAutosalva<T>(opz: {
     }
     const questa = attesa;
     attesa = null;
+    fallita = null;
     imposta({ fase: "salvando", testo: "Salvo…" });
     inCorso = (async () => {
       let riuscito = false;
@@ -82,8 +88,8 @@ export function creaAutosalva<T>(opz: {
         const ora = porte.adesso();
         imposta({ fase: "salvato", testo: `Salvato alle ${oraHHmm(ora)}`, salvatoAlle: ora });
       } else {
-        // la modifica che non si è salvata resta in coda solo se non ne è arrivata una più nuova
-        attesa ??= null;
+        // la modifica che non si è salvata si tiene (senza timer) solo se non ne è arrivata una più nuova
+        if (!attesa) fallita = questa;
         imposta({ fase: "errore", testo: "Non sono riuscito a salvare: controlla la connessione, riproverò alla prossima modifica." });
       }
       if (attesa && !fermato) {
@@ -110,20 +116,29 @@ export function creaAutosalva<T>(opz: {
     modifica(c: T) {
       if (fermato) return;
       attesa = { c, k: chiave(c) };
+      fallita = null; // la modifica nuova prende il posto di quella che non si era salvata
       if (inCorso) return; // finito quello in corso, riparte da sé
       if (stato.fase !== "in_attesa") imposta({ fase: "in_attesa", testo: "" });
       arma();
     },
-    /** Salva ora (il tasto «Salva», o la pagina che si lascia). Senza modifiche non fa niente. */
-    async subito() {
+    /** Salva ora (il tasto «Salva», o la pagina che si lascia) e aspetta che non ci sia più niente in coda né in volo.
+     *  `true` = tutto salvato; `false` = un salvataggio è fallito (il contenuto resta da ritentare alla prossima chiamata).
+     *  Dopo un errore ritenta l'ultima modifica UNA volta per chiamata: mai un ciclo. */
+    async subito(): Promise<boolean> {
       spegni();
-      await scrivi();
+      if (!inCorso && !attesa && fallita) attesa = fallita; // il ritentativo di questa chiamata
+      while (inCorso || attesa) {
+        await scrivi();
+        spegni(); // chi ha finito di salvare può aver riarmato il timer per una modifica arrivata nel frattempo
+      }
+      return !fallita;
     },
     /** La pagina è stata lasciata: nessun timer, nessun salvataggio. */
     ferma() {
       fermato = true;
       spegni();
       attesa = null;
+      fallita = null;
     },
   };
 }

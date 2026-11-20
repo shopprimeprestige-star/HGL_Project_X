@@ -100,7 +100,7 @@ export function controllaFile(f: { tipo: unknown; mime: unknown; byte: unknown; 
   const video = f.tipo === "video";
   const ammessi: readonly unknown[] = video ? MIME_VIDEO : MIME_FOTO;
   if (typeof f.mime !== "string" || !ammessi.includes(f.mime))
-    return no(video ? "Questo tipo di file non va bene: per i video usa MP4." : "Questo tipo di file non va bene: per le foto usa JPG, PNG, WebP o AVIF.");
+    return no(video ? "Questo tipo di file non va bene: per i video usa MP4 o MOV." : "Questo tipo di file non va bene: per le foto usa JPG, PNG, WebP o AVIF.");
   if (typeof f.byte !== "number" || !Number.isFinite(f.byte) || f.byte <= 0) return no("Non riesco a leggere il file: provane un altro.");
   if (f.byte > (video ? MAX_VIDEO_BYTE : MAX_FOTO_BYTE)) return no(video ? "Il video è troppo pesante: al massimo 25 MB." : "La foto è troppo pesante: al massimo 10 MB.");
   if (video) {
@@ -115,7 +115,8 @@ export function controllaFile(f: { tipo: unknown; mime: unknown; byte: unknown; 
 /** Ciò che serve dal browser: un riquadro quadrato di `lato` px su cui disegnare, e il file che ne esce. La schermata lo implementa con un `canvas`. */
 export interface PortaCanvas {
   crea(lato: number): {
-    disegna(sorgente: unknown, ritaglio: Ritaglio): void;
+    /** `sfondo`: il colore con cui riempire il riquadro PRIMA di disegnare (il JPEG non ha trasparenza: un PNG trasparente verrebbe nero). */
+    disegna(sorgente: unknown, ritaglio: Ritaglio, sfondo: string): void;
     aBlob(tipo: string, qualita: number): Promise<Blob | null>;
   };
 }
@@ -125,13 +126,14 @@ export interface FileMisura extends Misura {
 /** shortcut: si scrive sempre JPEG (ogni browser sa farlo, il server lo ammette); WebP/AVIF peserebbero meno, ma non ovunque si possono scrivere. */
 const TIPO_USCITA = "image/jpeg";
 const QUALITA = 0.88;
+const SFONDO = "#ffffff";
 
 /** I file del piano, uno per misura, tutti dallo stesso quadrato della stessa foto. */
 export async function disegnaMisure(sorgente: unknown, piano: Piano, porta: PortaCanvas): Promise<FileMisura[]> {
   const fuori: FileMisura[] = [];
   for (const m of piano.misure) {
     const canvas = porta.crea(m.lato);
-    canvas.disegna(sorgente, piano.ritaglio);
+    canvas.disegna(sorgente, piano.ritaglio, SFONDO);
     const blob = await canvas.aBlob(TIPO_USCITA, QUALITA);
     if (!blob) throw new Error("Non sono riuscito a preparare la foto: provane un'altra.");
     fuori.push({ ...m, blob });
