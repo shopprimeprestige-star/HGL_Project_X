@@ -185,8 +185,8 @@
       "descrizione": "`shop_ordine_crea` due volte con lo stesso id: una riga sola (e una sola riga dei riservati); i campi di stato li decide la funzione, non il chiamante.",
       "partenza": {"varianti":[{"sku":"PROVA-V1","giacenza":5,"prezzo_cent":2890}]},
       "passi": [
-        {"rpc":"shop_ordine_crea","args":{"p_ordine":{"id":"00000000-0000-4000-8000-000000006001","order_ref":"HG-S001","totale_cent":2890,"email":"cliente0@example.com","stato_pagamento":"pagato","pagato_il":"2026-11-20T11:00:00.000Z","rimborsato_cent":500,"items":[{"product_id":"PROVA-V1","name":"Prodotto","qty":1,"unit_price":28.9}]},"p_riservati":{"consensi":{"termini":true,"privacy":true}}},"atteso":{"esito":"creato","id":"00000000-0000-4000-8000-000000006001"}},
-        {"rpc":"shop_ordine_crea","args":{"p_ordine":{"id":"00000000-0000-4000-8000-000000006001","order_ref":"HG-S001","totale_cent":2890},"p_riservati":{}},"atteso":{"esito":"esistente","id":"00000000-0000-4000-8000-000000006001"}}
+        {"rpc":"shop_ordine_crea","args":{"p_ordine":{"id":"00000000-0000-4000-8000-000000006001","order_ref":"HG-S001","nome":"Anna","cognome":"Esempio","email":"cliente0@example.com","telefono":"3330000000","indirizzo":"Via Prova 1","citta":"Roma","cap":"00100","totale_cent":2890,"stato_pagamento":"pagato","pagato_il":"2026-11-20T11:00:00.000Z","rimborsato_cent":500,"items":[{"product_id":"PROVA-V1","name":"Prodotto","qty":1,"unit_price":28.9}]},"p_riservati":{"consensi":{"termini":true,"privacy":true}}},"atteso":{"esito":"creato","id":"00000000-0000-4000-8000-000000006001"}},
+        {"rpc":"shop_ordine_crea","args":{"p_ordine":{"id":"00000000-0000-4000-8000-000000006001","order_ref":"HG-S001","nome":"Anna","cognome":"Esempio","email":"cliente0@example.com","telefono":"3330000000","indirizzo":"Via Prova 1","citta":"Roma","cap":"00100","totale_cent":2890},"p_riservati":{}},"atteso":{"esito":"esistente","id":"00000000-0000-4000-8000-000000006001"}}
       ],
       "controlli": [
         {"tabella":"shop_orders","dove":{"id":"00000000-0000-4000-8000-000000006001"},"conta":1},
@@ -199,8 +199,8 @@
       "descrizione": "Due ordini del sito con lo stesso riferimento: il secondo fallisce (23505) e non lascia niente a metà.",
       "partenza": {"varianti":[{"sku":"PROVA-V1","giacenza":5,"prezzo_cent":2890}]},
       "passi": [
-        {"rpc":"shop_ordine_crea","args":{"p_ordine":{"id":"00000000-0000-4000-8000-000000006001","order_ref":"HG-S001","totale_cent":2890},"p_riservati":{}},"atteso":{"esito":"creato"}},
-        {"rpc":"shop_ordine_crea","args":{"p_ordine":{"id":"00000000-0000-4000-8000-000000006002","order_ref":"HG-S001","totale_cent":2890},"p_riservati":{}},"errore_codice":"23505"}
+        {"rpc":"shop_ordine_crea","args":{"p_ordine":{"id":"00000000-0000-4000-8000-000000006001","order_ref":"HG-S001","nome":"Anna","cognome":"Esempio","email":"cliente0@example.com","telefono":"3330000000","indirizzo":"Via Prova 1","citta":"Roma","cap":"00100","totale_cent":2890},"p_riservati":{}},"atteso":{"esito":"creato"}},
+        {"rpc":"shop_ordine_crea","args":{"p_ordine":{"id":"00000000-0000-4000-8000-000000006002","order_ref":"HG-S001","nome":"Anna","cognome":"Esempio","email":"cliente0@example.com","telefono":"3330000000","indirizzo":"Via Prova 1","citta":"Roma","cap":"00100","totale_cent":2890},"p_riservati":{}},"errore_codice":"23505"}
       ],
       "controlli": [
         {"tabella":"shop_orders","dove":{},"conta":1},
@@ -398,6 +398,90 @@
       ],
       "controlli": [
 
+      ]
+    },
+    {
+      "nome": "pagato_stato_non_pagabile", "file": "shop-pagamenti.sql",
+      "descrizione": "Nota (a) del revisore su T40: il pagato nasce solo da in_attesa, scaduto o fallito. Un ordine R1/R2 (colonna vuota) o «da_incassare» con una sessione registrata NON diventa pagato: errore, niente giacenza, niente cambia.",
+      "partenza": {"varianti":[{"sku":"PROVA-V1","giacenza":5,"prezzo_cent":2890}],"ordini":[{"id":"00000000-0000-4000-8000-000000006001","ref":"HG-S001","totale_cent":2890,"righe":[{"sku":"PROVA-V1","qty":1,"prezzo_cent":2890}],"sessioni":["cs_test_a"],"campi":{"stato_pagamento":"da_incassare"}},{"id":"00000000-0000-4000-8000-000000006002","ref":"HG-S002","totale_cent":2890,"righe":[{"sku":"PROVA-V1","qty":1,"prezzo_cent":2890}],"sessioni":["cs_test_b"],"campi":{"stato_pagamento":null}}]},
+      "passi": [
+        {"rpc":"shop_ordine_pagato","args":{"p_ordine":"00000000-0000-4000-8000-000000006001","p_sessione":"cs_test_a","p_importo_cent":2890,"p_valuta":"eur","p_metodo":"card","p_pagamento_id":"pi_prova_a"},"errore":"ordine_non_valido"},
+        {"rpc":"shop_ordine_pagato","args":{"p_ordine":"00000000-0000-4000-8000-000000006002","p_sessione":"cs_test_b","p_importo_cent":2890,"p_valuta":"eur","p_metodo":"card","p_pagamento_id":"pi_prova_a"},"errore":"ordine_non_valido"}
+      ],
+      "controlli": [
+        {"tabella":"shop_orders","dove":{"id":"00000000-0000-4000-8000-000000006001"},"atteso":{"stato_pagamento":"da_incassare","pagato_il":null}},
+        {"tabella":"shop_orders","dove":{"id":"00000000-0000-4000-8000-000000006002"},"atteso":{"stato_pagamento":null,"pagato_il":null}},
+        {"tabella":"shop_varianti","dove":{"sku":"PROVA-V1"},"atteso":{"giacenza":5}},
+        {"tabella":"shop_giacenza_movimenti","dove":{},"conta":0}
+      ]
+    },
+    {
+      "nome": "pagato_dopo_scadenza", "file": "shop-pagamenti.sql",
+      "descrizione": "Nota (e): un ordine letto «scaduto» che poi paga è pagato CON avviso (pagato_dopo_scadenza, scritto dalla funzione); da «fallito» è pagato senza avviso.",
+      "partenza": {"varianti":[{"sku":"PROVA-V1","giacenza":5,"prezzo_cent":2890}],"ordini":[{"id":"00000000-0000-4000-8000-000000006001","ref":"HG-S001","totale_cent":2890,"righe":[{"sku":"PROVA-V1","qty":1,"prezzo_cent":2890}],"sessioni":["cs_test_a"],"campi":{"stato_pagamento":"scaduto"}},{"id":"00000000-0000-4000-8000-000000006002","ref":"HG-S002","totale_cent":2890,"righe":[{"sku":"PROVA-V1","qty":1,"prezzo_cent":2890}],"sessioni":["cs_test_b"],"campi":{"stato_pagamento":"fallito"}}]},
+      "passi": [
+        {"rpc":"shop_ordine_pagato","args":{"p_ordine":"00000000-0000-4000-8000-000000006001","p_sessione":"cs_test_a","p_importo_cent":2890,"p_valuta":"eur","p_metodo":"card","p_pagamento_id":"pi_prova_a"},"atteso":{"esito":"pagato_ora","giacenza_da_verificare":false}},
+        {"rpc":"shop_ordine_pagato","args":{"p_ordine":"00000000-0000-4000-8000-000000006002","p_sessione":"cs_test_b","p_importo_cent":2890,"p_valuta":"eur","p_metodo":"card","p_pagamento_id":"pi_prova_a"},"atteso":{"esito":"pagato_ora","giacenza_da_verificare":false}}
+      ],
+      "controlli": [
+        {"tabella":"shop_orders","dove":{"id":"00000000-0000-4000-8000-000000006001"},"atteso":{"stato_pagamento":"pagato"}},
+        {"tabella":"shop_orders","dove":{"id":"00000000-0000-4000-8000-000000006002"},"atteso":{"stato_pagamento":"pagato"}},
+        {"ordine":"00000000-0000-4000-8000-000000006001","avviso":"pagato_dopo_scadenza","volte":1},
+        {"ordine":"00000000-0000-4000-8000-000000006002","avviso":"pagato_dopo_scadenza","volte":0},
+        {"tabella":"shop_varianti","dove":{"sku":"PROVA-V1"},"atteso":{"giacenza":3}}
+      ]
+    },
+    {
+      "nome": "riapri_annullato", "file": "shop-pagamenti.sql",
+      "descrizione": "Nota (b): un ordine annullato dal CRM non si riapre, qualunque sia lo stato del pagamento (fallito o ancora in attesa): ordine_non_riapribile, niente cambia.",
+      "partenza": {"varianti":[{"sku":"PROVA-V1","giacenza":5,"prezzo_cent":2890}],"ordini":[{"id":"00000000-0000-4000-8000-000000006001","ref":"HG-S001","totale_cent":2890,"righe":[{"sku":"PROVA-V1","qty":1,"prezzo_cent":2890}],"sessioni":["cs_test_a"],"campi":{"stato_pagamento":"fallito","status":"annullato"}},{"id":"00000000-0000-4000-8000-000000006002","ref":"HG-S002","totale_cent":2890,"righe":[{"sku":"PROVA-V1","qty":1,"prezzo_cent":2890}],"sessioni":["cs_test_b"],"campi":{"status":"annullato"}}]},
+      "passi": [
+        {"rpc":"shop_ordine_riapri","args":{"p_ordine":"00000000-0000-4000-8000-000000006001","p_nuova_scade":"2026-11-20T12:31:00.000Z"},"errore":"ordine_non_riapribile"},
+        {"rpc":"shop_ordine_riapri","args":{"p_ordine":"00000000-0000-4000-8000-000000006002","p_nuova_scade":"2026-11-20T12:31:00.000Z"},"errore":"ordine_non_riapribile"}
+      ],
+      "controlli": [
+        {"tabella":"shop_orders","dove":{"id":"00000000-0000-4000-8000-000000006001"},"atteso":{"stato_pagamento":"fallito","riprova_n":0}},
+        {"tabella":"shop_orders","dove":{"id":"00000000-0000-4000-8000-000000006002"},"atteso":{"stato_pagamento":"in_attesa","riprova_n":0}}
+      ]
+    },
+    {
+      "nome": "chiudi_sessione_non_registrata", "file": "shop-pagamenti.sql",
+      "descrizione": "Nota (c): una chiusura con una sessione che NON è dell'ordine non chiude niente (ignorato), come per il pagato; senza sessione (decisione della cassa: Stripe ha rifiutato la creazione) chiude.",
+      "partenza": {"varianti":[{"sku":"PROVA-V1","giacenza":5,"prezzo_cent":2890}],"ordini":[{"id":"00000000-0000-4000-8000-000000006001","ref":"HG-S001","totale_cent":2890,"righe":[{"sku":"PROVA-V1","qty":1,"prezzo_cent":2890}],"sessioni":["cs_test_a"]}]},
+      "passi": [
+        {"rpc":"shop_ordine_chiudi","args":{"p_ordine":"00000000-0000-4000-8000-000000006001","p_sessione":"cs_test_estranea","p_stato":"scaduto"},"atteso":{"esito":"ignorato"}},
+        {"rpc":"shop_ordine_chiudi","args":{"p_ordine":"00000000-0000-4000-8000-000000006001","p_sessione":null,"p_stato":"scaduto"},"atteso":{"esito":"chiuso"}}
+      ],
+      "controlli": [
+        {"tabella":"shop_orders","dove":{"id":"00000000-0000-4000-8000-000000006001"},"atteso":{"stato_pagamento":"scaduto"}},
+        {"tabella":"shop_stripe_sessioni","dove":{"sessione_id":"cs_test_a"},"atteso":{"stato":"aperta"}}
+      ]
+    },
+    {
+      "nome": "crea_lista_bianca", "file": "shop-pagamenti.sql",
+      "descrizione": "Nota (d): shop_ordine_crea copia solo le colonne ammesse (contatti, righe, importi, scadenza, impronta della chiave, firma, prova, fattura richiesta); ogni altra chiave del chiamante è ignorata, e lo stato lo decide la funzione.",
+      "partenza": {"varianti":[{"sku":"PROVA-V1","giacenza":5,"prezzo_cent":2890}]},
+      "passi": [
+        {"rpc":"shop_ordine_crea","args":{"p_ordine":{"id":"00000000-0000-4000-8000-000000006001","order_ref":"HG-S001","nome":"Anna","cognome":"Esempio","email":"cliente0@example.com","telefono":"3330000000","indirizzo":"Via Prova 1","citta":"Roma","cap":"00100","provincia":"RM","nazione":"IT","totale_cent":2890,"total":28.9,"prova":true,"fattura_richiesta":true,"status":"spedito","tracking":"TRACK-FINTO","stripe_pagamento_id":"pi_finto","stripe_sessione_id":"cs_finta","giacenza_da_verificare":true,"riprova_n":7,"avvisi":[{"codice":"finto"}],"email_inviate":{"conferma_ordine":{"stato":"inviata"}},"pagato_importo":99,"metodo_pagamento":"stripe","note_interne":"scritta dal chiamante","spedito_il":"2026-11-19T10:00:00.000Z","annullo_motivo":"finto"},"p_riservati":{}},"atteso":{"esito":"creato","id":"00000000-0000-4000-8000-000000006001"}}
+      ],
+      "controlli": [
+        {"tabella":"shop_orders","dove":{"id":"00000000-0000-4000-8000-000000006001"},"atteso":{"nome":"Anna","provincia":"RM","nazione":"IT","totale_cent":2890,"prova":true,"fattura_richiesta":true}},
+        {"tabella":"shop_orders","dove":{"id":"00000000-0000-4000-8000-000000006001"},"atteso":{"status":"nuovo","stato_pagamento":"in_attesa","canale":"sito","tracking":null,"stripe_pagamento_id":null,"stripe_sessione_id":null,"giacenza_da_verificare":false,"riprova_n":0,"avvisi":[],"pagato_importo":null,"metodo_pagamento":null,"note_interne":null,"spedito_il":null,"annullo_motivo":null}}
+      ]
+    },
+    {
+      "nome": "rimborso_chiave_altro_ordine", "file": "shop-pagamenti.sql",
+      "descrizione": "Nota (f): la stessa chiave_richiesta su UN ALTRO ordine non rimanda la riga altrui: errore, e nessuna riga nuova.",
+      "partenza": {"varianti":[{"sku":"PROVA-V1","giacenza":5,"prezzo_cent":2890}],"ordini":[{"id":"00000000-0000-4000-8000-000000006001","ref":"HG-S001","totale_cent":2890,"righe":[{"sku":"PROVA-V1","qty":1,"prezzo_cent":2890}],"sessioni":["cs_test_a"]},{"id":"00000000-0000-4000-8000-000000006002","ref":"HG-S002","totale_cent":2890,"righe":[{"sku":"PROVA-V1","qty":1,"prezzo_cent":2890}],"sessioni":["cs_test_b"]}]},
+      "passi": [
+        {"rpc":"shop_ordine_pagato","args":{"p_ordine":"00000000-0000-4000-8000-000000006001","p_sessione":"cs_test_a","p_importo_cent":2890,"p_valuta":"eur","p_metodo":"card","p_pagamento_id":"pi_prova_a"},"atteso":{"esito":"pagato_ora"}},
+        {"rpc":"shop_ordine_pagato","args":{"p_ordine":"00000000-0000-4000-8000-000000006002","p_sessione":"cs_test_b","p_importo_cent":2890,"p_valuta":"eur","p_metodo":"card","p_pagamento_id":"pi_prova_a"},"atteso":{"esito":"pagato_ora"}},
+        {"rpc":"shop_rimborso_prenota","args":{"p_ordine":"00000000-0000-4000-8000-000000006001","p_importo_cent":1000,"p_motivo":"reso","p_chiave":"chiave-1","p_chi":"titolare"},"atteso":{"esito":"prenotato"}},
+        {"rpc":"shop_rimborso_prenota","args":{"p_ordine":"00000000-0000-4000-8000-000000006002","p_importo_cent":1000,"p_motivo":"reso","p_chiave":"chiave-1","p_chi":"titolare"},"errore":"rimborso_chiave_altro_ordine"}
+      ],
+      "controlli": [
+        {"tabella":"shop_rimborsi","dove":{},"conta":1},
+        {"tabella":"shop_rimborsi","dove":{"ordine_id":"00000000-0000-4000-8000-000000006001"},"conta":1}
       ]
     },
     {

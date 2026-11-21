@@ -57,6 +57,11 @@ export const FUNZIONI_R2 = {
   S5: ["shop_tariffa_imposta"],
   S6: ["shop_email_modello_salva", "shop_email_modello_approva", "shop_email_modello_acceso", "shop_email_prenota", "shop_email_esito"],
 };
+/** Le colonne che `shop_ordine_crea` copia dal chiamante (lista bianca: il SQL le nomina una per una; ogni altra chiave di `p_ordine` si ignora). */
+export const COLONNE_CREA = [
+  "id", "order_ref", "nome", "cognome", "email", "telefono", "indirizzo", "citta", "cap", "provincia", "nazione", "note", "items",
+  "subtotal", "shipping", "total", "totale_cent", "scade_il", "chiave_pubblica_hash", "firma_tentativo", "prova", "fattura_richiesta",
+];
 export const STATI_PAGAMENTO = ["in_attesa", "pagato", "fallito", "scaduto", "rimborsato_in_parte", "rimborsato", "da_incassare"];
 export const CHIAVI_EMAIL = ["conferma_ordine", "spedito", "pagamento_non_riuscito", "rimborso", "annullato"];
 const UNICI = {
@@ -97,6 +102,8 @@ export const ERRORI_SQL_R2 = {
   stato_non_valido: { code: "22023", errcode: "invalid_parameter_value" },
   rimborso_importo_non_valido: { code: "22023", errcode: "invalid_parameter_value" },
   rimborso_oltre_pagato: { code: "23514", errcode: "check_violation" },
+  rimborso_chiave_altro_ordine: { code: "23505", errcode: "unique_violation" }, // T41 (nota f del revisore): la stessa chiave_richiesta su un ALTRO ordine
+  sessione_di_un_altro_ordine: { code: "23505", errcode: "unique_violation" }, // T41: la stessa sessione Stripe registrata su un ALTRO ordine (prima era un 23505 senza nome)
   limite_non_valido: { code: "22023", errcode: "invalid_parameter_value" },
   tariffa_inesistente: { code: "P0002", errcode: "no_data_found" },
   tariffa_campo_non_valido: { code: "22023", errcode: "invalid_parameter_value" },
@@ -313,13 +320,15 @@ export function fintoDb({ tabelle = {}, mancante = false, codiceMancante = "42P0
   const R2 = {
     /* ── S4 ─────────────────────────────────────────────────────────────────────────────────────────────────────────
      * shop_ordine_crea(p_ordine jsonb, p_riservati jsonb) → jsonb {esito: 'creato'|'esistente', id}
-     *    ordine e riservati in UNA transazione; forza status='nuovo', stato_pagamento='in_attesa', canale='sito', rimborsato_cent=0, niente pagato_il.
+     *    ordine e riservati in UNA transazione; LISTA BIANCA (nota d del revisore su T40, `COLONNE_CREA`): del `p_ordine` si copiano SOLO le colonne
+     *    ammesse (contatti, righe, importi, scadenza, impronta della chiave, firma, prova, fattura richiesta), ogni altra chiave si ignora;
+     *    forza status='nuovo', stato_pagamento='in_attesa', canale='sito', rimborsato_cent=0, niente pagato_il, e il resto ai default.
      *    Stesso id due volte → una riga ('esistente'). order_ref unico fra le righe canale='sito' (23505). */
     shop_ordine_crea: ["S4", (a) => {
       const o = a.p_ordine;
       if (!o || typeof o !== "object" || typeof o.id !== "string" || !o.id) lancia("ordine_non_valido");
       if (ordineDi(o.id)) return { data: { esito: "esistente", id: o.id } };
-      const riga = ins("shop_orders", { created_at: adesso(), ...o, status: "nuovo", stato_pagamento: "in_attesa", canale: "sito", pagato_il: null, pagato_importo: null, rimborsato_cent: 0 });
+      const riga = ins("shop_orders", { created_at: adesso(), ...Object.fromEntries(Object.entries(o).filter(([k]) => COLONNE_CREA.includes(k))), status: "nuovo", stato_pagamento: "in_attesa", canale: "sito", pagato_il: null, pagato_importo: null, rimborsato_cent: 0 });
       const { fattura = null, attribuzione = null, consensi = null, ip = null, user_agent = null } = a.p_riservati ?? {};
       ins("shop_ordini_riservati", { ordine_id: riga.id, fattura, attribuzione, consensi, ip, user_agent });
       evento(riga, "creato", "cassa");
@@ -331,7 +340,7 @@ export function fintoDb({ tabelle = {}, mancante = false, codiceMancante = "42P0
       const o = ordineDi(a.p_ordine) ?? lancia("ordine_non_trovato");
       if (typeof a.p_sessione !== "string" || !a.p_sessione) lancia("parametro_non_valido");
       const gia = righe("shop_stripe_sessioni").find((s) => s.sessione_id === a.p_sessione);
-      if (gia && gia.ordine_id !== o.id) throw new ErroreSql(ERR("23505", "duplicate key value violates unique constraint on shop_stripe_sessioni(sessione_id)"));
+      if (gia && gia.ordine_id !== o.id) lancia("sessione_di_un_altro_ordine");
       if (!gia) ins("shop_stripe_sessioni", { sessione_id: a.p_sessione, ordine_id: o.id, scade_il: o.scade_il ?? null });
       if (o.stato_pagamento === "in_attesa") tocca(o, { stripe_sessione_id: a.p_sessione });
       return { data: { esito: gia ? "gia_registrata" : "registrata" } };
@@ -341,7 +350,9 @@ export function fintoDb({ tabelle = {}, mancante = false, codiceMancante = "42P0
      *    D44: l'unico punto in cui un ordine diventa pagato. Sessione fra quelle dell'ordine (se no avviso `sessione_sconosciuta`, nessun cambio);
      *    già pagato da un'altra sessione → avviso `doppio_pagamento`; importo ≠ totale_cent o valuta ≠ eur → NON paga, avviso (`importo_diverso`/`valuta_diversa`);
      *    giacenza scalata riga per riga (sotto-blocco: una riga che non basta o uno SKU che non si risolve → `giacenza_da_verificare`, ordine pagato lo stesso);
-     *    ordine già `annullato` → pagato, avviso `pagato_dopo_annullo`, giacenza NON toccata e da verificare (§8). */
+     *    ordine già `annullato` → pagato, avviso `pagato_dopo_annullo`, giacenza NON toccata e da verificare (§8).
+     *    (nota a) paga SOLO da `in_attesa`, `scaduto`, `fallito`: da qualunque altro stato (vuoto = ordine R1/R2, `da_incassare`) → errore `ordine_non_valido`.
+     *    (nota e) da `scaduto` paga CON l'avviso `pagato_dopo_scadenza` (arancio, scritto dalla funzione); da `fallito` senza avviso. */
     shop_ordine_pagato: ["S4", (a) => {
       const o = ordineDi(a.p_ordine);
       if (!o) return { data: { esito: "non_trovato" } };
@@ -361,6 +372,7 @@ export function fintoDb({ tabelle = {}, mancante = false, codiceMancante = "42P0
         }
         return { data: { esito: "doppio_pagamento" } };
       }
+      if (!["in_attesa", "scaduto", "fallito"].includes(o.stato_pagamento)) lancia("ordine_non_valido");
       if (a.p_importo_cent !== o.totale_cent || String(a.p_valuta ?? "").toLowerCase() !== "eur") {
         const codice = a.p_importo_cent !== o.totale_cent ? "importo_diverso" : "valuta_diversa";
         avviso(o, codice, "rosso", sess.sessione_id);
@@ -387,17 +399,20 @@ export function fintoDb({ tabelle = {}, mancante = false, codiceMancante = "42P0
       mod("shop_stripe_sessioni", sess, { stato: "pagata" });
       if (annullato) avviso(o, "pagato_dopo_annullo", "rosso", sess.sessione_id);
       else if (daVerificare) avviso(o, "giacenza_da_verificare", "arancio", sess.sessione_id);
+      if (prima === "scaduto") avviso(o, "pagato_dopo_scadenza", "arancio", sess.sessione_id);
       evento(o, "pagato", chi, { stato_pagamento: prima }, { stato_pagamento: "pagato", importo_cent: a.p_importo_cent, sessione: sess.sessione_id });
       return { data: { esito: "pagato_ora", giacenza_da_verificare: daVerificare } };
     }],
     /* shop_ordine_chiudi(p_ordine uuid, p_sessione text, p_stato text) → jsonb {esito: 'chiuso'|'ignorato'|'non_trovato'}
      *    p_stato ∈ fallito|scaduto, SOLO da `in_attesa`, e solo se la sessione è la corrente (l'evento tardivo di una sessione sostituita non chiude
-     *    l'ordine che ha già una sessione nuova); `p_sessione` vuota = chiusura decisa dalla cassa (Stripe ha rifiutato la creazione). */
+     *    l'ordine che ha già una sessione nuova); `p_sessione` vuota = chiusura decisa dalla cassa (Stripe ha rifiutato la creazione).
+     *    (nota c) una `p_sessione` che NON è fra quelle dell'ordine → 'ignorato', senza scrivere niente (come `shop_ordine_pagato`). */
     shop_ordine_chiudi: ["S4", (a) => {
       if (!["fallito", "scaduto"].includes(a.p_stato)) lancia("stato_non_valido");
       const o = ordineDi(a.p_ordine);
       if (!o) return { data: { esito: "non_trovato" } };
       const sess = a.p_sessione ? righe("shop_stripe_sessioni").find((s) => s.sessione_id === a.p_sessione && s.ordine_id === o.id) : null;
+      if (a.p_sessione && !sess) return { data: { esito: "ignorato" } };
       if (sess && sess.stato === "aperta") mod("shop_stripe_sessioni", sess, { stato: a.p_stato === "fallito" ? "fallita" : "scaduta" });
       if (o.stato_pagamento !== "in_attesa" || (a.p_sessione && o.stripe_sessione_id && a.p_sessione !== o.stripe_sessione_id)) return { data: { esito: "ignorato" } };
       tocca(o, { stato_pagamento: a.p_stato });
@@ -406,10 +421,12 @@ export function fintoDb({ tabelle = {}, mancante = false, codiceMancante = "42P0
     }],
     /* shop_ordine_riapri(p_ordine uuid, p_nuova_scade timestamptz) → jsonb {esito: 'riaperto', n} | {esito: 'riprova_in_corso'}
      *    D66: solo da `fallito`/`scaduto` → `in_attesa`, riprova_n + 1, nuovo scade_il. Già `in_attesa` (il secondo clic) → 'riprova_in_corso', niente cambia.
-     *    Da `pagato`, `rimborsato*`, `da_incassare` o vuoto → errore `ordine_non_riapribile`. */
+     *    Da `pagato`, `rimborsato*`, `da_incassare` o vuoto → errore `ordine_non_riapribile`.
+     *    (nota b) un ordine `annullato` (status) non si riapre mai, qualunque sia lo stato del pagamento → `ordine_non_riapribile`. */
     shop_ordine_riapri: ["S4", (a) => {
       const o = ordineDi(a.p_ordine) ?? lancia("ordine_non_trovato");
       if (!Number.isFinite(ms(a.p_nuova_scade))) lancia("parametro_non_valido");
+      if (o.status === "annullato") lancia("ordine_non_riapribile");
       if (o.stato_pagamento === "in_attesa") return { data: { esito: "riprova_in_corso" } };
       if (!["fallito", "scaduto"].includes(o.stato_pagamento)) lancia("ordine_non_riapribile");
       const n = (o.riprova_n ?? 0) + 1;
@@ -432,11 +449,13 @@ export function fintoDb({ tabelle = {}, mancante = false, codiceMancante = "42P0
       return { data: true };
     }],
     /* shop_rimborso_prenota(p_ordine uuid, p_importo_cent int, p_motivo text, p_chiave text, p_chi text) → jsonb {esito: 'prenotato'|'esistente', id}
-     *    sotto blocco: massimo = pagato − (rimborsi `richiesto` + `riuscito`); oltre → errore `rimborso_oltre_pagato`; stessa `chiave_richiesta` → la riga che c'è. */
+     *    sotto blocco: massimo = pagato − (rimborsi `richiesto` + `riuscito`); oltre → errore `rimborso_oltre_pagato`; stessa `chiave_richiesta` → la riga che c'è,
+     *    (nota f) ma solo se è di QUESTO ordine: la chiave di un altro ordine → errore `rimborso_chiave_altro_ordine` (23505), niente scritto. */
     shop_rimborso_prenota: ["S4", (a) => {
       const o = ordineDi(a.p_ordine) ?? lancia("ordine_non_trovato");
       if (!Number.isInteger(a.p_importo_cent) || a.p_importo_cent <= 0 || !pieno(a.p_motivo) || !pieno(a.p_chiave)) lancia("rimborso_importo_non_valido");
       const gia = righe("shop_rimborsi").find((r) => r.chiave_richiesta === a.p_chiave);
+      if (gia && gia.ordine_id !== o.id) lancia("rimborso_chiave_altro_ordine");
       if (gia) return { data: { esito: "esistente", id: gia.id } };
       if (!["pagato", "rimborsato_in_parte", "rimborsato"].includes(o.stato_pagamento)) lancia("ordine_non_pagato");
       const impegnato = sommaCent(righe("shop_rimborsi").filter((r) => r.ordine_id === o.id && ["richiesto", "riuscito"].includes(r.stato)));

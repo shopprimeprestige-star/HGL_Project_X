@@ -226,3 +226,41 @@ psql prova_derm -v ON_ERROR_STOP=1 -f prove/sql/shop-invisible-derm.sql
 ```
 
 Applica S1, prova che PRIMA Invisible Derm a prezzo 0 non si pubblica, applica `20261121120000_shop_invisible_derm.sql` **due volte** e prova il trigger con prodotti inventati: «Invisible Derm», «Invisibile Derm», lo slug `invisible-derm-…` passano; «Solvente per Invisible Derm», «Kit Invisible Derm», «Invisible Dermatologico» e un prodotto qualunque a prezzo 0 no; Invisible Derm resta rifiutato senza descrizione, categoria, foto principale (o con la foto di una persona senza liberatoria) e senza variante attiva con SKU; nessun dato cambia, i trigger restano due, la funzione resta chiusa ad `anon` e `authenticated`. Uscita attesa: tutte righe `ok` e in fondo `TUTTI I CONTROLLI DI D40 PASSANO`. Se un controllo dice `KO`, **la migrazione D40 non va applicata in produzione**.
+
+## Rilascio 2 dello shop: i quattro collaudi di S4, S4b, S5, S6 (commessa 2026-11-20-shop-completo)
+
+**Condizione di merge** (PIANO-R2 §4, consiglio C1): T41, T41b, T42 e T43 **non si approvano** senza l'uscita del loro script incollata in LAVAGNA, **con i casi rossi visti prima** (lo script lanciato contro una migrazione che manca o che ha un guasto inserito si ferma con `KO …`). Si lanciano **mai** sul database di produzione: ognuno si ferma da solo se il nome del database non contiene «prova». Serve un Postgres 15 o 16 normale con un database **usa-e-getta**, un utente superutente e l'estensione `dblink` (Homebrew e i pacchetti ufficiali la hanno). Gli script creano da sé i ruoli finti `anon`, `authenticated`, `service_role`, `auth.role()` finto, lo schema `storage` finto, la tabella `shop_orders` com'è in produzione, e applicano M1 e S1 prima della migrazione da provare.
+
+Un database usa-e-getta in pochi passi (cartella e porta a scelta; con `listen_addresses` e socket Unix disattivata si passa `conn` a mano):
+
+```sh
+initdb -D /percorso/corto/pg --auth=trust -U postgres
+pg_ctl -D /percorso/corto/pg -o "-p 54411 -c listen_addresses=127.0.0.1 -c unix_socket_directories=''" -l /percorso/corto/pg.log -w start
+createdb -h 127.0.0.1 -p 54411 -U postgres prova_pagamenti
+# … gli script …
+pg_ctl -D /percorso/corto/pg stop -m fast && rm -rf /percorso/corto/pg     # a fine collaudo: il database si butta
+```
+
+Tutti e quattro si lanciano **dalla radice del repo**, con `-q` per non stampare le etichette dei comandi (`CREATE`, `REVOKE`…), un database nuovo ogni volta (non rilanciare lo stesso: gli ordini di prova restano) e, se il server non ha socket Unix, `-v conn='dbname=… host=127.0.0.1 port=… user=…'` (serve alle due sessioni vere):
+
+| Migrazione | Comando (database `prova_…` nuovo) | Uscita attesa |
+|---|---|---|
+| **S4** · `20261122120000_shop_pagamenti.sql` | `psql -q prova_pagamenti -v ON_ERROR_STOP=1 -f prove/sql/shop-pagamenti.sql` | righe `ok …` e in fondo `TUTTI I CONTROLLI DI S4 PASSANO` |
+| **S4b** · `…20261122123000_shop_orders_protezione.sql` | `psql -q prova_protezione -v ON_ERROR_STOP=1 -f prove/sql/shop-orders-protezione.sql` | (lo scrive T41b) |
+| **S5** · `…20261122130000_shop_spedizioni.sql` | `psql -q prova_spedizioni -v ON_ERROR_STOP=1 -f prove/sql/shop-spedizioni.sql` | (lo scrive T42) |
+| **S6** · `…20261122140000_shop_email.sql` | `psql -q prova_email -v ON_ERROR_STOP=1 -f prove/sql/shop-email.sql` | (lo scrive T43) |
+
+I quattro file sono dichiarati qui perché `LEGGIMI.md` ha un solo proprietario nel R2 (T41): chi scrive S4b, S5 e S6 aggiunge **solo** il proprio script in `prove/sql/` e dice in LAVAGNA la riga di uscita attesa, che il revisore riporta qui.
+
+### `shop-pagamenti.sql` (S4: pagamenti e ordini)
+
+Un solo passo. Applica `shop_orders` com'è oggi, S1 e M1 e prova:
+
+- **Senza M1 si ferma:** S4 lanciata su un database dove manca `pagato_il` risponde col messaggio che nomina M1 e il suo file e **non scrive niente** (nessuna tabella, nessuna colonna).
+- **Doppia applicazione e righe vecchie:** S4 due volte senza errori; le righe di `shop_orders` di prima restano identiche (le 28 colonne nuove ai default: `prova` falso, `rimborsato_cent` 0, `riprova_n` 0, `giacenza_da_verificare` falso, `fattura_richiesta` falso, `email_inviate` `{}`, `avvisi` `[]`); i tre semi (`cassa_sito` «vecchia», `pagamento_sicuro` falso, `metodi_pagamento` `[]`) non vengono riscritti se il titolare li ha già cambiati.
+- **S4 da sola è inerte:** nessuna policy nuova, nessun trigger; l'insert esatto del checkout di oggi come `anon` passa; un update di `authenticated` passa come oggi.
+- **Chiusura:** protezione per riga accesa sulle 5 tabelle nuove, nessuna policy; `anon` e `authenticated` non leggono né scrivono niente (42501); `service_role` **legge ma non scrive** (INSERT, UPDATE, DELETE, TRUNCATE tolti: ogni scrittura passa da una funzione); le 12 funzioni sono `SECURITY DEFINER SET search_path = public`, chiuse ad `anon` e `authenticated`, eseguibili da `service_role`, e nessuna contiene DELETE, DROP o TRUNCATE.
+- **Gli scenari dei soldi** (`prove/negozio/_scenari-soldi.json`, 33 scenari con il marcatore `-- SCENARIO: nome`; una prova di `npm test` controlla che i nomi coincidano): pagato due volte, importo e valuta diversi, ultimo pezzo, SKU che non si risolve, sessione sconosciuta, sessione sostituita (l'evento della prima sessione, arrivato dopo la seconda, paga), doppio pagamento, pagato dopo annullo e dopo scadenza, ordine non pagabile, chiusura di sessione vecchia o non registrata, riprova con due clic, riapertura da pagato o da annullato, creazione due volte e con lista bianca, riferimento doppio, rimborso oltre il pagato / stessa chiave / chiave di un altro ordine / non ammesso / riconciliato / fallito / orfano, rimessa in magazzino idempotente e dai soli movimenti, idempotenza degli eventi, limite con finestra scaduta (la stessa riga riparte da 1, nessun DELETE), lettura della cassa.
+- **Sessioni vere (dblink)** per le corse che il finto non vede: lo stesso pagamento consegnato due volte insieme (una sola scalatura), due ordini insieme sull'ultimo pezzo, due rimborsi insieme oltre il pagato (uno solo), la stessa chiave di rimborso insieme (una riga), due «Riprova» insieme (una sola `riprova_n`), la stessa creazione insieme («esistente», non un errore), due richieste insieme sull'ultimo posto del limite.
+
+Se un controllo dice `KO`, **S4 non va applicata in produzione**: l'uscita va in LAVAGNA. S4 si applica **prima** di S4b; S4b va applicata con l'ordine di prova subito dopo (passo del titolare, PIANO-R2 §9).
