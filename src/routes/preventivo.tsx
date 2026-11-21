@@ -71,6 +71,7 @@ import {
   prezzoDiPartenza,
   setPromoDays,
   type PricingOverrides,
+  scontoOpzioni,
   type PartePreventivo,
   chiaveParte,
   parteAccesa,
@@ -307,12 +308,20 @@ interface Discount {
   //  «garanzia» = lo sconto che c'è perché la garanzia 15 mesi è compresa nel
   //  prezzo (shop/promo-garanzia). Non è un codice e non si può togliere a
   //  mano: sparisce da solo quando un codice la vende a cifra fissa.
-  kind?: "code" | "qty" | "consulente";
+  //  «opzione» = lo sconto che scatta scegliendo una voce (vedi `scontiOpzione`
+  //  in shop/quote-menu): non è un codice, non si digita e non si toglie a mano
+  //  — sparisce deselezionando la voce.
+  kind?: "code" | "qty" | "consulente" | "opzione";
 }
 interface QItem {
   name: string;
   price: number;
   wasPrice?: number;
+  /** Sconto che questa voce dava al momento del preventivo, PER IMPIANTO (vedi
+   *  `scontiOpzione` in shop/quote-menu). Sta qui, dentro la voce, perché è lì
+   *  che il preventivo riaperto lo ritrova identico anche se il listino nel
+   *  frattempo è cambiato. Assente = nessuno. */
+  scontoOpz?: number;
   /** ── ⚠️ DOVE SI FA L'INSTALLAZIONE ────────────────────────────────────
    *  Richiesta del committente: «fai che il luogo dell'installazione si salvi e
    *  torni». Prima non si salvava da nessuna parte: la riga diceva soltanto che
@@ -369,7 +378,7 @@ interface Snapshot {
   discounts: {
     code: string;
     eur: number;
-    kind?: "code" | "qty" | "consulente" | "altro";
+    kind?: "code" | "qty" | "consulente" | "opzione" | "altro";
     label?: string;
   }[];
   discountEur: number;
@@ -1074,6 +1083,7 @@ function QuoteBuilder() {
           // il listino di ogni voce serve a dire quanto è stato scontato:
           // senza, riaprendo il preventivo gli sconti sparivano dal riepilogo
           wasPrice: typeof u.wasPrice === "number" ? u.wasPrice : undefined,
+          ...(typeof u.scontoOpz === "number" && u.scontoOpz > 0 ? { scontoOpz: u.scontoOpz } : {}),
           //  ⚠️ E il posto dell'installazione: senza questa riga il campo si
           //   perderebbe proprio qui, nel punto in cui il preventivo salvato
           //   torna in mano alla pagina — cioè si salverebbe e non tornerebbe.
@@ -3576,7 +3586,26 @@ function QuoteBuilder() {
        prezzo di un acquisto FUTURO. Restano due voci separate — vedi il
        cartello in shop/promo-garanzia. */
   const secondoImpianto = prezzoDalSecondo({ pieno: gross, offerta: garanziaVisibile ? offertaGaranzia : null });
-  const allDiscounts = [...codiciApplicati];
+  //  ── LO SCONTO DELLE OPZIONI SCELTE ───────────────────────────────────
+  //   Una riga per opzione, con il suo nome, così il riepilogo dice «Sconto
+  //   Solo regione frontale −47,20 €». Entra qui e non in `codiciApplicati`:
+  //   non è un codice, e la garanzia legge i codici. Da qui in poi segue le
+  //   stesse regole degli altri sconti: si somma, non supera il lordo, il
+  //   totale non scende sotto zero.
+  const opzioniApplicate: Discount[] = scontoOpzioni(menu.scontiOpzione, selectedItems, qty).righe.map(
+    (r) => ({
+      code: `OPZ-${r.id}`,
+      discount_eur: r.eur,
+      stock_total: null,
+      stock_left: null,
+      label: r.nome,
+      apply_message: null,
+      scarcity_title: null,
+      scarcity_text: null,
+      kind: "opzione" as const,
+    }),
+  );
+  const allDiscounts = [...codiciApplicati, ...opzioniApplicate];
   const rawDiscount = allDiscounts.reduce((s, d) => s + d.discount_eur, 0);
   const discountEur = Math.min(rawDiscount, gross);
   const total = Math.max(0, gross - discountEur);
@@ -3881,7 +3910,16 @@ function QuoteBuilder() {
       return scelta ? `${u.name} — ${scelta.name.toLowerCase()}` : u.name;
     };
     const items: QItem[] = [
-      ...selectedItems.map((u) => ({ name: conVariante(u), price: u.price, wasPrice: u.wasPrice })),
+      ...selectedItems.map((u) => ({
+        name: conVariante(u),
+        price: u.price,
+        wasPrice: u.wasPrice,
+        //  Lo sconto della voce viaggia CON la voce: è così che il preventivo
+        //  riaperto sa spiegare quella parte dello sconto totale.
+        ...(opzioniApplicate.some((d) => d.code === `OPZ-${u.id}`)
+          ? { scontoOpz: menu.scontiOpzione[u.id] }
+          : {}),
+      })),
       ...(simOn && menu.simulation
         ? [
             {
@@ -3926,7 +3964,7 @@ function QuoteBuilder() {
       fitting_mode: fitting,
       discount_code:
         allDiscounts
-          .filter((d) => d.kind !== "qty")
+          .filter((d) => d.kind !== "qty" && d.kind !== "opzione")
           .map((d) => d.code)
           .join(", ") || null,
       discount_eur: discountEur,
@@ -4506,7 +4544,7 @@ function QuoteBuilder() {
         ⚠️ E si escludono gli sconti quantità: quelli sono il listino per tre
          impianti, non una condizione data a questa persona. */
     const scontoDiOggi = (r.discounts ?? []).some(
-      (d) => d.kind !== "qty" && Number(d.eur) > 0,
+      (d) => d.kind !== "qty" && d.kind !== "opzione" && Number(d.eur) > 0,
     );
     // L'elenco delle voci viene da un preventivo salvato: se manca (record
     // vecchio, snapshot arrivato a metà dalla diretta) qui esplodeva tutto il
@@ -6826,6 +6864,16 @@ export function withEdit(
       } else if (i >= 0) righe.splice(i, 1);
     }
   }
+  //  Lo sconto di un'opzione segue il prezzo della voce, che si moltiplica per
+  //  la quantità: cambiandola va riscalato, per impianto, come il lordo.
+  //  ⚠️ Sul preventivo azzerato non c'è (le righe sono vuote): prezzo pieno.
+  if (!azzerato && nQty !== prev.qty)
+    righe.forEach((d, i) => {
+      if (d.kind !== "opzione") return;
+      const nuovo = Math.round((d.eur / Math.max(1, prev.qty)) * nQty * 100) / 100;
+      base += nuovo - d.eur;
+      righe[i] = { ...d, eur: nuovo };
+    });
   // Codici sconto aggiunti dopo: contano una volta sola, anche se uno di essi
   // era già stato applicato in fase di creazione.
   const nuovi = (e.codes ?? []).filter(
@@ -7264,7 +7312,11 @@ function ConsultantPanel({
               discountCode:
                 preview.discounts
                   .filter(
-                    (d) => d.kind !== "qty" && d.kind !== "consulente" && d.code !== "CONSULENTE",
+                    (d) =>
+                      d.kind !== "qty" &&
+                      d.kind !== "opzione" &&
+                      d.kind !== "consulente" &&
+                      d.code !== "CONSULENTE",
                   )
                   .map((d) => d.code)
                   .join(", ") || null,
@@ -7830,6 +7882,7 @@ function CondizioniApplicate({ r }: { r: Snapshot }) {
     (d) =>
       d.kind !== "qty" &&
       d.kind !== "altro" &&
+      d.kind !== "opzione" &&
       d.kind !== "consulente" &&
       d.code !== "CONSULENTE" &&
       Number(d.eur) > 0,
@@ -7847,10 +7900,13 @@ function CondizioniApplicate({ r }: { r: Snapshot }) {
   const consulenteRighe = scontiQuote.filter(
     (d) => (d.kind === "consulente" || d.code === "CONSULENTE") && Number(d.eur) > 0,
   );
+  //  Lo sconto che c'è perché è stata scelta una certa opzione: una riga per
+  //  opzione, col suo nome. Non è un codice e non ha scadenza né posti.
+  const opzioneRighe = scontiQuote.filter((d) => d.kind === "opzione" && Number(d.eur) > 0);
   // (qui si calcolavano anche i subtotali per codice e per quantità, ma non
   //  venivano mostrati da nessuna parte: ogni voce porta già il suo importo)
 
-  if (!righeUpsell.length && !codici.length && !qtaRighe.length) return null;
+  if (!righeUpsell.length && !codici.length && !qtaRighe.length && !opzioneRighe.length) return null;
 
   /** ── QUANTI SCONTI HAI ADDOSSO, E FINO A QUANDO ─────────────────────────
    *  Il blocco raccontava benissimo OGNI sconto e malissimo QUANTI ne hai: per
@@ -7869,6 +7925,7 @@ function CondizioniApplicate({ r }: { r: Snapshot }) {
   const totCodici = codici.reduce((t, d) => t + (Number(d.eur) || 0), 0);
   const totQta = qtaRighe.reduce((t, d) => t + (Number(d.eur) || 0), 0);
   const totCons = consulenteRighe.reduce((t, d) => t + (Number(d.eur) || 0), 0);
+  const totOpz = opzioneRighe.reduce((t, d) => t + (Number(d.eur) || 0), 0);
   const dataBreve = dataValida
     ? until.toLocaleDateString("it-IT", { day: "numeric", month: "long" })
     : "";
@@ -7894,6 +7951,8 @@ function CondizioniApplicate({ r }: { r: Snapshot }) {
     });
   if (totCons > 0)
     famiglie.push({ k: "cons", nome: "Consulente", eur: totCons, Icona: BadgePercent });
+  if (totOpz > 0)
+    famiglie.push({ k: "opz", nome: "Opzioni scelte", eur: totOpz, Icona: Percent });
   const totaleSconti = famiglie.reduce((t, f) => t + f.eur, 0);
 
   // ── LA PASTIGLIA DELLA REGOLA ──────────────────────────────────────────
@@ -8252,6 +8311,20 @@ function CondizioniApplicate({ r }: { r: Snapshot }) {
                 <Voce
                   key={`cons-${idx}`}
                   nome={d.label || "Sconto applicato in consulenza"}
+                  saving={Number(d.eur) || 0}
+                />
+              ))}
+            </Gruppo>
+          )}
+
+          {/* 2ter — le opzioni scelte che portano uno sconto (listino): «Sconto
+              Solo regione frontale». Gruppo a sé: non è un coupon e non scade. */}
+          {opzioneRighe.length > 0 && (
+            <Gruppo titolo="Opzioni scelte" totale={totOpz} voci={opzioneRighe.length}>
+              {opzioneRighe.map((d, idx) => (
+                <Voce
+                  key={`opz-${d.code}-${idx}`}
+                  nome={`Sconto ${d.label || "opzione scelta"}`}
                   saving={Number(d.eur) || 0}
                 />
               ))}
@@ -8813,14 +8886,20 @@ function Summary(p: any) {
             non una condizione data a questa persona — e il codice della
             garanzia vale ZERO euro oggi, perché fissa il prezzo del secondo
             impianto: per questo si guardano gli euro e non il codice. */
-        bloccoPrezzo={allDiscounts.some((d: any) => d.kind !== "qty" && Number(d.discount_eur) > 0)}
+        bloccoPrezzo={allDiscounts.some(
+          (d: any) => d.kind !== "qty" && d.kind !== "opzione" && Number(d.discount_eur) > 0,
+        )}
         items={allDiscounts.map((d: any) => ({
           label:
             //  ⚠️ Il ramo «garanzia» è stato tolto con lo sconto che lo
             //   produceva: il 35% non è più uno sconto sul totale di oggi, e
             //   una riga che non può più comparire è una riga che il prossimo
             //   che legge deve capire perché c'è.
-            d.kind === "qty" ? `Sconto quantità (${d.label})` : `Video testimonianza (${d.code})`,
+            d.kind === "qty"
+              ? `Sconto quantità (${d.label})`
+              : d.kind === "opzione"
+                ? `Sconto ${d.label}`
+                : `Video testimonianza (${d.code})`,
           eur: d.discount_eur,
         }))}
       />
