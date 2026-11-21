@@ -5,7 +5,7 @@
  *     IDENTICO byte per byte: la risposta non dice mai quale dei casi è;
  *   · nella risposta nessun indirizzo, telefono, email, CF, nome, id interno, id di Stripe: solo CAP e città (prova ricorsiva);
  *   · `in_attesa` = fase `verifica` (mai `pagato`, `ref` nullo); il tracking ha il link solo se `https://`;
- *   · limite per indirizzo (60 letture/ora, l'indirizzo solo come HMAC), consumato PRIMA di guardare la chiave;
+ *   · limite per indirizzo (120 letture/ora, l'indirizzo solo come HMAC), consumato PRIMA di guardare la chiave;
  *   · nel log solo codici; `testiConfermati()` è la porta dei testi (di partenza `{}`).
  *  Dati inventati: nessuna chiave vera, nessun cliente vero. */
 import { readFileSync } from "node:fs";
@@ -239,26 +239,26 @@ export async function prove(mod, { c, gruppo, radice }) {
   // ── il limite per indirizzo ──
   const l = nuova();
   const prime = [];
-  for (let i = 0; i < 60; i++) prime.push((await l.vai(REF_A, kA)).ok);
-  c("60 letture in un'ora dallo stesso indirizzo passano tutte", [60, 0], [prime.filter(Boolean).length, prime.filter((x) => !x).length]);
-  c("la 61ª ha la stessa identica risposta di rifiuto, anche con la chiave giusta", RIFIUTO, JSON.stringify(await l.vai(REF_A, kA)));
+  for (let i = 0; i < 120; i++) prime.push((await l.vai(REF_A, kA)).ok);
+  c("120 letture in un'ora dallo stesso indirizzo passano tutte", [120, 0], [prime.filter(Boolean).length, prime.filter((x) => !x).length]);
+  c("la 121ª ha la stessa identica risposta di rifiuto, anche con la chiave giusta", RIFIUTO, JSON.stringify(await l.vai(REF_A, kA)));
   const altro = S.ordinePubblico({ ...l.porte, ip: "198.51.100.9" }, { ref: REF_A, t: kA });
   c("un altro indirizzo non è limitato", true, (await altro).ok);
   const chiaviLimite = l.db.tabelle.shop_limiti.map((x) => x.chiave);
   c("il contatore sta in `shop_limiti` con la chiave «lettura:<impronta HMAC di 64 esadecimali>»", true, chiaviLimite.length === 2 && chiaviLimite.every((k) => /^lettura:[0-9a-f]{64}$/.test(k)));
   c("…l'indirizzo non compare né in chiaro né in una impronta nuda (SHA-256 semplice) nel contatore o nelle chiamate", [false, false], [JSON.stringify([l.db.tabelle.shop_limiti, l.db.registro.map((q) => q.args ?? null)]).includes(IP), JSON.stringify(l.db.tabelle.shop_limiti).includes((await import("node:crypto")).createHash("sha256").update(IP).digest("hex"))]);
-  c("…la finestra è un'ora e il massimo 60 (D49)", [3600, 60], ((q) => [q.args.p_finestra_s, q.args.p_max])(l.db.registro.find((q) => q.chiave === "rpc.shop_limite_consuma")));
+  c("…la finestra è un'ora e il massimo 120 (D49)", [3600, 120], ((q) => [q.args.p_finestra_s, q.args.p_max])(l.db.registro.find((q) => q.chiave === "rpc.shop_limite_consuma")));
   const sbagliate = nuova();
-  for (let i = 0; i < 60; i++) await sbagliate.vai(REF_A, cambia(kA));
-  c("i tentativi con la chiave SBAGLIATA consumano il limite: dopo 60 tentativi anche la chiave giusta è rifiutata", RIFIUTO, JSON.stringify(await sbagliate.vai(REF_A, kA)));
+  for (let i = 0; i < 120; i++) await sbagliate.vai(REF_A, cambia(kA));
+  c("i tentativi con la chiave SBAGLIATA consumano il limite: dopo 120 tentativi anche la chiave giusta è rifiutata", RIFIUTO, JSON.stringify(await sbagliate.vai(REF_A, kA)));
   const senzaIp = nuova([riga()], { ip: null });
   c("indirizzo assente (intestazione mancante) → la pagina funziona lo stesso (impronta «sconosciuto»)", true, (await senzaIp.vai(REF_A, kA)).ok);
   const limiteGuasto = nuova([riga()], { errori: { "rpc.shop_limite_consuma": { error: { code: "57P01", message: "PROVA" } } } });
   c("il limite che non risponde → rifiuto uguale (si chiude), codice nel log", [RIFIUTO, true], [JSON.stringify(await limiteGuasto.vai(REF_A, kA)), limiteGuasto.log.some((x) => x.includes("57p01"))]);
   c("…e senza leggere l'ordine", 0, limiteGuasto.db.registro.filter((q) => q.tab === "shop_orders").length);
   const rifiutata = nuova();
-  for (let i = 0; i < 61; i++) await rifiutata.vai(REF_A, kA);
-  c("oltre il limite non si legge più l'ordine (nessuna lettura dopo il rifiuto)", 60, rifiutata.db.registro.filter((q) => q.tab === "shop_orders").length);
+  for (let i = 0; i < 121; i++) await rifiutata.vai(REF_A, kA);
+  c("oltre il limite non si legge più l'ordine (nessuna lettura dopo il rifiuto)", 120, rifiutata.db.registro.filter((q) => q.tab === "shop_orders").length);
 
   // ── guasti e migrazione assente: sempre lo stesso rifiuto, mai un'eccezione ──
   const guasti = [

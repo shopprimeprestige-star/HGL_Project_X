@@ -4,7 +4,7 @@
  *     il tempo minimo lo legge il server dal token, non lo dichiara il client; meno di 3 s → troppo presto, oltre 30 min → scaduto;
  *   · un permesso degli eventi (R1) non vale per la cassa e uno della cassa non vale per gli eventi;
  *   · `improntaIndirizzo(ip, sale)`: l'indirizzo non sta mai in chiaro; `trappolaPiena(corpo)`: il campo `sito_web` deve restare vuoto;
- *   · finestre e massimi (10 ordini/ora, 10 riprove/ora, 60 letture/ora, 30 permessi/ora) in costanti per `shop_limite_consuma`.
+ *   · finestre e massimi (10 ordini/ora, 10 riprove/ora, 120 letture/ora, 30 permessi/ora) in costanti per `shop_limite_consuma`.
  *  I vettori li calcola la prova con `node:crypto`. Nessuna chiave vera, nessun indirizzo vero (203.0.113.x è riservato alla documentazione). */
 import { createHash, createHmac } from "node:crypto";
 import { readFileSync } from "node:fs";
@@ -367,8 +367,8 @@ export async function prove(mod, { c, gruppo, radice }) {
 
   // ── i limiti (D49) ──
   c(
-    "limiti: 10 ordini/ora, 10 riprove/ora, 60 letture/ora, 30 permessi/ora",
-    { ordine: [3600, 10], riprova: [3600, 10], lettura: [3600, 60], permesso: [3600, 30] },
+    "limiti: 10 ordini/ora, 10 riprove/ora, 120 letture/ora, 30 permessi/ora",
+    { ordine: [3600, 10], riprova: [3600, 10], lettura: [3600, 120], permesso: [3600, 30] },
     Object.fromEntries(Object.entries(A.LIMITI ?? {}).map(([k, v]) => [k, [v.finestraS, v.max]])),
   );
   c(

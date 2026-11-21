@@ -14,7 +14,7 @@ export const ETICHETTA_LIMITI = "hgl-limite-v1";
 export const LIMITI = {
   ordine: { finestraS: 3600, max: 10 },
   riprova: { finestraS: 3600, max: 10 },
-  lettura: { finestraS: 3600, max: 60 },
+  lettura: { finestraS: 3600, max: 120 },
   permesso: { finestraS: 3600, max: 30 },
 } as const;
 export type UsoLimite = keyof typeof LIMITI;
