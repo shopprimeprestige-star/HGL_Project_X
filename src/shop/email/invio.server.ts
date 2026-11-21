@@ -20,10 +20,24 @@ import { codiceDi, eMancante, eOggetto, righe, type ClienteDb } from "../../crm/
 import { eUuid } from "../../crm/ecommerce/azioni";
 import { componi } from "./compone";
 import { messaggioInviabile } from "./inviabile";
-import { CHIAVI_EMAIL, STATO_DEL_MOTIVO, type ChiaveEmail, type EsitoInvio, type PorteEmail, type Variabili } from "./tipi";
+import {
+  CHIAVI_EMAIL,
+  STATO_DEL_MOTIVO,
+  type ChiaveEmail,
+  type EsitoInvio,
+  type PorteEmail,
+  type Variabili,
+} from "./tipi";
 
 /** Il corpo che si manda a Resend (i nomi sono quelli della sua API). */
-export type CorpoResend = { from: string; to: string[]; subject: string; text: string; html: string; reply_to: string };
+export type CorpoResend = {
+  from: string;
+  to: string[];
+  subject: string;
+  text: string;
+  html: string;
+  reply_to: string;
+};
 /** Com'è andata la chiamata: `codice` è solo un codice (`ok`, `http_422`, `rete`…), mai il testo di una risposta. */
 export type EsitoResend = { ok: boolean; codice: string };
 
@@ -41,16 +55,24 @@ export interface PorteInvio {
   log: (codice: string) => void;
 }
 
-const COLONNE_ORDINE = "id, order_ref, nome, cognome, email, indirizzo, citta, cap, provincia, nazione, items, total, totale_cent, corriere, tracking, tracking_url, email_inviate";
+const COLONNE_ORDINE =
+  "id, order_ref, nome, cognome, email, indirizzo, citta, cap, provincia, nazione, items, total, totale_cent, corriere, tracking, tracking_url, email_inviate";
 /** Un solo indirizzo semplice: niente spazi, a capo, virgole, `<`, `>`, virgolette (non si inietta nell'intestazione). */
 const EMAIL = /^[^\s@<>,;"()]+@[^\s@<>,;"()]+\.[^\s@<>,;"()]+$/;
 const SITO = /^https:\/\/[^\s/?#]+$/;
 const MAX_RIGHE = 50;
 
-const nomeDi = (e: unknown): string => String((e as { name?: unknown } | null)?.name ?? "?").replace(/[^A-Za-z0-9_]/g, "").slice(0, 30) || "?";
-const soloCodice = (x: unknown): string => String(x ?? "").replace(/[^A-Za-z0-9_]/g, "").slice(0, 40) || "sconosciuto";
+const nomeDi = (e: unknown): string =>
+  String((e as { name?: unknown } | null)?.name ?? "?")
+    .replace(/[^A-Za-z0-9_]/g, "")
+    .slice(0, 30) || "?";
+const soloCodice = (x: unknown): string =>
+  String(x ?? "")
+    .replace(/[^A-Za-z0-9_]/g, "")
+    .slice(0, 40) || "sconosciuto";
 const testo = (x: unknown): string => (typeof x === "string" ? x.trim() : "");
-const eChiave = (x: unknown): x is ChiaveEmail => typeof x === "string" && (CHIAVI_EMAIL as readonly string[]).includes(x);
+const eChiave = (x: unknown): x is ChiaveEmail =>
+  typeof x === "string" && (CHIAVI_EMAIL as readonly string[]).includes(x);
 
 /** 3850 → «€ 38,50» (punto fra le migliaia). A mano: non dipende dai dati di lingua dell'ambiente. */
 function euro(cent: number): string {
@@ -60,7 +82,12 @@ function euro(cent: number): string {
 
 /** Il totale in centesimi: la colonna in centesimi, altrimenti l'euro dell'ordine; `""` se nessuno dei due si legge. */
 function totale(o: Record<string, unknown>): string {
-  if (typeof o.totale_cent === "number" && Number.isSafeInteger(o.totale_cent) && o.totale_cent >= 0) return euro(o.totale_cent);
+  if (
+    typeof o.totale_cent === "number" &&
+    Number.isSafeInteger(o.totale_cent) &&
+    o.totale_cent >= 0
+  )
+    return euro(o.totale_cent);
   const e = Number(String(o.total ?? "").replace(",", "."));
   return o.total != null && Number.isFinite(e) && e >= 0 ? euro(Math.round(e * 100)) : "";
 }
@@ -75,7 +102,10 @@ function riepilogo(items: unknown): string {
       if (!nome || typeof q !== "number" || !Number.isSafeInteger(q) || q < 1) return [];
       const variante = testo(r.variant).slice(0, 80);
       const prezzo = Number(String(r.unit_price ?? "").replace(",", "."));
-      const importo = r.unit_price != null && Number.isFinite(prezzo) && prezzo >= 0 ? ` — ${euro(Math.round(prezzo * 100) * q)}` : "";
+      const importo =
+        r.unit_price != null && Number.isFinite(prezzo) && prezzo >= 0
+          ? ` — ${euro(Math.round(prezzo * 100) * q)}`
+          : "";
       return [`${q} × ${nome}${variante ? ` (${variante})` : ""}${importo}`];
     })
     .join("\n");
@@ -98,10 +128,31 @@ function indirizzo(o: Record<string, unknown>): string {
 
 /** I valori delle variabili di UN messaggio: la conferma porta righe, totale e indirizzo; nessun altro messaggio li porta.
  *  Il resto (`componi`) scarta comunque le variabili che la chiave non ammette. */
-function variabiliDi(chiave: ChiaveEmail, o: Record<string, unknown>, linkOrdine: string, importoRimborso: string): Variabili {
-  const comuni: Variabili = { nome: testo(o.nome), ref: testo(o.order_ref), link_ordine: linkOrdine };
-  if (chiave === "conferma_ordine") return { ...comuni, totale: totale(o), riepilogo_righe: riepilogo(o.items), indirizzo_spedizione: indirizzo(o) };
-  if (chiave === "spedito") return { ...comuni, corriere: testo(o.corriere), numero_tracking: testo(o.tracking), link_tracking: testo(o.tracking_url) };
+function variabiliDi(
+  chiave: ChiaveEmail,
+  o: Record<string, unknown>,
+  linkOrdine: string,
+  importoRimborso: string,
+): Variabili {
+  const comuni: Variabili = {
+    nome: testo(o.nome),
+    ref: testo(o.order_ref),
+    link_ordine: linkOrdine,
+  };
+  if (chiave === "conferma_ordine")
+    return {
+      ...comuni,
+      totale: totale(o),
+      riepilogo_righe: riepilogo(o.items),
+      indirizzo_spedizione: indirizzo(o),
+    };
+  if (chiave === "spedito")
+    return {
+      ...comuni,
+      corriere: testo(o.corriere),
+      numero_tracking: testo(o.tracking),
+      link_tracking: testo(o.tracking_url),
+    };
   if (chiave === "rimborso") return { ...comuni, importo_rimborso: importoRimborso };
   return comuni;
 }
@@ -114,9 +165,20 @@ function guasto(p: PorteInvio, dove: string, errore: { code?: unknown } | null):
 }
 
 /** Scrive come è finito l'invio. Dopo l'invio non si fallisce: se non si scrive, si logga il codice (il messaggio è già partito). */
-async function scriviEsito(p: PorteInvio, ordineId: string, chiave: ChiaveEmail, stato: "inviata" | "errore", codice: string | null): Promise<void> {
+async function scriviEsito(
+  p: PorteInvio,
+  ordineId: string,
+  chiave: ChiaveEmail,
+  stato: "inviata" | "errore",
+  codice: string | null,
+): Promise<void> {
   try {
-    const r = await p.db.rpc("shop_email_esito", { p_ordine: ordineId, p_chiave: chiave, p_stato: stato, p_codice: codice });
+    const r = await p.db.rpc("shop_email_esito", {
+      p_ordine: ordineId,
+      p_chiave: chiave,
+      p_stato: stato,
+      p_codice: codice,
+    });
     if (r.error) p.log(`esito ${codiceDi(r.error)}`);
   } catch (e) {
     p.log(`esito ${nomeDi(e)}`);
@@ -125,7 +187,12 @@ async function scriviEsito(p: PorteInvio, ordineId: string, chiave: ChiaveEmail,
 
 /** Manda (una sola volta) l'email `chiave` dell'ordine. `manuale` è «invia ora» del CRM: passa dallo stesso percorso e dalle stesse regole.
  *  Mai un'eccezione: ogni cosa che non va è uno `stato`. */
-export async function inviaEmail(p: PorteInvio, chiave: unknown, ordineId: unknown, _opzioni: { manuale: boolean } | null): Promise<EsitoInvio> {
+export async function inviaEmail(
+  p: PorteInvio,
+  chiave: unknown,
+  ordineId: unknown,
+  _opzioni: { manuale: boolean } | null,
+): Promise<EsitoInvio> {
   if (!p || typeof p !== "object") return { stato: "errore", codice: "porte_mancanti" };
   const log = (codice: string) => {
     try {
@@ -136,10 +203,15 @@ export async function inviaEmail(p: PorteInvio, chiave: unknown, ordineId: unkno
   };
   let prenotata = false;
   try {
-    if (!eChiave(chiave) || !eUuid(ordineId)) return { stato: "errore", codice: "parametro_non_valido" };
+    if (!eChiave(chiave) || !eUuid(ordineId))
+      return { stato: "errore", codice: "parametro_non_valido" };
 
     // 1 · il modello, e la regola unica: acceso, approvato sul testo di oggi, senza segnaposto né variabili fuori elenco
-    const rm = await p.db.from("shop_email_modelli").select("chiave, oggetto, testo, acceso, approvato_hash").eq("chiave", chiave).limit(1);
+    const rm = await p.db
+      .from("shop_email_modelli")
+      .select("chiave, oggetto, testo, acceso, approvato_hash")
+      .eq("chiave", chiave)
+      .limit(1);
     if (rm.error) return guasto({ ...p, log }, "modello", rm.error);
     const modello = righe(rm.data)[0];
     if (!modello) return { stato: "migrazione" }; // il seme di S6 non c'è
@@ -154,7 +226,15 @@ export async function inviaEmail(p: PorteInvio, chiave: unknown, ordineId: unkno
       /* mittente illeggibile = non configurato */
     }
     const sito = typeof p.sito === "string" ? p.sito.replace(/\/+$/, "") : "";
-    if (typeof da !== "string" || !da || /[\r\n]/.test(da) || typeof p.chiaveServizio !== "string" || !p.chiaveServizio || !SITO.test(sito)) return { stato: "non_configurata" };
+    if (
+      typeof da !== "string" ||
+      !da ||
+      /[\r\n]/.test(da) ||
+      typeof p.chiaveServizio !== "string" ||
+      !p.chiaveServizio ||
+      !SITO.test(sito)
+    )
+      return { stato: "non_configurata" };
 
     // 3 · l'ordine e il destinatario
     const ro = await p.db.from("shop_orders").select(COLONNE_ORDINE).eq("id", ordineId).limit(1);
@@ -167,7 +247,13 @@ export async function inviaEmail(p: PorteInvio, chiave: unknown, ordineId: unkno
     // 4 · l'importo del rimborso: l'ultimo rimborso RIUSCITO dell'ordine (shortcut: con più rimborsi vicini vale l'ultimo; passarlo dal chiamante se serve)
     let importo = "";
     if (chiave === "rimborso") {
-      const rr = await p.db.from("shop_rimborsi").select("importo_cent").eq("ordine_id", ordineId).eq("stato", "riuscito").order("aggiornato_il", { ascending: false }).limit(1);
+      const rr = await p.db
+        .from("shop_rimborsi")
+        .select("importo_cent")
+        .eq("ordine_id", ordineId)
+        .eq("stato", "riuscito")
+        .order("aggiornato_il", { ascending: false })
+        .limit(1);
       if (rr.error) return guasto({ ...p, log }, "rimborso", rr.error);
       const cent = righe(rr.data)[0]?.importo_cent;
       if (typeof cent === "number" && Number.isSafeInteger(cent) && cent > 0) importo = euro(cent);
@@ -175,7 +261,9 @@ export async function inviaEmail(p: PorteInvio, chiave: unknown, ordineId: unkno
 
     // 5 · si compone (solo dopo `messaggioInviabile`), con il link che la pagina ordine accetta
     const ref = testo(ordine.order_ref);
-    const link = ref ? `${sito}/shop/ordine/${encodeURIComponent(ref)}?t=${await chiaveOrdine(p.chiaveServizio, ordineId)}` : "";
+    const link = ref
+      ? `${sito}/shop/ordine/${encodeURIComponent(ref)}?t=${await chiaveOrdine(p.chiaveServizio, ordineId)}`
+      : "";
     const messaggio = componi(modello, variabiliDi(chiave, ordine, link, importo));
     if (!messaggio.oggetto) return { stato: STATO_DEL_MOTIVO.vuoto };
 
@@ -183,25 +271,47 @@ export async function inviaEmail(p: PorteInvio, chiave: unknown, ordineId: unkno
     const pr = await p.db.rpc("shop_email_prenota", { p_ordine: ordineId, p_chiave: chiave });
     if (pr.error) return guasto({ ...p, log }, "prenota", pr.error);
     if (pr.data !== true) {
-      const gia = eOggetto(ordine.email_inviate) && eOggetto(ordine.email_inviate[chiave]) ? ordine.email_inviate[chiave].stato : null;
-      return gia === "inviata" ? { stato: "inviata", codice: "gia_inviata" } : { stato: "in_corso" };
+      const gia =
+        eOggetto(ordine.email_inviate) && eOggetto(ordine.email_inviate[chiave])
+          ? ordine.email_inviate[chiave].stato
+          : null;
+      return gia === "inviata"
+        ? { stato: "inviata", codice: "gia_inviata" }
+        : { stato: "in_corso" };
     }
     prenotata = true;
 
     // 7 · l'invio e l'esito
     let esito: EsitoResend;
     try {
-      const r = await p.resend({ from: da, to: [a], subject: messaggio.oggetto, text: messaggio.testo, html: messaggio.html, reply_to: da });
-      esito = eOggetto(r) && r.ok === true ? { ok: true, codice: "ok" } : { ok: false, codice: soloCodice(eOggetto(r) ? r.codice : null) };
+      const r = await p.resend({
+        from: da,
+        to: [a],
+        subject: messaggio.oggetto,
+        text: messaggio.testo,
+        html: messaggio.html,
+        reply_to: da,
+      });
+      esito =
+        eOggetto(r) && r.ok === true
+          ? { ok: true, codice: "ok" }
+          : { ok: false, codice: soloCodice(eOggetto(r) ? r.codice : null) };
     } catch (e) {
       log(`resend ${nomeDi(e)}`);
       esito = { ok: false, codice: "resend_eccezione" };
     }
-    await scriviEsito({ ...p, log }, ordineId, chiave, esito.ok ? "inviata" : "errore", esito.ok ? null : esito.codice);
+    await scriviEsito(
+      { ...p, log },
+      ordineId,
+      chiave,
+      esito.ok ? "inviata" : "errore",
+      esito.ok ? null : esito.codice,
+    );
     return esito.ok ? { stato: "inviata" } : { stato: "errore", codice: esito.codice };
   } catch (e) {
     log(`eccezione ${nomeDi(e)}`); // mai il messaggio: può contenere dati del cliente
-    if (prenotata && eChiave(chiave) && eUuid(ordineId)) await scriviEsito({ ...p, log }, ordineId, chiave, "errore", "eccezione");
+    if (prenotata && eChiave(chiave) && eUuid(ordineId))
+      await scriviEsito({ ...p, log }, ordineId, chiave, "errore", "eccezione");
     return { stato: "errore", codice: "eccezione" };
   }
 }
@@ -215,10 +325,14 @@ export const creaPorteEmail = (p: PorteInvio): PorteEmail => ({
  *  Risultato: solo `ok` e un codice (`ok`, `http_<stato>`, `rete`, `non_configurata`), mai il testo di una risposta o un'eccezione. */
 export function resendConFetch(
   chiaveResend: string | null | undefined,
-  fetchFn: (url: string, opzioni: { method: string; headers: Record<string, string>; body: string; signal: AbortSignal }) => Promise<{ ok: boolean; status: number }> = fetch,
+  fetchFn: (
+    url: string,
+    opzioni: { method: string; headers: Record<string, string>; body: string; signal: AbortSignal },
+  ) => Promise<{ ok: boolean; status: number }> = fetch,
 ): PorteInvio["resend"] {
   return async (corpo) => {
-    if (typeof chiaveResend !== "string" || !chiaveResend) return { ok: false, codice: "non_configurata" };
+    if (typeof chiaveResend !== "string" || !chiaveResend)
+      return { ok: false, codice: "non_configurata" };
     try {
       const r = await fetchFn("https://api.resend.com/emails", {
         method: "POST",
@@ -226,7 +340,9 @@ export function resendConFetch(
         body: JSON.stringify(corpo),
         signal: AbortSignal.timeout(8000),
       });
-      return r.ok ? { ok: true, codice: "ok" } : { ok: false, codice: `http_${Number.isSafeInteger(r.status) ? r.status : 0}` };
+      return r.ok
+        ? { ok: true, codice: "ok" }
+        : { ok: false, codice: `http_${Number.isSafeInteger(r.status) ? r.status : 0}` };
     } catch {
       return { ok: false, codice: "rete" };
     }
