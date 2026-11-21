@@ -8,7 +8,9 @@
  *  GET ?conta=1         → `{ ok, nuovi }`
  *  GET ?lead=id1,id2    → come l'elenco, solo gli ordini di quelle schede (max 20, ogni id UUID)
  *  GET ?storico=<UUID>  → `{ ok, eventi, migrazione }`
- *  POST { azione, … }   → le azioni di `azioni.ts`: `{ ok: true, ordine, storico }` oppure `{ ok: false, error, messaggio }`
+ *  GET ?dettaglio=<UUID> → (R2, T53) `{ ok, ordine, riservati: { fattura, consensi } | null, rimborsi | null, email, storico | null, avvisi, migrazione: { pronta, pagamenti } }`
+ *  POST { azione, … }   → le azioni di `azioni.ts`: `{ ok: true, ordine, storico }` oppure `{ ok: false, error, messaggio }`;
+ *                         per le azioni nuove (R2) anche `effetti: [{ tipo, esito, frase }]`, `email: { chiave, stato, frase }` e, per `riconcilia`, `avvisi`
  *
  *  ── LE REGOLE CHE TIENE ─────────────────────────────────────────────────────
  *  · Ogni gestore apre con la guardia («pagamenti»): niente si legge e niente si scrive prima.
@@ -20,15 +22,35 @@
  *    fallisce l'ordine resta scritto e la risposta porta `storico: false`.
  *  · Nei log SOLO codici (`error.code`, il nome del tipo di un'eccezione): mai l'oggetto errore, mai `details`
  *    (porta la riga intera: nome, telefono, indirizzo), mai id o testi del cliente. Le risposte non li ripetono.
- *  · Nessuna cancellazione, da nessuna parte. */
-import { costruisciAzione, eUuid, type EsitoAzione, type MotivoErrore } from "./azioni";
+ *  · Nessuna cancellazione, da nessuna parte.
+ *
+ *  ── RILASCIO 2 (T53; PIANO-R2 §3.4, D55) ────────────────────────────────────────────────────────────────
+ *  · LE LETTURE E LE AZIONI DI PRIMA NON CAMBIANO: stesse risposte, stesse chiamate (la prova di oggi, `prove/ecommerce/server.mjs`, è la stessa).
+ *  · `?conta=1` conta come `contaComeLavoro` (i «nuovo» che si lavorano e non sono di prova: in attesa, scaduto, fallito, rimborsato e prova ne restano fuori) con UNA richiesta;
+ *    se S4 manca (`stato_pagamento` non esiste) ripiega sul conteggio di oggi.
+ *  · `?dettaglio=` è l'UNICO punto che legge `shop_ordini_riservati` (fattura, consensi): la lista non li porta mai. Un guasto in una sezione la rende `null` e non nasconde il resto.
+ *  · Le otto azioni nuove (`spedisci`, `annulla`, `rimborso`, `riconcilia`, `fattura_emessa`, `email_invia`, `giacenza_verificata`, `correggi_stato`) passano SEMPRE da `costruisciAzione`
+ *    con un `contesto` che è sempre un oggetto: `rimborsi` = quelli del database, o `undefined` se la lettura fallisce (mai `[]`: significherebbe «nessun rimborso»), `corrieri`,
+ *    `effettiGestiti` = SOLO gli effetti che questa rotta sa eseguire con le porte che ha (senza `stripe` niente rimborsi; senza `email` niente email).
+ *  · Gli effetti (rimborso, magazzino, sessione, «Controlla con Stripe», email) li esegue `rimborsi.server.ts` DOPO la scrittura dell'ordine (che ha la sua condizione sul valore visto: se
+ *    un collega l'ha cambiato, 409 e nessun effetto). Un effetto che non riesce non annulla l'ordine già scritto: la risposta lo dice, voce per voce.
+ *  · Con S4 assente (`stato_pagamento` non c'è nella riga) le azioni nuove rispondono 409 «migrazione» col nome del file.
+ *  · La riattivazione `annullato → nuovo` ricontrolla i rimborsi nel database DOPO la scrittura: se nel frattempo ne è nato uno (o non si riesce a leggere), l'ordine TORNA annullato e risponde 409.
+ *    shortcut: senza una funzione SQL sotto blocco la corsa resta possibile per pochi millisecondi (la funzione `shop_ordine_riattiva` sarebbe la chiusura vera: chiederla all'architetto). */
+import { costruisciAzione, eUuid, type ContestoAzione, type Effetto, type EsitoAzione, type MotivoErrore } from "./azioni";
 import { MAX_ORDINI_LETTI, normalizzaOrdine, normalizzaTutti, type Ordine } from "./ordine";
+import { statoPagamentoDi } from "./pagamento";
+import { haRimborsoAttivo, rimborsiLeggibili } from "./rimborso";
+import { avvisiOrdine } from "./ordini-ui";
+import { eseguiEffetto, inviaAutomatica, leggiRimborsi, type EsitoEffetto, type PortaStripe, type PorteEffetti } from "./rimborsi.server";
+import type { PorteEmail } from "../../shop/email/tipi";
 
 /* ══ LE PORTE ═══════════════════════════════════════════════════════════════ */
 
-interface EsitoDb {
+export interface EsitoDb {
   data: unknown;
-  error: { code?: unknown } | null;
+  /** `message` esiste per i nomi degli errori delle funzioni SQL (`RAISE EXCEPTION 'rimborso_oltre_pagato'`): si confronta con un elenco chiuso, MAI si scrive nel log né si ripete. */
+  error: { code?: unknown; message?: unknown } | null;
   count?: number | null;
 }
 /** Il pezzo di costruttore di query di Supabase che serve qui: il finto delle prove ne ha lo stesso aspetto. */
@@ -46,6 +68,8 @@ export interface Costruttore extends PromiseLike<EsitoDb> {
 }
 export interface ClienteDb {
   from(tabella: string): Costruttore;
+  /** Le funzioni SQL di S4 (R2): rimborso, riconciliazione, giacenza, pagato. */
+  rpc(nome: string, argomenti?: Record<string, unknown>): PromiseLike<EsitoDb>;
 }
 
 export interface DipendenzeOrdini {
@@ -57,6 +81,10 @@ export interface DipendenzeOrdini {
   adesso: () => Date;
   /** Solo CODICI (mai testi del cliente). */
   log: (codice: string) => void;
+  /** R2 (T53): il client di Stripe (`creaClientStripe`, letto dalla rotta al momento della richiesta). Senza, rimborsi, sessione da far scadere e «Controlla con Stripe» non sono eseguibili. */
+  stripe?: PortaStripe;
+  /** R2 (T53): l'invio delle email dello shop (T54). Senza, nessuna email parte e `email_invia` non è eseguibile. */
+  email?: PorteEmail;
 }
 
 /* ══ LE COSTANTI ════════════════════════════════════════════════════════════ */
@@ -75,6 +103,13 @@ const COLONNE_M1 =
   "lead_id,senza_lead,pagato_il,pagato_importo,metodo_pagamento,tracking,note_interne,aggiornato_il";
 /** Colonne di testo: lì «vuoto» è NULL oppure '' (una riga scritta a mano può avere l'uno o l'altro). */
 const COLONNE_TESTO = ["status", "tracking", "note_interne"];
+/** Le otto azioni nuove del R2 (D55): per loro serve S4, e `costruisciAzione` riceve il contesto (rimborsi, corrieri, effetti gestiti). */
+const AZIONI_R2: readonly string[] = ["spedisci", "annulla", "rimborso", "riconcilia", "fattura_emessa", "email_invia", "giacenza_verificata", "correggi_stato"];
+/** Quelle che decidono con i rimborsi già fatti sotto gli occhi. */
+const CON_RIMBORSI: readonly string[] = ["annulla", "rimborso", "correggi_stato"];
+/** Quelle che non scrivono sull'ordine: fanno solo effetti (la funzione SQL o la rotta scrivono lo storico). */
+const SOLO_EFFETTI: readonly string[] = ["rimborso", "riconcilia", "email_invia"];
+const FILE_S4 = "20261122120000_shop_pagamenti.sql";
 const STATO_HTTP: Record<MotivoErrore, number> = {
   valore: 400,
   azione_sconosciuta: 400,
@@ -108,6 +143,12 @@ const SENZA_MIGRAZIONE = () =>
     "migrazione",
     409,
     "Mancano gli aggiornamenti del database: chiedi a chi gestisce il database di applicare l'aggiornamento degli ordini.",
+  );
+const SENZA_S4 = () =>
+  rifiuta(
+    "migrazione",
+    409,
+    `Mancano gli aggiornamenti del database per i pagamenti: chiedi a chi gestisce il database di applicare ${FILE_S4}.`,
   );
 const CONFLITTO = () =>
   rifiuta(
@@ -229,6 +270,72 @@ function eventoPerLaPagina(x: unknown) {
   };
 }
 
+/** Una sezione del dettaglio: il suo valore, o `null` se la lettura non riesce (si logga il solo codice). Un guasto qui non nasconde il resto. */
+async function sezione<T>(d: DipendenzeOrdini, dove: string, leggi: () => PromiseLike<EsitoDb>, forma: (dati: unknown) => T): Promise<T | null> {
+  try {
+    const r = await leggi();
+    if (r.error) {
+      d.log(`${dove} ${codiceDi(r.error)}`);
+      return null;
+    }
+    return forma(r.data);
+  } catch (e) {
+    d.log(`${dove} eccezione ${nomeDi(e)}`);
+    return null;
+  }
+}
+
+/** `?dettaglio=<uuid>` (R2): l'ordine, i dati riservati (fattura e consensi: mai attribuzione, IP o browser), i rimborsi, le email, lo storico, gli avvisi. Senza S4 solo ordine, storico e avvisi. */
+async function dettaglioOrdine(d: DipendenzeOrdini, id: string) {
+  const pronta = await migrazionePronta(d);
+  const riga = await leggiRiga(d, id);
+  const ordine = riga && normalizzaOrdine(riga);
+  if (!riga || !ordine) throw NON_TROVATO();
+  const conPagamenti = "stato_pagamento" in riga; // S4 c'è se la colonna c'è: la riga che torna da `select *` ha le colonne che esistono
+  const storico = pronta
+    ? await sezione(
+        d,
+        "storico",
+        () => d.db.from("shop_order_eventi").select("id,created_at,tipo,chi,prima,dopo").eq("order_id", id).order("created_at", { ascending: false }).limit(MAX_EVENTI),
+        (dati) => (Array.isArray(dati) ? dati : []).map(eventoPerLaPagina),
+      )
+    : [];
+  const riservati = conPagamenti
+    ? await sezione(
+        d,
+        "riservati",
+        () => d.db.from("shop_ordini_riservati").select("fattura,consensi").eq("ordine_id", id).limit(1),
+        (dati) => {
+          const r = Array.isArray(dati) && eOggetto(dati[0]) ? dati[0] : {};
+          return { fattura: r.fattura ?? null, consensi: r.consensi ?? null };
+        },
+      )
+    : null;
+  const rimborsi = conPagamenti
+    ? ((await leggiRimborsi({ db: d.db, log: d.log }, id))?.map((x) => ({
+        id: x.id,
+        importoCent: x.importoCent,
+        stato: x.stato,
+        motivo: x.motivo,
+        origine: x.origine,
+        chi: x.chi,
+        creatoIl: x.creatoIl,
+        aggiornatoIl: x.aggiornatoIl,
+        stripeRimborsoId: x.stripeRimborsoId,
+      })) ?? null)
+    : null;
+  return {
+    ok: true,
+    ordine,
+    riservati,
+    rimborsi,
+    email: Object.entries(ordine.emailInviate).map(([chiave, e]) => ({ chiave, stato: e.stato, il: e.il, codice: e.codice })),
+    storico,
+    avvisi: avvisiOrdine(ordine),
+    migrazione: { pronta, pagamenti: conPagamenti },
+  };
+}
+
 export async function gestisciGET(request: Request, d: DipendenzeOrdini): Promise<Response> {
   try {
     const g = await d.guardia(request); // dentro il `try`: se la guardia lancia esce un JSON «interno», non l'errore grezzo
@@ -255,12 +362,27 @@ export async function gestisciGET(request: Request, d: DipendenzeOrdini): Promis
       });
     }
 
+    const dettaglio = q.get("dettaglio");
+    if (dettaglio !== null) {
+      if (!eUuid(dettaglio)) throw rifiuta("valore", 400, "L'ordine indicato non è valido.");
+      return json(await dettaglioOrdine(d, dettaglio));
+    }
+
     if (q.get("conta") === "1") {
-      // solo `status`: funziona anche prima di M1 (il numeretto della voce di menu)
-      const r = await d.db
+      // R2: come `contaComeLavoro` (pagamento.ts), con UNA richiesta che conta: i «nuovo» il cui stato di pagamento si lavora (vuoto = ordine di prima, pagato,
+      // rimborsato in parte, da incassare) e che non sono di prova. Gli in attesa, scaduti, falliti, rimborsati e le prove non entrano nel numeretto.
+      let r = await d.db
         .from("shop_orders")
         .select("id", { count: "exact", head: true })
-        .eq("status", "nuovo");
+        .eq("status", "nuovo")
+        .or("stato_pagamento.is.null,stato_pagamento.eq.,stato_pagamento.eq.pagato,stato_pagamento.eq.rimborsato_in_parte,stato_pagamento.eq.da_incassare")
+        .or("prova.is.null,prova.eq.false");
+      // senza S4 (le colonne non ci sono) si conta come oggi: solo `status`, e funziona anche prima di M1 (il numeretto della voce di menu)
+      if (r.error && mancante(r.error))
+        r = await d.db
+          .from("shop_orders")
+          .select("id", { count: "exact", head: true })
+          .eq("status", "nuovo");
       if (r.error || typeof r.count !== "number")
         throw guasto(d, "conta", r.error ?? { code: "senza_numero" });
       return json({ ok: true, nuovi: r.count });
@@ -344,6 +466,23 @@ function testiVeri(
   return veri;
 }
 
+/** Gli effetti che QUESTA rotta esegue davvero con le porte che ha. `costruisciAzione` rifiuta ogni azione che ne chiede uno non dichiarato. */
+function effettiGestiti(d: DipendenzeOrdini): Effetto["tipo"][] {
+  const e: Effetto["tipo"][] = ["giacenza_rimetti"]; // solo una funzione SQL
+  if (d.stripe) e.push("rimborso", "scadi_sessione", "riconcilia");
+  if (d.email) e.push("email");
+  return e;
+}
+
+/** L'elenco dei corrieri `[{nome, modello}]` di `shop_impostazioni`; `undefined` se non si legge (valgono i nomi di partenza e nessun link). */
+async function leggiCorrieri(d: DipendenzeOrdini): Promise<unknown> {
+  const r = await sezione(d, "corrieri", () => d.db.from("shop_impostazioni").select("valore").eq("chiave", "corrieri").limit(1), (dati) => (Array.isArray(dati) && eOggetto(dati[0]) ? dati[0].valore : undefined));
+  return r ?? undefined;
+}
+
+/** Il pagamento dell'ordine è stato incassato (anche se poi rimborsato): da qui l'annullo avvisa il cliente. */
+const incassato = (o: Ordine): boolean => ["pagato", "rimborsato_in_parte", "rimborsato"].includes(statoPagamentoDi(o));
+
 export async function gestisciPOST(request: Request, d: DipendenzeOrdini): Promise<Response> {
   try {
     const g = await d.guardia(request);
@@ -370,17 +509,43 @@ export async function gestisciPOST(request: Request, d: DipendenzeOrdini): Promi
     const riga = await leggiRiga(d, ordineId);
     const ordine = riga && normalizzaOrdine(riga);
     if (!riga || !ordine) throw NON_TROVATO(); // una riga che non si legge (senza data) non si aggiorna
-    const esito = costruisciAzione(corpo, ordine, adesso);
-    if (!esito.ok) throw rifiutoDa(esito);
+    const chi = (typeof g.nome === "string" ? g.nome.trim().slice(0, MAX_CHI) : "") || "Titolare";
+
+    // R2: le azioni nuove vogliono S4 (la colonna `stato_pagamento` c'è nella riga); le vecchie no.
+    const nuova = typeof corpo.azione === "string" && AZIONI_R2.includes(corpo.azione);
+    if (nuova && !("stato_pagamento" in riga)) throw SENZA_S4();
+    const porte: PorteEffetti = { db: d.db, stripe: d.stripe, email: d.email, adesso: d.adesso, log: d.log };
+    // Il contesto è SEMPRE un oggetto. `rimborsi` solo dove serve; se la lettura fallisce resta `undefined` (mai `[]`: sarebbe «nessun rimborso»).
+    const rimborsiLetti = nuova && ordine.statoPagamento !== null && CON_RIMBORSI.includes(String(corpo.azione)) ? await leggiRimborsi(porte, ordine.id) : undefined;
+    const contesto: ContestoAzione = { effettiGestiti: effettiGestiti(d), rimborsi: rimborsiLetti };
+    if (corpo.azione === "spedisci") contesto.corrieri = await leggiCorrieri(d);
+
+    // Una richiesta di rimborso con una chiave GIÀ nota (doppio clic, ripetizione dopo un timeout) è la stessa richiesta: non si rivaluta il massimo, si riprende la riga.
+    const ripetuta = corpo.azione === "rimborso" && d.stripe ? rimborsiLetti?.find((x) => x.chiaveRichiesta !== null && x.chiaveRichiesta === corpo.chiaveRichiesta) : undefined;
+    let esito: Extract<EsitoAzione, { ok: true }>;
+    if (ripetuta) {
+      esito = {
+        ok: true,
+        patch: {},
+        condizioni: {},
+        evento: { order_id: ordine.id, order_ref: ordine.ref, tipo: "rimborso_richiesto", prima: {}, dopo: {} },
+        effetti: [{ tipo: "rimborso", importoCent: Number(ripetuta.importoCent), motivo: ripetuta.motivo, chiaveRichiesta: String(corpo.chiaveRichiesta) }],
+      };
+    } else {
+      const e = costruisciAzione(corpo, ordine, adesso, contesto);
+      if (!e.ok) throw rifiutoDa(e);
+      esito = e;
+    }
 
     let rigaOra = riga;
-    if ((await aggiorna(d, ordine.id, esito.patch, esito.condizioni)) === 0) {
+    const scrive = Object.keys(esito.patch).length > 0; // rimborso, riconcilia, email_invia non scrivono l'ordine: lo fanno le funzioni SQL
+    if (scrive && (await aggiorna(d, ordine.id, esito.patch, esito.condizioni)) === 0) {
       // 0 righe: o l'ha cambiato un altro, o il testo in tabella ha spazi ai bordi e la condizione tagliata non combacia.
       // Si rilegge UNA volta: se è davvero cambiato → 409; se è lo stesso, si riprova UNA volta col testo scritto com'è.
       const letta = await leggiRiga(d, ordine.id);
       const ordine2 = letta && normalizzaOrdine(letta);
       if (!letta || !ordine2) throw NON_TROVATO();
-      const nuovo = costruisciAzione(corpo, ordine2, adesso);
+      const nuovo = costruisciAzione(corpo, ordine2, adesso, contesto);
       if (!nuovo.ok) throw rifiutoDa(nuovo);
       const veri = testiVeri(letta, nuovo.condizioni);
       if (
@@ -393,19 +558,72 @@ export async function gestisciPOST(request: Request, d: DipendenzeOrdini): Promi
       rigaOra = letta;
     }
 
-    // L'ordine è scritto. Lo storico lo scrive il server; se non riesce l'ordine resta com'è e lo si dice.
-    const chi = (typeof g.nome === "string" ? g.nome.trim().slice(0, MAX_CHI) : "") || "Titolare";
-    let registrato = false;
-    try {
-      const ev = await d.db.from("shop_order_eventi").insert({ ...esito.evento, chi });
-      if (ev.error) d.log(`evento ${codiceDi(ev.error)}`);
-      else registrato = true;
-    } catch (e) {
-      d.log(`evento eccezione ${nomeDi(e)}`);
+    // La riattivazione di un ordine annullato: il controllo sui rimborsi (puro, sui dati letti prima) è la prima cintura; qui la seconda, nel database, dopo la scrittura.
+    if (scrive && corpo.azione === "correggi_stato" && ordine.stato === "annullato") {
+      const adesso2 = await leggiRimborsi(porte, ordine.id);
+      if (!rimborsiLeggibili(adesso2) || haRimborsoAttivo(adesso2)) {
+        d.log("riattivazione annullata");
+        try {
+          await d.db
+            .from("shop_orders")
+            .update({ status: "annullato", annullo_motivo: ordine.annulloMotivo, annullato_il: ordine.annullatoIl, giacenza_da_verificare: ordine.giacenzaDaVerificare, aggiornato_il: adesso.toISOString() })
+            .eq("id", ordine.id)
+            .eq("status", "nuovo");
+        } catch (e) {
+          d.log(`riattivazione eccezione ${nomeDi(e)}`);
+        }
+        throw rifiuta("conflitto", 409, "L'ordine ha un rimborso richiesto o riuscito: non si può riattivare.");
+      }
     }
-    // shortcut: l'ordine della risposta è la riga letta + la patch, non riletto dal database; la pagina rilegge comunque l'elenco (30 s).
-    const dopo: Ordine = normalizzaOrdine({ ...rigaOra, ...esito.patch }) ?? ordine;
-    return json({ ok: true, ordine: dopo, storico: registrato });
+
+    // Lo storico lo scrive il server; se non riesce l'ordine resta com'è e lo si dice. Per `rimborso` lo scrive già `shop_rimborso_prenota` (una riga sola).
+    // Per `riconcilia` e `email_invia` si scrive DOPO gli effetti, con l'esito.
+    let registrato = corpo.azione === "rimborso";
+    const scriviEvento = async (dopo: Record<string, unknown> = {}) => {
+      try {
+        const ev = await d.db.from("shop_order_eventi").insert({ ...esito.evento, dopo: { ...esito.evento.dopo, ...dopo }, chi });
+        if (ev.error) d.log(`evento ${codiceDi(ev.error)}`);
+        else registrato = true;
+      } catch (e) {
+        d.log(`evento eccezione ${nomeDi(e)}`);
+      }
+    };
+    if (!SOLO_EFFETTI.includes(String(corpo.azione))) await scriviEvento();
+
+    // Gli effetti, nell'ordine in cui `costruisciAzione` li ha chiesti. Nessuno lancia: un guasto è `non_riuscito` con la sua frase.
+    const effetti: EsitoEffetto[] = [];
+    for (const e of esito.effetti ?? []) effetti.push(await eseguiEffetto(porte, e, ordine, chi));
+    if (SOLO_EFFETTI.includes(String(corpo.azione)) && corpo.azione !== "rimborso") await scriviEvento({ esito: effetti[0]?.esito ?? null });
+    // Le email che partono da sole: «spedito» e «annullato» (solo se aveva pagato), solo per la cassa nuova e solo se la rotta ha la porta.
+    let email: Awaited<ReturnType<typeof inviaAutomatica>> | undefined;
+    if (scrive && d.email && ordine.statoPagamento !== null) {
+      if (corpo.azione === "spedisci") email = await inviaAutomatica(porte, "spedito", ordine.id);
+      else if (corpo.azione === "annulla" && incassato(ordine)) email = await inviaAutomatica(porte, "annullato", ordine.id);
+    }
+
+    // Un'azione che fa SOLO effetti e non ne riesce nessuno è un errore da mostrare (la frase dice perché); le altre hanno già scritto l'ordine e dicono voce per voce.
+    if (SOLO_EFFETTI.includes(String(corpo.azione)) && effetti.length && effetti.every((e) => e.esito === "non_riuscito"))
+      throw rifiuta("valore", effetti[0].http ?? 409, effetti[0].frase);
+
+    // Con gli effetti l'ordine può essere cambiato altrove (rimborsato, pagato, giacenza): si rilegge. Se non riesce, vale la riga letta + la patch.
+    let dopo: Ordine = normalizzaOrdine({ ...rigaOra, ...esito.patch }) ?? ordine;
+    if (effetti.length) {
+      try {
+        const fresca = await leggiRiga(d, ordine.id);
+        dopo = (fresca && normalizzaOrdine(fresca)) || dopo;
+      } catch {
+        /* già nel log; la risposta usa la riga + la patch */
+      }
+    }
+    // shortcut: senza effetti l'ordine della risposta è la riga letta + la patch, non riletto dal database; la pagina rilegge comunque l'elenco (30 s).
+    return json({
+      ok: true,
+      ordine: dopo,
+      storico: registrato,
+      ...(effetti.length ? { effetti: effetti.map(({ tipo, esito: e, frase }) => ({ tipo, esito: e, frase })) } : {}),
+      ...(email ? { email } : {}),
+      ...(corpo.azione === "riconcilia" ? { avvisi: avvisiOrdine(dopo) } : {}),
+    });
   } catch (e) {
     return rispostaDaErrore(e, d);
   }

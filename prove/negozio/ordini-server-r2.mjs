@@ -284,8 +284,8 @@ export async function prove(mod, { c, gruppo, radice }) {
     c("spedisci con l'email spenta: spedito lo stesso, e la frase dice «email non inviata: interruttore spento»", [200, "spedito", true], [spenta.stato, spenta.json.ordine?.stato, /email non inviata.*interruttore spento/i.test(spenta.json.email?.frase ?? "")]);
     const senzaPorta = await POST(fintoDb({ tabelle: tabelle() }), { azione: "spedisci", ordineId: ID, senzaTracking: true });
     c("spedisci senza la porta email: spedito, nessuna email e nessuna finzione", [200, undefined], [senzaPorta.stato, senzaPorta.json.email]);
-    const rotta = await POST(fintoDb({ tabelle: tabelle() }), { azione: "spedisci", ordineId: ID, senzaTracking: true }, { email: () => { throw new Error("Resend giù per anna.esempio@example.com"); } });
-    c("spedisci con la porta email che LANCIA: spedito lo stesso, nessun dato nel log né nella risposta", [200, "spedito", false, false], [rotta.stato, rotta.json.ordine?.stato, JSON.stringify(rotta.json).includes("anna.esempio"), rotta.log.join("|").includes("anna.esempio")]);
+    const rotta = await POST(fintoDb({ tabelle: tabelle() }), { azione: "spedisci", ordineId: ID, senzaTracking: true }, { email: () => { throw new Error("Resend giù: testo-del-guasto-segreto"); } });
+    c("spedisci con la porta email che LANCIA: spedito lo stesso, il testo dell'eccezione non esce né nel log né nella risposta", [200, "spedito", false, false, "errore"], [rotta.stato, rotta.json.ordine?.stato, JSON.stringify(rotta.json).includes("testo-del-guasto-segreto"), rotta.log.join("|").includes("testo-del-guasto-segreto"), rotta.json.email?.stato]);
     const attesa = await POST(fintoDb({ tabelle: tabelle() }), { azione: "spedisci", ordineId: uuid(2), senzaTracking: true }, { email: true });
     c("spedisci un ordine in attesa di pagamento → rifiutato, nessuna email", [400, 0], [attesa.stato, attesa.chiamateEmail.length]);
     const senzaCorriere = await POST(fintoDb({ tabelle: tabelle() }), { azione: "spedisci", ordineId: ID });
@@ -398,7 +398,8 @@ export async function prove(mod, { c, gruppo, radice }) {
     c("mai `delete`, e ogni update porta il filtro sull'id", [0, true], [dbDel.registro.filter((q) => q.op === "delete").length, dbDel.registro.filter((q) => q.op === "update").every((q) => q.filtri.some(([ti, co]) => ti === "eq" && co === "id"))]);
     const modulo = src("src/crm/ecommerce/ordini.server.ts");
     const rimb = src("src/crm/ecommerce/rimborsi.server.ts");
-    c("sorgente: nessun `.delete(`, nessun `console`, nessun `process.env`, nessuna chiave di Stripe", [false, false, false, false], [/\.delete\(/.test(modulo + rimb), /console\./.test(modulo + rimb), /process\.env|import\.meta\.env/.test(modulo + rimb), /(?:sk|rk)_(?:test|live)_|whsec_/.test(modulo + rimb)]);
+    const codice = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, ""); // senza i commenti: lì si può nominare ciò che non si fa
+    c("sorgente: nessun `.delete(`, nessun `console`, nessun `process.env`, nessuna chiave di Stripe", [false, false, false, false], [/\.delete\(/.test(codice(modulo + rimb)), /console\./.test(codice(modulo + rimb)), /process\.env|import\.meta\.env/.test(codice(modulo + rimb)), /(?:sk|rk)_(?:test|live)_|whsec_/.test(modulo + rimb)]);
     c("sorgente: la rotta non importa `client.server` (le dipendenze sono porte)", false, /client\.server/.test(modulo + rimb));
     c("sorgente: le azioni nuove passano SEMPRE il contesto a `costruisciAzione`", true, /costruisciAzione\(\s*corpo,\s*\w+,\s*\w+,\s*contesto\s*\)/.test(modulo));
   }
