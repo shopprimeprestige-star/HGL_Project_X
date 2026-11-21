@@ -19,7 +19,7 @@ const cartella = resolve(process.argv[2] ?? join(radice, "dist/client"));
 /** Codice del server: NON ammesso in nessun modo. Il nome di file `.server` si cerca fra apici o dopo una barra (un modulo importato),
  *  non come proprietà (`opzioni.server` dei pacchetti è un'altra cosa). */
 export const SEGNI_CODICE = [
-  ["nome di file .server", /["'`\/][\w$.-]*\.server(?:\.[cm]?[jt]sx?)?["'`]/],
+  ["nome di file .server", /["'`\/][\w$.-]*\.server(?:-[\w-]+)?(?:\.[cm]?[jt]sx?)?["'`]/],
   ["process.env", /process\.env\./],
   ["cloudflare:workers", /cloudflare:workers/],
 ];
@@ -78,6 +78,7 @@ const aiuto = existsSync(join(radice, "docs/CLONARE.md")) ? readFileSync(join(ra
 const totali = Object.fromEntries(SEGNI_NOMI.map(([n]) => [n, 0]));
 for (const p of ELENCO) {
   const testo = readFileSync(p, "utf8");
+  if (/\.server(?:-[\w-]+)?\.[cm]?jsx?$/.test(p)) trovati.push({ file: relative(radice, p), segno: "file .server nel browser", contesto: "(nome del file)" });
   for (const [nome, re] of SEGNI_CODICE) {
     const m = re.exec(testo);
     if (m) trovati.push({ file: relative(radice, p), segno: nome, contesto: testo.slice(Math.max(0, m.index - 30), m.index + 50).replace(/\s+/g, " ") });

@@ -31,6 +31,7 @@ export async function prove(_mod, { c, gruppo, radice }) {
     c("cartella vuota: esce 2 (il controllo non vale)", 2, esito({}));
     c("un modulo `.server` importato dal browser: esce 1", 1, esito({ ...PULITO, "x.js": 'import{a}from"../integrations/supabase/client.server";' }));
     c("…anche con l'estensione e con gli apici singoli", [1, 1], [esito({ "x.js": "import{a}from'./prodotti.server.ts'" }), esito({ "x.js": "import(`./cassa.server`)" })]);
+    c("un pezzo `.server` con l'impronta nel nome (`prodotti.server-Dk3jA9.js`), importato o come file: esce 1", [1, 1], [esito({ ...PULITO, "x.js": 'import{a}from"./prodotti.server-Dk3jA9.js"' }), esito({ ...PULITO, "prodotti.server-Dk3jA9.js": "export const a=1" })]);
     c("`process.env.` nel browser: esce 1", 1, esito({ ...PULITO, "x.js": "const k=process.env.SUPABASE_URL" }));
     c("`cloudflare:workers` nel browser: esce 1", 1, esito({ ...PULITO, "x.js": 'import{env}from"cloudflare:workers"' }));
     // senza il testo di aiuto accanto i nomi ammessi sono quelli di CLONARE.md: oltre quel numero è codice
