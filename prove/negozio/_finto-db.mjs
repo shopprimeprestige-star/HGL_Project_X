@@ -65,6 +65,11 @@ export const PARAMETRI_FUNZIONI = {
   shop_ordine_giacenza_rimetti: ["p_ordine", "p_chi"],
   shop_limite_consuma: ["p_chiave", "p_finestra_s", "p_max"],
   shop_cassa_righe: ["p_skus"],
+  shop_rimborso_rifiuta: ["p_rimborso", "p_codice"],
+  shop_ordine_riattiva: ["p_ordine", "p_motivo", "p_chi"],
+  // gli aiuti interni di S4 (T53b): non sono in FUNZIONI_R2 (nessuno scenario li chiama da soli), ma il codice del server li usa e il finto li conosce
+  shop_s4_avviso: ["p_ordine", "p_codice", "p_gravita", "p_rif"],
+  shop_s4_evento: ["p_ordine", "p_tipo", "p_chi", "p_prima", "p_dopo"],
   shop_tariffa_imposta: ["p_id", "p_atteso", "p_campi", "p_conferma", "p_chi"],
   shop_email_modello_salva: ["p_chiave", "p_atteso", "p_oggetto", "p_testo", "p_chi"],
   shop_email_modello_approva: ["p_chiave", "p_impronta", "p_chi"],
@@ -83,7 +88,7 @@ export const COLONNE_S4 = {
 /** Le funzioni di R2 e la migrazione di ognuna (i parametri e le risposte sono scritti accanto a ciascuna, nel corpo di `fintoDb`). */
 export const FUNZIONI_R2 = {
   S4: ["shop_ordine_crea", "shop_ordine_sessione_registra", "shop_ordine_pagato", "shop_ordine_chiudi", "shop_ordine_riapri", "shop_stripe_evento_registra", "shop_stripe_evento_chiudi",
-    "shop_rimborso_prenota", "shop_rimborso_riconcilia", "shop_ordine_giacenza_rimetti", "shop_limite_consuma", "shop_cassa_righe"],
+    "shop_rimborso_prenota", "shop_rimborso_riconcilia", "shop_ordine_giacenza_rimetti", "shop_limite_consuma", "shop_cassa_righe", "shop_rimborso_rifiuta", "shop_ordine_riattiva"],
   S5: ["shop_tariffa_imposta"],
   S6: ["shop_email_modello_salva", "shop_email_modello_approva", "shop_email_modello_acceso", "shop_email_prenota", "shop_email_esito"],
 };
@@ -126,6 +131,9 @@ export const ERRORI_SQL = {
 /** Gli errori delle funzioni di R2 (S4/S5/S6): separati da `ERRORI_SQL`, che `finto-db.mjs` rilegge dal testo di S1. */
 export const ERRORI_SQL_R2 = {
   ordine_non_trovato: { code: "P0002", errcode: "no_data_found" },
+  rimborso_non_trovato: { code: "P0002", errcode: "no_data_found" }, // T53b
+  motivo_obbligatorio: { code: "22023", errcode: "invalid_parameter_value" }, // T53b
+  rimborso_attivo: { code: "55000", errcode: "object_not_in_prerequisite_state" }, // T53b
   ordine_non_valido: { code: "22023", errcode: "invalid_parameter_value" },
   parametro_non_valido: { code: "22023", errcode: "invalid_parameter_value" },
   ordine_non_riapribile: { code: "55000", errcode: "object_not_in_prerequisite_state" },
@@ -448,7 +456,8 @@ export function fintoDb({ tabelle = {}, mancante = false, codiceMancante = "42P0
     }],
     /* shop_ordine_chiudi(p_ordine uuid, p_sessione text, p_stato text) → jsonb {esito: 'chiuso'|'ignorato'|'non_trovato'}
      *    p_stato ∈ fallito|scaduto, SOLO da `in_attesa`, e solo se la sessione è la corrente (l'evento tardivo di una sessione sostituita non chiude
-     *    l'ordine che ha già una sessione nuova); `p_sessione` vuota = chiusura decisa dalla cassa (Stripe ha rifiutato la creazione).
+     *    l'ordine che ha già una sessione nuova); `p_sessione` vuota o nulla = chiusura decisa dalla cassa, e chiude SOLO se `scade_il` è già passato
+     *    (T53b, nota 1 della revisione di T51): con `scade_il` nel futuro (o vuoto) risponde `ignorato`, così un secondo clic non richiude l'ordine appena riaperto.
      *    (nota c) una `p_sessione` che NON è fra quelle dell'ordine → 'ignorato', senza scrivere niente (come `shop_ordine_pagato`). */
     shop_ordine_chiudi: ["S4", (a) => {
       if (!["fallito", "scaduto"].includes(a.p_stato)) lancia("stato_non_valido");
@@ -457,7 +466,8 @@ export function fintoDb({ tabelle = {}, mancante = false, codiceMancante = "42P0
       const sess = a.p_sessione ? righe("shop_stripe_sessioni").find((s) => s.sessione_id === a.p_sessione && s.ordine_id === o.id) : null;
       if (a.p_sessione && !sess) return { data: { esito: "ignorato" } };
       if (sess && sess.stato === "aperta") mod("shop_stripe_sessioni", sess, { stato: a.p_stato === "fallito" ? "fallita" : "scaduta" });
-      if (o.stato_pagamento !== "in_attesa" || (a.p_sessione && o.stripe_sessione_id && a.p_sessione !== o.stripe_sessione_id)) return { data: { esito: "ignorato" } };
+      const senzaSessione = String(a.p_sessione ?? "").trim() === "";
+      if (o.stato_pagamento !== "in_attesa" || (a.p_sessione && o.stripe_sessione_id && a.p_sessione !== o.stripe_sessione_id) || (senzaSessione && (!o.scade_il || ms(o.scade_il) >= ms(adesso())))) return { data: { esito: "ignorato" } };
       tocca(o, { stato_pagamento: a.p_stato });
       evento(o, a.p_stato, "stripe", { stato_pagamento: "in_attesa" }, { stato_pagamento: a.p_stato });
       return { data: { esito: "chiuso" } };
@@ -530,6 +540,52 @@ export function fintoDb({ tabelle = {}, mancante = false, codiceMancante = "42P0
       const nuovo = !["pagato", "rimborsato_in_parte", "rimborsato"].includes(o.stato_pagamento) ? o.stato_pagamento : rimborsato >= pagatoCent(o) && rimborsato > 0 ? "rimborsato" : rimborsato > 0 ? "rimborsato_in_parte" : "pagato";
       if (o.rimborsato_cent !== rimborsato || o.stato_pagamento !== nuovo) tocca(o, { rimborsato_cent: rimborsato, stato_pagamento: nuovo });
       return { data: { rimborsato_cent: rimborsato, stato_pagamento: nuovo } };
+    }],
+    /* shop_rimborso_rifiuta(p_rimborso uuid, p_codice text) → jsonb {esito: 'rifiutato', id} | {esito: 'ignorato', stato}   (T53b)
+     *    Stripe ha rifiutato davvero il rimborso (nessun rimborso esiste): SOLO una riga `richiesto` SENZA `stripe_rimborso_id` passa a `fallito` (il massimo si libera),
+     *    senza scrivere nessun id, con un evento `rimborso_rifiutato` (chi `stripe`, dopo `{riga, codice}`). Il codice è ripulito: solo `[A-Za-z0-9_.-]{1,64}`,
+     *    altrimenti `sconosciuto` (mai testo libero nello storico). Un `riuscito`, o un `richiesto` che ha già l'id di Stripe, non si tocca: `ignorato` con lo stato.
+     *    Una riga che non c'è → errore `rimborso_non_trovato`. */
+    shop_rimborso_rifiuta: ["S4", (a) => {
+      const riga = righe("shop_rimborsi").find((x) => x.id === a.p_rimborso) ?? lancia("rimborso_non_trovato");
+      if (riga.stato === "richiesto" && !riga.stripe_rimborso_id) {
+        const codice = typeof a.p_codice === "string" && /^[A-Za-z0-9_.-]{1,64}$/.test(a.p_codice) ? a.p_codice : "sconosciuto";
+        mod("shop_rimborsi", riga, { stato: "fallito", aggiornato_il: adesso() });
+        const o = ordineDi(riga.ordine_id);
+        if (o) evento(o, "rimborso_rifiutato", "stripe", null, { riga: riga.id, codice });
+        return { data: { esito: "rifiutato", id: riga.id } };
+      }
+      return { data: { esito: "ignorato", stato: riga.stato } };
+    }],
+    /* shop_ordine_riattiva(p_ordine uuid, p_motivo text, p_chi text) → jsonb {esito: 'riattivato', giacenza_da_verificare} | {esito: 'cambiato'}   (T53b)
+     *    «annullato → nuovo» sotto il blocco dell'ordine. Errori, nell'ordine: `ordine_non_trovato`, `motivo_obbligatorio` (motivo vuoto), poi `status` diverso da `annullato` → `cambiato`
+     *    (niente scritto), poi `rimborso_attivo` se c'è una riga `richiesto`/`riuscito`, o `rimborsato_cent` > 0, o stato di pagamento `rimborsato`/`rimborsato_in_parte`.
+     *    Altrimenti `status = nuovo`, `annullo_motivo` e `annullato_il` vuoti, `giacenza_da_verificare` vero se i pezzi erano stati rimessi (`giacenza_rimessa_il`); non tocca
+     *    pagamento, sessioni, giacenza, email. Evento `stato_corretto` (prima `{stato: annullato}`, dopo `{stato: nuovo, motivo}`) scritto qui, con `p_chi`. */
+    shop_ordine_riattiva: ["S4", (a) => {
+      const o = ordineDi(a.p_ordine) ?? lancia("ordine_non_trovato");
+      if (!pieno(a.p_motivo)) lancia("motivo_obbligatorio");
+      if (o.status !== "annullato") return { data: { esito: "cambiato" } };
+      const rimborsi = righe("shop_rimborsi").some((r) => r.ordine_id === o.id && ["richiesto", "riuscito"].includes(r.stato));
+      if (rimborsi || (o.rimborsato_cent ?? 0) > 0 || ["rimborsato", "rimborsato_in_parte"].includes(o.stato_pagamento)) lancia("rimborso_attivo");
+      const daVerificare = o.giacenza_da_verificare === true || Boolean(o.giacenza_rimessa_il);
+      tocca(o, { status: "nuovo", annullo_motivo: null, annullato_il: null, giacenza_da_verificare: daVerificare });
+      evento(o, "stato_corretto", a.p_chi, { stato: "annullato" }, { stato: "nuovo", motivo: a.p_motivo.trim().slice(0, 500) });
+      return { data: { esito: "riattivato", giacenza_da_verificare: daVerificare } };
+    }],
+    /* shop_s4_avviso(p_ordine uuid, p_codice text, p_gravita text, p_rif text) → void   (aiuto interno di S4, concesso a service_role; T53b)
+     *    un avviso sull'ordine; lo stesso (codice, riferimento) non si scrive due volte. Un ordine che non c'è: niente, nessun errore (un UPDATE senza righe). */
+    shop_s4_avviso: ["S4", (a) => {
+      const o = ordineDi(a.p_ordine);
+      if (o) avviso(o, a.p_codice, a.p_gravita, a.p_rif ?? null);
+      return { data: null };
+    }],
+    /* shop_s4_evento(p_ordine uuid, p_tipo text, p_chi text, p_prima jsonb, p_dopo jsonb) → void   (aiuto interno di S4; T53b)
+     *    una riga in `shop_order_eventi` (chi vuoto = «sconosciuto», al massimo 80 segni). Un ordine che non c'è: niente. */
+    shop_s4_evento: ["S4", (a) => {
+      const o = ordineDi(a.p_ordine);
+      if (o) evento(o, a.p_tipo, a.p_chi, a.p_prima ?? null, a.p_dopo ?? null);
+      return { data: null };
     }],
     /* shop_ordine_giacenza_rimetti(p_ordine uuid, p_chi text) → jsonb {esito: 'rimessa'|'gia_rimessa', pezzi}
      *    rimette SOLO ciò che i movimenti dell'ordine (ordine_ref, motivo 'ordine') dicono di aver tolto; idempotente per `giacenza_rimessa_il`. */

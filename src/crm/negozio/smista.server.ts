@@ -1,6 +1,6 @@
 /** ── LO SMISTAMENTO DEL CMS: UNA ROTTA, QUATTRO MODULI (smista.server.ts) ────
  *  Commessa 2026-11-20-shop-completo (T10). `/api/crm/negozio` è un solo indirizzo, ma le azioni sono di quattro moduli:
- *  prodotti (T08), giacenza, categorie e interruttori (T09). Qui si decide a chi tocca; il lavoro è tutto dei moduli.
+ *  prodotti (T08), giacenza, categorie e interruttori (T09); dal R2 anche le spedizioni (T50, collegate da T56). Qui si decide a chi tocca; il lavoro è tutto dei moduli.
  *  ⚠️ Importabile senza ambiente: niente `process.env`, niente client del server. La rotta (`src/routes/api.crm.negozio.ts`)
  *   collega le porte; i moduli si provano con un finto database (`prove/negozio/rotte.mjs`).
  *
@@ -21,38 +21,45 @@ import { Rifiuto, leggiTesto, type ClienteDb as ClienteDbCms } from "./comune";
 import { AZIONI_GIACENZA, gestisciPOST as scriviGiacenza } from "./giacenza.server";
 import { AZIONI_CATEGORIE, gestisciGET as leggiCategorie, gestisciPOST as scriviCategorie } from "./categorie.server";
 import { AZIONI_INTERRUTTORI, gestisciGET as leggiInterruttori, gestisciPOST as scriviInterruttori, type FattiEsterni } from "./interruttori.server";
+import { AZIONI_SPEDIZIONI, gestisciGET as leggiSpedizioni, gestisciPOST as scriviSpedizioni } from "./spedizioni.server";
 
 /** Il client di servizio deve avere tutto ciò che servono i moduli (da `supabaseAdmin as unknown as ClienteDbNegozio`). */
 export type ClienteDbNegozio = ClienteDbProdotti & ClienteDbCms;
 
 export interface DipendenzeNegozio extends Omit<DipendenzeProdotti, "db"> {
   db: ClienteDbNegozio;
-  /** Ciò che il database non sa e che il cancello d'apertura chiede (banner e, dal R2, pagamento, spedizioni, email, M2). */
+  /** Ciò che il database non sa e che il cancello d'apertura e la cassa chiedono (banner e, dal R2, pagamento, spedizioni, email, M2, chiave e segreto di Stripe, tariffa, S4). */
   fattiEsterni: () => FattiEsterni | Promise<FattiEsterni>;
 }
 
-type Modulo = "prodotti" | "giacenza" | "categorie" | "interruttori";
+type Modulo = "prodotti" | "giacenza" | "categorie" | "interruttori" | "spedizioni";
 const PER_AZIONE: Record<string, Modulo> = Object.fromEntries([
   ...AZIONI_PRODOTTI.map((a) => [a, "prodotti"]),
   ...AZIONI_GIACENZA.map((a) => [a, "giacenza"]),
   ...AZIONI_CATEGORIE.map((a) => [a, "categorie"]),
   ...AZIONI_INTERRUTTORI.map((a) => [a, "interruttori"]),
+  ...AZIONI_SPEDIZIONI.map((a) => [a, "spedizioni"]),
 ]);
-/** Tutte le azioni che la rotta conosce. */
-export const AZIONI_NEGOZIO: readonly string[] = Object.keys(PER_AZIONE);
+/** Le azioni del CMS del R1 (prodotti, giacenza, categorie, interruttori): l'elenco di sempre, che le prove di R1 controllano. */
+export const AZIONI_NEGOZIO: readonly string[] = Object.keys(PER_AZIONE).filter((a) => !(AZIONI_SPEDIZIONI as readonly string[]).includes(a));
+/** Le azioni delle spedizioni (R2, T50): sono nello smistamento ma in un elenco loro. */
+export const AZIONI_SPEDIZIONI_ROTTA: readonly string[] = AZIONI_SPEDIZIONI;
 
 const SCRIVI: Record<Modulo, (r: Request, d: DipendenzeNegozio) => Promise<Response>> = {
   prodotti: scriviProdotti,
   giacenza: scriviGiacenza,
   categorie: scriviCategorie,
   interruttori: scriviInterruttori,
+  spedizioni: scriviSpedizioni,
 };
-/** Le letture (`?prodotti`, `?prodotto=`, `?categorie`, `?interruttori`) e chi le fa. Il resto va ai prodotti, che dice «non so cosa leggere». */
+/** Le letture (`?prodotti`, `?prodotto=`, `?categorie`, `?interruttori`, `?cassa`, `?spedizioni`) e chi le fa. Il resto va ai prodotti, che dice «non so cosa leggere». */
 const LEGGI: Record<string, (r: Request, d: DipendenzeNegozio) => Promise<Response>> = {
   prodotti: leggiProdotti,
   prodotto: leggiProdotti,
   categorie: leggiCategorie,
   interruttori: leggiInterruttori,
+  cassa: leggiInterruttori,
+  spedizioni: leggiSpedizioni,
 };
 const MAX_CORPO = 100_000; // il tetto più alto dei moduli (prodotti); gli altri hanno il loro, più stretto
 
