@@ -83,9 +83,9 @@ export async function prove(_mod, { c, gruppo, radice }) {
   const tabella = piatto(grezzo.length ? (sql.match(/CREATE TABLE IF NOT EXISTS public\.shop_spedizioni_tariffe \(([\s\S]*?)\);/)?.[1] ?? "") : "");
   const colonne = [...tabella.matchAll(/(?:^|, )(\w+) (?:uuid|text|integer|boolean|timestamptz)\b/g)].map((m) => m[1]);
   c("le colonne sono quelle del finto di T40 (`tariffaSeme`), né una di più né una di meno", Object.keys(tariffaSeme()).sort(), [...colonne].sort());
-  c("paese ammette solo IT; costo, soglia e giorni non negativi; il nome non è vuoto", [true, true, true, true], [
+  c("paese ammette solo IT; costo, soglia e giorni non negativi (i giorni da 1 in su); il nome non è vuoto", [true, true, true, true], [
     /paese text NOT NULL DEFAULT 'IT' CHECK \(paese = 'IT'\)/.test(tabella), /costo_cent integer NOT NULL CHECK \(costo_cent >= 0\)/.test(tabella),
-    /gratis_da_cent integer CHECK \(gratis_da_cent >= 0\)/.test(tabella) && /giorni_min integer CHECK \(giorni_min >= 0\)/.test(tabella) && /giorni_max integer CHECK \(giorni_max >= 0\)/.test(tabella),
+    /gratis_da_cent integer CHECK \(gratis_da_cent >= 0\)/.test(tabella) && /giorni_min integer CHECK \(giorni_min >= 1\)/.test(tabella) && /giorni_max integer CHECK \(giorni_max >= 1\)/.test(tabella),
     /nome text NOT NULL CHECK \(btrim\(nome\) <> ''\)/.test(tabella),
   ]);
   c("attiva e provvisoria hanno un valore di partenza e ci sono le due date (creato_il, aggiornato_il)", [true, true, true], [

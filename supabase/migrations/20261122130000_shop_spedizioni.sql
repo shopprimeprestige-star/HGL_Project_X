@@ -10,7 +10,7 @@
 --      ferma con un messaggio chiaro, prima di scrivere qualsiasi cosa.
 --   2. Crea la tabella shop_spedizioni_tariffe: le tariffe di spedizione, oggi solo Italia. Il costo
 --      è in centesimi, mai negativo. Ogni tariffa può avere corriere, soglia di spedizione gratuita
---      e tempi (giorni minimo e massimo): ciò che è vuoto non si mostra al cliente. Una SOLA tariffa
+--      e tempi (giorni minimo e massimo, da 1 in su): ciò che è vuoto non si mostra al cliente. Una SOLA tariffa
 --      può essere attiva per Paese (indice unico parziale). Protezione per riga accesa, nessuna policy,
 --      tolta ad anon e authenticated; a service_role resta la sola lettura: la tariffa si cambia
 --      con la funzione qui sotto, così lascia sempre una riga nello storico.
@@ -74,8 +74,8 @@ CREATE TABLE IF NOT EXISTS public.shop_spedizioni_tariffe (
   corriere       text,
   costo_cent     integer NOT NULL CHECK (costo_cent >= 0),
   gratis_da_cent integer CHECK (gratis_da_cent >= 0),
-  giorni_min     integer CHECK (giorni_min >= 0),
-  giorni_max     integer CHECK (giorni_max >= 0),
+  giorni_min     integer CHECK (giorni_min >= 1),
+  giorni_max     integer CHECK (giorni_max >= 1),
   attiva         boolean NOT NULL DEFAULT true,
   provvisoria    boolean NOT NULL DEFAULT true,
   confermata_il  timestamptz,

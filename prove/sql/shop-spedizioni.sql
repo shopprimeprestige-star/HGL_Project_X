@@ -273,6 +273,16 @@ SELECT pg_temp.uguale('p_campi che non è un oggetto (lista o valore): tariffa_c
   pg_temp.imposta('2026-11-20T10:00:00Z', '[1]', false) || '|' || pg_temp.imposta('2026-11-20T10:00:00Z', '5', false));
 SELECT pg_temp.uguale('un nome nullo lo rifiuta la tabella (23502), niente scritto', '23502',
   split_part(pg_temp.imposta('2026-11-20T10:00:00Z', '{"nome":null}', false), ' ', 1));
+SELECT pg_temp.imposta('2026-11-20T10:00:00Z', '{"giorni_min":0}', false) AS r1 \gset
+SELECT pg_temp.imposta('2026-11-20T10:00:00Z', '{"giorni_max":0}', false) AS r2 \gset
+SELECT pg_temp.imposta('2026-11-20T10:00:00Z', '{"giorni_min":-1}', false) AS r3 \gset
+SELECT pg_temp.uguale('i tempi si dicono in giorni DA UNO in su: 0 o meno non entrano (23514), così la vetrina non scrive mai «0-3 giorni»', '23514|23514|23514',
+  split_part(:'r1', ' ', 1) || '|' || split_part(:'r2', ' ', 1) || '|' || split_part(:'r3', ' ', 1));
+SELECT pg_temp.uguale('anche con l''INSERT diretto: giorni_min 0 e giorni_max 0 rifiutati dalla tabella (23514)', '23514|23514',
+  split_part(pg_temp.errore('INSERT INTO public.shop_spedizioni_tariffe (paese, nome, costo_cent, attiva, giorni_min) VALUES (''IT'', ''T'', 100, false, 0)'), ' ', 1) || '|' ||
+  split_part(pg_temp.errore('INSERT INTO public.shop_spedizioni_tariffe (paese, nome, costo_cent, attiva, giorni_max) VALUES (''IT'', ''T'', 100, false, 0)'), ' ', 1));
+SELECT pg_temp.uguale('1 giorno è il minimo ammesso', 'true', pg_temp.imposta('2026-11-20T10:00:00Z', '{"giorni_min":1,"giorni_max":1}', false));
+SELECT pg_temp.riparti();
 SELECT count(*) AS s0 FROM public.shop_storico WHERE entita = 'tariffa' \gset
 SELECT pg_temp.imposta('2026-11-20T10:00:00Z', '{"corriere":"BRT","giorni_min":2,"giorni_max":4}', false) AS r \gset
 SELECT pg_temp.uguale('corriere e tempi si scrivono; tre campi = tre righe di storico', 'true|BRT|2|4|3',
