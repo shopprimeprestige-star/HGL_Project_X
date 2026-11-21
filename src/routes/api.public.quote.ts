@@ -46,7 +46,7 @@ export interface VoceSconto {
    *  quindi si può anche togliere. `qty` = lo sconto per quantità, confermato
    *  sulla tabella del listino. `altro` = quel che avanza e non si sa spiegare:
    *  si mostra e si porta dietro, ma non si tocca. */
-  kind: "code" | "qty" | "altro";
+  kind: "code" | "qty" | "opzione" | "altro";
   label?: string;
 }
 
@@ -72,7 +72,7 @@ export interface VoceSconto {
  *   il codice si può comunque togliere per la cifra esatta che vale, e il resto
  *   non si muove. È la differenza fra «non so scomporre» e «non so scomporre
  *   TUTTO», e sul secondo caso il consulente può lavorare lo stesso. */
-async function vociSconto(row: {
+async function vociScontoCodici(row: {
   discount_code?: string | null;
   discount_eur?: number | null;
   qty?: number | null;
@@ -154,6 +154,38 @@ async function vociSconto(row: {
   //  scomposizione è impossibile, e fingere di averla fatta sarebbe peggio.
   if (somma > totale + 0.005) return null;
   return [...righe, ...(await restante(somma))];
+}
+
+/** ── LO SCONTO DELLE OPZIONI SI LEGGE DALLE VOCI, NON SI DEDUCE ────────────
+ *  Ogni voce che dava uno sconto se scelta se lo porta dentro (`scontoOpz`, per
+ *  impianto) fin dal giorno in cui il preventivo è nato: quindi qui si LEGGE,
+ *  e si toglie dallo sconto totale PRIMA di spiegare il resto con codici e
+ *  quantità. Senza questo passaggio la parte data dall'opzione finirebbe
+ *  nell'«sconto già applicato» senza nome.
+ *  ⚠️ Se le voci dichiarano più sconto di quanto ce n'è scritto sul preventivo
+ *   i conti non tornano: non si inventa niente e si ricade sulla scomposizione
+ *   di prima, che è sempre stata prudente. */
+async function vociSconto(row: {
+  discount_code?: string | null;
+  discount_eur?: number | null;
+  qty?: number | null;
+  upsells?: unknown;
+}): Promise<VoceSconto[] | null> {
+  const qta = Math.max(1, Number(row.qty) || 1);
+  const voci = Array.isArray(row.upsells) ? (row.upsells as Record<string, unknown>[]) : [];
+  const opzioni: VoceSconto[] = voci
+    .filter((u) => Number(u?.scontoOpz) > 0)
+    .map((u) => ({
+      code: "OPZIONE",
+      eur: Math.round(Number(u.scontoOpz) * qta * 100) / 100,
+      kind: "opzione" as const,
+      label: String(u.name ?? ""),
+    }));
+  const somma = Math.round(opzioni.reduce((t, o) => t + o.eur, 0) * 100) / 100;
+  const totale = Math.round((Number(row.discount_eur) || 0) * 100) / 100;
+  if (!opzioni.length || somma > totale + 0.005) return vociScontoCodici(row);
+  const resto = await vociScontoCodici({ ...row, discount_eur: Math.max(0, totale - somma) });
+  return resto && [...opzioni, ...resto];
 }
 
 /** ── IL NUMERO DEL PREVENTIVO ──────────────────────────────────────────────

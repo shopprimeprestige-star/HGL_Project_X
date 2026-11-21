@@ -500,7 +500,15 @@ export function SettingsListino({
     () =>
       Object.keys(bozza).length === 0
         ? []
-        : RIGHE.filter((r) => numeroDaTesto(bozza[r.id]?.prezzo ?? "") == null),
+        : RIGHE.filter(
+            (r) =>
+              numeroDaTesto(bozza[r.id]?.prezzo ?? "") == null ||
+              //  Lo sconto può restare vuoto, ma se c'è scritto qualcosa deve
+              //  essere una cifra: sennò si salverebbe «nessuno sconto» in silenzio.
+              (r.scontabile &&
+                (bozza[r.id]?.sconto ?? "").trim() !== "" &&
+                numeroDaTesto(bozza[r.id]?.sconto ?? "") == null),
+          ),
     [bozza],
   );
 
@@ -1683,7 +1691,7 @@ export function SettingsListino({
       {nonValide.length > 0 && (
         <Avviso tono="grave">
           {nonValide.length === 1 ? "Una voce non ha" : `${nonValide.length} voci non hanno`} un
-          prezzo valido (
+          importo valido, prezzo o sconto (
           {nonValide
             .slice(0, 3)
             .map((r) => r.label)
@@ -1854,6 +1862,19 @@ function RigaListino({
             onCambio={(v) => onCambio({ pieno: v })}
           />
         )}
+        {/*  Sconto che scatta scegliendo questa opzione (vedi `scontiOpzione` in
+            shop/quote-menu): vuoto = nessuno. Solo per le voci delle sezioni. */}
+        {riga.scontabile && (
+          <CampoImporto
+            etichetta="Sconto se scelta (€)"
+            largo
+            valore={voce.sconto}
+            salvato={precedente.sconto}
+            disabilitato={voce.nascosta}
+            vuotoAmmesso
+            onCambio={(v) => onCambio({ sconto: v })}
+          />
+        )}
         <CampoImporto
           etichetta="Prezzo"
           valore={voce.prezzo}
@@ -1904,6 +1925,7 @@ function CampoImporto({
   disabilitato,
   forte,
   vuotoAmmesso,
+  largo,
   onCambio,
 }: {
   etichetta: string;
@@ -1914,8 +1936,11 @@ function CampoImporto({
   forte?: boolean;
   /** true = si può lasciare vuoto (il prezzo pieno è facoltativo) */
   vuotoAmmesso?: boolean;
+  /** true = l'etichetta è lunga: la casella è un po' più larga */
+  largo?: boolean;
   onCambio: (v: string) => void;
 }) {
+  const larghezza = largo ? "w-[148px]" : "w-[108px]";
   const [aperto, setAperto] = useState(false);
   const daRipristinare = useRef(valore);
   const campo = useRef<HTMLInputElement>(null);
@@ -1952,7 +1977,7 @@ function CampoImporto({
               setAperto(false);
             }
           }}
-          className={`h-8 w-[108px] rounded-lg border bg-white/10 px-2 text-right text-[13px] font-semibold tabular-nums text-white outline-none ${
+          className={`h-8 ${larghezza} rounded-lg border bg-white/10 px-2 text-right text-[13px] font-semibold tabular-nums text-white outline-none ${
             invalido
               ? "border-rose-400 ring-2 ring-rose-400/30"
               : "border-brand ring-2 ring-brand/30"
@@ -1970,7 +1995,7 @@ function CampoImporto({
         setAperto(true);
       }}
       title={`Modifica ${etichetta.toLowerCase()}`}
-      className={`group w-[108px] shrink-0 rounded-lg border px-2 py-1 text-right transition-colors ${
+      className={`group ${larghezza} shrink-0 rounded-lg border px-2 py-1 text-right transition-colors ${
         cambiato
           ? "border-amber-400/50 bg-amber-400/15"
           : "border-white/15 bg-white/5 hover:bg-white/10"

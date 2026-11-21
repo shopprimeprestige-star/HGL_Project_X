@@ -19,6 +19,7 @@ import {
   TRANSPLANT_ID,
   preselezione,
   buildMenu,
+  scontoOpzioni,
   pricingRows,
   sectionsFor,
   type PricingOverrides,
@@ -103,6 +104,8 @@ export const QUANTITA = [1, 2, 3, 4, 5, 6, 7, 8, 9];
 export interface Voce {
   prezzo: string;
   pieno: string;
+  /** «Sconto se scelta (€)»: vuoto = nessuno. Solo per le voci delle sezioni. */
+  sconto: string;
   nascosta: boolean;
 }
 
@@ -112,6 +115,7 @@ export function vociDaListino(ov: PricingOverrides): Listino {
   const prezzi = ov.prices ?? {};
   const pieni = ov.was ?? {};
   const nascoste = ov.disabled ?? {};
+  const sconti = ov.scontiOpzione ?? {};
   const out: Listino = {};
   RIGHE.forEach((r) => {
     //  Il prezzo pieno salvato a 0 significa "nessun barrato" e vince sul
@@ -122,21 +126,26 @@ export function vociDaListino(ov: PricingOverrides): Listino {
     out[r.id] = {
       prezzo: testoDaNumero(prezzi[r.id] ?? r.price),
       pieno: r.hasWas ? testoDaNumero(pieno) : "",
+      sconto: r.scontabile && sconti[r.id] > 0 ? testoDaNumero(sconti[r.id]) : "",
       nascosta: !!nascoste[r.id],
     };
   });
   return out;
 }
 
-/** Il listino da scrivere: stessa forma di prima (prices / was / disabled),
- *  perché è quella che legge `buildMenu`. */
+/** Il listino da scrivere: stessa forma di prima (prices / was / disabled, più
+ *  `scontiOpzione`), perché è quella che legge `buildMenu`. */
 export function listinoDaVoci(voci: Listino): PricingOverrides {
   const prices: Record<string, number> = {};
   const was: Record<string, number> = {};
   const disabled: Record<string, boolean> = {};
+  const scontiOpzione: Record<string, number> = {};
   RIGHE.forEach((r) => {
     const v = voci[r.id];
     if (!v) return;
+    //  Si scrive solo uno sconto leggibile e positivo: vuoto o 0 = nessuno.
+    const sc = r.scontabile ? numeroDaTesto(v.sconto ?? "") : null;
+    if (sc != null && sc > 0) scontiOpzione[r.id] = sc;
     const p = numeroDaTesto(v.prezzo);
     if (p != null) prices[r.id] = p;
     if (r.hasWas) {
@@ -145,11 +154,15 @@ export function listinoDaVoci(voci: Listino): PricingOverrides {
     }
     if (v.nascosta) disabled[r.id] = true;
   });
-  return { prices, was, disabled };
+  return { prices, was, disabled, scontiOpzione };
 }
 
 export const stessoImporto = (a: string, b: string) =>
   (numeroDaTesto(a) ?? -1) === (numeroDaTesto(b) ?? -1);
+
+/** Per lo sconto «vuoto» e «0» sono la stessa cosa: nessuno sconto. */
+const stessoSconto = (a: string, b: string) =>
+  (numeroDaTesto(a ?? "") || 0) === (numeroDaTesto(b ?? "") || 0);
 
 /* ═══════════════════════════════════════════════════════════════════════════
    2. IL PRIMA → DOPO
@@ -217,6 +230,15 @@ export function vociModificate(
         campo: "Prezzo pieno barrato",
         prima: prima == null ? "nessuno" : formatta(prima),
         dopo: dopo == null ? "nessuno" : formatta(dopo),
+      });
+    }
+    if (r.scontabile && !stessoSconto(a.sconto, b.sconto)) {
+      const prima = numeroDaTesto(a.sconto ?? "");
+      const dopo = numeroDaTesto(b.sconto ?? "");
+      cambi.push({
+        campo: "Sconto se scelta",
+        prima: prima ? formatta(prima) : "nessuno",
+        dopo: dopo ? formatta(dopo) : "nessuno",
       });
     }
     if (a.nascosta !== b.nascosta) {
@@ -295,10 +317,10 @@ export function calcolaPreventivoTipo(
   //   `DEFAULT_SELECTED` il preventivo tipo prometteva un totale che il cliente
   //   non avrebbe più visto appena si cambiava una preselezione.
   const spuntate = preselezione(listino, base?.id);
-  sectionsFor(menu.sections, base?.id ?? "")
+  const scelte = sectionsFor(menu.sections, base?.id ?? "")
     .flatMap((s) => s.items)
-    .filter((i) => spuntate.includes(i.id))
-    .forEach((i) => voci.push({ nome: i.name, eur: i.price }));
+    .filter((i) => spuntate.includes(i.id));
+  scelte.forEach((i) => voci.push({ nome: i.name, eur: i.price }));
   if (!trapianto && menu.installation)
     voci.push({ nome: menu.installation.name, eur: menu.installation.price });
 
@@ -311,6 +333,10 @@ export function calcolaPreventivoTipo(
     nome: `Video testimonianza (${a.code})`,
     eur: a.eur,
   }));
+  //  Lo sconto delle opzioni scelte: la stessa funzione della pagina.
+  scontoOpzioni(menu.scontiOpzione, scelte, quantita).righe.forEach((r) =>
+    righeSconto.push({ nome: `Sconto ${r.nome}`, eur: r.eur }),
+  );
   const perQuantita = Number(sconti.quantita[String(quantita)]) || 0;
   if (perQuantita > 0)
     righeSconto.push({ nome: `Sconto quantità (${quantita} impianti)`, eur: perQuantita });

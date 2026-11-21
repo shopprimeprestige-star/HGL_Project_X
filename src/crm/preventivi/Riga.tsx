@@ -458,7 +458,7 @@ function Offerta({ voce }: { voce: Voce }) {
       {Number(q.discount_eur) > 0 && (
         <p className="mt-1 inline-flex items-center gap-1 text-[12px] text-emerald-700">
           <Tag className="h-3 w-3" />
-          {q.discount_code}: −{eur(Number(q.discount_eur))}
+          {q.discount_code || "Sconto"}: −{eur(Number(q.discount_eur))}
         </p>
       )}
       {Number(edit?.extraEur) > 0 && (

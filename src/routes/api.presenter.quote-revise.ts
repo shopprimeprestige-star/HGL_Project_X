@@ -147,6 +147,9 @@ export const Route = createFileRoute("/api/presenter/quote-revise")({
           /** `false` = le voci del preventivo nuovo nascono senza prezzo pieno:
            *  smettono di presentarsi come scontate. Il prezzo pagato non cambia. */
           upsellSconti?: boolean;
+          /** `true` = «azzera sconti»: la riga nuova nasce a prezzo pieno, quindi le
+           *  voci si ricopiano SENZA lo sconto che davano scegliendole (`scontoOpz`). */
+          reset?: boolean;
           /** `true` = le stesse scelte, ai prezzi del listino di oggi. */
           prezziOggi?: boolean;
           /** codici sconto aggiunti adesso: il valore NON si accetta, si rilegge */
@@ -264,6 +267,15 @@ export const Route = createFileRoute("/api/presenter/quote-revise")({
           //  che il cliente ha scelto non si cambia da sotto.
           if (oggi && sistema) sistema = { ...sistema, price: Number(oggi.price) || 0 };
         }
+        //  ⚠️ Azzerare toglie anche lo sconto-opzione dal totale (lo fa `withEdit`
+        //   nel browser): se la voce se lo portasse dietro, riaprendo il
+        //   preventivo `vociSconto` lo leggerebbe come uno sconto reale e
+        //   spiegherebbe il totale in modo falso.
+        if (b.reset === true)
+          voci = voci.map((u) => {
+            const { scontoOpz: _via, ...resto } = (u ?? {}) as Voce & { scontoOpz?: number };
+            return resto;
+          });
         const qty =
           typeof b.qty === "number" && b.qty >= 1 && b.qty <= 9
             ? Math.round(b.qty)
