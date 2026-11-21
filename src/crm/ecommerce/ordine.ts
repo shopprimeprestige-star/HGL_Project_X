@@ -1,5 +1,7 @@
 /** ── L'ORDINE DELL'E-COMMERCE, COME LO LEGGE IL CRM ────────────────────────
  *  Commessa 2026-11-17-crm-ecommerce (T3). Modulo PURO: niente React, niente database.
+ *  Rilascio 2 (T46): l'ordine guadagna i campi di pagamento, spedizione, fattura, avvisi (colonne di S4). Ogni campo nuovo ha un valore
+ *  sano se la colonna manca o è sporca (prima di S4, o con i default di S4, l'ordine si legge identico a prima). Nessun campo di prima cambia.
  *
  *  `shop_orders` è scritta dal checkout (un cliente qualunque) e, dalla migrazione M1, anche dal
  *  CRM. Una riga può quindi avere `items` nullo, prezzi in stringa, uno stato che non esiste, un
@@ -9,6 +11,8 @@
  *
  *  I nomi delle colonne nuove (lead_id, senza_lead, pagato_il, …) vengono da PIANO §3.1: questo file
  *  non dipende da `types.ts`. Prima della migrazione sono `null` e l'ordine si legge lo stesso. */
+
+import { eStatoPagamento, type StatoPagamento } from "./pagamento";
 
 export type StatoOrdine = "nuovo" | "in_preparazione" | "spedito" | "consegnato" | "annullato";
 export const STATI_ORDINE: readonly StatoOrdine[] = ["nuovo", "in_preparazione", "spedito", "consegnato", "annullato"];
@@ -20,12 +24,13 @@ export const ETICHETTA_STATO: Record<StatoOrdine, string> = {
   annullato: "Annullato",
 };
 
-export type MetodoPagamento = "bonifico" | "contanti" | "carta" | "altro";
+export type MetodoPagamento = "bonifico" | "contanti" | "carta" | "altro" | "stripe";
 export const ETICHETTA_METODO: Record<MetodoPagamento, string> = {
   bonifico: "Bonifico",
   contanti: "Contanti",
   carta: "Carta",
   altro: "Altro",
+  stripe: "Stripe",
 };
 
 export interface RigaOrdine {
@@ -35,6 +40,20 @@ export interface RigaOrdine {
   variante: string | null;
   qty: number;
   prezzo: number;
+}
+
+/** Un avviso sull'ordine (colonna `avvisi`, scritta dalle funzioni SQL): `gravita` è «rosso» o «giallo», `rif` l'oggetto a cui si riferisce (sessione, rimborso…). */
+export interface AvvisoOrdine {
+  codice: string;
+  gravita: string;
+  rif: string | null;
+  il: string | null;
+}
+/** Com'è andata una email dell'ordine (colonna `email_inviate`, chiave = nome del modello): `stato` è «in_invio», «inviata» o «errore». */
+export interface EmailOrdine {
+  stato: string;
+  il: string | null;
+  codice: string | null;
 }
 
 export interface Ordine {
@@ -66,6 +85,39 @@ export interface Ordine {
   tracking: string | null;
   noteInterne: string | null;
   aggiornatoIl: string | null;
+
+  // ── Rilascio 2 (S4): tutto «sano» se la colonna manca. Gli hash della chiave pubblica e della firma del tentativo NON si leggono qui. ──
+  /** La colonna `stato_pagamento` se è uno dei sette stati, altrimenti `null`: lo stato si deduce in `statoPagamentoDi` (pagamento.ts). */
+  statoPagamento: StatoPagamento | null;
+  stripeSessioneId: string | null;
+  stripePagamentoId: string | null;
+  metodoDettaglio: string | null;
+  /** Ordine di prova (Stripe in modalità di prova): non entra nelle cifre (D58). */
+  prova: boolean;
+  /** «sito» per gli ordini della cassa nuova. */
+  canale: string | null;
+  /** Il totale in centesimi interi (D50); `null` per gli ordini di prima. */
+  totaleCent: number | null;
+  /** Rimborsato finora, in centesimi interi; 0 se niente o illeggibile. */
+  rimborsatoCent: number;
+  scadeIl: string | null;
+  riprovaN: number;
+  provincia: string | null;
+  nazione: string | null;
+  giacenzaDaVerificare: boolean;
+  giacenzaScalataIl: string | null;
+  giacenzaRimessaIl: string | null;
+  speditoIl: string | null;
+  corriere: string | null;
+  trackingUrl: string | null;
+  senzaTracking: boolean;
+  annulloMotivo: string | null;
+  annullatoIl: string | null;
+  fatturaRichiesta: boolean;
+  fatturaEmessaIl: string | null;
+  fatturaNota: string | null;
+  emailInviate: Record<string, EmailOrdine>;
+  avvisi: AvvisoOrdine[];
 }
 
 /** Oltre questo numero di righe d'ordine si tengono le prime e si dichiara `righeTroncate`. */
@@ -76,6 +128,8 @@ export const MAX_ORDINI_LETTI = 20_000;
 export const MAX_TESTO = 5000;
 
 export { chiaveTelefono } from "../telefono-doppio";
+/** Le domande sul pagamento che servono ai conti: si esportano da qui perché `conti.ts` importa SOLO da «./ordine» (la prova `ecommerce/conti` lo esige). Il codice sta in `pagamento.ts`. */
+export { contaComeLavoro, contaNelleCifre, puoLavorare, statoEffettivo, statoPagamentoDi } from "./pagamento";
 
 // ── piccoli lettori (nessuno lancia) ───────────────────────────────────────
 
@@ -97,6 +151,14 @@ const euro = (n: number): number => {
   const r = Math.round(n * 100) / 100;
   return Number.isFinite(r) ? r : Number.isFinite(n) ? n : 0;
 };
+
+/** Intero non negativo e «sicuro» (centesimi, contatori), altrimenti `null`: negativi, frazioni tagliate, enormi e illeggibili non passano. */
+function interoOnull(v: unknown): number | null {
+  const n = numero(v);
+  if (n === null || n < 0) return null;
+  const i = Math.floor(n);
+  return Number.isSafeInteger(i) ? i : null;
+}
 
 /** Data valida (testo che il browser sa leggere) o null. */
 const data = (v: unknown): string | null => {
@@ -132,6 +194,29 @@ function leggiRiga(v: unknown): RigaOrdine | null {
 }
 
 const METODI: readonly string[] = Object.keys(ETICHETTA_METODO);
+/** Quanti avvisi e quante email si tengono (le colonne sono jsonb scritte dal server, ma la tabella non lo garantisce). */
+const MAX_AVVISI = 50;
+const MAX_EMAIL = 20;
+
+function leggiAvvisi(v: unknown): AvvisoOrdine[] {
+  const fuori: AvvisoOrdine[] = [];
+  for (const a of Array.isArray(v) ? v : []) {
+    if (fuori.length >= MAX_AVVISI) break;
+    const codice = eOggetto(a) ? testo(a.codice, 100) : "";
+    if (eOggetto(a) && codice) fuori.push({ codice, gravita: testo(a.gravita, 20) || "giallo", rif: testoOnull(a.rif), il: data(a.il) });
+  }
+  return fuori;
+}
+
+function leggiEmail(v: unknown): Record<string, EmailOrdine> {
+  const fuori: Record<string, EmailOrdine> = {};
+  if (!eOggetto(v)) return fuori;
+  for (const [k, e] of Object.entries(v).slice(0, MAX_EMAIL)) {
+    const stato = eOggetto(e) ? testo(e.stato, 40) : "";
+    if (eOggetto(e) && stato) fuori[testo(k, 100)] = { stato, il: data(e.il), codice: testoOnull(e.codice) };
+  }
+  return fuori;
+}
 
 /** Una riga di `shop_orders` → `Ordine`; `null` se manca l'id o la data non si legge. */
 export function normalizzaOrdine(riga: unknown): Ordine | null {
@@ -192,6 +277,33 @@ export function normalizzaOrdine(riga: unknown): Ordine | null {
     tracking: testoOnull(riga.tracking),
     noteInterne: testoOnull(riga.note_interne),
     aggiornatoIl: data(riga.aggiornato_il),
+
+    statoPagamento: eStatoPagamento(testo(riga.stato_pagamento, 100).toLowerCase()) ? (testo(riga.stato_pagamento, 100).toLowerCase() as StatoPagamento) : null,
+    stripeSessioneId: testoOnull(riga.stripe_sessione_id),
+    stripePagamentoId: testoOnull(riga.stripe_pagamento_id),
+    metodoDettaglio: testoOnull(riga.metodo_dettaglio),
+    prova: riga.prova === true,
+    canale: testoOnull(riga.canale),
+    totaleCent: interoOnull(riga.totale_cent),
+    rimborsatoCent: interoOnull(riga.rimborsato_cent) ?? 0,
+    scadeIl: data(riga.scade_il),
+    riprovaN: interoOnull(riga.riprova_n) ?? 0,
+    provincia: testoOnull(riga.provincia),
+    nazione: testoOnull(riga.nazione),
+    giacenzaDaVerificare: riga.giacenza_da_verificare === true,
+    giacenzaScalataIl: data(riga.giacenza_scalata_il),
+    giacenzaRimessaIl: data(riga.giacenza_rimessa_il),
+    speditoIl: data(riga.spedito_il),
+    corriere: testoOnull(riga.corriere),
+    trackingUrl: testoOnull(riga.tracking_url),
+    senzaTracking: riga.senza_tracking === true,
+    annulloMotivo: testoOnull(riga.annullo_motivo),
+    annullatoIl: data(riga.annullato_il),
+    fatturaRichiesta: riga.fattura_richiesta === true,
+    fatturaEmessaIl: data(riga.fattura_emessa_il),
+    fatturaNota: testoOnull(riga.fattura_nota),
+    emailInviate: leggiEmail(riga.email_inviate),
+    avvisi: leggiAvvisi(riga.avvisi),
   };
 }
 
