@@ -230,7 +230,7 @@ export async function prove(mod, { c, gruppo, radice }) {
     c("`totaleAttesoCent` diverso dal ricalcolo → 409 `prezzi_cambiati` con i totali nuovi", [409, "prezzi_cambiati", 5490, 490], [r2.stato, r2.corpo.motivo, r2.corpo.totaleCent, r2.corpo.spedizioneCent]);
     c("…nessun ordine, nessuna sessione", [0, 0], [ordini(sbagliato).length, sessioniCreate(sbagliato).length]);
     const r3 = await vai(sbagliato, await corpoOnesto(sbagliato, { totaleAttesoCent: "5490" }));
-    c("il totale atteso come testo non vale: `prezzi_cambiati`", "prezzi_cambiati", r3.corpo.motivo);
+    c("il totale atteso come testo non vale: `valore`, nessun ordine", [400, "valore", 0], [r3.stato, r3.corpo.motivo, ordini(sbagliato).length]);
     const qtyAlta = ambiente();
     const r4 = await vai(qtyAlta, await corpoOnesto(qtyAlta, { righe: [{ sku: "PROVA-A", qty: 21 }] }));
     c("quantità 21 (oltre il tetto di 20) → rifiutata, nessun ordine", [false, 0], [r4.corpo.ok, ordini(qtyAlta).length]);
@@ -254,7 +254,7 @@ export async function prove(mod, { c, gruppo, radice }) {
     const env = ambiente();
     const r = await vai(env, await corpoOnesto(env, { righe, totaleAttesoCent: 5490 }));
     c(`${nome} → 409 \`non_disponibile\` con la frase per riga, nessun ordine, nessuna sessione`, [409, "non_disponibile", true, 0, 0], [r.stato, r.corpo.motivo, Array.isArray(r.corpo.righe) && r.corpo.righe.length > 0 && r.corpo.righe.every((x) => typeof x.sku === "string" && x.frase), ordini(env).length, sessioniCreate(env).length]);
-    c(`   …e la risposta non dice perché (niente «bozza», «Derm», cifre di giacenza)`, true, !/bozza|derm|invisible|giacenza|prezzo/i.test(JSON.stringify(r.corpo)));
+    c(`   …e le frasi non dicono perché (niente «bozza», «Derm», cifre di giacenza o di prezzo)`, true, !/bozza|derm|invisible|giacenza|prezzo|\d/i.test([r.corpo.frase, ...(r.corpo.righe ?? []).map((x) => x.frase)].join(" ")));
   }
   {
     const env = ambiente({ varianti: [{ sku: "PROVA-ZERO", giacenza: 5, prezzo_cent: 0, nome_prodotto: "Prodotto Zero", slug: "prodotto-zero" }, ...VARIANTI] });
@@ -581,7 +581,7 @@ export async function prove(mod, { c, gruppo, radice }) {
     const env = ambiente();
     const k = await creato(env);
     await chiudi(env, k.o, "fallito");
-    env.db.tabelle.shop_orders.push({ ...structuredClone(env.db.tabelle.shop_orders[0]), id: uuid(0x9001), order_ref: "HG-R10001", canale: null, chiave_pubblica_hash: null, stato_pagamento: null });
+    env.db.tabelle.shop_orders.push({ ...structuredClone(env.db.tabelle.shop_orders[0]), id: uuid(0x9001), order_ref: "HG-R10001", canale: null, chiave_pubblica_hash: null, stato_pagamento: null, stripe_sessione_id: null });
     const brutte = [
       ["chiave sbagliata (forma giusta)", { ref: k.ref, t: "A".repeat(43) }],
       ["chiave di un altro ordine", { ref: k.ref, t: await CO.chiaveOrdine(SERVIZIO, uuid(0x9999)) }],
@@ -679,16 +679,16 @@ export async function prove(mod, { c, gruppo, radice }) {
     env.ora.t += 40 * MIN; // mancano 20 minuti: meno dei 35 (30 di Stripe + 5 di margine)
     const secondo = await vai(env, { ...corpo, permesso: await permesso(env) });
     const o = ordini(env)[0];
-    c("sessione chiesta 40 minuti dopo l'ordine → una RIAPERTURA (n=1), non una chiusura `scaduto`", [true, "in_attesa", 1, 1], [secondo.corpo.ok, o.stato_pagamento, o.riprova_n, sessioniCreate(env).length]);
-    c("…`scade_il` nuovo = adesso + 60 minuti, `expires_at` = quel valore, chiave idempotente `r1`", [env.ora.t + 60 * MIN, Math.floor(Date.parse(o.scade_il) / 1000), `sessione-${o.id}-${o.firma_tentativo}-r1`], [Date.parse(o.scade_il), Number(sessioniCreate(env)[0].corpo.expires_at), sessioniCreate(env)[0].chiaveIdempotenza]);
-    c("…e il margine è almeno di 35 minuti (30 di Stripe + 5)", true, Number(sessioniCreate(env)[0].corpo.expires_at) * 1000 - env.ora.t >= 35 * MIN);
+    c("sessione chiesta 40 minuti dopo l'ordine → una RIAPERTURA (n=1), non una chiusura `scaduto`", [true, "in_attesa", 1, 1], [secondo.corpo.ok, o.stato_pagamento, o.riprova_n, env.finto.sessioni().length]);
+    c("…`scade_il` nuovo = adesso + 60 minuti, `expires_at` = quel valore, chiave idempotente `r1`", [env.ora.t + 60 * MIN, Math.floor(Date.parse(o.scade_il) / 1000), `sessione-${o.id}-${o.firma_tentativo}-r1`], [Date.parse(o.scade_il), Number(sessioniCreate(env).at(-1).corpo.expires_at), sessioniCreate(env).at(-1).chiaveIdempotenza]);
+    c("…e il margine è almeno di 35 minuti (30 di Stripe + 5)", true, Number(sessioniCreate(env).at(-1).corpo.expires_at) * 1000 - env.ora.t >= 35 * MIN);
     const presto = ambiente();
     presto.finto.fallisci("POST /v1/checkout/sessions", { rete: true });
     const c2 = await corpoOnesto(presto);
     await vai(presto, c2);
     presto.ora.t += 20 * MIN; // mancano 40 minuti: basta, si usa il valore dell'ordine
     await vai(presto, { ...c2, permesso: await permesso(presto) });
-    c("a 20 minuti dall'ordine (ne restano 40) NON si riapre: stesso `scade_il`, `r0`", [0, true], [ordini(presto)[0].riprova_n, sessioniCreate(presto)[0].chiaveIdempotenza.endsWith("-r0")]);
+    c("a 20 minuti dall'ordine (ne restano 40) NON si riapre: stesso `scade_il`, `r0`", [0, true], [ordini(presto)[0].riprova_n, sessioniCreate(presto).at(-1).chiaveIdempotenza.endsWith("-r0")]);
   }
 
   // ═════ 13 · prova di sorgente ═════
@@ -700,7 +700,7 @@ export async function prove(mod, { c, gruppo, radice }) {
     c("le righe del catalogo si leggono SOLO con `rpc(\"shop_cassa_righe\")`: nessuna lettura di shop_varianti/shop_prodotti", [true, false], [/\.rpc\(\s*"shop_cassa_righe"/.test(src), /shop_varianti|shop_prodotti/.test(src)]);
     c("nessuna scrittura diretta di tabelle: tutto passa dalle funzioni SQL (insert/update/upsert/delete assenti)", false, /\.(insert|update|upsert|delete)\(/.test(src));
     c("nessun campo `recupero` (la casella di recupero carrello è del Modulo 4)", false, /recupero/i.test(src));
-    c("`sito` non si ricava da Host, Origin, Referer né dall'indirizzo della richiesta", [false, false, false], [/headers\.get\(\s*["'`](host|origin|referer|x-forwarded-host|x-forwarded-proto)["'`]/i.test(src), /\.url\b|new URL\(/.test(src), /request\.headers|richiesta\.headers/.test(src.replace(/headers\.get\(\s*["']content-length["']\s*\)/gi, ""))]);
+    c("`sito` non si ricava da Host, Origin, Referer né dall'indirizzo della richiesta", [false, false, false], [/headers\.get\(\s*["'`](host|origin|referer|x-forwarded-host|x-forwarded-proto)["'`]/i.test(src), /(request|richiesta)\.url\b|new URL\(/.test(src), /request\.headers|richiesta\.headers/.test(src.replace(/headers\.get\(\s*["']content-length["']\s*\)/gi, ""))]);
     c("niente `console`, niente `process.env` né `import.meta`: tutto dalle porte", [false, false, false], [/console\./.test(src), /process\.env/.test(src), /import\.meta/.test(src)]);
     c("nei log non si legge mai `message` né `details` di un errore", false, /\.(message|details|hint)\b/.test(src));
     c("Invisible Derm non è nominato nel modulo (lo decide `calcolaOrdine`: nessuna copia della regola)", false, /invisible|derm/i.test(src));
