@@ -390,6 +390,27 @@
       ]
     },
     {
+      "nome": "rimborso_fallito_nostro_riaperto", "file": "shop-pagamenti.sql",
+      "descrizione": "R3a correzione: un `fallito` deciso da NOI (orfana chiusa dopo 10 minuti, o rifiuto di Stripe) non ha l'id di Stripe e non è mai stato confermato da Stripe. Se poi Stripe dice che quel rimborso esiste ed è riuscito, la riga si riapre: `riuscito` con l'id, il rimborsato si ricalcola, l'ordine segue, nessun avviso. Il `fallito` detto da Stripe (con id) resta definitivo (scenario `rimborso_transizione_rifiutata`).",
+      "partenza": {"varianti":[{"sku":"PROVA-V1","giacenza":5,"prezzo_cent":2890}],"ordini":[{"id":"00000000-0000-4000-8000-000000006001","ref":"HG-S001","totale_cent":2890,"righe":[{"sku":"PROVA-V1","qty":1,"prezzo_cent":2890}],"sessioni":["cs_test_a"]}]},
+      "passi": [
+        {"adesso":"2026-11-20T12:00:00.000Z"},
+        {"rpc":"shop_ordine_pagato","args":{"p_ordine":"00000000-0000-4000-8000-000000006001","p_sessione":"cs_test_a","p_importo_cent":2890,"p_valuta":"eur","p_metodo":"card","p_pagamento_id":"pi_prova_a"},"atteso":{"esito":"pagato_ora"}},
+        {"rpc":"shop_rimborso_prenota","args":{"p_ordine":"00000000-0000-4000-8000-000000006001","p_importo_cent":1000,"p_motivo":"reso","p_chiave":"chiave-a","p_chi":"titolare"},"atteso":{"esito":"prenotato"},"salva":{"riga":"id"}},
+        {"adesso":"2026-11-20T12:11:00.000Z"},
+        {"rpc":"shop_rimborso_riconcilia","args":{"p_ordine":"00000000-0000-4000-8000-000000006001","p_chiudi_orfane":true,"p_rimborsi":[]},"atteso":{"rimborsato_cent":0,"stato_pagamento":"pagato"}},
+        {"rpc":"shop_rimborso_prenota","args":{"p_ordine":"00000000-0000-4000-8000-000000006001","p_importo_cent":500,"p_motivo":"reso","p_chiave":"chiave-b","p_chi":"titolare"},"atteso":{"esito":"prenotato"},"salva":{"rigab":"id"}},
+        {"rpc":"shop_rimborso_rifiuta","args":{"p_rimborso":"$rigab","p_codice":"card_declined"},"atteso":{"esito":"rifiutato"}},
+        {"rpc":"shop_rimborso_riconcilia","args":{"p_ordine":"00000000-0000-4000-8000-000000006001","p_chiudi_orfane":false,"p_rimborsi":[{"id":"re_a","amount":1000,"status":"succeeded","metadata":{"riga_id":"$riga"}},{"id":"re_b","amount":500,"status":"succeeded","metadata":{"riga_id":"$rigab"}}]},"atteso":{"rimborsato_cent":1500,"stato_pagamento":"rimborsato_in_parte"}}
+      ],
+      "controlli": [
+        {"tabella":"shop_rimborsi","dove":{"ordine_id":"00000000-0000-4000-8000-000000006001","chiave_richiesta":"chiave-a"},"atteso":{"stato":"riuscito","stripe_rimborso_id":"re_a"}},
+        {"tabella":"shop_rimborsi","dove":{"ordine_id":"00000000-0000-4000-8000-000000006001","chiave_richiesta":"chiave-b"},"atteso":{"stato":"riuscito","stripe_rimborso_id":"re_b"}},
+        {"tabella":"shop_orders","dove":{"id":"00000000-0000-4000-8000-000000006001"},"atteso":{"stato_pagamento":"rimborsato_in_parte","rimborsato_cent":1500}},
+        {"ordine":"00000000-0000-4000-8000-000000006001","avviso":"rimborso_transizione_ignorata","volte":0}
+      ]
+    },
+    {
       "nome": "rimessa_idempotente", "file": "shop-pagamenti.sql",
       "descrizione": "L'annullo con «rimetti in magazzino» rimette i pezzi una volta sola, anche se il tasto si preme due volte.",
       "partenza": {"varianti":[{"sku":"PROVA-V1","giacenza":5,"prezzo_cent":2890}],"ordini":[{"id":"00000000-0000-4000-8000-000000006001","ref":"HG-S001","totale_cent":2890,"righe":[{"sku":"PROVA-V1","qty":1,"prezzo_cent":2890}],"sessioni":["cs_test_a"]}]},

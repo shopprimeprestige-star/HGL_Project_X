@@ -705,6 +705,30 @@ SELECT pg_temp.uguale('rimborso_stesso_stato · il «richiesto» ha l''id di Str
   || '|' || (SELECT stato || '|' || stripe_rimborso_id || '|' || (aggiornato_il = '2026-01-02 00:00:00+00'::timestamptz)::text FROM public.shop_rimborsi WHERE chiave_richiesta = 'chiave-72-b'));
 SELECT pg_temp.uguale('rimborso_stesso_stato · nessun avviso', '0', pg_temp.avvisi(72, 1, 'rimborso_transizione_ignorata'));
 
+-- SCENARIO: rimborso_fallito_nostro_riaperto
+-- R3a correzione. Un «fallito» deciso da NOI (orfana chiusa dopo 10 minuti, rifiuto di Stripe) non ha l'id di Stripe: se Stripe poi dice «succeeded», la riga si riapre (riuscito, con l'id, nessun avviso).
+SELECT pg_temp.mondo(73, 5);
+SELECT pg_temp.ordine(73, 1);
+SELECT pg_temp.uguale('rimborso_fallito_nostro_riaperto · paga', 'pagato_ora|false', pg_temp.paga(73, 1, 'cs_t73_1'));
+SELECT pg_temp.uguale('rimborso_fallito_nostro_riaperto · prenota 10,00 €', 'prenotato', pg_temp.j(public.shop_rimborso_prenota(pg_temp.oid(73, 1), 1000, 'reso', 'chiave-73-a', 'titolare'), 'esito'));
+UPDATE public.shop_rimborsi SET creato_il = now() - interval '11 minutes' WHERE chiave_richiesta = 'chiave-73-a';
+SELECT pg_temp.uguale('rimborso_fallito_nostro_riaperto · «Controlla con Stripe» con l''elenco vuoto: orfana chiusa, rimborsato 0', '0|pagato',
+  (SELECT pg_temp.j(r, 'rimborsato_cent') || '|' || pg_temp.j(r, 'stato_pagamento') FROM (SELECT public.shop_rimborso_riconcilia(pg_temp.oid(73, 1), '[]'::jsonb, true) AS r) x));
+SELECT pg_temp.uguale('rimborso_fallito_nostro_riaperto · la riga è «fallito» e senza id di Stripe', 'fallito|',
+  (SELECT stato || '|' || COALESCE(stripe_rimborso_id, '') FROM public.shop_rimborsi WHERE chiave_richiesta = 'chiave-73-a'));
+SELECT pg_temp.uguale('rimborso_fallito_nostro_riaperto · prenota 5,00 €', 'prenotato', pg_temp.j(public.shop_rimborso_prenota(pg_temp.oid(73, 1), 500, 'reso', 'chiave-73-b', 'titolare'), 'esito'));
+SELECT pg_temp.uguale('rimborso_fallito_nostro_riaperto · Stripe rifiuta il secondo (shop_rimborso_rifiuta): fallito, senza id', 'rifiutato',
+  pg_temp.j(public.shop_rimborso_rifiuta((SELECT id FROM public.shop_rimborsi WHERE chiave_richiesta = 'chiave-73-b'), 'card_declined'), 'esito'));
+SELECT pg_temp.uguale('rimborso_fallito_nostro_riaperto · ma Stripe li aveva fatti tutti e due («succeeded», metadata.riga_id): 15,00 €, rimborsato in parte', '1500|rimborsato_in_parte',
+  (SELECT pg_temp.j(r, 'rimborsato_cent') || '|' || pg_temp.j(r, 'stato_pagamento') FROM (SELECT public.shop_rimborso_riconcilia(pg_temp.oid(73, 1), jsonb_build_array(
+    jsonb_build_object('id', 're_t73_a', 'amount', 1000, 'status', 'succeeded', 'metadata', jsonb_build_object('riga_id', (SELECT id FROM public.shop_rimborsi WHERE chiave_richiesta = 'chiave-73-a'))),
+    jsonb_build_object('id', 're_t73_b', 'amount', 500, 'status', 'succeeded', 'metadata', jsonb_build_object('riga_id', (SELECT id FROM public.shop_rimborsi WHERE chiave_richiesta = 'chiave-73-b')))), false) AS r) x));
+SELECT pg_temp.uguale('rimborso_fallito_nostro_riaperto · le due righe sono «riuscito» con l''id di Stripe, l''ordine dice 1500, nessun avviso', 'riuscito|re_t73_a|riuscito|re_t73_b|1500|0',
+  (SELECT stato || '|' || stripe_rimborso_id FROM public.shop_rimborsi WHERE chiave_richiesta = 'chiave-73-a') || '|' || (SELECT stato || '|' || stripe_rimborso_id FROM public.shop_rimborsi WHERE chiave_richiesta = 'chiave-73-b')
+  || '|' || pg_temp.col(73, 1, 'rimborsato_cent') || '|' || pg_temp.avvisi(73, 1, 'rimborso_transizione_ignorata'));
+SELECT pg_temp.uguale('rimborso_fallito_nostro_riaperto · il massimo è impegnato davvero: oltre il pagato non si rimborsa', '23514 rimborso_oltre_pagato',
+  pg_temp.errore(format($q$SELECT public.shop_rimborso_prenota(%L, 1391, 'reso', 'chiave-73-c', 'titolare')$q$, pg_temp.oid(73, 1))));
+
 -- SCENARIO: rimessa_idempotente
 SELECT pg_temp.mondo(23, 5);
 SELECT pg_temp.ordine(23, 1);
