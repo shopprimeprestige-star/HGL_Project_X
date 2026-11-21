@@ -292,10 +292,12 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("nessuna chiave né indirizzo nel codice (Resend, Stripe, Supabase), nessun indirizzo dello studio", [], [/\b(?:(?:sk|rk)_(?:test|live)|whsec|re)_[A-Za-z0-9]{16,}/, /eyJ[A-Za-z0-9_-]{20,}/, /Scipioni/i, /[A-Za-z0-9._-]+@[A-Za-z0-9-]+\.(?:it|com|org|net|eu)\b/].filter((re) => re.test(senzaCommenti)).map(String));
   c("nessun `process.env`, nessun `console.*`, nessun import da `@supabase` o dal client di servizio", [], [/process\.env|import\.meta\.env/, /console\./, /@supabase|supabaseAdmin|integrations/].filter((re) => re.test(senzaCommenti)).map(String));
   c("`messaggioInviabile` compare PRIMA di `componi` nel sorgente (e `componi` non è mai chiamato senza)", true, senzaCommenti.indexOf("messaggioInviabile(") > 0 && senzaCommenti.indexOf("messaggioInviabile(") < senzaCommenti.indexOf("componi("));
-  c("l'ordine delle chiamate: modello → inviabile → prenota → invio → esito (nel sorgente)", true, (() => {
-    const pos = ["shop_email_modelli", "messaggioInviabile(", "shop_email_prenota", "p.resend(", "shop_email_esito"].map((s) => senzaCommenti.indexOf(s));
+  c("l'ordine delle chiamate dentro `inviaEmail`: modello → inviabile → componi → prenota → invio → esito", true, (() => {
+    const corpoFn = senzaCommenti.slice(senzaCommenti.indexOf("export async function inviaEmail"));
+    const pos = ["shop_email_modelli", "messaggioInviabile(", "componi(", "shop_email_prenota", "p.resend(", "scriviEsito("].map((x) => corpoFn.indexOf(x));
     return pos.every((x) => x > 0) && pos.every((x, i) => i === 0 || x > pos[i - 1]);
   })());
+  c("dell'ordine non si leggono mai telefono, codice fiscale, P.IVA, IP (nemmeno come colonna)", [], ok.db.registro.filter((q) => q.tab === "shop_orders").flatMap((q) => String(q.cols).split(",").map((x) => x.trim())).filter((x) => /telefono|cf|piva|fattura|ip|user_agent|note/i.test(x)));
   c("nessuna scrittura diretta nel sorgente (`.insert(`, `.update(`, `.upsert(`, `.delete(`): solo `rpc`", [], [/\.insert\(|\.update\(|\.upsert\(|\.delete\(/].filter((re) => re.test(senzaCommenti)).map(String));
   c("`RESEND_FROM` non si usa (resta per gli hook)", false, /RESEND_FROM/.test(senzaCommenti));
 }
