@@ -103,6 +103,7 @@ export const ERRORI_SQL_R2 = {
   rimborso_importo_non_valido: { code: "22023", errcode: "invalid_parameter_value" },
   rimborso_oltre_pagato: { code: "23514", errcode: "check_violation" },
   rimborso_chiave_altro_ordine: { code: "23505", errcode: "unique_violation" }, // T41 (nota f del revisore): la stessa chiave_richiesta su un ALTRO ordine
+  ordine_id_gia_usato: { code: "23505", errcode: "unique_violation" }, // T41 (revisione di sicurezza): l'id esiste già ma la riga NON è la stessa (canale, riferimento, email, totale)
   sessione_di_un_altro_ordine: { code: "23505", errcode: "unique_violation" }, // T41: la stessa sessione Stripe registrata su un ALTRO ordine (prima era un 23505 senza nome)
   limite_non_valido: { code: "22023", errcode: "invalid_parameter_value" },
   tariffa_inesistente: { code: "P0002", errcode: "no_data_found" },
@@ -323,11 +324,18 @@ export function fintoDb({ tabelle = {}, mancante = false, codiceMancante = "42P0
      *    ordine e riservati in UNA transazione; LISTA BIANCA (nota d del revisore su T40, `COLONNE_CREA`): del `p_ordine` si copiano SOLO le colonne
      *    ammesse (contatti, righe, importi, scadenza, impronta della chiave, firma, prova, fattura richiesta), ogni altra chiave si ignora;
      *    forza status='nuovo', stato_pagamento='in_attesa', canale='sito', rimborsato_cent=0, niente pagato_il, e il resto ai default.
-     *    Stesso id due volte → una riga ('esistente'). order_ref unico fra le righe canale='sito' (23505). */
+     *    Stesso id due volte → una riga ('esistente'), ma SOLO se la riga che c'è è la stessa (canale 'sito', stesso order_ref, email e totale_cent): altrimenti errore
+     *    `ordine_id_gia_usato` (23505). order_ref unico fra le righe canale='sito' (23505). */
     shop_ordine_crea: ["S4", (a) => {
       const o = a.p_ordine;
       if (!o || typeof o !== "object" || typeof o.id !== "string" || !o.id) lancia("ordine_non_valido");
-      if (ordineDi(o.id)) return { data: { esito: "esistente", id: o.id } };
+      const gia = ordineDi(o.id);
+      if (gia) {
+        // «esistente» solo se è DAVVERO lo stesso ordine del sito; un ordine vecchio o altrui con quell'id non si spaccia per la creazione appena fatta
+        const stesso = gia.canale === "sito" && gia.order_ref === o.order_ref && gia.email === o.email && gia.totale_cent === o.totale_cent;
+        if (!stesso) lancia("ordine_id_gia_usato");
+        return { data: { esito: "esistente", id: o.id } };
+      }
       const riga = ins("shop_orders", { created_at: adesso(), ...Object.fromEntries(Object.entries(o).filter(([k]) => COLONNE_CREA.includes(k))), status: "nuovo", stato_pagamento: "in_attesa", canale: "sito", pagato_il: null, pagato_importo: null, rimborsato_cent: 0 });
       const { fattura = null, attribuzione = null, consensi = null, ip = null, user_agent = null } = a.p_riservati ?? {};
       ins("shop_ordini_riservati", { ordine_id: riga.id, fattura, attribuzione, consensi, ip, user_agent });

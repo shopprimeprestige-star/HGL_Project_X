@@ -23,10 +23,11 @@
 --   · SENZA M1 la migrazione si ferma con un messaggio chiaro e NON scrive niente (nessuna tabella, nessuna colonna);
 --   · S4 applicata DUE volte; le righe vecchie di `shop_orders` restano identiche (le 28 colonne nuove ai default);
 --     un seme già cambiato non viene riscritto; nessuna policy nuova, nessun trigger;
---   · S4 da sola è INERTE: l'insert esatto del checkout come `anon` passa, un update di `authenticated` passa come oggi;
+--   · S4 da sola è INERTE per il checkout di oggi (l'insert esatto come `anon` passa, un update di `authenticated` sulle colonne di prima passa) e
+--     CHIUSA sulle colonne nuove: anon e authenticated non possono scriverne nessuna (ordini finti «pagati», 42501);
 --   · le 5 tabelle chiuse: RLS accesa e nessuna policy; `anon` e `authenticated` non leggono niente; `service_role` legge ma NON
 --     scrive (UPDATE, INSERT, DELETE, TRUNCATE rifiutati); le funzioni le eseguono solo `service_role` e il proprietario;
---   · gli scenari dei soldi di `prove/negozio/_scenari-soldi.json` (marcatori `-- SCENARIO: nome`, 33 per questo file):
+--   · gli scenari dei soldi di `prove/negozio/_scenari-soldi.json` (marcatori `-- SCENARIO: nome`, 34 per questo file):
 --     pagato due volte, importo e valuta diversi, ultimo pezzo, SKU che non si risolve, sessione sostituita, doppio pagamento,
 --     riprova con due clic, rimborso oltre il pagato, rimessa dai soli movimenti, limite con finestra scaduta senza DELETE, …;
 --   · DUE SESSIONI VERE (dblink) sulle corse che il finto non vede: stesso pagamento consegnato due volte insieme (una
@@ -204,7 +205,7 @@ VALUES ('00000000-0000-4000-8000-0000000a0001', 'HG-VECCHIO', 'Anna', 'Esempio',
 -- (S1 sì, M1 no: manca `pagato_il`.) Il file intero gira su una connessione a parte; ci si aspetta l'errore del controllo iniziale.
 \i :s1
 \set s4testo `cat :s4`
-SELECT pg_temp.uguale('S4 SENZA M1 si ferma col messaggio chiaro (nomina M1 e il suo file)', 't',
+SELECT pg_temp.uguale('S4 SENZA M1 si ferma col messaggio chiaro (nomina M1 e il suo file)', 'true',
   (pg_temp.file_remoto(:'conn', :'s4testo') LIKE 'P0001%M1%20261117120000%')::text);
 SELECT pg_temp.uguale('… e NON ha scritto niente: nessuna tabella nuova, nessuna colonna nuova su shop_orders', '0|0',
   (SELECT count(*) FROM pg_class WHERE relnamespace = 'public'::regnamespace AND relname IN ('shop_ordini_riservati', 'shop_stripe_sessioni', 'shop_stripe_eventi', 'shop_rimborsi', 'shop_limiti'))
@@ -217,7 +218,7 @@ CREATE TEMP TABLE prima_s4 AS SELECT md5(string_agg(to_jsonb(o)::text, '|' ORDER
 \i :s4
 \echo 'ok  S4 applicata due volte senza errori'
 
-SELECT pg_temp.uguale('le righe vecchie di shop_orders sono IDENTICHE (a parte le 28 colonne nuove, ai loro default)', 't',
+SELECT pg_temp.uguale('le righe vecchie di shop_orders sono IDENTICHE (a parte le 28 colonne nuove, ai loro default)', 'true',
   ((SELECT md5(string_agg((to_jsonb(o) - ARRAY['stato_pagamento', 'stripe_sessione_id', 'stripe_pagamento_id', 'metodo_dettaglio', 'prova', 'canale', 'totale_cent', 'rimborsato_cent', 'chiave_pubblica_hash', 'firma_tentativo', 'scade_il', 'riprova_n', 'provincia', 'nazione', 'giacenza_da_verificare', 'giacenza_scalata_il', 'giacenza_rimessa_il', 'spedito_il', 'corriere', 'tracking_url', 'senza_tracking', 'annullo_motivo', 'annullato_il', 'fattura_richiesta', 'fattura_emessa_il', 'fattura_nota', 'email_inviate', 'avvisi'])::text, '|' ORDER BY o.id)) FROM public.shop_orders o)
    = (SELECT impronta FROM prima_s4))::text);
 SELECT pg_temp.uguale('… e le colonne nuove di una riga vecchia valgono i default: prova false, rimborsato_cent 0, riprova_n 0, giacenza_da_verificare false, fattura_richiesta false, email_inviate {}, avvisi [], il resto vuoto',
@@ -236,6 +237,7 @@ SELECT pg_temp.uguale('rilanciando S4 i semi già cambiati restano come li ha me
 UPDATE public.shop_impostazioni SET valore = '"vecchia"' WHERE chiave = 'cassa_sito';
 UPDATE public.shop_impostazioni SET valore = '[]' WHERE chiave = 'metodi_pagamento';
 
+\set nuove '(ARRAY[''stato_pagamento'', ''stripe_sessione_id'', ''stripe_pagamento_id'', ''metodo_dettaglio'', ''prova'', ''canale'', ''totale_cent'', ''rimborsato_cent'', ''chiave_pubblica_hash'', ''firma_tentativo'', ''scade_il'', ''riprova_n'', ''provincia'', ''nazione'', ''giacenza_da_verificare'', ''giacenza_scalata_il'', ''giacenza_rimessa_il'', ''spedito_il'', ''corriere'', ''tracking_url'', ''senza_tracking'', ''annullo_motivo'', ''annullato_il'', ''fattura_richiesta'', ''fattura_emessa_il'', ''fattura_nota'', ''email_inviate'', ''avvisi''])'
 -- ── 3. S4 da sola è INERTE: policy, trigger, comportamento di oggi ────────────
 SELECT pg_temp.uguale('nessuna policy sulle tabelle nuove e le tre di shop_orders (M1) restano com''erano', '0|3',
   (SELECT count(*) FROM pg_policies WHERE schemaname = 'public' AND tablename IN ('shop_ordini_riservati', 'shop_stripe_sessioni', 'shop_stripe_eventi', 'shop_rimborsi', 'shop_limiti'))
@@ -247,7 +249,22 @@ SELECT pg_temp.uguale('l''INSERT ESATTO del checkout di oggi come anon passa', '
     VALUES ('HG-CHECKOUT-OGGI', 'Anna', 'Esempio', 'checkout@example.com', '3330000000', 'Via Prova 1', 'Roma', '00100', NULL, '[{"product_id":"X","qty":1}]', 10, 4.9, 14.9, 'nuovo')$q$));
 SELECT pg_temp.uguale('un update di authenticated su un ordine passa come oggi (S4 non ha stretto niente: lo fa S4b)', 'ok:1',
   pg_temp.come('authenticated', $q$UPDATE public.shop_orders SET note_interne = 'prova', pagato_il = now() WHERE order_ref = 'HG-CHECKOUT-OGGI'$q$));
-SELECT pg_temp.uguale('anon non legge ordini (come oggi) e l''ordine di checkout ha le colonne nuove ai default', '0|f|0',
+-- Le colonne NUOVE non si scrivono dal browser (revisione di sicurezza): senza S4b nessun anonimo può inserire un ordine finto «pagato».
+SELECT pg_temp.uguale('anon NON può inserire un ordine con stato_pagamento «pagato» (colonna nuova): 42501', '42501',
+  pg_temp.come('anon', $q$INSERT INTO public.shop_orders (order_ref, nome, cognome, email, telefono, indirizzo, citta, cap, items, subtotal, shipping, total, status, stato_pagamento)
+    VALUES ('HG-FINTO-1', 'Anna', 'Esempio', 'finto@example.com', '3330000000', 'Via Prova 1', 'Roma', '00100', '[]', 10, 0, 10, 'nuovo', 'pagato')$q$));
+SELECT pg_temp.uguale('… né con canale «sito», totale_cent, prova, avvisi, stripe_pagamento_id, rimborsato_cent, fattura_richiesta (ognuna: 42501)', '42501|42501|42501|42501|42501|42501|42501',
+  (SELECT string_agg(pg_temp.come('anon', format($q$INSERT INTO public.shop_orders (order_ref, nome, cognome, email, telefono, indirizzo, citta, cap, status, %s) VALUES ('HG-FINTO-2', 'A', 'B', 'f@example.com', '1', 'V', 'R', '00100', 'nuovo', %s)$q$, c, v)), '|' ORDER BY n)
+   FROM (VALUES (1, 'canale', quote_literal('sito')), (2, 'totale_cent', '1'), (3, 'prova', 'false'), (4, 'avvisi', quote_literal('[]')), (5, 'stripe_pagamento_id', quote_literal('pi_x')), (6, 'rimborsato_cent', '0'), (7, 'fattura_richiesta', 'true')) x(n, c, v)));
+SELECT pg_temp.uguale('authenticated NON può cambiare dal browser le colonne nuove (stato_pagamento, avvisi, canale, rimborsato_cent): 42501', '42501|42501|42501|42501',
+  pg_temp.come('authenticated', $q$UPDATE public.shop_orders SET stato_pagamento = 'pagato' WHERE order_ref = 'HG-CHECKOUT-OGGI'$q$) || '|' || pg_temp.come('authenticated', $q$UPDATE public.shop_orders SET avvisi = '[]' WHERE order_ref = 'HG-CHECKOUT-OGGI'$q$)
+  || '|' || pg_temp.come('authenticated', $q$UPDATE public.shop_orders SET canale = 'sito' WHERE order_ref = 'HG-CHECKOUT-OGGI'$q$) || '|' || pg_temp.come('authenticated', $q$UPDATE public.shop_orders SET rimborsato_cent = 5 WHERE order_ref = 'HG-CHECKOUT-OGGI'$q$));
+SELECT pg_temp.uguale('i permessi di scrittura del browser sono ESATTAMENTE le colonne di prima: nessuna delle 28 nuove, tutte le altre', '0|0',
+  (SELECT count(*)::text FROM pg_attribute a, unnest(ARRAY['anon', 'authenticated']) r, unnest(ARRAY['INSERT', 'UPDATE']) p
+    WHERE a.attrelid = 'public.shop_orders'::regclass AND a.attnum > 0 AND NOT a.attisdropped AND a.attname = ANY (:nuove) AND has_column_privilege(r, 'public.shop_orders', a.attname, p))
+  || '|' || (SELECT count(*)::text FROM pg_attribute a WHERE a.attrelid = 'public.shop_orders'::regclass AND a.attnum > 0 AND NOT a.attisdropped AND a.attname <> ALL (:nuove)
+      AND NOT (has_column_privilege('anon', 'public.shop_orders', a.attname, 'INSERT') AND has_column_privilege('authenticated', 'public.shop_orders', a.attname, 'INSERT') AND has_column_privilege('authenticated', 'public.shop_orders', a.attname, 'UPDATE'))));
+SELECT pg_temp.uguale('anon non legge ordini (come oggi) e l''ordine di checkout ha le colonne nuove ai default', '0|false|0',
   pg_temp.vede('anon', 'public.shop_orders') || '|' || (SELECT prova::text FROM public.shop_orders WHERE order_ref = 'HG-CHECKOUT-OGGI') || '|' || (SELECT rimborsato_cent::text FROM public.shop_orders WHERE order_ref = 'HG-CHECKOUT-OGGI'));
 
 -- ── 4. Le cinque tabelle chiuse e le dodici funzioni ──────────────────────────
@@ -631,8 +648,9 @@ SELECT pg_temp.uguale('limite_finestra · dieci richieste passano', 'true|true|t
 SELECT pg_temp.uguale('limite_finestra · l''undicesima no', 'false', public.shop_limite_consuma('ordine:impronta-t26', 3600, 10)::text);
 SELECT pg_temp.uguale('limite_finestra · e il conteggio non cresce oltre il massimo', '10', (SELECT conteggio::text FROM public.shop_limiti WHERE chiave = 'ordine:impronta-t26'));
 UPDATE public.shop_limiti SET finestra_inizio = now() - interval '3601 seconds' WHERE chiave = 'ordine:impronta-t26';
-SELECT pg_temp.uguale('limite_finestra · a finestra scaduta si riparte da 1 con la STESSA riga (nessun DELETE)', 'true|1|1',
-  public.shop_limite_consuma('ordine:impronta-t26', 3600, 10)::text || '|' || (SELECT conteggio::text FROM public.shop_limiti WHERE chiave = 'ordine:impronta-t26') || '|' || (SELECT count(*)::text FROM public.shop_limiti WHERE chiave = 'ordine:impronta-t26'));
+SELECT pg_temp.uguale('limite_finestra · a finestra scaduta la richiesta passa', 'true', public.shop_limite_consuma('ordine:impronta-t26', 3600, 10)::text);
+SELECT pg_temp.uguale('limite_finestra · … e si riparte da 1 con la STESSA riga (nessun DELETE)', '1|1',
+  (SELECT conteggio::text FROM public.shop_limiti WHERE chiave = 'ordine:impronta-t26') || '|' || (SELECT count(*)::text FROM public.shop_limiti WHERE chiave = 'ordine:impronta-t26'));
 SELECT pg_temp.uguale('limite_finestra · una chiave diversa ha il suo conto', 'true', public.shop_limite_consuma('altra:impronta-t26', 3600, 10)::text);
 SELECT pg_temp.uguale('limite_finestra · una finestra di zero secondi o un massimo di zero: limite_non_valido', '22023 limite_non_valido|22023 limite_non_valido',
   pg_temp.errore($q$SELECT public.shop_limite_consuma('ordine:impronta-t26', 0, 10)$q$) || '|' || pg_temp.errore($q$SELECT public.shop_limite_consuma('ordine:impronta-t26', 3600, 0)$q$));
@@ -703,6 +721,23 @@ SELECT pg_temp.uguale('crea_lista_bianca · TUTTE le altre sono ignorate e valgo
   pg_temp.col(33, 1, 'status') || '|' || pg_temp.col(33, 1, 'stato_pagamento') || '|' || pg_temp.col(33, 1, 'canale') || '|' || pg_temp.col(33, 1, 'tracking') || '|' || pg_temp.col(33, 1, 'stripe_pagamento_id') || '|' || pg_temp.col(33, 1, 'giacenza_da_verificare')
   || '|' || pg_temp.col(33, 1, 'riprova_n') || '|' || pg_temp.col(33, 1, 'jsonb_array_length(avvisi)') || '|' || pg_temp.col(33, 1, 'stripe_sessione_id') || '|' || pg_temp.col(33, 1, 'pagato_importo') || '|' || pg_temp.col(33, 1, 'metodo_pagamento') || '|' || pg_temp.col(33, 1, 'note_interne') || '|' || pg_temp.col(33, 1, 'spedito_il'));
 SELECT pg_temp.uguale('crea_lista_bianca · email_inviate resta vuoto e annullo_motivo vuoto', '{}|', pg_temp.col(33, 1, 'email_inviate') || '|' || pg_temp.col(33, 1, 'annullo_motivo'));
+
+-- SCENARIO: crea_id_di_altri
+SELECT pg_temp.mondo(35, 5);
+-- una riga che NON è del sito (canale vuoto), con l'id che la cassa proverà a usare
+INSERT INTO public.shop_orders (id, order_ref, nome, cognome, email, telefono, indirizzo, citta, cap, status, totale_cent)
+VALUES (pg_temp.oid(35, 1), 'HG-T351', 'Anna', 'Esempio', 'cliente0@example.com', '3330000000', 'Via Prova 1', 'Roma', '00100', 'consegnato', 2890);
+SELECT pg_temp.ordine(35, 2);
+SELECT pg_temp.uguale('crea_id_di_altri · l''id è di una riga che NON è del sito: errore (non «esistente»), anche con riferimento, email e totale uguali', '23505 ordine_id_gia_usato',
+  pg_temp.errore(format($q$SELECT public.shop_ordine_crea(jsonb_build_object('id', %L, 'order_ref', 'HG-T351', 'nome', 'Anna', 'cognome', 'Esempio', 'email', 'cliente0@example.com', 'telefono', '3330000000', 'indirizzo', 'Via Prova 1', 'citta', 'Roma', 'cap', '00100', 'totale_cent', 2890), '{}'::jsonb)$q$, pg_temp.oid(35, 1))));
+SELECT pg_temp.uguale('crea_id_di_altri · l''id è di un ordine del sito ma con un''email diversa: errore', '23505 ordine_id_gia_usato',
+  pg_temp.errore(format($q$SELECT public.shop_ordine_crea(jsonb_build_object('id', %L, 'order_ref', 'HG-T352', 'nome', 'Anna', 'cognome', 'Esempio', 'email', 'altro@example.com', 'telefono', '3330000000', 'indirizzo', 'Via Prova 1', 'citta', 'Roma', 'cap', '00100', 'totale_cent', 2890), '{}'::jsonb)$q$, pg_temp.oid(35, 2))));
+SELECT pg_temp.uguale('crea_id_di_altri · … o con un totale diverso: errore', '23505 ordine_id_gia_usato',
+  pg_temp.errore(format($q$SELECT public.shop_ordine_crea(jsonb_build_object('id', %L, 'order_ref', 'HG-T352', 'nome', 'Anna', 'cognome', 'Esempio', 'email', 'cliente@example.com', 'telefono', '3330000000', 'indirizzo', 'Via Prova 1', 'citta', 'Roma', 'cap', '00100', 'totale_cent', 3000), '{}'::jsonb)$q$, pg_temp.oid(35, 2))));
+SELECT pg_temp.uguale('crea_id_di_altri · lo stesso ordine del sito (stesso riferimento, email e totale): esistente', 'esistente',
+  pg_temp.j(public.shop_ordine_crea(jsonb_build_object('id', pg_temp.oid(35, 2), 'order_ref', 'HG-T352', 'nome', 'Anna', 'cognome', 'Esempio', 'email', 'cliente@example.com', 'telefono', '3330000000', 'indirizzo', 'Via Prova 1', 'citta', 'Roma', 'cap', '00100', 'totale_cent', 2890), '{}'::jsonb), 'esito'));
+SELECT pg_temp.uguale('crea_id_di_altri · la riga vecchia è rimasta com''era (canale vuoto, consegnato, nessun riservato)', '|consegnato|0',
+  pg_temp.col(35, 1, 'canale') || '|' || pg_temp.col(35, 1, 'status') || '|' || (SELECT count(*)::text FROM public.shop_ordini_riservati WHERE ordine_id = pg_temp.oid(35, 1)));
 
 -- SCENARIO: rimborso_chiave_altro_ordine
 SELECT pg_temp.mondo(34, 5);

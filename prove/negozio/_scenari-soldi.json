@@ -485,6 +485,21 @@
       ]
     },
     {
+      "nome": "crea_id_di_altri", "file": "shop-pagamenti.sql",
+      "descrizione": "Revisione di sicurezza su T41: se l'id esiste già ma la riga NON è la stessa (non è del sito, o il riferimento, l'email o il totale sono diversi) shop_ordine_crea non dice «esistente»: errore, e niente cambia. Così un ordine vecchio o altrui non si spaccia per la creazione appena fatta.",
+      "partenza": {"varianti":[{"sku":"PROVA-V1","giacenza":5,"prezzo_cent":2890}],"ordini":[{"id":"00000000-0000-4000-8000-000000006001","ref":"HG-S001","totale_cent":2890,"righe":[{"sku":"PROVA-V1","qty":1,"prezzo_cent":2890}],"sessioni":["cs_test_a"],"campi":{"canale":null}},{"id":"00000000-0000-4000-8000-000000006002","ref":"HG-S002","totale_cent":2890,"righe":[{"sku":"PROVA-V1","qty":1,"prezzo_cent":2890}],"sessioni":["cs_test_b"]}]},
+      "passi": [
+        {"rpc":"shop_ordine_crea","args":{"p_ordine":{"id":"00000000-0000-4000-8000-000000006001","order_ref":"HG-S001","nome":"Anna","cognome":"Esempio","email":"cliente0@example.com","telefono":"3330000000","indirizzo":"Via Prova 1","citta":"Roma","cap":"00100","totale_cent":2890},"p_riservati":{}},"errore":"ordine_id_gia_usato"},
+        {"rpc":"shop_ordine_crea","args":{"p_ordine":{"id":"00000000-0000-4000-8000-000000006002","order_ref":"HG-S002","nome":"Anna","cognome":"Esempio","email":"altro@example.com","telefono":"3330000000","indirizzo":"Via Prova 1","citta":"Roma","cap":"00100","totale_cent":2890},"p_riservati":{}},"errore":"ordine_id_gia_usato"},
+        {"rpc":"shop_ordine_crea","args":{"p_ordine":{"id":"00000000-0000-4000-8000-000000006002","order_ref":"HG-S002","nome":"Anna","cognome":"Esempio","email":"cliente0@example.com","telefono":"3330000000","indirizzo":"Via Prova 1","citta":"Roma","cap":"00100","totale_cent":3000},"p_riservati":{}},"errore":"ordine_id_gia_usato"},
+        {"rpc":"shop_ordine_crea","args":{"p_ordine":{"id":"00000000-0000-4000-8000-000000006002","order_ref":"HG-S002","nome":"Anna","cognome":"Esempio","email":"cliente0@example.com","telefono":"3330000000","indirizzo":"Via Prova 1","citta":"Roma","cap":"00100","totale_cent":2890},"p_riservati":{}},"atteso":{"esito":"esistente","id":"00000000-0000-4000-8000-000000006002"}}
+      ],
+      "controlli": [
+        {"tabella":"shop_orders","dove":{"id":"00000000-0000-4000-8000-000000006001"},"atteso":{"canale":null}},
+        {"tabella":"shop_orders","dove":{},"conta":2}
+      ]
+    },
+    {
       "nome": "tariffa_due_attive", "file": "shop-spedizioni.sql",
       "descrizione": "Una sola tariffa attiva per Italia: una seconda attiva fallisce (23505); una spenta è ammessa.",
       "partenza": {"tariffe":[{"id":"00000000-0000-4000-8000-000000008001","paese":"IT","nome":"Spedizione tracciata in Italia","corriere":null,"costo_cent":490,"gratis_da_cent":null,"giorni_min":null,"giorni_max":null,"attiva":true,"provvisoria":true,"confermata_il":null,"creato_il":"2026-11-20T10:00:00.000Z","aggiornato_il":"2026-11-20T10:00:00.000Z"}]},

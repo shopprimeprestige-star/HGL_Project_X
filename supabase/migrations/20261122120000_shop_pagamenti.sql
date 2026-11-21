@@ -18,6 +18,10 @@
 --      la sessione Stripe corrente, il totale in centesimi, i rimborsi, la
 --      scadenza, la giacenza da verificare, la spedizione, l'annullo, la fattura
 --      richiesta, le email inviate, gli avvisi. Nessuna è NOT NULL.
+--   1b. Toglie ad anon e authenticated il permesso di SCRIVERE le 28 colonne nuove (REVOKE INSERT, UPDATE su shop_orders e GRANT di
+--      INSERT e UPDATE sulle sole colonne che c'erano prima). Il checkout di oggi e ciò che fa un account autenticato oggi restano identici;
+--      ma finché non c'è S4b nessun browser può scrivere stato_pagamento, canale, totale_cent, stripe_*… (ordini finti «pagati»).
+--      Nessuna policy cambia. Se un domani servisse tornare indietro: GRANT INSERT, UPDATE ON public.shop_orders TO anon, authenticated.
 --   2. Crea tre indici su shop_orders: la sessione corrente (unica), il riferimento
 --      d'ordine (unico SOLO per gli ordini del sito: nessun ordine vecchio ha il
 --      canale, quindi non può fallire) e lo stato di pagamento.
@@ -47,12 +51,12 @@
 --   6. Chiede a PostgREST di ricaricare lo schema.
 --
 -- COSA NON FA
---   · NON contiene il trigger di protezione di shop_orders: sta in S4b. Per questo
---     S4 DA SOLA È INERTE: il checkout di oggi continua a inserire ordini come prima
+--   · NON contiene il trigger di protezione di shop_orders (la lista bianca sulle colonne VECCHIE e il blocco dell'insert anonimo con
+--     cassa Stripe attiva): sta in S4b. Per questo S4 DA SOLA È INERTE: il checkout di oggi continua a inserire ordini come prima
 --     e un account autenticato continua a poter fare ciò che fa oggi (finché non
 --     c'è S4b, e poi M2).
---   · Non cambia nessuna policy e nessun permesso su shop_orders, né su nessuna
---     tabella già esistente. Nessuna riga esistente viene riscritta: niente UPDATE
+--   · Non cambia nessuna policy su shop_orders né su nessuna tabella già esistente, e nessun permesso di LETTURA; i permessi di
+--     scrittura del browser su shop_orders restano gli stessi per le colonne di prima (vedi 1b) e non coprono le colonne nuove. Nessuna riga esistente viene riscritta: niente UPDATE
 --     fuori dalle funzioni, e dentro le funzioni solo sulle tabelle del Rilascio 2
 --     e su shop_orders.
 --   · NESSUN DELETE, DROP o TRUNCATE in nessun punto del file, funzioni comprese
@@ -134,6 +138,29 @@ ALTER TABLE public.shop_orders
   ADD COLUMN IF NOT EXISTS fattura_nota text,
   ADD COLUMN IF NOT EXISTS email_inviate jsonb DEFAULT '{}'::jsonb,
   ADD COLUMN IF NOT EXISTS avvisi jsonb DEFAULT '[]'::jsonb;
+
+-- ── 1b. Le colonne nuove NON si scrivono dal browser (revisione di sicurezza) ──
+-- Finché non c'è S4b (il trigger), la policy di inserimento stretta di M1 non guarda le colonne nuove: un anonimo potrebbe inserire un ordine
+-- «pagato» (stato_pagamento, canale, totale_cent, stripe_*, avvisi, …) e un account del CRM cambiarne lo stato. Quindi qui si tolgono ad anon e
+-- authenticated i permessi di INSERT e UPDATE su shop_orders e si ridanno SOLO sulle colonne che c'erano PRIMA di S4 (M1 compresa): il checkout di
+-- oggi e ciò che un account autenticato può fare oggi restano IDENTICI; le 28 colonne nuove le scrive solo il server (service_role e funzioni).
+-- Così `canale = 'sito'` e `stato_pagamento` su una riga sono affidabili: li mette solo shop_ordine_crea. (Una colonna aggiunta in futuro a shop_orders
+-- nasce senza permessi di scrittura per il browser: va chiesta apposta.) Rilanciabile: il calcolo delle colonne è rifatto ogni volta.
+REVOKE INSERT, UPDATE ON TABLE public.shop_orders FROM anon, authenticated;
+DO $$
+DECLARE
+  v_colonne text;
+BEGIN
+  SELECT string_agg(quote_ident(attname), ', ' ORDER BY attnum) INTO v_colonne
+    FROM pg_attribute
+   WHERE attrelid = 'public.shop_orders'::regclass AND attnum > 0 AND NOT attisdropped
+     AND attname <> ALL (ARRAY['stato_pagamento', 'stripe_sessione_id', 'stripe_pagamento_id', 'metodo_dettaglio', 'prova', 'canale', 'totale_cent', 'rimborsato_cent',
+       'chiave_pubblica_hash', 'firma_tentativo', 'scade_il', 'riprova_n', 'provincia', 'nazione', 'giacenza_da_verificare', 'giacenza_scalata_il', 'giacenza_rimessa_il',
+       'spedito_il', 'corriere', 'tracking_url', 'senza_tracking', 'annullo_motivo', 'annullato_il', 'fattura_richiesta', 'fattura_emessa_il', 'fattura_nota',
+       'email_inviate', 'avvisi']);
+  EXECUTE format('GRANT INSERT (%s), UPDATE (%s) ON TABLE public.shop_orders TO anon, authenticated', v_colonne, v_colonne);
+END
+$$;
 
 -- ── 2. Gli indici ─────────────────────────────────────────────────────────────
 -- La sessione corrente è di UN solo ordine. Il riferimento d'ordine è unico solo per gli ordini del sito
@@ -271,10 +298,7 @@ BEGIN
     RAISE EXCEPTION 'ordine_non_valido' USING ERRCODE = 'invalid_parameter_value';
   END;
 
-  IF EXISTS (SELECT 1 FROM public.shop_orders WHERE id = v_id) THEN
-    RETURN jsonb_build_object('esito', 'esistente', 'id', v_id);
-  END IF;
-
+  IF NOT EXISTS (SELECT 1 FROM public.shop_orders WHERE id = v_id) THEN
   INSERT INTO public.shop_orders (
     id, order_ref, nome, cognome, email, telefono, indirizzo, citta, cap, provincia, nazione, note, items,
     subtotal, shipping, total, totale_cent, scade_il, chiave_pubblica_hash, firma_tentativo, prova, fattura_richiesta,
@@ -290,19 +314,28 @@ BEGIN
   )
   ON CONFLICT (id) DO NOTHING;
   GET DIAGNOSTICS v_righe = ROW_COUNT;
-  IF v_righe = 0 THEN
-    -- un'altra richiesta con lo stesso id ha vinto la corsa un attimo fa
-    RETURN jsonb_build_object('esito', 'esistente', 'id', v_id);
+  IF v_righe = 1 THEN
+    INSERT INTO public.shop_ordini_riservati (ordine_id, fattura, attribuzione, consensi, ip, user_agent)
+    VALUES (
+      v_id,
+      NULLIF(p_riservati -> 'fattura', 'null'::jsonb), NULLIF(p_riservati -> 'attribuzione', 'null'::jsonb), NULLIF(p_riservati -> 'consensi', 'null'::jsonb),
+      p_riservati ->> 'ip', p_riservati ->> 'user_agent'
+    );
+    PERFORM public.shop_s4_evento(v_id, 'creato', 'cassa', NULL, NULL);
+    RETURN jsonb_build_object('esito', 'creato', 'id', v_id);
+  END IF;
   END IF;
 
-  INSERT INTO public.shop_ordini_riservati (ordine_id, fattura, attribuzione, consensi, ip, user_agent)
-  VALUES (
-    v_id,
-    NULLIF(p_riservati -> 'fattura', 'null'::jsonb), NULLIF(p_riservati -> 'attribuzione', 'null'::jsonb), NULLIF(p_riservati -> 'consensi', 'null'::jsonb),
-    p_riservati ->> 'ip', p_riservati ->> 'user_agent'
-  );
-  PERFORM public.shop_s4_evento(v_id, 'creato', 'cassa', NULL, NULL);
-  RETURN jsonb_build_object('esito', 'creato', 'id', v_id);
+  -- L'id c'era già (prima, o per una corsa con un'altra richiesta uguale): «esistente» SOLO se è davvero lo stesso ordine del sito
+  -- (canale «sito», stesso riferimento, stessa email, stesso totale). Una riga vecchia o altrui con quell'id non si spaccia per la creazione appena fatta.
+  IF EXISTS (
+    SELECT 1 FROM public.shop_orders
+     WHERE id = v_id AND canale = 'sito' AND order_ref IS NOT DISTINCT FROM (p_ordine ->> 'order_ref')
+       AND email IS NOT DISTINCT FROM (p_ordine ->> 'email') AND totale_cent IS NOT DISTINCT FROM (p_ordine ->> 'totale_cent')::integer
+  ) THEN
+    RETURN jsonb_build_object('esito', 'esistente', 'id', v_id);
+  END IF;
+  RAISE EXCEPTION 'ordine_id_gia_usato' USING ERRCODE = 'unique_violation';
 END
 $$;
 

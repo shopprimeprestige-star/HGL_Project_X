@@ -175,7 +175,17 @@ export async function prove(mod, { c, gruppo, radice }) {
     dichiarate.filter((n) => !stmt.some((s) => new RegExp(`^REVOKE ALL ON FUNCTION public\\.${n}\\([^)]*\\) FROM PUBLIC, anon, authenticated$`).test(s))),
     dichiarate.filter((n) => !stmt.some((s) => new RegExp(`^GRANT EXECUTE ON FUNCTION public\\.${n}\\([^)]*\\) TO service_role$`).test(s))),
   ]);
-  c("nessun GRANT ad anon o authenticated, da nessuna parte", 0, (sql.match(/GRANT[^;]*\bTO\b[^;]*\b(anon|authenticated|PUBLIC)\b/gi) || []).length);
+  const grantBrowser = (sql.match(/GRANT[^;]*\bTO\b[^;]*\b(anon|authenticated|PUBLIC)\b/gi) || []).map(piatto);
+  c("nessun GRANT ad anon o authenticated, tranne UNO: INSERT/UPDATE di COLONNA su shop_orders (le sole colonne di prima), fatto con EXECUTE format dentro un blocco DO", [1, true], [
+    grantBrowser.length, /^GRANT INSERT \(%s\), UPDATE \(%s\) ON TABLE public\.shop_orders TO anon, authenticated$/.test(grantBrowser[0] ?? ""),
+  ]);
+  const doColonne = corpi.find((b) => /GRANT INSERT \(%s\)/.test(b)) ?? "";
+  const escluse = [...(/attname <> ALL \(ARRAY\[([^\]]*)\]\)/.exec(doColonne)?.[1] ?? "").matchAll(/'([a-z_]+)'/g)].map((m) => m[1]);
+  c("revisione di sicurezza: prima del GRANT di colonna c'è `REVOKE INSERT, UPDATE ON TABLE public.shop_orders FROM anon, authenticated`; il GRANT esclude ESATTAMENTE le 28 colonne nuove (quelle del finto)", [true, [], []], [
+    stmt.indexOf("REVOKE INSERT, UPDATE ON TABLE public.shop_orders FROM anon, authenticated") >= 0 && stmt.indexOf("REVOKE INSERT, UPDATE ON TABLE public.shop_orders FROM anon, authenticated") < stmt.findIndex((s, i) => /^DO \$\$…\$\$$/.test(s) && i > controllo),
+    Object.keys(COLONNE_S4).filter((k) => !escluse.includes(k)), escluse.filter((k) => !(k in COLONNE_S4)),
+  ]);
+  c("… e il blocco DO non tocca altro (nessun INSERT, UPDATE, CREATE; il solo GRANT è quello di colonna)", false, /\b(INSERT INTO|UPDATE\s+\w|CREATE|ALTER)\b/i.test(doColonne));
 
   /* ── blocco di riga, sotto-blocchi, un solo punto che paga ── */
   c("le funzioni che toccano un ordine lo prendono con `SELECT … FOR UPDATE` su shop_orders (D44: stato letto sotto blocco)", [], CON_BLOCCO.filter((n) => !/FROM public\.shop_orders[^;]*FOR UPDATE/.test(corpoDi(n)?.[2] ?? "")));
@@ -209,6 +219,10 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("shop_ordine_crea scrive l'ordine e i riservati nella stessa funzione e rilegge l'id prima (due volte lo stesso id → 'esistente')", [true, true, true], [
     /INSERT INTO public\.shop_ordini_riservati/.test(crea), /'esistente'/.test(crea), /ON CONFLICT \(id\) DO NOTHING/.test(crea),
   ]);
+  c("shop_ordine_crea (revisione di sicurezza): «esistente» solo se la riga è la STESSA (canale 'sito', order_ref, email, totale_cent); altrimenti ordine_id_gia_usato", [true, true, true, true, true], [
+    /canale = 'sito'/.test(crea), /order_ref IS NOT DISTINCT FROM/.test(crea), /email IS NOT DISTINCT FROM/.test(crea), /totale_cent IS NOT DISTINCT FROM/.test(crea),
+    /RAISE EXCEPTION 'ordine_id_gia_usato' USING ERRCODE = 'unique_violation'/.test(crea),
+  ]);
   const prenota = corpoDi("shop_rimborso_prenota")?.[2] ?? "";
   c("shop_rimborso_prenota: massimo = pagato − (richiesto + riuscito) sotto blocco, e la chiave già usata da un ALTRO ordine è rifiutata (nota f)", [true, true, true], [
     /stato IN \('richiesto', 'riuscito'\)/.test(prenota), /rimborso_oltre_pagato/.test(prenota), /rimborso_chiave_altro_ordine/.test(prenota),
@@ -227,6 +241,6 @@ export async function prove(mod, { c, gruppo, radice }) {
   const raise = corpi.flatMap((b) => [...b.matchAll(/RAISE EXCEPTION '([a-z_]+)' USING ERRCODE = '([a-z_]+)'/g)].map((m) => [m[1], m[2]]));
   c("ogni RAISE EXCEPTION dei corpi usa un nome del finto e lo stesso ERRCODE (tranne il controllo iniziale, che ha una frase)", [], raise.filter(([n, e]) => !noti[n] || noti[n].errcode !== e));
   const usati = new Set(raise.map(([n]) => n));
-  c("gli errori del contratto per S4 ci sono tutti (non ne manca uno)", [], ["ordine_non_trovato", "ordine_non_valido", "parametro_non_valido", "ordine_non_riapribile", "ordine_non_pagato", "stato_non_valido", "rimborso_importo_non_valido", "rimborso_oltre_pagato", "rimborso_chiave_altro_ordine", "sessione_di_un_altro_ordine", "limite_non_valido"].filter((n) => !usati.has(n)));
+  c("gli errori del contratto per S4 ci sono tutti (non ne manca uno)", [], ["ordine_non_trovato", "ordine_non_valido", "parametro_non_valido", "ordine_non_riapribile", "ordine_non_pagato", "stato_non_valido", "rimborso_importo_non_valido", "rimborso_oltre_pagato", "rimborso_chiave_altro_ordine", "sessione_di_un_altro_ordine", "ordine_id_gia_usato", "limite_non_valido"].filter((n) => !usati.has(n)));
   c("la frase del controllo iniziale NON contiene parole che i controlli «mai DELETE/DROP» possano scambiare per comandi (la prova sopra ha già letto tutto il file)", true, !/\b(DELETE|DROP|TRUNCATE)\b/i.test(tuttoPiatto));
 }
