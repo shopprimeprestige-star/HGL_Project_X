@@ -324,6 +324,40 @@ export async function prove(mod, { c, gruppo, radice }) {
   const senzaChiave = await I.resendConFetch("", async () => { throw new Error("non si deve chiamare"); })({ from: MITTENTE, to: ["a@example.com"], subject: "S", text: "T", html: "H", reply_to: MITTENTE });
   c("Resend: chiave assente → `{ ok:false, codice:\"non_configurata\" }`, nessuna chiamata di rete", [false, "non_configurata"], [senzaChiave.ok, senzaChiave.codice]);
 
+  // ── ordine annullato: la conferma non parte mai, né da sola né a mano (decisione del capo progetto, rifinitura R3c) ──
+  const annullato = (campi = {}) => ordine({ status: "annullato", ...campi });
+  for (const [nome, ordini] of [["annullato", [annullato()]], ["annullato ma già pagato (pagato_dopo_annullo)", [annullato({ stato_pagamento: "pagato", pagato_il: INIZIO })]]]) {
+    for (const manuale of [false, true]) {
+      const m = mondo({ ordini });
+      const r = await invia(m, "conferma_ordine", { manuale });
+      c(`ordine ${nome}: la conferma è «saltata» con il motivo «ordine_annullato» (manuale:${manuale})`, ["saltata", "ordine_annullato"], [r.stato, r.codice]);
+      c(`…nessuna chiamata a Resend, nessuna prenotazione, nessuna scrittura (manuale:${manuale})`, [0, [], []], [m.resend.length, rpcDi(m), scrittureDirette(m)]);
+      c(`…e l'ordine non porta traccia dell'email (manuale:${manuale})`, {}, m.riga().email_inviate ?? {});
+    }
+  }
+  for (const chiave of ["annullato", "spedito", "rimborso", "pagamento_non_riuscito"]) {
+    const m = mondo({ ordini: [annullato()] });
+    const r = await invia(m, chiave, { manuale: false });
+    c(`ordine annullato: l'email «${chiave}» resta com'è, parte`, ["inviata", 1], [r.stato, m.resend.length]);
+  }
+  for (const status of ["nuovo", "in_preparazione", "spedito", "consegnato"]) {
+    const m = mondo({ ordini: [ordine({ status })] });
+    c(`ordine «${status}»: la conferma parte come prima`, ["inviata", 1], await invia(m).then((r) => [r.stato, m.resend.length]));
+  }
+  const annMan = mondo({ ordini: [annullato()] });
+  const porteAnn = I.creaPorteEmail(annMan.p);
+  const RS = mod["ecommerce/rimborsi.server"];
+  c("il modulo src/crm/ecommerce/rimborsi.server.ts esiste (per le prove dell'invio dal CRM)", true, !!RS);
+  if (RS) {
+    const log = [];
+    const pe = { db: annMan.db, email: porteAnn, adesso: () => new Date(INIZIO), log: (x) => log.push(x) };
+    const auto = await RS.inviaAutomatica(pe, "conferma_ordine", ID);
+    c("invio automatico dal CRM su ordine annullato: stato «saltata», mai un errore, nessun invio", ["saltata", 0], [auto.stato, annMan.resend.length]);
+    const mano = await RS.eseguiEffetto(pe, { tipo: "email", chiave: "conferma_ordine", manuale: true }, { id: ID }, "titolare");
+    c("«Invia ora» dal CRM su ordine annullato: esito «non_riuscito» con una frase e una risposta 4xx, NON un 500; nessun invio", ["non_riuscito", true, true, 0], [mano.esito, typeof mano.frase === "string" && mano.frase.length > 0, mano.http >= 400 && mano.http < 500, annMan.resend.length]);
+    c("…nessun errore nel log (non è un guasto)", [], log);
+  }
+
   // ── i sorgenti ──
   const sorgente = readFileSync(join(radice, "src/shop/email/invio.server.ts"), "utf8");
   const senzaCommenti = sorgente.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");

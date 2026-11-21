@@ -47,7 +47,8 @@ export type EmailComposta = { oggetto: string; testo: string; html: string };
 /** Come finisce un tentativo di invio (lo scrive T54 in `email_inviate`: `inviata` ed `errore` sono gli unici due stati del database). */
 export type StatoInvio =
   | "inviata" | "errore" | "in_corso" | "spenta" | "non_approvata" | "segnaposto" | "vuota" | "variabile_sconosciuta"
-  | "non_configurata" | "senza_email" | "migrazione";
+  | "non_configurata" | "senza_email" | "migrazione" | "saltata";
+/** `saltata` = non si manda per scelta, non è un guasto; il perché sta in `codice` (oggi solo `ordine_annullato`: la conferma su un ordine annullato). */
 export type EsitoInvio = { stato: StatoInvio; codice?: string };
 
 /** Le porte per chi manda l'email (il webhook di pagamento e il CRM): una sola, con `manuale` per «invia ora». Mai un'eccezione verso chi chiama. */

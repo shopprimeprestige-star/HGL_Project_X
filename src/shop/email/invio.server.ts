@@ -10,6 +10,8 @@
  *   · mittente «Hair Genius Labs» + indirizzo da `SHOP_EMAIL_INDIRIZZO` (porta `mittente()`), `reply_to` lo stesso: nessuna
  *     chiave e nessun indirizzo scritto qui; `RESEND_FROM` resta per gli avvisi interni;
  *   · il link dell'ordine porta la chiave RICALCOLATA da `chiaveOrdine` (D48): è quella che accetta la pagina ordine;
+ *   · su un ordine `annullato` la `conferma_ordine` non parte mai, nemmeno con `manuale:true`: esito `saltata` (codice `ordine_annullato`),
+ *     prima di prenotare; le altre email non cambiano;
  *   · mai un'eccezione verso chi chiama: ogni guasto è uno stato; nel log solo CODICI (mai email, nome, riferimento o chiave);
  *   · dell'ordine si leggono solo le colonne che servono al testo: mai telefono, codice fiscale, P.IVA (stanno in
  *     `shop_ordini_riservati`, che qui non si legge); l'indirizzo di spedizione del CLIENTE esce solo nella conferma;
@@ -57,7 +59,7 @@ export interface PorteInvio {
 }
 
 const COLONNE_ORDINE =
-  "id, order_ref, nome, cognome, email, indirizzo, citta, cap, provincia, nazione, items, total, totale_cent, corriere, tracking, tracking_url, email_inviate";
+  "id, order_ref, status, nome, cognome, email, indirizzo, citta, cap, provincia, nazione, items, total, totale_cent, corriere, tracking, tracking_url, email_inviate";
 /** Un solo indirizzo semplice: niente spazi, a capo, virgole, `<`, `>`, virgolette (non si inietta nell'intestazione). */
 const EMAIL = /^[^\s@<>,;"()]+@[^\s@<>,;"()]+\.[^\s@<>,;"()]+$/;
 const SITO = /^https:\/\/[^\s/?#]+$/;
@@ -244,6 +246,9 @@ export async function inviaEmail(
     if (ro.error) return guasto({ ...p, log }, "ordine", ro.error);
     const ordine = righe(ro.data)[0];
     if (!ordine) return { stato: "errore", codice: "ordine_non_trovato" };
+    // Su un ordine annullato la conferma non parte mai (da sola o con «Invia ora»): non è un errore, è «saltata». Le altre email restano com'erano.
+    if (chiave === "conferma_ordine" && ordine.status === "annullato")
+      return { stato: "saltata", codice: "ordine_annullato" };
     const a = testo(ordine.email);
     if (!EMAIL.test(a)) return { stato: "senza_email" };
 
