@@ -35,12 +35,12 @@
  *  · Gli effetti (rimborso, magazzino, sessione, «Controlla con Stripe», email) li esegue `rimborsi.server.ts` DOPO la scrittura dell'ordine (che ha la sua condizione sul valore visto: se
  *    un collega l'ha cambiato, 409 e nessun effetto). Un effetto che non riesce non annulla l'ordine già scritto: la risposta lo dice, voce per voce.
  *  · Con S4 assente (`stato_pagamento` non c'è nella riga) le azioni nuove rispondono 409 «migrazione» col nome del file.
- *  · La riattivazione `annullato → nuovo` ricontrolla i rimborsi nel database DOPO la scrittura: se nel frattempo ne è nato uno (o non si riesce a leggere), l'ordine TORNA annullato e risponde 409.
- *    shortcut: senza una funzione SQL sotto blocco la corsa resta possibile per pochi millisecondi (la funzione `shop_ordine_riattiva` sarebbe la chiusura vera: chiederla all'architetto). */
+ *  · La riattivazione `annullato → nuovo` passa da `shop_ordine_riattiva` (S4, T53b): il controllo dei rimborsi e la scrittura stanno nella stessa transazione, sotto blocco, e lo storico lo
+ *    scrive la funzione (la rotta non lo scrive una seconda volta). Il controllo puro di `azioni.ts` resta come prima cintura. Esiti: `riattivato` → 200, `cambiato` e `rimborso_attivo` → 409;
+ *    una funzione che non risponde o risponde in un modo che non conosciamo → errore, e l'ordine resta annullato (si fallisce chiuso). */
 import { costruisciAzione, eUuid, type ContestoAzione, type Effetto, type EsitoAzione, type MotivoErrore } from "./azioni";
 import { MAX_ORDINI_LETTI, normalizzaOrdine, normalizzaTutti, type Ordine } from "./ordine";
 import { statoPagamentoDi } from "./pagamento";
-import { haRimborsoAttivo, rimborsiLeggibili } from "./rimborso";
 import { avvisiOrdine } from "./ordini-ui";
 import { eseguiEffetto, inviaAutomatica, leggiRimborsi, type EsitoEffetto, type PortaStripe, type PorteEffetti } from "./rimborsi.server";
 import type { PorteEmail } from "../../shop/email/tipi";
@@ -480,6 +480,23 @@ async function leggiCorrieri(d: DipendenzeOrdini): Promise<unknown> {
   return r ?? undefined;
 }
 
+/** `annullato → nuovo` con `shop_ordine_riattiva`. Qualunque cosa non sia `riattivato` è un rifiuto e l'ordine resta annullato (si fallisce chiuso). */
+async function riattivaOrdine(d: DipendenzeOrdini, ordineId: string, motivo: string, chi: string): Promise<void> {
+  const r = await d.db.rpc("shop_ordine_riattiva", { p_ordine: ordineId, p_motivo: motivo, p_chi: chi });
+  const FRASE_RIMBORSO = "L'ordine ha un rimborso richiesto o riuscito: non si può riattivare.";
+  if (r.error) {
+    d.log(`riattiva ${codiceDi(r.error)}`); // mai il messaggio: lo si confronta soltanto col nome dell'errore che conosciamo
+    if (r.error.message === "rimborso_attivo") throw rifiuta("conflitto", 409, FRASE_RIMBORSO);
+    throw rifiuta("interno", 502, "Non sono riuscito a riattivare l'ordine: è rimasto annullato. Riprova tra un momento.");
+  }
+  const esito = eOggetto(r.data) ? r.data.esito : null;
+  if (esito === "riattivato") return;
+  if (esito === "cambiato") throw CONFLITTO();
+  if (esito === "rimborso_attivo") throw rifiuta("conflitto", 409, FRASE_RIMBORSO);
+  d.log("riattiva esito");
+  throw rifiuta("interno", 502, "Non sono riuscito a riattivare l'ordine: è rimasto annullato. Riprova tra un momento.");
+}
+
 /** Il pagamento dell'ordine è stato incassato (anche se poi rimborsato): da qui l'annullo avvisa il cliente. */
 const incassato = (o: Ordine): boolean => ["pagato", "rimborsato_in_parte", "rimborsato"].includes(statoPagamentoDi(o));
 
@@ -539,7 +556,10 @@ export async function gestisciPOST(request: Request, d: DipendenzeOrdini): Promi
 
     let rigaOra = riga;
     const scrive = Object.keys(esito.patch).length > 0; // rimborso, riconcilia, email_invia non scrivono l'ordine: lo fanno le funzioni SQL
-    if (scrive && (await aggiorna(d, ordine.id, esito.patch, esito.condizioni)) === 0) {
+    // `annullato → nuovo`: la scrittura, il controllo dei rimborsi e lo storico li fa `shop_ordine_riattiva` in una transazione (nessun `update` diretto, nessun ripristino)
+    const riattiva = corpo.azione === "correggi_stato" && ordine.stato === "annullato";
+    if (riattiva) await riattivaOrdine(d, ordine.id, String(esito.evento.dopo.motivo ?? ""), chi);
+    else if (scrive && (await aggiorna(d, ordine.id, esito.patch, esito.condizioni)) === 0) {
       // 0 righe: o l'ha cambiato un altro, o il testo in tabella ha spazi ai bordi e la condizione tagliata non combacia.
       // Si rilegge UNA volta: se è davvero cambiato → 409; se è lo stesso, si riprova UNA volta col testo scritto com'è.
       const letta = await leggiRiga(d, ordine.id);
@@ -558,27 +578,9 @@ export async function gestisciPOST(request: Request, d: DipendenzeOrdini): Promi
       rigaOra = letta;
     }
 
-    // La riattivazione di un ordine annullato: il controllo sui rimborsi (puro, sui dati letti prima) è la prima cintura; qui la seconda, nel database, dopo la scrittura.
-    if (scrive && corpo.azione === "correggi_stato" && ordine.stato === "annullato") {
-      const adesso2 = await leggiRimborsi(porte, ordine.id);
-      if (!rimborsiLeggibili(adesso2) || haRimborsoAttivo(adesso2)) {
-        d.log("riattivazione annullata");
-        try {
-          await d.db
-            .from("shop_orders")
-            .update({ status: "annullato", annullo_motivo: ordine.annulloMotivo, annullato_il: ordine.annullatoIl, giacenza_da_verificare: ordine.giacenzaDaVerificare, aggiornato_il: adesso.toISOString() })
-            .eq("id", ordine.id)
-            .eq("status", "nuovo");
-        } catch (e) {
-          d.log(`riattivazione eccezione ${nomeDi(e)}`);
-        }
-        throw rifiuta("conflitto", 409, "L'ordine ha un rimborso richiesto o riuscito: non si può riattivare.");
-      }
-    }
-
     // Lo storico lo scrive il server; se non riesce l'ordine resta com'è e lo si dice. Per `rimborso` lo scrive già `shop_rimborso_prenota` (una riga sola).
     // Per `riconcilia` e `email_invia` si scrive DOPO gli effetti, con l'esito.
-    let registrato = corpo.azione === "rimborso";
+    let registrato = corpo.azione === "rimborso" || riattiva;
     const scriviEvento = async (dopo: Record<string, unknown> = {}) => {
       try {
         const ev = await d.db.from("shop_order_eventi").insert({ ...esito.evento, dopo: { ...esito.evento.dopo, ...dopo }, chi });
@@ -588,7 +590,7 @@ export async function gestisciPOST(request: Request, d: DipendenzeOrdini): Promi
         d.log(`evento eccezione ${nomeDi(e)}`);
       }
     };
-    if (!SOLO_EFFETTI.includes(String(corpo.azione))) await scriviEvento();
+    if (!SOLO_EFFETTI.includes(String(corpo.azione)) && !riattiva) await scriviEvento();
 
     // Gli effetti, nell'ordine in cui `costruisciAzione` li ha chiesti. Nessuno lancia: un guasto è `non_riuscito` con la sua frase.
     const effetti: EsitoEffetto[] = [];
@@ -607,7 +609,7 @@ export async function gestisciPOST(request: Request, d: DipendenzeOrdini): Promi
 
     // Con gli effetti l'ordine può essere cambiato altrove (rimborsato, pagato, giacenza): si rilegge. Se non riesce, vale la riga letta + la patch.
     let dopo: Ordine = normalizzaOrdine({ ...rigaOra, ...esito.patch }) ?? ordine;
-    if (effetti.length) {
+    if (effetti.length || riattiva) {
       try {
         const fresca = await leggiRiga(d, ordine.id);
         dopo = (fresca && normalizzaOrdine(fresca)) || dopo;

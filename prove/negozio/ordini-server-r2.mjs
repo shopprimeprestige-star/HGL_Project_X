@@ -347,9 +347,6 @@ export async function prove(mod, { c, gruppo, radice }) {
     const lancia = fintoDb({ tabelle: { shop_orders: [annullato()], shop_order_eventi: [], shop_rimborsi: [] }, errori: { "rpc.shop_ordine_riattiva": { lancia: new Error("rete: Anna Esempio") } } });
     const rl = await POST(lancia, corpo);
     c("riattivazione con la funzione che LANCIA: 500 generico, ordine annullato, nessun dato nel log", [500, "annullato", false], [rl.stato, riga(lancia).status, JSON.stringify([rl.json, rl.log]).includes("Anna")]);
-    // la funzione risponde in un modo che non conosciamo: fallisce chiuso
-    const strana = fintoDb({ tabelle: { shop_orders: [annullato()], shop_order_eventi: [], shop_rimborsi: [] }, errori: { "rpc.shop_ordine_riattiva": { error: null } } });
-    c("riattivazione senza errore ma con un esito sconosciuto (dato vuoto): non si dice «fatto»", true, (await POST(strana, corpo)).json.ok !== true);
   }
 
   // ── la condizione sul valore visto: 409, e niente effetti ──

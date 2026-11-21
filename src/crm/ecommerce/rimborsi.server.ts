@@ -207,11 +207,11 @@ export async function rimborsa(
   if (s.errore.ritentabile)
     // timeout, rete, 5xx, 429, idempotenza: il rimborso POTREBBE essere partito. La riga resta `richiesto` (blocca il massimo) e non si ripete a occhio.
     return inCorso("rimborso", "Stripe non ha risposto: il rimborso resta «richiesto». Non ripeterlo: usa «Controlla con Stripe» tra qualche minuto.");
-  // rifiuto vero: non è nato nessun rimborso. La riga si chiude `fallito` (libera la cifra).
-  // shortcut: S4 non ha una funzione per chiudere una riga a mano; si passa da `shop_rimborso_riconcilia` con un rimborso «fallito» a id nostro (`non_creato_…`, unico per riga). Una funzione dedicata è meglio: chiederla all'architetto.
-  const chiusa = await riconciliaRimborsi(p, ordine.id, [perLaFunzione({ id: `non_creato_${idRiga}`, amount: importo, status: "failed", metadata: { riga_id: idRiga } })], false);
-  if (chiusa.error) {
-    p.log(`rimborso chiusura ${codiceDb(chiusa.error)}`);
+  // rifiuto vero: non è nato nessun rimborso. La funzione SQL chiude la riga `fallito` (libera la cifra, scrive lo storico, nessun id inventato) e non tocca mai un rimborso riuscito.
+  const chiusa = await p.db.rpc("shop_rimborso_rifiuta", { p_rimborso: idRiga, p_codice: s.errore.codice });
+  const esito = !chiusa.error && eOggetto(chiusa.data) ? chiusa.data.esito : null;
+  if (esito !== "rifiutato" && esito !== "ignorato") {
+    p.log(`rimborso rifiuta ${chiusa.error ? codiceDb(chiusa.error) : "esito"}`); // fallisce chiuso: una risposta che non capiamo non vale «chiusa»
     return no("rimborso", "Stripe ha rifiutato il rimborso, ma la richiesta resta aperta nel registro: usa «Controlla con Stripe» tra una decina di minuti per liberare la cifra.", 502);
   }
   return no("rimborso", "Stripe ha rifiutato il rimborso: non è stato fatto niente. Controlla l'ordine su Stripe.", 502);
