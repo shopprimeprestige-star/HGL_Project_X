@@ -65,7 +65,7 @@ export async function prove(_mod, { c, gruppo, radice }) {
   const cartella = join(radice, "supabase/migrations");
   const percorso = join(cartella, S1);
   const precedenti = existsSync(cartella)
-    ? readdirSync(cartella).filter((f) => f.endsWith(".sql") && f !== S1 && !f.startsWith("202611201"))
+    ? readdirSync(cartella).filter((f) => f.endsWith(".sql") && f !== S1 && !f.startsWith("202611201") && !f.startsWith("202611211"))
     : [];
   c("S1 esiste col nome del piano", true, existsSync(percorso));
   c("S1 viene dopo ogni altra migrazione che esiste già (M1 compresa)", true, precedenti.every((f) => f < S1));

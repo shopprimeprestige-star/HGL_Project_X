@@ -215,3 +215,14 @@ Se un controllo dice `KO`, **S1 non va applicata in produzione**: l'uscita va in
 2. **Applica** il file nel SQL Editor (si può rilanciare senza danni). **Dopo**, in sola lettura: `SELECT chiave, valore FROM public.shop_impostazioni;` deve dire `catalogo_sito = "codice"` e `giacenza_bassa = 3`. Lo shop **non cambia**: il sito continua a usare il catalogo del codice.
    **Due prove con la chiave anonima** (la chiave «anon» pubblica del progetto, quella che sta nel sito; da terminale o da un client REST): `GET <URL del progetto>/rest/v1/shop_v_prodotti` e `GET <URL del progetto>/rest/v1/shop_prodotti`, con le intestazioni `apikey: <chiave anon>` e `Authorization: Bearer <chiave anon>`. **Tutte e due devono dare un errore di permesso** (`42501`, «permission denied for view/table …», HTTP 401 o 403), **mai `[]`**: una lista vuota vorrebbe dire che l'accesso è aperto e che manca solo un dato. Se vedi `[]` o righe, fermati e avvisa la squadra.
 3. **Come si ritira una foto** (liberatoria revocata, richiesta di cancellazione di una persona ritratta): «Rimuovi» dal pannello toglie la foto dal sito ma **il file resta nello Storage**, e il bucket è pubblico: chi ha l'indirizzo la vede ancora. Quindi: Supabase → Storage → `shop-media` → cerca i **tre** file della foto (480, 960, 1600: i percorsi sono nella scheda del prodotto) → elimina; poi, nel pannello, togli la spunta «liberatoria». L'originale non si conserva: non c'è altro da cancellare.
+
+## `shop-invisible-derm.sql` (D40, commessa 2026-11-20-shop-completo)
+
+Serve un Postgres 15 o 16 normale con un database **usa-e-getta il cui nome contiene «prova»** e un utente superutente (lo script crea da sé i ruoli finti `anon`, `authenticated`, `service_role` e lo schema `storage` finto; si ferma se il nome del database non contiene «prova»). Un solo passo, dalla radice del repo:
+
+```sh
+createdb prova_derm
+psql prova_derm -v ON_ERROR_STOP=1 -f prove/sql/shop-invisible-derm.sql
+```
+
+Applica S1, prova che PRIMA Invisible Derm a prezzo 0 non si pubblica, applica `20261121120000_shop_invisible_derm.sql` **due volte** e prova il trigger con prodotti inventati: «Invisible Derm», «Invisibile Derm», lo slug `invisible-derm-…` passano; «Solvente per Invisible Derm», «Kit Invisible Derm», «Invisible Dermatologico» e un prodotto qualunque a prezzo 0 no; Invisible Derm resta rifiutato senza descrizione, categoria, foto principale (o con la foto di una persona senza liberatoria) e senza variante attiva con SKU; nessun dato cambia, i trigger restano due, la funzione resta chiusa ad `anon` e `authenticated`. Uscita attesa: tutte righe `ok` e in fondo `TUTTI I CONTROLLI DI D40 PASSANO`. Se un controllo dice `KO`, **la migrazione D40 non va applicata in produzione**.
