@@ -8,7 +8,7 @@
  *   storto, ordine del sito vecchio (senza impronta), limite superato, guasto, migrazione S4 assente. Identica byte per byte: dalla risposta
  *   non si capisce se l'ordine esiste. La chiave si confronta con l'impronta salvata (`verificaChiave` di T48, tempo costante), e con
  *   l'ordine assente si fa lo stesso lavoro contro un'impronta fittizia.
- *  ⚠️ Il limite (60 letture/ora per indirizzo, D49) si consuma PRIMA di guardare la chiave: chi prova chiavi a caso si ferma. L'indirizzo
+ *  ⚠️ Il limite (120 letture/ora per indirizzo, D49) si consuma PRIMA di guardare la chiave: chi prova chiavi a caso si ferma. L'indirizzo
  *   vive solo come HMAC (`improntaIndirizzo`). Se il limite non risponde si rifiuta (si chiude).
  *  ⚠️ Si leggono solo le colonne che servono alla pagina: mai nome, cognome, email, telefono, indirizzo, note, id di Stripe, lead. Nella
  *   risposta solo CAP e città; mai l'id dell'ordine (il `ref` è quello chiesto, già validato).
