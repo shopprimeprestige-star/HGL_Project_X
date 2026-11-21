@@ -19,24 +19,6 @@ const ORD = uuid(0x6001);
 const ORD2 = uuid(0x6002);
 const EMAIL_CLIENTE = "cliente0@example.com";
 
-/** Il database finto con le due funzioni «aiuto» di S4 (`shop_s4_avviso`, `shop_s4_evento`), che il finto di T40 non conosce ancora:
- *  stessa logica del SQL (lo stesso avviso con lo stesso riferimento non si scrive due volte). Chiesto in Lavagna: quando il finto le avrà, questa riga sparisce. */
-function conAvvisi(db) {
-  const w = Object.create(db);
-  w.rpc = (nome, args = {}) => {
-    if (nome !== "shop_s4_avviso" && nome !== "shop_s4_evento") return db.rpc(nome, args);
-    db.registro.push({ chiave: `rpc.${nome}`, tab: null, op: "rpc", nome, args, scrisse: true });
-    const o = db.tabelle.shop_orders.find((x) => x.id === args.p_ordine);
-    if (o && nome === "shop_s4_avviso") {
-      const lista = Array.isArray(o.avvisi) ? o.avvisi : [];
-      if (!lista.some((x) => x.codice === args.p_codice && (x.rif ?? null) === (args.p_rif ?? null))) o.avvisi = [...lista, { codice: args.p_codice, gravita: args.p_gravita, rif: args.p_rif ?? null, il: "2026-11-20T12:00:00.000Z" }];
-    }
-    if (o && nome === "shop_s4_evento") (db.tabelle.shop_order_eventi ??= []).push({ order_id: o.id, order_ref: o.order_ref, tipo: args.p_tipo, chi: args.p_chi, prima: args.p_prima, dopo: args.p_dopo });
-    return Promise.resolve({ data: null, error: null });
-  };
-  return w;
-}
-
 export async function prove(mod, { c, gruppo, radice }) {
   const W = mod["shop/cassa/webhook.server"];
   const K = mod["shop/stripe/client"];
@@ -54,8 +36,10 @@ export async function prove(mod, { c, gruppo, radice }) {
     return (await r.json()).id;
   }
 
-  /** L'email finta, come la scriverà T54: la guardia `shop_email_prenota` è del database, l'invio è un conto. `cancello` ferma l'invio finché non si apre. */
-  function emailFinta(db, { cancello = null, rompi = false } = {}) {
+  /** L'email finta, come la scriverà T54: la guardia `shop_email_prenota` è del database, l'invio è un conto. `cancello` ferma l'invio finché non si apre.
+   *  `esiti[i]` dice come finisce la chiamata i-esima: `lancia` (eccezione), `errore` (prenota, poi esito `errore`, come un Resend che risponde 500),
+   *  `in_corso` o `spenta` (nessun invio, solo lo stato); altrimenti l'invio va a buon fine. */
+  function emailFinta(db, { cancello = null, rompi = false, esiti = [] } = {}) {
     const chiamate = [];
     const inviate = [];
     return {
@@ -65,8 +49,15 @@ export async function prove(mod, { c, gruppo, radice }) {
         async invia(chiave, ordineId, opzioni) {
           chiamate.push([chiave, ordineId, opzioni]);
           if (rompi) throw new Error(`invio fallito per ${EMAIL_CLIENTE}`);
+          const esito = esiti[chiamate.length - 1];
+          if (esito === "lancia") throw new Error(`invio fallito per ${EMAIL_CLIENTE}`);
+          if (esito === "in_corso" || esito === "spenta") return { stato: esito };
           const { data: prenotata } = await db.rpc("shop_email_prenota", { p_ordine: ordineId, p_chiave: chiave });
           if (!prenotata) return { stato: "inviata" };
+          if (esito === "errore") {
+            await db.rpc("shop_email_esito", { p_ordine: ordineId, p_chiave: chiave, p_stato: "errore", p_codice: "http_500" });
+            return { stato: "errore", codice: "http_500" };
+          }
           if (cancello) await cancello;
           inviate.push(chiave);
           await db.rpc("shop_email_esito", { p_ordine: ordineId, p_chiave: chiave, p_stato: "inviata", p_codice: null });
@@ -87,14 +78,14 @@ export async function prove(mod, { c, gruppo, radice }) {
    * @param {object} [o.dbOpzioni]  opzioni del finto database (`errori`, `senzaColonne`…)
    * @param {string|null} [o.segreto]
    */
-  async function mondo({ sessioni = 1, importo = 2890, varianti = [{ sku: "SKU-1", giacenza: 5 }], righe = [{ sku: "SKU-1", qty: 2, prezzo_cent: 1000 }], campi = {}, dbOpzioni = {}, segreto = SEGRETO_PROVA, cancello = null, emailRotta = false, ordini2 = false } = {}) {
+  async function mondo({ sessioni = 1, importo = 2890, varianti = [{ sku: "SKU-1", giacenza: 5 }], righe = [{ sku: "SKU-1", qty: 2, prezzo_cent: 1000 }], campi = {}, dbOpzioni = {}, segreto = SEGRETO_PROVA, cancello = null, emailRotta = false, emailEsiti = [], ordini2 = false } = {}) {
     const stripe = stripeFinto();
     const ids = [];
     for (let i = 0; i < sessioni; i++) ids.push(await sessioneStripe(stripe, ORD, importo));
     const spec = { varianti, ordini: [{ id: ORD, ref: "HG-AAAAAA", totale_cent: importo, righe, sessioni: ids, campi: { prova: true, ...campi } }] };
     if (ordini2) spec.ordini.push({ id: ORD2, ref: "HG-BBBBBB", totale_cent: importo, righe: [{ sku: "SKU-1", qty: 1, prezzo_cent: importo }], sessioni: [await sessioneStripe(stripe, ORD2, importo)], campi: { prova: true } });
-    const db = conAvvisi(fintoDb({ tabelle: partenzaDa(spec), ...dbOpzioni }));
-    const email = emailFinta(db, { cancello, rompi: emailRotta });
+    const db = fintoDb({ tabelle: partenzaDa(spec), ...dbOpzioni });
+    const email = emailFinta(db, { cancello, rompi: emailRotta, esiti: emailEsiti });
     const piOrdine = new Map(); // payment_intent → ordine: i metadati del pagamento (il finto non li ha)
     const fetchStripe = async (url, init) => {
       const r = await stripe.fetch(url, init);
@@ -222,6 +213,21 @@ export async function prove(mod, { c, gruppo, radice }) {
     c("la lettura del metodo è UNA chiamata a Stripe", 1, m.stripe.chiamateA("GET", "/v1/payment_intents/").length);
     c("«pagato» solo con `shop_ordine_pagato`: l'unica scrittura diretta è il dettaglio del metodo", ["shop_orders.update:metodo_dettaglio"], m.db.registro.filter((q) => q.tab && q.op !== "select").map((q) => `${q.tab}.${q.op}:${Object.keys(q.patch ?? {})}`));
     c("la chiave di Stripe non è in nessun registro del finto", false, JSON.stringify(m.stripe.chiamate).includes(CHIAVE_PROVA));
+  }
+
+  {
+    // R3b · il dettaglio del metodo non si riesce a scrivere: la risposta resta 200 e la conferma parte, ma un avviso nel log c'è
+    const m = await mondo({ dbOpzioni: { errori: { "shop_orders.update": { error: { code: "XX000", message: `errore con ${EMAIL_CLIENTE}` } } } } });
+    m.paga(0, { metodo: "paypal" });
+    const r = await m.vai(completato(m));
+    await m.finisci();
+    c("R3b: metodo non scrivibile → 200, ordine pagato, la conferma parte, il metodo resta vuoto", [200, "pagato", 1, null], [r.stato, m.ordine().stato_pagamento, m.email.inviate.length, m.ordine().metodo_dettaglio]);
+    c("…e nel log c'è `webhook metodo_non_scritto` (solo il codice)", ["webhook metodo_non_scritto"], m.log.filter((x) => x.includes("metodo")));
+    const ok = await mondo();
+    ok.paga(0, { metodo: "paypal" });
+    await ok.vai(completato(ok));
+    await ok.finisci();
+    c("…se invece si scrive, quell'avviso non c'è", [], ok.log.filter((x) => x.includes("metodo_non_scritto")));
   }
 
   // ═══ 3 · IDEMPOTENZA ═══
@@ -362,13 +368,84 @@ export async function prove(mod, { c, gruppo, radice }) {
     c("E3: con l'email dell'ordine, UNA sola email `pagamento_non_riuscito`", [[["pagamento_non_riuscito", ORD, { manuale: false }]], ["pagamento_non_riuscito"]], [m.email.chiamate, m.email.inviate]);
     const ancora = await m.vai(evSessione("checkout.session.async_payment_failed", { id: "evt_p0002", sessione: m.sessioni[0], pagamento: "unpaid" }));
     await m.finisci();
-    c("…una seconda consegna (altro evento) su un ordine già fallito non rimanda niente", [200, 1], [ancora.stato, m.email.chiamate.length]);
+    c("…una seconda consegna (altro evento) su un ordine già fallito: chiesta di nuovo (la guardia è del database), inviata una sola volta", [200, 2, 1], [ancora.stato, m.email.chiamate.length, m.email.inviate.length]);
   }
   {
     const m = await mondo({ campi: { email: "" } });
     await m.vai(evSessione("checkout.session.async_payment_failed", { sessione: m.sessioni[0], pagamento: "unpaid" }));
     await m.finisci();
     c("E3: senza email dell'ordine → `fallito` ma nessun invio", ["fallito", 0], [m.ordine().stato_pagamento, m.email.chiamate.length]);
+  }
+  {
+    // R3b · senza indirizzo non si scrive a nessuno, ma resta traccia: l'ordine ha un avviso e il titolare lo vede nel CRM
+    const m = await mondo({ campi: { email: "" } });
+    const r = await m.vai(evSessione("checkout.session.async_payment_failed", { sessione: m.sessioni[0], pagamento: "unpaid" }));
+    await m.finisci();
+    c("R3b: senza email dell'ordine → 200 e un avviso `email_non_inviata` (riferimento: l'evento)", [200, ["email_non_inviata"], "evt_p0001"], [r.stato, m.avvisi(), m.ordine().avvisi[0]?.rif]);
+  }
+  {
+    // R3b · l'invio che lancia: l'evento NON si chiude, Stripe ritenta; l'ordine è già `fallito` e la seconda volta l'email parte, una volta sola
+    const m = await mondo({ emailEsiti: ["lancia"] });
+    const ev = evSessione("checkout.session.async_payment_failed", { sessione: m.sessioni[0], pagamento: "unpaid" });
+    const a = await m.vai(ev);
+    await m.finisci();
+    c("R3b: invio che lancia → 500 (Stripe ritenta), l'ordine è comunque `fallito`", [500, "fallito"], [a.stato, m.ordine().stato_pagamento]);
+    c("…l'evento resta aperto (non chiuso) e c'è un avviso `email_non_inviata`", [true, ["email_non_inviata"]], [m.db.tabelle.shop_stripe_eventi[0].elaborato_il == null, m.avvisi()]);
+    c("…nessuna email partita", 0, m.email.inviate.length);
+    const b = await m.vai(ev);
+    await m.finisci();
+    c("il tentativo di Stripe: 200, l'email parte una volta, l'evento si chiude", [200, 1, true], [b.stato, m.email.inviate.length, m.db.tabelle.shop_stripe_eventi[0].elaborato_il != null]);
+    c("…l'avviso non si scrive due volte, l'ordine resta `fallito`", [["email_non_inviata"], "fallito"], [m.avvisi(), m.ordine().stato_pagamento]);
+    const terza = await m.vai(ev);
+    await m.finisci();
+    c("la terza consegna è già elaborata: niente di nuovo, ancora una sola email", [200, 2, 1], [terza.stato, m.email.chiamate.length, m.email.inviate.length]);
+  }
+  {
+    // R3b · l'invio che finisce in `errore` (Resend 500): stessa strada. Il database lascia riprenotare dopo un `errore`, la Idempotency-Key evita il doppio invio vero.
+    const m = await mondo({ emailEsiti: ["errore"] });
+    const ev = evSessione("checkout.session.async_payment_failed", { sessione: m.sessioni[0], pagamento: "unpaid" });
+    const a = await m.vai(ev);
+    await m.finisci();
+    c("R3b: invio in `errore` → 500 e avviso", [500, ["email_non_inviata"]], [a.stato, m.avvisi()]);
+    const b = await m.vai(ev);
+    await m.finisci();
+    c("…il tentativo dopo: 200, UNA email inviata, ordine `fallito`", [200, 1, "fallito"], [b.stato, m.email.inviate.length, m.ordine().stato_pagamento]);
+  }
+  {
+    // R3b · `in_corso`: un altro processo la sta mandando; non è un successo, si ritenta
+    const m = await mondo({ emailEsiti: ["in_corso"] });
+    const ev = evSessione("checkout.session.async_payment_failed", { sessione: m.sessioni[0], pagamento: "unpaid" });
+    const a = await m.vai(ev);
+    c("R3b: invio `in_corso` → 500 (si ritenta) e avviso", [500, ["email_non_inviata"]], [a.stato, m.avvisi()]);
+    const b = await m.vai(ev);
+    c("…al tentativo dopo → 200, evento chiuso", [200, true], [b.stato, m.db.tabelle.shop_stripe_eventi[0].elaborato_il != null]);
+  }
+  {
+    // R3b · un'email spenta o non approvata dal titolare non è un guasto: niente 500, niente avviso (Stripe non ritenterebbe a vuoto per tre giorni)
+    const m = await mondo({ emailEsiti: ["spenta"] });
+    const r = await m.vai(evSessione("checkout.session.async_payment_failed", { sessione: m.sessioni[0], pagamento: "unpaid" }));
+    c("R3b: email spenta dal titolare → 200, nessun avviso, evento chiuso", [200, [], true], [r.stato, m.avvisi(), m.db.tabelle.shop_stripe_eventi[0].elaborato_il != null]);
+  }
+  {
+    // R3b · il guasto è DOPO la chiusura dell'ordine: `shop_stripe_evento_chiudi` fallisce una volta → 500; al tentativo `shop_ordine_chiudi` risponde `ignorato`
+    // (già fallito) e prima l'email si perdeva. Ora si chiede lo stesso (la guardia è del database, come per `gia_pagato`).
+    let volte = 0;
+    const m = await mondo({ dbOpzioni: { errori: { "rpc.shop_stripe_evento_chiudi": () => (++volte === 1 ? { error: { code: "XX000", message: `boom ${EMAIL_CLIENTE}` } } : undefined) } } });
+    const ev = evSessione("checkout.session.async_payment_failed", { sessione: m.sessioni[0], pagamento: "unpaid" });
+    const a = await m.vai(ev);
+    await m.finisci();
+    c("R3b: evento non chiuso dopo la chiusura dell'ordine → 500, ordine `fallito`", [500, "fallito"], [a.stato, m.ordine().stato_pagamento]);
+    const b = await m.vai(ev);
+    await m.finisci();
+    c("…il tentativo di Stripe: 200 e l'email parte, una volta", [200, 1], [b.stato, m.email.inviate.length]);
+    c("…esito dell'evento `ignorato` (l'ordine era già fallito)", "ignorato", m.db.tabelle.shop_stripe_eventi[0].esito);
+  }
+  {
+    // R3b · un ordine che NON è fallito (sessione sostituita: `ignorato` su un ordine ancora in attesa) non scrive a nessuno
+    const m = await mondo({ sessioni: 2 });
+    const r = await m.vai(evSessione("checkout.session.async_payment_failed", { sessione: m.sessioni[0], pagamento: "unpaid" }));
+    await m.finisci();
+    c("R3b: evento di una sessione vecchia su un ordine ancora in attesa → nessuna email, nessun avviso", [200, "in_attesa", 0, []], [r.stato, m.ordine().stato_pagamento, m.email.chiamate.length, m.avvisi()]);
   }
   {
     const m = await mondo();

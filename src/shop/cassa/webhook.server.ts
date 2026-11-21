@@ -10,7 +10,11 @@
  *      sono idempotenti;  6. l'effetto, SOLO con funzioni SQL: «pagato» è `shop_ordine_pagato` (importo, valuta, sessione dell'ordine e giacenza
  *      sono controllati dentro, in una transazione), chiusure con `shop_ordine_chiudi`, rimborsi con `shop_rimborso_riconcilia` sull'elenco
  *      letto da Stripe (D46), avvisi e storico con `shop_s4_avviso`/`shop_s4_evento`;  7. `shop_stripe_evento_chiudi`;  8. risposta 200;
- *   9. DOPO la risposta (`dopoRisposta`): il metodo di pagamento (best effort) e le email. Mai un errore verso Stripe se falliscono.
+ *   9. DOPO la risposta (`dopoRisposta`): il metodo di pagamento e la conferma d'ordine (best effort). Mai un errore verso Stripe se falliscono.
+ *      ECCEZIONE, `pagamento_non_riuscito` (R3b): parte PRIMA di chiudere l'evento, perché se si perde nessuno la rimanda. Se l'invio lancia,
+ *      finisce in `errore` o è `in_corso`, l'ordine riceve l'avviso `email_non_inviata` e la risposta è 500: l'evento resta aperto, Stripe ritenta, e al
+ *      tentativo l'ordine è già `fallito` (`ignorato`) ma l'email si chiede lo stesso. Non si manda due volte: la guardia è `shop_email_prenota`
+ *      e Resend ha la sua Idempotency-Key.
  *  Risposte: firma/JSON → 400 · tetto → 413 · evento non nostro o non gestito → 200 · guasto del database o di Stripe → 500 (Stripe ritenta fino
  *  a 3 giorni) · segreto mancante o migrazione S4 non applicata → 503.
  *  ⚠️ Nel log solo CODICI (`webhook <codice>`): mai email, nome, indirizzo, id di Stripe, id dell'ordine, messaggi di errore.
@@ -120,7 +124,7 @@ async function leggiCorpo(richiesta: Request): Promise<Uint8Array | null> {
   return corpo;
 }
 
-type Ordine = { id: string; prova: boolean; email: string };
+type Ordine = { id: string; prova: boolean; email: string; stato: string };
 
 /** Una sola gestione di un evento: l'esito (testo breve, finisce in `shop_stripe_eventi.esito`) e il lavoro per DOPO la risposta. */
 type Fatto = { esito: string; dopo: (() => Promise<unknown>)[] };
@@ -160,17 +164,22 @@ export async function gestisciWebhook(richiesta: Request, porte: PorteWebhook): 
     });
 
   async function leggiOrdine(id: string): Promise<Ordine | null> {
-    const r = await db.from("shop_orders").select("id, prova, email").eq("id", id).maybeSingle();
+    const r = await db
+      .from("shop_orders")
+      .select("id, prova, email, stato_pagamento")
+      .eq("id", id)
+      .maybeSingle();
     if (r.error) {
       const codice = codiceDi(r.error);
       throw new Guasto(`db_${codice}`, MIGRAZIONE.has(codice));
     }
-    const riga = r.data as { id?: unknown; prova?: unknown; email?: unknown } | null;
+    const riga = r.data as Record<string, unknown> | null;
     if (!riga || typeof riga.id !== "string") return null;
     return {
       id: riga.id,
       prova: riga.prova === true,
       email: typeof riga.email === "string" ? riga.email.trim() : "",
+      stato: typeof riga["stato_pagamento"] === "string" ? riga["stato_pagamento"] : "",
     };
   }
 
@@ -194,14 +203,35 @@ export async function gestisciWebhook(richiesta: Request, porte: PorteWebhook): 
         const r = await porte.stripe.leggiPagamento(paymentIntent);
         if (!r.ok || !r.dati.metodo) return avvisa("metodo_non_letto");
         // l'unica scrittura diretta: un dettaglio che non decide niente (il «pagato» è già nel database); non si sovrascrive un valore già messo
-        await db
+        const scritto = await db
           .from("shop_orders")
           .update({ metodo_dettaglio: r.dati.metodo })
           .eq("id", ordineId)
           .is("metodo_dettaglio", null);
+        if (scritto.error) avvisa("metodo_non_scritto");
       },
       () => porte.email.invia("conferma_ordine", ordineId, { manuale: false }),
     ];
+  }
+
+  /** E3 (D53), PRIMA di chiudere l'evento: se non parte, nessuno la rimanda. Un invio che lancia, finisce in `errore` o è `in_corso` lascia l'avviso
+   *  `email_non_inviata` (una sola volta per evento) e fa fallire la richiesta (500): Stripe ritenta. Senza indirizzo non c'è niente da ritentare, ma l'avviso c'è.
+   *  Stati come `spenta` o `non_approvata` sono scelte del titolare, non guasti: nessun avviso, nessun 500.
+   *  shortcut: l'invio si aspetta dentro la richiesta (il tetto è quello della porta, 8 s di Resend), quando serve di più si sposta in una coda. */
+  async function emailNonRiuscito(ordine: Ordine, eventoId: string): Promise<void> {
+    const segnala = () =>
+      avviso(ordine.id, "email_non_inviata", eventoId).catch(() => avvisa("avviso_non_scritto"));
+    if (ordine.email === "") return void (await segnala());
+    let stato: string;
+    try {
+      stato = (await porte.email.invia("pagamento_non_riuscito", ordine.id, { manuale: false }))
+        .stato;
+    } catch {
+      stato = "eccezione";
+    }
+    if (stato !== "errore" && stato !== "in_corso" && stato !== "eccezione") return;
+    await segnala();
+    throw new Guasto(`email_${stato}`);
   }
 
   async function sessione(ordine: Ordine, evento: EventoSessione): Promise<Fatto> {
@@ -241,12 +271,11 @@ export async function gestisciWebhook(richiesta: Request, porte: PorteWebhook): 
             p_stato: "fallito",
           }),
         );
-        // E3 (D53): solo se l'ordine è DAVVERO passato a fallito adesso e c'è un indirizzo a cui scrivere
-        const dopo =
-          esito === "chiuso" && ordine.email !== ""
-            ? [() => porte.email.invia("pagamento_non_riuscito", ordine.id, { manuale: false })]
-            : [];
-        return { esito, dopo };
+        // E3 (D53): se l'ordine è passato a fallito adesso, o lo era già per un tentativo precedente che si è fermato prima di chiudere l'evento
+        // (stesso ragionamento di `gia_pagato`: la guardia contro il doppio invio è `shop_email_prenota`)
+        if (esito === "chiuso" || (esito === "ignorato" && ordine.stato === "fallito"))
+          await emailNonRiuscito(ordine, evento.id);
+        return { esito, dopo: [] };
       }
       case "checkout.session.expired":
         return {
