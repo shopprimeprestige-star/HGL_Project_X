@@ -106,6 +106,34 @@ export function provePrezziNegativi(mod, { c, gruppo, radice }) {
     /Sconto se scelta/.test(leggi("src/shop/SettingsListino.tsx")));
   c("l'editor blocca il salvataggio con un prezzo non valido", true,
     /prezzoNonValido\(/.test(leggi("src/shop/SettingsListino.tsx")));
-  c("la riga scritta da API accetta un prezzo negativo", true,
-    /Math\.max\(n, -max\)|-1_000_000/.test(leggi("src/shop/riga-preventivo.ts")));
+  c("la rotta aperta legge il listino di chi conduce", true,
+    /rigaPulita\(grezza, negativoDi\)/.test(leggi("src/routes/api.public.quote-create.ts")));
+
+  //  ── LA ROTTA APERTA NON CREDE A UN PREZZO NEGATIVO MANDATO DA FUORI ──────
+  //   `quote-create` non ha credenziali: una voce inventata con un prezzo negativo
+  //   abbasserebbe un preventivo a piacere. Il segno meno passa solo per le
+  //   opzioni che il listino del proprietario dichiara negative, e vale la cifra
+  //   del LISTINO.
+  const R = mod["shop/riga-preventivo"];
+  const menuNeg = buildMenu({ prices: { "zona-frontale": -300 } });
+  const negativoDi = (nome) => {
+    const v = Q.voceDiListino(nome, menuNeg);
+    return v && v.price < 0 ? v.price : null;
+  };
+  const prezzi = (upsells, fn) =>
+    R.rigaPulita({ nome: "Prova", upsells }, fn).riga.upsells.map((u) => u.price);
+  c("senza listino raggiungibile: un negativo mandato diventa 0", [0],
+    prezzi([{ name: "Solo regione frontale", price: -300 }]));
+  c("voce inventata con prezzo negativo: resta ≥ 0", [0],
+    prezzi([{ name: "Voce finta", price: -500 }], negativoDi));
+  c("voce con il nome di un'opzione POSITIVA: resta ≥ 0", [0],
+    prezzi([{ name: "Solo vertice", price: -500 }], negativoDi));
+  c("opzione negativa a listino: vale il LISTINO, non il mandato (più basso)", [-300],
+    prezzi([{ name: "Solo regione frontale", price: -9999 }], negativoDi));
+  c("…né il mandato più alto o positivo", [-300],
+    prezzi([{ name: "Solo regione frontale", price: 50 }], negativoDi));
+  c("…con la sotto-scelta nel nome (come le salva la pagina)", [-300],
+    prezzi([{ name: "Solo regione frontale \u2014 variante", price: 0 }], negativoDi));
+  c("prezzi positivi normali: invariati", [47.2, 0],
+    prezzi([{ name: "Solo vertice", price: 47.2 }, { name: "Altro", price: 0 }], negativoDi));
 }

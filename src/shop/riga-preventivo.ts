@@ -63,21 +63,27 @@ const numero = (v: unknown, max: number, interi?: boolean): number | null => {
   return interi ? Math.round(dentro) : Math.round(dentro * 100) / 100;
 };
 
-/** Il prezzo di una voce può essere NEGATIVO (opzione che costa meno): qui si
- *  limita, non si azzera come `numero`. */
-const prezzoVoce = (v: unknown, max: number): number => {
-  const n = Number(v);
-  return Number.isFinite(n) ? Math.round(Math.min(Math.max(n, -max), max) * 100) / 100 : 0;
-};
+/** ── UN PREZZO NEGATIVO DA FUORI NON SI CREDE ──────────────────────────────
+ *  Un'opzione può costare «−300» (listino del titolare: costa meno). Ma questa
+ *  rotta è aperta, e una voce inventata con un prezzo negativo abbasserebbe un
+ *  preventivo a piacere. Quindi il segno meno passa SOLO se `negativoDi`
+ *  riconosce la voce — per nome — come un'opzione che nel listino del
+ *  proprietario ha davvero un prezzo negativo, e in quel caso vale la cifra del
+ *  LISTINO, non quella mandata. In ogni altro caso il prezzo resta ≥ 0.
+ *  Senza `negativoDi` (listino non raggiungibile) niente è negativo. */
+export type NegativoDi = (nome: string) => number | null;
 
-function vociPulite(v: unknown): { name: string; price: number; wasPrice?: number; dove?: string }[] {
+function vociPulite(v: unknown, negativoDi?: NegativoDi): { name: string; price: number; wasPrice?: number; dove?: string }[] {
   if (!Array.isArray(v)) return [];
   return v.slice(0, MAX_VOCI).map((x) => {
     const o = (x && typeof x === "object" ? x : {}) as Record<string, unknown>;
     const fuori: { name: string; price: number; wasPrice?: number; dove?: string } = {
       name: testo(o.name, MAX_NOME_VOCE),
-      price: prezzoVoce(o.price, 1_000_000),
+      price: numero(o.price, 1_000_000) ?? 0,
     };
+    const dalListino = negativoDi?.(fuori.name);
+    if (typeof dalListino === "number" && Number.isFinite(dalListino) && dalListino < 0)
+      fuori.price = Math.round(dalListino * 100) / 100;
     const was = numero(o.wasPrice, 1_000_000);
     if (was != null && was > 0) fuori.wasPrice = was;
     if (o.dove === "home" || o.dove === "studio") fuori.dove = o.dove;
@@ -91,7 +97,7 @@ export interface RigaPulita {
   scartati: string[];
 }
 
-export function rigaPulita(grezza: unknown): RigaPulita {
+export function rigaPulita(grezza: unknown, negativoDi?: NegativoDi): RigaPulita {
   const dentro = (grezza && typeof grezza === "object" ? grezza : {}) as Record<string, unknown>;
   const riga: Record<string, unknown> = {};
   const scartati: string[] = [];
@@ -104,7 +110,7 @@ export function rigaPulita(grezza: unknown): RigaPulita {
       if (n != null) riga[k] = n;
       continue;
     }
-    if (k === "upsells") { riga.upsells = vociPulite(v); continue; }
+    if (k === "upsells") { riga.upsells = vociPulite(v, negativoDi); continue; }
     if (k === "base_system") {
       const o = (v && typeof v === "object" ? v : {}) as Record<string, unknown>;
       riga.base_system = {
