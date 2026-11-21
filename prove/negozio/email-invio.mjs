@@ -67,11 +67,13 @@ export async function prove(mod, { c, gruppo, radice }) {
     Object.assign(t, extra);
     const db = fintoDb({ tabelle: t, adesso, ...dbOpz });
     const resend = [];
+    const idem = [];
     const log = [];
     const p = {
       db,
-      resend: async (corpo) => {
+      resend: async (corpo, chiaveIdem) => {
         resend.push(corpo);
+        idem.push(chiaveIdem);
         const r = typeof risposta === "function" ? risposta(corpo, resend.length) : risposta;
         if (r?.lancia) throw r.lancia;
         return r;
@@ -83,7 +85,7 @@ export async function prove(mod, { c, gruppo, radice }) {
       log: (codice) => log.push(codice),
       ...porte,
     };
-    return { db, p, resend, log, riga: () => db.tabelle.shop_orders.find((o) => o.id === ID) };
+    return { db, p, resend, idem, log, riga: () => db.tabelle.shop_orders.find((o) => o.id === ID) };
   }
   const invia = (m, chiave = "conferma_ordine", opz = { manuale: false }, id = ID) => I.inviaEmail(m.p, chiave, id, opz);
   const scrittureDirette = (m) => m.db.registro.filter((q) => q.tab && q.op !== "select").map((q) => `${q.tab}.${q.op}`);
@@ -143,6 +145,32 @@ export async function prove(mod, { c, gruppo, radice }) {
   ko.p.resend = async (cp) => { ko.resend.push(cp); return { ok: true, codice: "ok" }; };
   const rRip = await invia(ko, "conferma_ordine", { manuale: true });
   c("…«invia ora» può riprovare: parte, e lo stato diventa «inviata»", ["inviata", 2, "inviata"], [rRip.stato, ko.resend.length, ko.riga().email_inviate?.conferma_ordine?.stato]);
+
+  // ── Idempotency-Key: un retry identico non duplica, un testo cambiato riparte (rev. T54) ──
+  const rete = mondo({ risposta: (_cp, n) => (n === 1 ? { ok: false, codice: "rete" } : { ok: true, codice: "ok" }) });
+  const rr1 = await invia(rete);
+  const rr2 = await invia(rete, "conferma_ordine", { manuale: true });
+  c("dopo un errore di rete due invii consecutivi mandano la STESSA chiave di idempotenza", [["errore", "inviata"], true], [[rr1.stato, rr2.stato], rete.idem.length === 2 && rete.idem[0] === rete.idem[1]]);
+  c("…la chiave è «shop-email:<ordine>:<messaggio>:<sha256>», al massimo 256 caratteri, senza dati del cliente", true, new RegExp(`^shop-email:${ID}:conferma_ordine:[0-9a-f]{64}$`).test(rete.idem[0] ?? "") && (rete.idem[0] ?? "").length <= 256 && !/cliente0|Anna|HG-T54ABC/.test(rete.idem[0] ?? ""));
+  const ritesto = mondo({ risposta: (_cp, n) => (n === 1 ? { ok: false, codice: "rete" } : { ok: true, codice: "ok" }) });
+  await invia(ritesto);
+  const mm = ritesto.db.tabelle.shop_email_modelli.find((x) => x.chiave === "conferma_ordine");
+  mm.testo = `${mm.testo}\nPS di prova`;
+  mm.approvato_hash = sha(`${mm.oggetto}\n${mm.testo}`);
+  await invia(ritesto, "conferma_ordine", { manuale: true });
+  c("il titolare cambia il testo dopo l'errore → chiave DIVERSA (la mail riparte, niente 409 per 24 ore)", [2, true], [ritesto.idem.length, ritesto.idem[0] !== ritesto.idem[1]]);
+  const altroDest = mondo({ risposta: (_cp, n) => (n === 1 ? { ok: false, codice: "rete" } : { ok: true, codice: "ok" }) });
+  await invia(altroDest);
+  altroDest.db.tabelle.shop_orders.find((o) => o.id === ID).email = "nuovo@example.com";
+  await invia(altroDest, "conferma_ordine", { manuale: true });
+  c("destinatario cambiato → chiave diversa; messaggio diverso (spedito) → chiave diversa", [true, true], [altroDest.idem[0] !== altroDest.idem[1], (await (async () => { const m = mondo(); await invia(m, "spedito"); await invia(m, "conferma_ordine"); return m.idem[0] !== m.idem[1]; })())]);
+  const concorrente = mondo({ risposta: { ok: false, codice: "concurrent_idempotent_requests" } });
+  const rc = await invia(concorrente);
+  c("Resend dice «concurrent_idempotent_requests» (la prima è ancora in corso) → «in_corso», NON errore, esito non scritto", ["in_corso", "in_invio"], [rc.stato, concorrente.riga().email_inviate?.conferma_ordine?.stato]);
+  for (const codice of ["http_409", "http_400"]) {
+    const m = mondo({ risposta: { ok: false, codice } });
+    c(`Resend risponde ${codice} (chiave con corpo diverso, richiesta non valida) → «errore» col codice, esito scritto`, ["errore", codice, "errore"], await invia(m).then((r) => [r.stato, r.codice, m.riga().email_inviate?.conferma_ordine?.stato]));
+  }
   const lancia = mondo({ risposta: { lancia: new Error("PROVA cliente0@example.com Anna Esempio") } });
   const rL = await invia(lancia);
   c("Resend che LANCIA un'eccezione → «errore», nessuna eccezione verso chi chiama, esito scritto", ["errore", "errore"], [rL.stato, lancia.riga().email_inviate?.conferma_ordine?.stato]);
@@ -283,6 +311,16 @@ export async function prove(mod, { c, gruppo, radice }) {
     const e = await I.resendConFetch("re_chiave_finta_di_prova_000000", f)({ from: MITTENTE, to: ["a@example.com"], subject: "S", text: "T", html: "H", reply_to: MITTENTE });
     c(`Resend: ${nome} → \`{ ok:false, codice:"${codice}" }\`, senza testi né chiave nel risultato`, [okAtteso, codice, false], [e.ok, e.codice, /cliente0|re_chiave/.test(JSON.stringify(e))]);
   }
+  const idemVisti = [];
+  const fetchIdem = async (u, o) => (idemVisti.push(o), { ok: true, status: 200 });
+  await I.resendConFetch("re_chiave_finta_di_prova_000000", fetchIdem)({ from: MITTENTE, to: ["a@example.com"], subject: "S", text: "T", html: "H", reply_to: MITTENTE }, "shop-email:x:y:z");
+  await I.resendConFetch("re_chiave_finta_di_prova_000000", fetchIdem)({ from: MITTENTE, to: ["a@example.com"], subject: "S", text: "T", html: "H", reply_to: MITTENTE });
+  c("Resend: la chiave di idempotenza va nell'intestazione `Idempotency-Key`, mai nel corpo JSON; senza chiave niente intestazione", ["shop-email:x:y:z", false, undefined], [idemVisti[0]?.headers?.["Idempotency-Key"], /shop-email/.test(idemVisti[0]?.body ?? ""), idemVisti[1]?.headers?.["Idempotency-Key"]]);
+  const r409 = (nome) => async () => ({ ok: false, status: 409, json: async () => ({ name: nome, message: "PROVA cliente0@example.com" }) });
+  const e1 = await I.resendConFetch("re_chiave_finta_di_prova_000000", r409("concurrent_idempotent_requests"))({ from: MITTENTE, to: ["a@example.com"], subject: "S", text: "T", html: "H", reply_to: MITTENTE }, "k");
+  const e2 = await I.resendConFetch("re_chiave_finta_di_prova_000000", r409("invalid_idempotent_request"))({ from: MITTENTE, to: ["a@example.com"], subject: "S", text: "T", html: "H", reply_to: MITTENTE }, "k");
+  const e3 = await I.resendConFetch("re_chiave_finta_di_prova_000000", async () => ({ ok: false, status: 409, json: async () => { throw new Error("x"); } }))({ from: MITTENTE, to: ["a@example.com"], subject: "S", text: "T", html: "H", reply_to: MITTENTE }, "k");
+  c("Resend: 409 concurrent → codice «concurrent_idempotent_requests»; 409 invalid o senza JSON → «http_409»; mai testi nel risultato", [[false, "concurrent_idempotent_requests"], [false, "http_409"], [false, "http_409"], false], [[e1.ok, e1.codice], [e2.ok, e2.codice], [e3.ok, e3.codice], /cliente0|PROVA/.test(JSON.stringify([e1, e2, e3]))]);
   const senzaChiave = await I.resendConFetch("", async () => { throw new Error("non si deve chiamare"); })({ from: MITTENTE, to: ["a@example.com"], subject: "S", text: "T", html: "H", reply_to: MITTENTE });
   c("Resend: chiave assente → `{ ok:false, codice:\"non_configurata\" }`, nessuna chiamata di rete", [false, "non_configurata"], [senzaChiave.ok, senzaChiave.codice]);
 
