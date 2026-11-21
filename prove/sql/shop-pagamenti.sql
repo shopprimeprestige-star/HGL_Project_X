@@ -639,6 +639,72 @@ SELECT pg_temp.uguale('rimborso_orfano · ora il massimo è libero: si rimborsa 
 SELECT pg_temp.uguale('rimborso_orfano · una riga fallita e una richiesta', '1|1',
   (SELECT count(*)::text FROM public.shop_rimborsi WHERE ordine_id = pg_temp.oid(22, 1) AND stato = 'fallito') || '|' || (SELECT count(*)::text FROM public.shop_rimborsi WHERE ordine_id = pg_temp.oid(22, 1) AND stato = 'richiesto'));
 
+-- SCENARIO: rimborso_riuscito_poi_fallito
+-- R3a, transizione AMMESSA. Stripe può portare un rimborso da «riuscito» a «fallito» (la banca lo respinge dopo): la riga segue, il rimborsato si ricalcola, nessun avviso.
+SELECT pg_temp.mondo(70, 5);
+SELECT pg_temp.ordine(70, 1);
+SELECT pg_temp.uguale('rimborso_riuscito_poi_fallito · paga', 'pagato_ora|false', pg_temp.paga(70, 1, 'cs_t70_1'));
+SELECT pg_temp.uguale('rimborso_riuscito_poi_fallito · prenota 10,00 €', 'prenotato', pg_temp.j(public.shop_rimborso_prenota(pg_temp.oid(70, 1), 1000, 'reso', 'chiave-70-1', 'titolare'), 'esito'));
+SELECT pg_temp.uguale('rimborso_riuscito_poi_fallito · Stripe lo dice riuscito: rimborsato in parte', '1000|rimborsato_in_parte',
+  (SELECT pg_temp.j(r, 'rimborsato_cent') || '|' || pg_temp.j(r, 'stato_pagamento') FROM (SELECT public.shop_rimborso_riconcilia(pg_temp.oid(70, 1), jsonb_build_array(
+    jsonb_build_object('id', 're_t70_1', 'amount', 1000, 'status', 'succeeded', 'metadata', jsonb_build_object('riga_id', (SELECT id FROM public.shop_rimborsi WHERE chiave_richiesta = 'chiave-70-1')))), false) AS r) x));
+SELECT pg_temp.uguale('rimborso_riuscito_poi_fallito · poi «failed» (riuscito → fallito, ammesso): il rimborsato si ricalcola, l''ordine torna pagato', '0|pagato',
+  (SELECT pg_temp.j(r, 'rimborsato_cent') || '|' || pg_temp.j(r, 'stato_pagamento') FROM (SELECT public.shop_rimborso_riconcilia(pg_temp.oid(70, 1), jsonb_build_array(
+    jsonb_build_object('id', 're_t70_1', 'amount', 1000, 'status', 'failed', 'metadata', jsonb_build_object('riga_id', (SELECT id FROM public.shop_rimborsi WHERE chiave_richiesta = 'chiave-70-1')))), false) AS r) x));
+SELECT pg_temp.uguale('rimborso_riuscito_poi_fallito · la riga è «fallito» con l''id di Stripe, l''ordine pagato con rimborsato 0, nessun avviso', 'fallito|re_t70_1|pagato|0|0',
+  (SELECT stato || '|' || stripe_rimborso_id FROM public.shop_rimborsi WHERE chiave_richiesta = 'chiave-70-1') || '|' || pg_temp.col(70, 1, 'stato_pagamento') || '|' || pg_temp.col(70, 1, 'rimborsato_cent')
+  || '|' || pg_temp.avvisi(70, 1, 'rimborso_transizione_ignorata'));
+
+-- SCENARIO: rimborso_transizione_rifiutata
+-- R3a, transizione RIFIUTATA. «riuscito» → «in corso» (un elenco vecchio applicato dopo uno nuovo) e «fallito» → «riuscito» (Stripe non lo fa mai): la riga e il rimborsato non cambiano, resta un avviso.
+SELECT pg_temp.mondo(71, 5);
+SELECT pg_temp.ordine(71, 1);
+SELECT pg_temp.uguale('rimborso_transizione_rifiutata · paga', 'pagato_ora|false', pg_temp.paga(71, 1, 'cs_t71_1'));
+SELECT pg_temp.uguale('rimborso_transizione_rifiutata · prenota 10,00 €', 'prenotato', pg_temp.j(public.shop_rimborso_prenota(pg_temp.oid(71, 1), 1000, 'reso', 'chiave-71-1', 'titolare'), 'esito'));
+SELECT pg_temp.uguale('rimborso_transizione_rifiutata · Stripe lo dice riuscito', '1000|rimborsato_in_parte',
+  (SELECT pg_temp.j(r, 'rimborsato_cent') || '|' || pg_temp.j(r, 'stato_pagamento') FROM (SELECT public.shop_rimborso_riconcilia(pg_temp.oid(71, 1), jsonb_build_array(
+    jsonb_build_object('id', 're_t71_1', 'amount', 1000, 'status', 'succeeded', 'metadata', jsonb_build_object('riga_id', (SELECT id FROM public.shop_rimborsi WHERE chiave_richiesta = 'chiave-71-1')))), false) AS r) x));
+SELECT pg_temp.uguale('rimborso_transizione_rifiutata · un elenco vecchio dice «pending» (riuscito → in corso): ignorato, il rimborsato resta 10,00 €', '1000|rimborsato_in_parte',
+  (SELECT pg_temp.j(r, 'rimborsato_cent') || '|' || pg_temp.j(r, 'stato_pagamento') FROM (SELECT public.shop_rimborso_riconcilia(pg_temp.oid(71, 1), jsonb_build_array(
+    jsonb_build_object('id', 're_t71_1', 'amount', 1000, 'status', 'pending', 'metadata', jsonb_build_object('riga_id', (SELECT id FROM public.shop_rimborsi WHERE chiave_richiesta = 'chiave-71-1')))), false) AS r) x));
+SELECT pg_temp.uguale('rimborso_transizione_rifiutata · la riga è ancora «riuscito» e c''è UN avviso', 'riuscito|1',
+  (SELECT stato FROM public.shop_rimborsi WHERE chiave_richiesta = 'chiave-71-1') || '|' || pg_temp.avvisi(71, 1, 'rimborso_transizione_ignorata'));
+SELECT pg_temp.uguale('rimborso_transizione_rifiutata · lo stesso elenco vecchio di nuovo: l''avviso resta uno solo', '1000|1',
+  (SELECT pg_temp.j(r, 'rimborsato_cent') FROM (SELECT public.shop_rimborso_riconcilia(pg_temp.oid(71, 1), jsonb_build_array(
+    jsonb_build_object('id', 're_t71_1', 'amount', 1000, 'status', 'pending', 'metadata', jsonb_build_object('riga_id', (SELECT id FROM public.shop_rimborsi WHERE chiave_richiesta = 'chiave-71-1')))), false) AS r) x)
+  || '|' || pg_temp.avvisi(71, 1, 'rimborso_transizione_ignorata'));
+SELECT pg_temp.uguale('rimborso_transizione_rifiutata · «failed» (riuscito → fallito, ammesso): rimborsato 0, ordine pagato', '0|pagato',
+  (SELECT pg_temp.j(r, 'rimborsato_cent') || '|' || pg_temp.j(r, 'stato_pagamento') FROM (SELECT public.shop_rimborso_riconcilia(pg_temp.oid(71, 1), jsonb_build_array(
+    jsonb_build_object('id', 're_t71_1', 'amount', 1000, 'status', 'failed', 'metadata', jsonb_build_object('riga_id', (SELECT id FROM public.shop_rimborsi WHERE chiave_richiesta = 'chiave-71-1')))), false) AS r) x));
+SELECT pg_temp.uguale('rimborso_transizione_rifiutata · poi «succeeded» (fallito → riuscito): ignorato, rimborsato ancora 0, ordine ancora pagato', '0|pagato',
+  (SELECT pg_temp.j(r, 'rimborsato_cent') || '|' || pg_temp.j(r, 'stato_pagamento') FROM (SELECT public.shop_rimborso_riconcilia(pg_temp.oid(71, 1), jsonb_build_array(
+    jsonb_build_object('id', 're_t71_1', 'amount', 1000, 'status', 'succeeded', 'metadata', jsonb_build_object('riga_id', (SELECT id FROM public.shop_rimborsi WHERE chiave_richiesta = 'chiave-71-1')))), false) AS r) x));
+SELECT pg_temp.uguale('rimborso_transizione_rifiutata · la riga è ancora «fallito» e gli avvisi sono due (uno per cambio rifiutato), il secondo rosso', 'fallito|2|rosso',
+  (SELECT stato FROM public.shop_rimborsi WHERE chiave_richiesta = 'chiave-71-1') || '|' || pg_temp.avvisi(71, 1, 'rimborso_transizione_ignorata')
+  || '|' || (SELECT a ->> 'gravita' FROM public.shop_orders o, jsonb_array_elements(o.avvisi) a WHERE o.id = pg_temp.oid(71, 1) AND a ->> 'codice' = 'rimborso_transizione_ignorata' AND a ->> 'rif' LIKE '%fallito>riuscito'));
+
+-- SCENARIO: rimborso_stesso_stato
+-- R3a. Lo stesso stato non riscrive niente: «riuscito» ripetuto resta com'è (anche aggiornato_il); «richiesto» con Stripe «in corso» riceve solo l'id di Stripe, se manca, senza toccare aggiornato_il.
+SELECT pg_temp.mondo(72, 5);
+SELECT pg_temp.ordine(72, 1);
+SELECT pg_temp.uguale('rimborso_stesso_stato · paga', 'pagato_ora|false', pg_temp.paga(72, 1, 'cs_t72_1'));
+SELECT pg_temp.uguale('rimborso_stesso_stato · prenota 10,00 €', 'prenotato', pg_temp.j(public.shop_rimborso_prenota(pg_temp.oid(72, 1), 1000, 'reso', 'chiave-72-a', 'titolare'), 'esito'));
+SELECT pg_temp.uguale('rimborso_stesso_stato · prenota 5,00 €', 'prenotato', pg_temp.j(public.shop_rimborso_prenota(pg_temp.oid(72, 1), 500, 'reso', 'chiave-72-b', 'titolare'), 'esito'));
+UPDATE public.shop_rimborsi SET aggiornato_il = '2026-01-01 00:00:00+00' WHERE chiave_richiesta IN ('chiave-72-a', 'chiave-72-b');
+SELECT pg_temp.uguale('rimborso_stesso_stato · Stripe: il primo «pending», il secondo «succeeded»', '500|rimborsato_in_parte',
+  (SELECT pg_temp.j(r, 'rimborsato_cent') || '|' || pg_temp.j(r, 'stato_pagamento') FROM (SELECT public.shop_rimborso_riconcilia(pg_temp.oid(72, 1), jsonb_build_array(
+    jsonb_build_object('id', 're_t72_a', 'amount', 1000, 'status', 'pending', 'metadata', jsonb_build_object('riga_id', (SELECT id FROM public.shop_rimborsi WHERE chiave_richiesta = 'chiave-72-a'))),
+    jsonb_build_object('id', 're_t72_b', 'amount', 500, 'status', 'succeeded', 'metadata', jsonb_build_object('riga_id', (SELECT id FROM public.shop_rimborsi WHERE chiave_richiesta = 'chiave-72-b')))), false) AS r) x));
+UPDATE public.shop_rimborsi SET aggiornato_il = '2026-01-02 00:00:00+00' WHERE chiave_richiesta = 'chiave-72-b';
+SELECT pg_temp.uguale('rimborso_stesso_stato · lo stesso elenco di nuovo: stessi numeri', '500|rimborsato_in_parte',
+  (SELECT pg_temp.j(r, 'rimborsato_cent') || '|' || pg_temp.j(r, 'stato_pagamento') FROM (SELECT public.shop_rimborso_riconcilia(pg_temp.oid(72, 1), jsonb_build_array(
+    jsonb_build_object('id', 're_t72_a', 'amount', 1000, 'status', 'pending', 'metadata', jsonb_build_object('riga_id', (SELECT id FROM public.shop_rimborsi WHERE chiave_richiesta = 'chiave-72-a'))),
+    jsonb_build_object('id', 're_t72_b', 'amount', 500, 'status', 'succeeded', 'metadata', jsonb_build_object('riga_id', (SELECT id FROM public.shop_rimborsi WHERE chiave_richiesta = 'chiave-72-b')))), false) AS r) x));
+SELECT pg_temp.uguale('rimborso_stesso_stato · il «richiesto» ha l''id di Stripe ma aggiornato_il intatto; il «riuscito» non è stato riscritto (aggiornato_il intatto)', 'richiesto|re_t72_a|true|riuscito|re_t72_b|true',
+  (SELECT stato || '|' || stripe_rimborso_id || '|' || (aggiornato_il = '2026-01-01 00:00:00+00'::timestamptz)::text FROM public.shop_rimborsi WHERE chiave_richiesta = 'chiave-72-a')
+  || '|' || (SELECT stato || '|' || stripe_rimborso_id || '|' || (aggiornato_il = '2026-01-02 00:00:00+00'::timestamptz)::text FROM public.shop_rimborsi WHERE chiave_richiesta = 'chiave-72-b'));
+SELECT pg_temp.uguale('rimborso_stesso_stato · nessun avviso', '0', pg_temp.avvisi(72, 1, 'rimborso_transizione_ignorata'));
+
 -- SCENARIO: rimessa_idempotente
 SELECT pg_temp.mondo(23, 5);
 SELECT pg_temp.ordine(23, 1);
