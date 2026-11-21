@@ -67,7 +67,7 @@ export async function prove(mod, { c, gruppo, radice }) {
   ]);
   c("`acceso` nasce falso e il database rifiuta (CHECK) un modello acceso senza approvazione sull'impronta di oggetto+testo o con `{{`", [true, true, true, true], [
     /acceso\s+boolean\s+NOT NULL DEFAULT false/.test(tabella),
-    /CHECK \(NOT acceso OR/.test(piatto(tabella)),
+    /CHECK \( ?NOT acceso OR/.test(piatto(tabella)),
     piatto(tabella).includes("approvato_hash = encode(sha256(convert_to(oggetto || E'\\n' || testo, 'UTF8')), 'hex')"),
     /position\('\{\{' IN oggetto\) = 0/.test(tabella) && /position\('\{\{' IN testo\) = 0/.test(tabella),
   ]);
@@ -119,8 +119,9 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("nessuna funzione è concessa ad anon o authenticated", 0, stmt.filter((s) => /^GRANT EXECUTE/.test(s) && /\b(anon|authenticated)\b/.test(s)).length);
 
   /* ── gli errori sono quelli del finto (testo e SQLSTATE) ── */
-  const errori = [...corpi.join("\n").matchAll(/RAISE EXCEPTION '([a-z_]+)'\s+USING ERRCODE = '([a-z_]+)'/g)].map((m) => ({ nome: m[1], errcode: m[2] }));
-  const tuttiRaise = (corpi.join("\n").match(/RAISE EXCEPTION/g) ?? []).length;
+  const funzioniCorpi = corpi.slice(1).join("\n"); // il primo corpo è il controllo iniziale (messaggi liberi, senza ERRCODE del contratto)
+  const errori = [...funzioniCorpi.matchAll(/RAISE EXCEPTION '([a-z_]+)'\s+USING ERRCODE = '([a-z_]+)'/g)].map((m) => ({ nome: m[1], errcode: m[2] }));
+  const tuttiRaise = (funzioniCorpi.match(/RAISE EXCEPTION/g) ?? []).length;
   c("ogni RAISE EXCEPTION ha il testo di un errore del finto e il suo ERRCODE", [tuttiRaise, []], [errori.length, errori.filter((e) => ERRORI_SQL_R2[e.nome]?.errcode !== e.errcode)]);
   c("gli errori che il piano e gli scenari chiedono ci sono tutti", [], ["modello_non_trovato", "modello_non_approvato", "modello_con_segnaposto", "ordine_non_trovato", "parametro_non_valido", "email_stato_non_valido"].filter((n) => !errori.some((e) => e.nome === n)));
 
