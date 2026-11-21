@@ -27,9 +27,9 @@
 --     CHIUSA sulle colonne nuove: anon e authenticated non possono scriverne nessuna (ordini finti «pagati», 42501);
 --   · le 5 tabelle chiuse: RLS accesa e nessuna policy; `anon` e `authenticated` non leggono niente; `service_role` legge ma NON
 --     scrive (UPDATE, INSERT, DELETE, TRUNCATE rifiutati); le funzioni le eseguono solo `service_role` e il proprietario;
---   · gli scenari dei soldi di `prove/negozio/_scenari-soldi.json` (marcatori `-- SCENARIO: nome`, 43 per questo file):
+--   · gli scenari dei soldi di `prove/negozio/_scenari-soldi.json` (marcatori `-- SCENARIO: nome`, 44 per questo file):
 --     pagato due volte, importo e valuta diversi, ultimo pezzo, SKU che non si risolve, sessione sostituita, doppio pagamento,
---     riprova con due clic, scadenza a 60 minuti (crea e riapri), chiusura senza sessione solo a scadenza passata, rifiuto di un rimborso e riattivazione di un ordine annullato (T53b), cambi di stato dei rimborsi ammessi e rifiutati (R3a), rimborso oltre il pagato, rimessa dai soli movimenti, limite con finestra scaduta senza DELETE, …;
+--     riprova con due clic, scadenza a 60 minuti (crea e riapri), chiusura senza sessione solo a scadenza passata, rifiuto di un rimborso e riattivazione di un ordine annullato (T53b), cambi di stato dei rimborsi ammessi e rifiutati e un fallito nostro che si riapre (R3a), rimborso oltre il pagato, rimessa dai soli movimenti, limite con finestra scaduta senza DELETE, …;
 --   · DUE SESSIONI VERE (dblink) sulle corse che il finto non vede: stesso pagamento consegnato due volte insieme (una
 --     sola scalatura), due ordini insieme sull'ultimo pezzo, due rimborsi insieme oltre il pagato (uno solo), due «riprova»
 --     insieme (una sola `riprova_n`), la stessa chiave di rimborso insieme (una riga), due richieste insieme sul limite,

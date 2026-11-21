@@ -47,7 +47,7 @@ export const CHIUSE = new Set(["shop_rimborsi", "shop_stripe_eventi", "shop_stri
 export const SOLO_RPC = new Set(["shop_spedizioni_tariffe", "shop_email_modelli"]);
 /** Per quanto tempo un ordine aspetta il pagamento (contratto 1, rev. T44): adesso + 60 minuti, deciso dal DATABASE (`shop_s4_scadenza`) alla creazione e alla riapertura. */
 export const SCADENZA_MIN = 60;
-/** I soli cambi di stato di una riga di rimborso che `shop_rimborso_riconcilia` accetta (R3a): sono quelli che Stripe fa davvero. Ogni altro è ignorato con un avviso. */
+/** I cambi di stato di una riga di rimborso che `shop_rimborso_riconcilia` accetta sempre (R3a): sono quelli che Stripe fa davvero. Si aggiunge fallito→riuscito/richiesto se la riga non ha l'id di Stripe. Ogni altro è ignorato con un avviso. */
 const TRANSIZIONI_RIMBORSO = ["richiesto>riuscito", "richiesto>fallito", "riuscito>fallito"];
 /** Gli argomenti (nomi `p_…`) che ogni funzione ha NEL DATABASE. Un argomento che la funzione non ha fa rispondere PostgREST con PGRST202 («Could not find the function … in the schema cache»):
  *  il finto fa lo stesso, così una chiamata con un parametro tolto o inventato (es. il vecchio `p_nuova_scade` di `shop_ordine_riapri`) non passa in silenzio. Gli argomenti OMESSI sono ammessi (valgono i DEFAULT). */
@@ -521,7 +521,7 @@ export function fintoDb({ tabelle = {}, mancante = false, codiceMancante = "42P0
       return { data: { esito: "prenotato", id: r.id } };
     }],
     /* shop_rimborso_riconcilia(p_ordine uuid, p_rimborsi jsonb, p_chiudi_orfane boolean) → jsonb {rimborsato_cent, stato_pagamento}
-     *    R3a, CAMBI DI STATO (stessa regola del SQL, con la spiegazione): ammessi solo richiesto→riuscito, richiesto→fallito, riuscito→fallito (Stripe può respingere un rimborso già riuscito);
+     *    R3a, CAMBI DI STATO (stessa regola del SQL, con la spiegazione): ammessi solo richiesto→riuscito, richiesto→fallito, riuscito→fallito (Stripe può respingere un rimborso già riuscito), più fallito→riuscito/richiesto se la riga NON ha l'id di Stripe (un `fallito` nostro, da orfana o da rifiuto, non confermato da Stripe: si riapre e prende l'id, senza avviso);
      *    lo stesso stato non riscrive niente (solo l'id di Stripe, se manca); ogni altro cambio è ignorato con l'avviso `rimborso_transizione_ignorata` (rif `<id Stripe>:<prima>><dopo>`, rosso se Stripe diceva riuscito).
      *    D46: p_rimborsi = l'ELENCO di Stripe [{id, amount, status, metadata:{riga_id}}]. Una riga si aggancia per `stripe_rimborso_id` o per `metadata.riga_id`;
      *    un rimborso che non conosciamo (fatto dal pannello Stripe) diventa una riga con origine 'stripe'. rimborsato_cent = somma dei `riuscito`;
@@ -538,7 +538,7 @@ export function fintoDb({ tabelle = {}, mancante = false, codiceMancante = "42P0
           agganciate.add(riga.id);
           const nuovoStato = stato(s.status);
           if (riga.stato === nuovoStato) { if (!riga.stripe_rimborso_id) mod("shop_rimborsi", riga, { stripe_rimborso_id: s.id }); } // lo stesso stato: niente, solo l'id che manca (senza `aggiornato_il`)
-          else if (TRANSIZIONI_RIMBORSO.includes(`${riga.stato}>${nuovoStato}`)) mod("shop_rimborsi", riga, { stripe_rimborso_id: riga.stripe_rimborso_id ?? s.id, stato: nuovoStato, aggiornato_il: adesso() });
+          else if (TRANSIZIONI_RIMBORSO.includes(`${riga.stato}>${nuovoStato}`) || (riga.stato === "fallito" && !riga.stripe_rimborso_id && (nuovoStato === "riuscito" || nuovoStato === "richiesto"))) mod("shop_rimborsi", riga, { stripe_rimborso_id: riga.stripe_rimborso_id ?? s.id, stato: nuovoStato, aggiornato_il: adesso() });
           else avviso(o, "rimborso_transizione_ignorata", nuovoStato === "riuscito" ? "rosso" : "arancio", `${s.id}:${riga.stato}>${nuovoStato}`); // ignorato: la riga non cambia
         }
         else ins("shop_rimborsi", { ordine_id: o.id, importo_cent: s.amount, motivo: "Rimborso fatto dal pannello di Stripe", stato: stato(s.status), chiave_richiesta: null, stripe_rimborso_id: s.id, origine: "stripe", chi: "stripe" });
