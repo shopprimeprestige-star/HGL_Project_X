@@ -676,6 +676,22 @@ $$;
 -- metadata.riga_id; un rimborso che non conosciamo (fatto dal pannello di Stripe) diventa una riga con origine «stripe». rimborsato_cent = somma dei «riuscito»;
 -- lo stato dell'ordine segue (rimborsato_in_parte / rimborsato / di nuovo pagato). Con p_chiudi_orfane: una riga «richiesto» senza rimborso su Stripe da più di
 -- 10 minuti diventa «fallito» (libera il massimo).
+--
+-- CHE CAMBI DI STATO SI ACCETTANO (R3a). Lo stato di una riga nostra cambia solo lungo le strade che Stripe fa davvero: un elenco riletto o vecchio non deve
+-- poter far scendere un rimborso già «riuscito» né riaprire uno «fallito». Gli stati di Stripe (Refund.status): pending e requires_action (da noi «richiesto»),
+-- succeeded («riuscito»), failed e canceled («fallito»: la tabella ha solo tre stati, il motivo preciso non serve ai conti).
+--   richiesto → riuscito   AMMESSO  Stripe porta a termine il rimborso (pending / requires_action → succeeded).
+--   richiesto → fallito    AMMESSO  Stripe lo rifiuta o lo annulla prima della fine (→ failed / canceled).
+--   riuscito  → fallito    AMMESSO  succede davvero: la banca o il conto del cliente respinge il rimborso già dato per riuscito (Stripe manda refund.failed e lo
+--                                   stato diventa failed): per questo NON esiste un «mai scendere da riuscito» cieco; il rimborsato si ricalcola e l'ordine torna pagato.
+--   stesso stato           NIENTE   non si riscrive nulla (né stato né aggiornato_il). Solo se alla riga manca ancora l'id di Stripe si scrive quello: serve ad
+--                                   agganciarla alle chiamate dopo e a non farla chiudere come orfana.
+--   ogni altro cambio      IGNORATO la riga resta com'è, rimborsato_cent non si muove e sull'ordine resta l'avviso «rimborso_transizione_ignorata» (una volta per
+--                                   id Stripe e cambio; rosso se Stripe diceva «riuscito», arancio altrimenti). Sono: riuscito → richiesto (un elenco vecchio applicato
+--                                   dopo uno nuovo), fallito → riuscito e fallito → richiesto (failed e canceled sono definitivi: un nuovo tentativo è un altro rimborso, con
+--                                   un altro id, e nasce come riga nuova), cioè un elenco vecchio o un dato che Stripe non ha mai dato.
+-- Le righe che non conosciamo (rimborsi fatti dal pannello di Stripe) nascono direttamente nello stato che Stripe dice: lì non c'è un «prima».
+-- Blocchi, nell'ordine di sempre (come shop_rimborso_prenota e shop_rimborso_rifiuta): prima l'ordine (FOR UPDATE), poi la riga che si sta per cambiare.
 CREATE OR REPLACE FUNCTION public.shop_rimborso_riconcilia(
   p_ordine         uuid,
   p_rimborsi       jsonb,
@@ -688,6 +704,7 @@ DECLARE
   v_importo     integer;
   v_stato       text;
   v_riga        uuid;
+  v_attuale     text;
   v_agganciate  uuid[] := ARRAY[]::uuid[];
   v_rimborsato  integer;
   v_pagato      integer;
@@ -710,13 +727,22 @@ BEGIN
     v_importo := (v_s ->> 'amount')::integer;
     v_stato := CASE v_s ->> 'status' WHEN 'succeeded' THEN 'riuscito' WHEN 'failed' THEN 'fallito' WHEN 'canceled' THEN 'fallito' ELSE 'richiesto' END;
 
-    SELECT id INTO v_riga FROM public.shop_rimborsi
+    SELECT id, stato INTO v_riga, v_attuale FROM public.shop_rimborsi
      WHERE ordine_id = v_ordine.id AND (stripe_rimborso_id = v_id_stripe OR (((v_s -> 'metadata') ->> 'riga_id') IS NOT NULL AND id::text = ((v_s -> 'metadata') ->> 'riga_id')))
      ORDER BY (stripe_rimborso_id = v_id_stripe) DESC NULLS LAST
-     LIMIT 1;
+     LIMIT 1
+     FOR UPDATE;
     IF FOUND THEN
       v_agganciate := v_agganciate || v_riga;
-      UPDATE public.shop_rimborsi SET stripe_rimborso_id = v_id_stripe, stato = v_stato, aggiornato_il = now() WHERE id = v_riga;
+      IF v_attuale = v_stato THEN
+        -- Lo stesso stato: niente da riscrivere, tranne l'id di Stripe se manca ancora (e senza toccare aggiornato_il).
+        UPDATE public.shop_rimborsi SET stripe_rimborso_id = v_id_stripe WHERE id = v_riga AND stripe_rimborso_id IS NULL;
+      ELSIF (v_attuale, v_stato) IN (('richiesto', 'riuscito'), ('richiesto', 'fallito'), ('riuscito', 'fallito')) THEN
+        UPDATE public.shop_rimborsi SET stripe_rimborso_id = COALESCE(stripe_rimborso_id, v_id_stripe), stato = v_stato, aggiornato_il = now() WHERE id = v_riga;
+      ELSE
+        PERFORM public.shop_s4_avviso(v_ordine.id, 'rimborso_transizione_ignorata', CASE WHEN v_stato = 'riuscito' THEN 'rosso' ELSE 'arancio' END,
+                                      v_id_stripe || ':' || v_attuale || '>' || v_stato);
+      END IF;
     ELSE
       INSERT INTO public.shop_rimborsi (ordine_id, importo_cent, motivo, stato, chiave_richiesta, stripe_rimborso_id, origine, chi)
       VALUES (v_ordine.id, v_importo, 'Rimborso fatto dal pannello di Stripe', v_stato, NULL, v_id_stripe, 'stripe', 'stripe');
