@@ -429,7 +429,7 @@ SELECT pg_temp.uguale('ordine_non_trovato · l''altro ordine e la giacenza sono 
 SELECT pg_temp.mondo(8, 5);
 SELECT pg_temp.ordine(8, 1, ARRAY['cs_t8_a']);
 SELECT pg_temp.uguale('sessione_sostituita · la prima sessione scade', 'chiuso', pg_temp.j(public.shop_ordine_chiudi(pg_temp.oid(8, 1), 'cs_t8_a', 'scaduto'), 'esito'));
-SELECT pg_temp.uguale('sessione_sostituita · il cliente riprova: riaperto', 'riaperto', pg_temp.j(public.shop_ordine_riapri(pg_temp.oid(8, 1), now() + interval '45 minutes'), 'esito'));
+SELECT pg_temp.uguale('sessione_sostituita · il cliente riprova: riaperto', 'riaperto', pg_temp.j(public.shop_ordine_riapri(pg_temp.oid(8, 1)), 'esito'));
 SELECT pg_temp.uguale('sessione_sostituita · riprova_n = 1 e di nuovo in attesa', '1|in_attesa', pg_temp.col(8, 1, 'riprova_n') || '|' || pg_temp.col(8, 1, 'stato_pagamento'));
 SELECT pg_temp.uguale('sessione_sostituita · la seconda sessione si registra', 'registrata', pg_temp.j(public.shop_ordine_sessione_registra(pg_temp.oid(8, 1), 'cs_t8_b'), 'esito'));
 SELECT pg_temp.uguale('sessione_sostituita · l''evento della PRIMA sessione, arrivato dopo, paga l''ordine (nessuno scarto silenzioso)', 'pagato_ora', pg_temp.j(public.shop_ordine_pagato(pg_temp.oid(8, 1), 'cs_t8_a', 2890, 'eur', 'card', 'pi_t8'), 'esito'));
@@ -469,8 +469,8 @@ SELECT pg_temp.uguale('chiudi_sessione_vecchia · ordine scaduto, la sessione a 
 SELECT pg_temp.mondo(12, 5);
 SELECT pg_temp.ordine(12, 1, stato => 'fallito');
 SELECT pg_temp.uguale('riprova_due_clic · il primo clic riapre: riaperto con riprova_n 1', 'riaperto|1',
-  (SELECT pg_temp.j(r, 'esito') || '|' || pg_temp.j(r, 'n') FROM (SELECT public.shop_ordine_riapri(pg_temp.oid(12, 1), '2026-12-01T12:31:00Z') AS r) x));
-SELECT pg_temp.uguale('riprova_due_clic · il secondo clic trova l''ordine già in attesa: riprova_in_corso', 'riprova_in_corso', pg_temp.j(public.shop_ordine_riapri(pg_temp.oid(12, 1), '2026-12-01T12:31:00Z'), 'esito'));
+  (SELECT pg_temp.j(r, 'esito') || '|' || pg_temp.j(r, 'n') FROM (SELECT public.shop_ordine_riapri(pg_temp.oid(12, 1)) AS r) x));
+SELECT pg_temp.uguale('riprova_due_clic · il secondo clic trova l''ordine già in attesa: riprova_in_corso', 'riprova_in_corso', pg_temp.j(public.shop_ordine_riapri(pg_temp.oid(12, 1)), 'esito'));
 SELECT pg_temp.uguale('riprova_due_clic · in attesa, riprova_n 1, la nuova scadenza è quella del database (+60 minuti, non quella proposta dal chiamante)', 'in_attesa|1|60',
   pg_temp.col(12, 1, 'stato_pagamento') || '|' || pg_temp.col(12, 1, 'riprova_n') || '|' || (SELECT (extract(epoch FROM scade_il - aggiornato_il) / 60)::integer::text FROM public.shop_orders WHERE id = pg_temp.oid(12, 1)));
 
@@ -490,21 +490,24 @@ SELECT pg_temp.uguale('scadenza_sessanta_minuti · la risposta di crea dice la s
   ((SELECT r ->> 'scade_il' FROM risposta_scadenza)::timestamptz = (SELECT scade_il FROM public.shop_orders WHERE id = pg_temp.oid(50, 2)))::text);
 SELECT pg_temp.ordine(50, 4, stato => 'fallito');
 SELECT pg_temp.ordine(50, 5, stato => 'scaduto');
-CREATE TEMP TABLE risposta_riapri AS SELECT public.shop_ordine_riapri(pg_temp.oid(50, 4), now() + interval '5 minutes') AS r;
-SELECT pg_temp.uguale('scadenza_sessanta_minuti · riapri con un valore proposto diverso: +60 minuti da adesso, e la risposta lo dice', 'riaperto|60|true',
+CREATE TEMP TABLE risposta_riapri AS SELECT public.shop_ordine_riapri(pg_temp.oid(50, 4)) AS r;
+SELECT pg_temp.uguale('scadenza_sessanta_minuti · riapri: +60 minuti da adesso, e la risposta lo dice', 'riaperto|60|true',
   (SELECT pg_temp.j(r, 'esito') || '|' || (extract(epoch FROM (r ->> 'scade_il')::timestamptz - aggiornato_il) / 60)::integer::text || '|'
           || ((r ->> 'scade_il')::timestamptz = scade_il)::text
      FROM risposta_riapri, public.shop_orders WHERE id = pg_temp.oid(50, 4)));
-SELECT pg_temp.uguale('scadenza_sessanta_minuti · riapri senza il secondo argomento (il database la decide da solo): +60 minuti', 'riaperto|60',
+SELECT pg_temp.uguale('scadenza_sessanta_minuti · riapri: +60 minuti dall''aggiornamento (anche da «scaduto»)', 'riaperto|60',
   (SELECT pg_temp.j(r, 'esito') || '|' || (extract(epoch FROM (SELECT scade_il - aggiornato_il FROM public.shop_orders WHERE id = pg_temp.oid(50, 5))) / 60)::integer::text
      FROM (SELECT public.shop_ordine_riapri(pg_temp.oid(50, 5)) AS r) x));
+
+SELECT pg_temp.uguale('scadenza_sessanta_minuti · riapri con un secondo argomento (il vecchio p_nuova_scade) NON esiste: nessuna scadenza decisa fuori', '42883',
+  split_part(pg_temp.errore(format($q$SELECT public.shop_ordine_riapri(%L, now() + interval '5 minutes')$q$, pg_temp.oid(50, 5))), ' ', 1));
 
 -- SCENARIO: riapri_da_pagato
 SELECT pg_temp.mondo(13, 5);
 SELECT pg_temp.ordine(13, 1);
 SELECT pg_temp.uguale('riapri_da_pagato · paga', 'pagato_ora|false', pg_temp.paga(13, 1, 'cs_t13_1'));
 SELECT pg_temp.uguale('riapri_da_pagato · un ordine pagato non si riapre mai', '55000 ordine_non_riapribile',
-  pg_temp.errore(format($q$SELECT public.shop_ordine_riapri(%L, now() + interval '30 minutes')$q$, pg_temp.oid(13, 1))));
+  pg_temp.errore(format($q$SELECT public.shop_ordine_riapri(%L)$q$, pg_temp.oid(13, 1))));
 SELECT pg_temp.uguale('riapri_da_pagato · e niente cambia', 'pagato|0', pg_temp.col(13, 1, 'stato_pagamento') || '|' || pg_temp.col(13, 1, 'riprova_n'));
 
 -- SCENARIO: crea_due_volte
@@ -719,9 +722,9 @@ SELECT pg_temp.mondo(31, 5);
 SELECT pg_temp.ordine(31, 1, stato => 'fallito', stato_ordine => 'annullato');
 SELECT pg_temp.ordine(31, 2, stato_ordine => 'annullato');
 SELECT pg_temp.uguale('riapri_annullato · annullato con pagamento fallito: non si riapre', '55000 ordine_non_riapribile',
-  pg_temp.errore(format($q$SELECT public.shop_ordine_riapri(%L, now() + interval '30 minutes')$q$, pg_temp.oid(31, 1))));
+  pg_temp.errore(format($q$SELECT public.shop_ordine_riapri(%L)$q$, pg_temp.oid(31, 1))));
 SELECT pg_temp.uguale('riapri_annullato · annullato ancora in attesa: non si riapre', '55000 ordine_non_riapribile',
-  pg_temp.errore(format($q$SELECT public.shop_ordine_riapri(%L, now() + interval '30 minutes')$q$, pg_temp.oid(31, 2))));
+  pg_temp.errore(format($q$SELECT public.shop_ordine_riapri(%L)$q$, pg_temp.oid(31, 2))));
 SELECT pg_temp.uguale('riapri_annullato · niente cambia', 'fallito|0|in_attesa|0',
   pg_temp.col(31, 1, 'stato_pagamento') || '|' || pg_temp.col(31, 1, 'riprova_n') || '|' || pg_temp.col(31, 2, 'stato_pagamento') || '|' || pg_temp.col(31, 2, 'riprova_n'));
 
@@ -827,8 +830,8 @@ SELECT pg_temp.mondo(44, 5);
 SELECT pg_temp.ordine(44, 1, stato => 'fallito');
 SELECT pg_temp.uguale('CORSA · due «Riprova» INSIEME: il secondo aspetta e trova l''ordine già in attesa (riprova_in_corso)', 'true|riaperto|riprova_in_corso',
   pg_temp.corsa(:'conn',
-    format($q$SELECT public.shop_ordine_riapri(%L, now() + interval '31 minutes') ->> 'esito'$q$, pg_temp.oid(44, 1)),
-    format($q$SELECT public.shop_ordine_riapri(%L, now() + interval '31 minutes') ->> 'esito'$q$, pg_temp.oid(44, 1))));
+    format($q$SELECT public.shop_ordine_riapri(%L) ->> 'esito'$q$, pg_temp.oid(44, 1)),
+    format($q$SELECT public.shop_ordine_riapri(%L) ->> 'esito'$q$, pg_temp.oid(44, 1))));
 SELECT pg_temp.uguale('CORSA · … una sola riprova_n (1) e l''ordine in attesa', '1|in_attesa', pg_temp.col(44, 1, 'riprova_n') || '|' || pg_temp.col(44, 1, 'stato_pagamento'));
 
 -- La creazione: lo stesso ordine (id e riferimento) due volte insieme.

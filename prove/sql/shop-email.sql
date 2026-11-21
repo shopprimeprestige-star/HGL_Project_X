@@ -7,6 +7,7 @@
 --
 --   createdb prova_email
 --   psql prova_email -X -q -v ON_ERROR_STOP=1 -f prove/sql/shop-email.sql      (dalla radice del repo)
+-- (con `-v s4vera=1` S4 e S4b sono quelle VERE del repo e non la sola colonna simulata: è il collaudo che la condizione di merge di T43 chiede)
 -- (con `-v ON_ERROR_STOP=0` lo script va avanti anche dopo un errore di SQL: serve a vedere TUTTI i rossi quando la
 -- migrazione manca o è incompleta; per il collaudo vero si usa `1`)
 --
@@ -142,7 +143,14 @@ SELECT pg_temp.prova('…e non ha lasciato niente: nessuna tabella dei modelli',
 SELECT pg_temp.prova('…e nessuna funzione di S6', '0', (SELECT count(*)::text FROM pg_proc WHERE proname LIKE 'shop\_email\_%'));
 
 -- Ora la sola colonna di S4 che serve, e due ordini inventati: uno «vecchio» (S6 non deve toccarlo) e uno per l'invio.
+\if :{?s4vera}
+-- Con `-v s4vera=1`: S4 e S4b VERE al posto della simulazione (condizione di merge di T43). Dopo il controllo «senza S4 si ferma» qui sopra, che richiede S4 assente.
+\i supabase/migrations/20261122120000_shop_pagamenti.sql
+\i supabase/migrations/20261122123000_shop_orders_protezione.sql
+\echo 'ok  S4 e S4b VERE applicate (al posto della sola colonna email_inviate)'
+\else
 ALTER TABLE public.shop_orders ADD COLUMN IF NOT EXISTS email_inviate jsonb DEFAULT '{}'::jsonb;
+\endif
 INSERT INTO public.shop_orders (id, order_ref, nome, cognome, email, telefono, indirizzo, citta, cap, items, subtotal, shipping, total)
 VALUES ('00000000-0000-4000-8000-000000006000', 'HG-VECCHIO', 'Prova', 'Uno', 'prova.uno@example.invalid', '3000000000', 'Via Inventata 1', 'Cittaprova', '00000', '[]', 10, 5, 15);
 INSERT INTO public.shop_orders (id, order_ref, nome, cognome, email, telefono, indirizzo, citta, cap, items, subtotal, shipping, total)

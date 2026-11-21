@@ -103,7 +103,7 @@
       "partenza": {"varianti":[{"sku":"PROVA-V1","giacenza":5,"prezzo_cent":2890}],"ordini":[{"id":"00000000-0000-4000-8000-000000006001","ref":"HG-S001","totale_cent":2890,"righe":[{"sku":"PROVA-V1","qty":1,"prezzo_cent":2890}],"sessioni":["cs_test_a"]}]},
       "passi": [
         {"rpc":"shop_ordine_chiudi","args":{"p_ordine":"00000000-0000-4000-8000-000000006001","p_sessione":"cs_test_a","p_stato":"scaduto"},"atteso":{"esito":"chiuso"}},
-        {"rpc":"shop_ordine_riapri","args":{"p_ordine":"00000000-0000-4000-8000-000000006001","p_nuova_scade":"2026-11-20T12:45:00.000Z"},"atteso":{"esito":"riaperto","n":1}},
+        {"rpc":"shop_ordine_riapri","args":{"p_ordine":"00000000-0000-4000-8000-000000006001"},"atteso":{"esito":"riaperto","n":1}},
         {"rpc":"shop_ordine_sessione_registra","args":{"p_ordine":"00000000-0000-4000-8000-000000006001","p_sessione":"cs_test_b"},"atteso":{"esito":"registrata"}},
         {"rpc":"shop_ordine_pagato","args":{"p_ordine":"00000000-0000-4000-8000-000000006001","p_sessione":"cs_test_a","p_importo_cent":2890,"p_valuta":"eur","p_metodo":"card","p_pagamento_id":"pi_prova_a"},"atteso":{"esito":"pagato_ora"}}
       ],
@@ -161,8 +161,8 @@
       "descrizione": "Ordine fallito: due clic insieme su «Riprova» producono una sola riapertura (`riprova_n` = 1); il secondo trova l'ordine già in attesa.",
       "partenza": {"varianti":[{"sku":"PROVA-V1","giacenza":5,"prezzo_cent":2890}],"ordini":[{"id":"00000000-0000-4000-8000-000000006001","ref":"HG-S001","totale_cent":2890,"righe":[{"sku":"PROVA-V1","qty":1,"prezzo_cent":2890}],"sessioni":["cs_test_a"],"campi":{"stato_pagamento":"fallito"}}]},
       "passi": [
-        {"rpc":"shop_ordine_riapri","args":{"p_ordine":"00000000-0000-4000-8000-000000006001","p_nuova_scade":"2026-11-20T12:31:00.000Z"},"atteso":{"esito":"riaperto","n":1,"scade_il":"2026-11-20T13:00:00.000Z"}},
-        {"rpc":"shop_ordine_riapri","args":{"p_ordine":"00000000-0000-4000-8000-000000006001","p_nuova_scade":"2026-11-20T12:31:00.000Z"},"atteso":{"esito":"riprova_in_corso"}}
+        {"rpc":"shop_ordine_riapri","args":{"p_ordine":"00000000-0000-4000-8000-000000006001"},"atteso":{"esito":"riaperto","n":1,"scade_il":"2026-11-20T13:00:00.000Z"}},
+        {"rpc":"shop_ordine_riapri","args":{"p_ordine":"00000000-0000-4000-8000-000000006001"},"atteso":{"esito":"riprova_in_corso"}}
       ],
       "controlli": [
         {"tabella":"shop_orders","dove":{"id":"00000000-0000-4000-8000-000000006001"},"atteso":{"stato_pagamento":"in_attesa","riprova_n":1,"scade_il":"2026-11-20T13:00:00.000Z"}}
@@ -170,11 +170,11 @@
     },
     {
       "nome": "scadenza_sessanta_minuti", "file": "shop-pagamenti.sql",
-      "descrizione": "Contratto 1 (rev. T44): `scade_il` = momento dell'ordine + 60 minuti, deciso dal database alla creazione e alla riapertura; il valore che propone il chiamante (qui +5 minuti) o l'assenza del secondo argomento non cambiano niente; la risposta dice la scadenza; creare di nuovo lo stesso ordine non la sposta.",
+      "descrizione": "Contratto 1 (rev. T44): `scade_il` = momento dell'ordine + 60 minuti, deciso dal database alla creazione e alla riapertura; il `scade_il` che propone il chiamante in `crea` (qui +5 minuti) non conta; `riapri` ha un solo argomento; la risposta dice la scadenza; creare di nuovo lo stesso ordine non la sposta.",
       "partenza": {"varianti":[{"sku":"PROVA-V1","giacenza":5,"prezzo_cent":2890}],"ordini":[{"id":"00000000-0000-4000-8000-000000006002","ref":"HG-S002","totale_cent":2890,"righe":[{"sku":"PROVA-V1","qty":1,"prezzo_cent":2890}],"sessioni":["cs_test_2"],"campi":{"stato_pagamento":"fallito"}},{"id":"00000000-0000-4000-8000-000000006003","ref":"HG-S003","totale_cent":2890,"righe":[{"sku":"PROVA-V1","qty":1,"prezzo_cent":2890}],"sessioni":["cs_test_3"],"campi":{"stato_pagamento":"fallito"}}]},
       "passi": [
         {"rpc":"shop_ordine_crea","args":{"p_ordine":{"id":"00000000-0000-4000-8000-000000006001","order_ref":"HG-S001","nome":"Anna","cognome":"Esempio","email":"cliente0@example.com","telefono":"3330000000","indirizzo":"Via Prova 1","citta":"Roma","cap":"00100","totale_cent":2890,"scade_il":"2026-11-20T12:05:00.000Z"},"p_riservati":{}},"atteso":{"esito":"creato","scade_il":"2026-11-20T13:00:00.000Z"}},
-        {"rpc":"shop_ordine_riapri","args":{"p_ordine":"00000000-0000-4000-8000-000000006002","p_nuova_scade":"2026-11-20T12:05:00.000Z"},"atteso":{"esito":"riaperto","n":1,"scade_il":"2026-11-20T13:00:00.000Z"}},
+        {"rpc":"shop_ordine_riapri","args":{"p_ordine":"00000000-0000-4000-8000-000000006002"},"atteso":{"esito":"riaperto","n":1,"scade_il":"2026-11-20T13:00:00.000Z"}},
         {"adesso":"2026-11-20T12:10:00.000Z"},
         {"rpc":"shop_ordine_riapri","args":{"p_ordine":"00000000-0000-4000-8000-000000006003"},"atteso":{"esito":"riaperto","n":1,"scade_il":"2026-11-20T13:10:00.000Z"}},
         {"rpc":"shop_ordine_crea","args":{"p_ordine":{"id":"00000000-0000-4000-8000-000000006001","order_ref":"HG-S001","nome":"Anna","cognome":"Esempio","email":"cliente0@example.com","telefono":"3330000000","indirizzo":"Via Prova 1","citta":"Roma","cap":"00100","totale_cent":2890,"scade_il":"2026-11-20T12:05:00.000Z"},"p_riservati":{}},"atteso":{"esito":"esistente","scade_il":"2026-11-20T13:00:00.000Z"}}
@@ -191,7 +191,7 @@
       "partenza": {"varianti":[{"sku":"PROVA-V1","giacenza":5,"prezzo_cent":2890}],"ordini":[{"id":"00000000-0000-4000-8000-000000006001","ref":"HG-S001","totale_cent":2890,"righe":[{"sku":"PROVA-V1","qty":1,"prezzo_cent":2890}],"sessioni":["cs_test_a"]}]},
       "passi": [
         {"rpc":"shop_ordine_pagato","args":{"p_ordine":"00000000-0000-4000-8000-000000006001","p_sessione":"cs_test_a","p_importo_cent":2890,"p_valuta":"eur","p_metodo":"card","p_pagamento_id":"pi_prova_a"},"atteso":{"esito":"pagato_ora"}},
-        {"rpc":"shop_ordine_riapri","args":{"p_ordine":"00000000-0000-4000-8000-000000006001","p_nuova_scade":"2026-11-20T12:31:00.000Z"},"errore":"ordine_non_riapribile"}
+        {"rpc":"shop_ordine_riapri","args":{"p_ordine":"00000000-0000-4000-8000-000000006001"},"errore":"ordine_non_riapribile"}
       ],
       "controlli": [
         {"tabella":"shop_orders","dove":{"id":"00000000-0000-4000-8000-000000006001"},"atteso":{"stato_pagamento":"pagato","riprova_n":0}}
@@ -453,8 +453,8 @@
       "descrizione": "Nota (b): un ordine annullato dal CRM non si riapre, qualunque sia lo stato del pagamento (fallito o ancora in attesa): ordine_non_riapribile, niente cambia.",
       "partenza": {"varianti":[{"sku":"PROVA-V1","giacenza":5,"prezzo_cent":2890}],"ordini":[{"id":"00000000-0000-4000-8000-000000006001","ref":"HG-S001","totale_cent":2890,"righe":[{"sku":"PROVA-V1","qty":1,"prezzo_cent":2890}],"sessioni":["cs_test_a"],"campi":{"stato_pagamento":"fallito","status":"annullato"}},{"id":"00000000-0000-4000-8000-000000006002","ref":"HG-S002","totale_cent":2890,"righe":[{"sku":"PROVA-V1","qty":1,"prezzo_cent":2890}],"sessioni":["cs_test_b"],"campi":{"status":"annullato"}}]},
       "passi": [
-        {"rpc":"shop_ordine_riapri","args":{"p_ordine":"00000000-0000-4000-8000-000000006001","p_nuova_scade":"2026-11-20T12:31:00.000Z"},"errore":"ordine_non_riapribile"},
-        {"rpc":"shop_ordine_riapri","args":{"p_ordine":"00000000-0000-4000-8000-000000006002","p_nuova_scade":"2026-11-20T12:31:00.000Z"},"errore":"ordine_non_riapribile"}
+        {"rpc":"shop_ordine_riapri","args":{"p_ordine":"00000000-0000-4000-8000-000000006001"},"errore":"ordine_non_riapribile"},
+        {"rpc":"shop_ordine_riapri","args":{"p_ordine":"00000000-0000-4000-8000-000000006002"},"errore":"ordine_non_riapribile"}
       ],
       "controlli": [
         {"tabella":"shop_orders","dove":{"id":"00000000-0000-4000-8000-000000006001"},"atteso":{"stato_pagamento":"fallito","riprova_n":0}},

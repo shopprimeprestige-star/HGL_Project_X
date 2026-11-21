@@ -544,11 +544,10 @@ $$;
 -- ── 9. «Riprova il pagamento» (D66): riaprire PRIMA di creare la sessione ─────
 -- Solo da fallito o scaduto → in_attesa, riprova_n + 1, nuova scadenza; risponde con n e con la scadenza. Un secondo clic insieme trova l'ordine
 -- già in attesa (sotto blocco) → «riprova_in_corso». Pagato, rimborsato, da_incassare, vuoto, e QUALUNQUE ordine annullato → ordine_non_riapribile.
--- La nuova scadenza è adesso + 60 minuti (shop_s4_scadenza), come alla creazione: p_nuova_scade resta nella firma per il contratto di D66 ma NON conta
--- (si può anche non darlo). shortcut: il parametro non fa niente / toglierlo quando la cassa (T51) avrà smesso di passarlo.
+-- La nuova scadenza è adesso + 60 minuti (shop_s4_scadenza), come alla creazione: la decide il database, la funzione ha UN solo argomento
+-- (chi la chiama con un secondo argomento, come il vecchio p_nuova_scade, riceve «function … does not exist»: nessuna scadenza decisa fuori).
 CREATE OR REPLACE FUNCTION public.shop_ordine_riapri(
-  p_ordine       uuid,
-  p_nuova_scade  timestamptz DEFAULT NULL
+  p_ordine       uuid
 ) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE
   v_ordine public.shop_orders%ROWTYPE;
@@ -836,7 +835,7 @@ REVOKE ALL ON FUNCTION public.shop_ordine_crea(jsonb, jsonb) FROM PUBLIC, anon, 
 REVOKE ALL ON FUNCTION public.shop_ordine_sessione_registra(uuid, text) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.shop_ordine_pagato(uuid, text, integer, text, text, text) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.shop_ordine_chiudi(uuid, text, text) FROM PUBLIC, anon, authenticated;
-REVOKE ALL ON FUNCTION public.shop_ordine_riapri(uuid, timestamptz) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.shop_ordine_riapri(uuid) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.shop_stripe_evento_registra(text, text, uuid) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.shop_stripe_evento_chiudi(text, text) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.shop_rimborso_prenota(uuid, integer, text, text, text) FROM PUBLIC, anon, authenticated;
@@ -851,7 +850,7 @@ GRANT EXECUTE ON FUNCTION public.shop_ordine_crea(jsonb, jsonb) TO service_role;
 GRANT EXECUTE ON FUNCTION public.shop_ordine_sessione_registra(uuid, text) TO service_role;
 GRANT EXECUTE ON FUNCTION public.shop_ordine_pagato(uuid, text, integer, text, text, text) TO service_role;
 GRANT EXECUTE ON FUNCTION public.shop_ordine_chiudi(uuid, text, text) TO service_role;
-GRANT EXECUTE ON FUNCTION public.shop_ordine_riapri(uuid, timestamptz) TO service_role;
+GRANT EXECUTE ON FUNCTION public.shop_ordine_riapri(uuid) TO service_role;
 GRANT EXECUTE ON FUNCTION public.shop_stripe_evento_registra(text, text, uuid) TO service_role;
 GRANT EXECUTE ON FUNCTION public.shop_stripe_evento_chiudi(text, text) TO service_role;
 GRANT EXECUTE ON FUNCTION public.shop_rimborso_prenota(uuid, integer, text, text, text) TO service_role;

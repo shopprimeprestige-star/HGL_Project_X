@@ -42,11 +42,36 @@ const SENZA_ID = new Set([
 ]);
 /** Le tabelle dei soldi di S4: nessuna scrittura da fuori (REVOKE ALL FROM service_role); si scrive solo con le funzioni. Si legge. */
 export const CHIUSE = new Set(["shop_rimborsi", "shop_stripe_eventi", "shop_stripe_sessioni", "shop_ordini_riservati", "shop_limiti"]);
-/** Tabelle di S5 che il server LEGGE ma non scrive: `REVOKE ALL … FROM service_role` e `GRANT SELECT` (rev. T42, T41b). Si scrive solo con `rpc` (`shop_tariffa_imposta`);
+/** Tabelle di S5 e S6 che il server LEGGE ma non scrive: `REVOKE ALL … FROM service_role` e `GRANT SELECT` (rev. T42, T43, T41b). Si scrive solo con `rpc` (`shop_tariffa_imposta`, `shop_email_modello_*`);
  *  un `insert`/`update` dal client dà 42501. Separate da `CHIUSE` (che sono le cinque tabelle di S4). `from(tab, { proprietario: true })` imita il proprietario del database (SQL Editor). */
-export const SOLO_RPC = new Set(["shop_spedizioni_tariffe"]);
+export const SOLO_RPC = new Set(["shop_spedizioni_tariffe", "shop_email_modelli"]);
 /** Per quanto tempo un ordine aspetta il pagamento (contratto 1, rev. T44): adesso + 60 minuti, deciso dal DATABASE (`shop_s4_scadenza`) alla creazione e alla riapertura. */
 export const SCADENZA_MIN = 60;
+/** Gli argomenti (nomi `p_…`) che ogni funzione ha NEL DATABASE. Un argomento che la funzione non ha fa rispondere PostgREST con PGRST202 («Could not find the function … in the schema cache»):
+ *  il finto fa lo stesso, così una chiamata con un parametro tolto o inventato (es. il vecchio `p_nuova_scade` di `shop_ordine_riapri`) non passa in silenzio. Gli argomenti OMESSI sono ammessi (valgono i DEFAULT). */
+export const PARAMETRI_FUNZIONI = {
+  shop_giacenza_muovi: ["p_variante", "p_delta", "p_motivo", "p_nota", "p_chi", "p_ordine_ref"],
+  shop_giacenza_imposta: ["p_variante", "p_nuovo", "p_motivo", "p_chi"],
+  shop_impostazione_imposta: ["p_chiave", "p_atteso", "p_nuovo", "p_chi"],
+  shop_ordine_crea: ["p_ordine", "p_riservati"],
+  shop_ordine_sessione_registra: ["p_ordine", "p_sessione"],
+  shop_ordine_pagato: ["p_ordine", "p_sessione", "p_importo_cent", "p_valuta", "p_metodo", "p_pagamento_id"],
+  shop_ordine_chiudi: ["p_ordine", "p_sessione", "p_stato"],
+  shop_ordine_riapri: ["p_ordine"], // la scadenza la decide il database (+60 minuti): nessun p_nuova_scade (T41b, rev. T41b)
+  shop_stripe_evento_registra: ["p_id", "p_tipo", "p_ordine"],
+  shop_stripe_evento_chiudi: ["p_id", "p_esito"],
+  shop_rimborso_prenota: ["p_ordine", "p_importo_cent", "p_motivo", "p_chiave", "p_chi"],
+  shop_rimborso_riconcilia: ["p_ordine", "p_rimborsi", "p_chiudi_orfane"],
+  shop_ordine_giacenza_rimetti: ["p_ordine", "p_chi"],
+  shop_limite_consuma: ["p_chiave", "p_finestra_s", "p_max"],
+  shop_cassa_righe: ["p_skus"],
+  shop_tariffa_imposta: ["p_id", "p_atteso", "p_campi", "p_conferma", "p_chi"],
+  shop_email_modello_salva: ["p_chiave", "p_atteso", "p_oggetto", "p_testo", "p_chi"],
+  shop_email_modello_approva: ["p_chiave", "p_impronta", "p_chi"],
+  shop_email_modello_acceso: ["p_chiave", "p_acceso", "p_chi"],
+  shop_email_prenota: ["p_ordine", "p_chiave"],
+  shop_email_esito: ["p_ordine", "p_chiave", "p_stato", "p_codice"],
+};
 /** Le colonne che S4 aggiunge a `shop_orders` e il valore che hanno su una riga VECCHIA dopo la migrazione (default costante o vuoto). */
 export const COLONNE_S4 = {
   stato_pagamento: null, stripe_sessione_id: null, stripe_pagamento_id: null, metodo_dettaglio: null, prova: false, canale: null,
@@ -437,9 +462,9 @@ export function fintoDb({ tabelle = {}, mancante = false, codiceMancante = "42P0
       evento(o, a.p_stato, "stripe", { stato_pagamento: "in_attesa" }, { stato_pagamento: a.p_stato });
       return { data: { esito: "chiuso" } };
     }],
-    /* shop_ordine_riapri(p_ordine uuid, p_nuova_scade timestamptz DEFAULT NULL) → jsonb {esito: 'riaperto', n, scade_il} | {esito: 'riprova_in_corso'}
-     *    D66: solo da `fallito`/`scaduto` → `in_attesa`, riprova_n + 1, nuovo scade_il = adesso + 60 minuti (come alla creazione). `p_nuova_scade` NON conta (resta nella
-     *    firma per il contratto di D66; si può anche non darlo): la scadenza è del database. Già `in_attesa` (il secondo clic) → 'riprova_in_corso', niente cambia.
+    /* shop_ordine_riapri(p_ordine uuid) → jsonb {esito: 'riaperto', n, scade_il} | {esito: 'riprova_in_corso'}
+     *    D66: solo da `fallito`/`scaduto` → `in_attesa`, riprova_n + 1, nuovo scade_il = adesso + 60 minuti (come alla creazione). Un SOLO argomento: la scadenza è del database
+     *    (un `p_nuova_scade` passato per abitudine → PGRST202, vedi PARAMETRI_FUNZIONI). Già `in_attesa` (il secondo clic) → 'riprova_in_corso', niente cambia.
      *    Da `pagato`, `rimborsato*`, `da_incassare` o vuoto → errore `ordine_non_riapribile`.
      *    (nota b) un ordine `annullato` (status) non si riapre mai, qualunque sia lo stato del pagamento → `ordine_non_riapribile`. */
     shop_ordine_riapri: ["S4", (a) => {
@@ -677,6 +702,8 @@ export function fintoDb({ tabelle = {}, mancante = false, codiceMancante = "42P0
       const q = { chiave: `rpc.${nome}`, tab: null, op: "rpc", nome, args, scrisse: false };
       return eseguibile(q, () => {
         const r2 = R2[nome];
+        const argomenti = PARAMETRI_FUNZIONI[nome];
+        if (argomenti && Object.keys(args ?? {}).some((k) => !argomenti.includes(k))) return { error: ERR("PGRST202", `Could not find the function public.${nome}(${Object.keys(args).sort().join(", ")}) in the schema cache`) };
         if (mancante === true || (!funzioni[nome] && !r2) || (r2 && !applicata(r2[0]))) return { error: ERR("PGRST202", `Could not find the function public.${nome} in the schema cache`) };
         return r2 ? transazione(r2[1], args) : funzioni[nome](args);
       });
