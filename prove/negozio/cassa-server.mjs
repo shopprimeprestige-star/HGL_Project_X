@@ -3,7 +3,7 @@
  *  Finto database (`_finto-db.mjs`, funzioni di S4) e finto Stripe (`_stripe-finto.mjs`): nessuna rete, nessuna chiave vera, dati INVENTATI.
  *  Il modulo riceve tutto dalle PORTE (database, Stripe, orologio, log, chiave di servizio, `sito`, indirizzo, interruttore, tariffa):
  *  nessun `process.env`, nessun `Host`/`Origin`. Risposta `{stato, corpo}`; la rotta (T57) la trasforma in `Response`.
- *  Nel finto manca `shop_s4_avviso` (l'aiuto di S4 che scrive gli avvisi): qui lo imita `conAvvisi` (nota in LAVAGNA per chi cura il finto). */
+ *  `shop_s4_avviso` (l'aiuto di S4 che scrive gli avvisi) c'è nel finto dal T53b. `shop_ordine_chiudi` senza sessione chiude solo a `scade_il` passato (T53b). */
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -64,23 +64,10 @@ export async function prove(mod, { c, gruppo, radice }) {
   const TUTTI_I_LOG = [];
 
   // ── il mondo di una prova ──────────────────────────────────────────────────────────────────────────────────
-  /** `shop_s4_avviso` non c'è nel finto: lo si imita (stessa regola del SQL: lo stesso codice e riferimento non si scrive due volte). */
-  function conAvvisi(db) {
-    const rpc = db.rpc.bind(db);
-    db.rpc = (nome, args = {}) => {
-      if (nome !== "shop_s4_avviso") return rpc(nome, args);
-      const o = db.tabelle.shop_orders.find((x) => x.id === args.p_ordine);
-      const lista = Array.isArray(o?.avvisi) ? o.avvisi : [];
-      if (o && !lista.some((a) => a.codice === args.p_codice && (a.rif ?? null) === (args.p_rif ?? null)))
-        o.avvisi = [...lista, { codice: args.p_codice, gravita: args.p_gravita, rif: args.p_rif ?? null }];
-      return Promise.resolve({ data: null, error: null });
-    };
-    return db;
-  }
   function ambiente({ varianti = VARIANTI, db: opzDb = {}, tariffa = TARIFFA, aperta = { aperta: true }, timeoutMs, ip = "203.0.113.7", ordini = [], chiaveServizio = SERVIZIO } = {}) {
     const ora = { t: ORA };
     const iso = () => new Date(ora.t).toISOString();
-    const db = conAvvisi(fintoDb({ tabelle: partenzaDa({ varianti, ordini }, iso), adesso: iso, ...opzDb }));
+    const db = fintoDb({ tabelle: partenzaDa({ varianti, ordini }, iso), adesso: iso, ...opzDb });
     const finto = stripeFinto({ adesso: () => ora.t / 1000 });
     const log = [];
     TUTTI_I_LOG.push(log);
@@ -299,14 +286,19 @@ export async function prove(mod, { c, gruppo, radice }) {
     const corpo = await corpoOnesto(env);
     const r = await vai(env, corpo);
     const o = ordini(env)[0];
-    c("Stripe che RIFIUTA (402) → ordine `scaduto`, avviso `stripe_errore`, risposta 500 `guasto`", [1, "scaduto", true, 500, "guasto"], [ordini(env).length, o?.stato_pagamento, (o?.avvisi ?? []).some((x) => x.codice === "stripe_errore"), r.stato, r.corpo.motivo]);
+    c("Stripe che RIFIUTA (402) → avviso rosso `stripe_errore`, risposta 500 `guasto`, nessuna sessione; l'ordine non si chiude da qui (resta `in_attesa`, si legge `scaduto` a `scade_il`)", [1, "in_attesa", true, 500, "guasto", 0], [ordini(env).length, o?.stato_pagamento, (o?.avvisi ?? []).some((x) => x.codice === "stripe_errore" && x.gravita === "rosso"), r.stato, r.corpo.motivo, env.finto.sessioni().length]);
     c("…nessun dato del cliente nella risposta", true, senzaDati(JSON.stringify(r)));
-    const ancora = await vai(env, corpo);
-    c("ordine già `scaduto`, stesso tentativo → 409 `non_riproponibile`, nessuna sessione nuova", [409, "non_riproponibile", 0], [ancora.stato, ancora.corpo.motivo, env.finto.sessioni().length]);
+    const t0 = ordini(env)[0].id;
+    const chiaveT = await CO.chiaveOrdine(SERVIZIO, t0);
+    const ricarica = await K.riprovaPagamento({ ref: o.order_ref, t: chiaveT, permesso: await permesso(env) }, env.porte);
+    c("la riprova prima della scadenza → `riprova_in_corso` (nessuno può chiudere l'ordine prima di `scade_il`), nessuna sessione", [409, "riprova_in_corso", 0], [ricarica.stato, ricarica.corpo.motivo, env.finto.sessioni().length]);
+    env.ora.t += 61 * MIN;
+    const dopo = await K.riprovaPagamento({ ref: o.order_ref, t: chiaveT, permesso: await permesso(env) }, env.porte);
+    c("…dopo `scade_il` si chiude e si riapre (n=1): sessione nuova, ordine `in_attesa`", [true, 1, "in_attesa", 1], [dopo.corpo.ok, ordini(env)[0].riprova_n, ordini(env)[0].stato_pagamento, env.finto.sessioni().length]);
     const rifiuto400 = ambiente();
     rifiuto400.finto.fallisci("POST /v1/checkout/sessions", { stato: 400, errore: { type: "invalid_request_error", code: "parameter_invalid_integer" } });
     await vai(rifiuto400, await corpoOnesto(rifiuto400));
-    c("anche un rifiuto 400 vero chiude l'ordine", "scaduto", ordini(rifiuto400)[0]?.stato_pagamento);
+    c("anche un rifiuto 400 vero lascia l'avviso e non apre niente", [true, 0], [(ordini(rifiuto400)[0]?.avvisi ?? []).some((x) => x.codice === "stripe_errore"), rifiuto400.finto.sessioni().length]);
     const chiave401 = ambiente();
     chiave401.finto.fallisci("POST /v1/checkout/sessions", { stato: 401, errore: { type: "invalid_request_error" } });
     const r401 = await vai(chiave401, await corpoOnesto(chiave401));
@@ -492,6 +484,7 @@ export async function prove(mod, { c, gruppo, radice }) {
   const pagaViaWebhook = (env, o, sessione, importo = o.totale_cent) => env.db.rpc("shop_ordine_pagato", { p_ordine: o.id, p_sessione: sessione, p_importo_cent: importo, p_valuta: "eur", p_metodo: "card", p_pagamento_id: "pi_prova" });
   const stato = (env, id) => ordini(env).find((x) => x.id === id);
   const giacenza = (env, sku) => env.db.tabelle.shop_varianti.find((v) => v.sku === sku).giacenza;
+  const env0 = (env) => env.finto.sessioni().length;
   const nomiChiamate = (env) => env.finto.chiamate.map((x) => `${x.metodo} ${x.percorso}`);
 
   {
@@ -647,9 +640,12 @@ export async function prove(mod, { c, gruppo, radice }) {
     c("Stripe che non si legge → `guasto` e nulla cambia (`fallito`, `riprova_n` 0)", [500, "guasto", "fallito", 0], [r.stato, r.corpo.motivo, stato(env, k.id).stato_pagamento, stato(env, k.id).riprova_n]);
     env.finto.fallisci("POST /v1/checkout/sessions", { stato: 400, errore: { type: "invalid_request_error", code: "parameter_invalid_integer" } });
     const r2 = await riprova(env, k);
-    c("se Stripe RIFIUTA la sessione nuova: ordine di nuovo `scaduto`, avviso `stripe_errore`, `guasto`", ["scaduto", 1, true, "guasto"], [stato(env, k.id).stato_pagamento, stato(env, k.id).riprova_n, (stato(env, k.id).avvisi ?? []).some((x) => x.codice === "stripe_errore"), r2.corpo.motivo]);
+    c("se Stripe RIFIUTA la sessione nuova: ordine riaperto (n=1) e ancora `in_attesa`, avviso `stripe_errore` (r1), `guasto`", ["in_attesa", 1, true, "guasto"], [stato(env, k.id).stato_pagamento, stato(env, k.id).riprova_n, (stato(env, k.id).avvisi ?? []).some((x) => x.codice === "stripe_errore" && x.rif === "r1"), r2.corpo.motivo]);
+    const subito = await riprova(env, k);
+    c("…una riprova subito dopo trova l'ordine in attesa senza sessione e con `scade_il` nel futuro: `riprova_in_corso`", [409, "riprova_in_corso"], [subito.stato, subito.corpo.motivo]);
+    env.ora.t += 61 * MIN;
     const r3 = await riprova(env, k);
-    c("…e si può riprovare ancora (n=2): nuova sessione e `in_attesa`", [true, 2, "in_attesa"], [r3.corpo.ok, stato(env, k.id).riprova_n, stato(env, k.id).stato_pagamento]);
+    c("…passata la scadenza si può riprovare ancora (n=2): nuova sessione e `in_attesa`", [true, 2, "in_attesa"], [r3.corpo.ok, stato(env, k.id).riprova_n, stato(env, k.id).stato_pagamento]);
     const senzaPermesso = await K.riprovaPagamento({ ref: k.ref, t: k.t }, env.porte);
     const presto = await riprova(env, k, 1000);
     c("senza permesso o con un permesso troppo recente → 403 `permesso`", [403, 403], [senzaPermesso.stato, presto.stato]);
@@ -667,7 +663,7 @@ export async function prove(mod, { c, gruppo, radice }) {
     c("…il tentativo di indovinare la chiave consuma il limite anche se il riferimento non esiste", true, (await riprova(ambiente(), { ref: "HG-ZZZZZZ", t: "A".repeat(43) })).stato === 404);
   }
 
-  // ═════ 12 · scadenza: ≥ 35 minuti o si riapre (contratto W3 n. 1) ═════
+  // ═════ 12 · scadenza: almeno 35 minuti, o si riapre a scadenza passata (contratto W3 n. 1, T53b) ═════
   gruppo("T51 · LA SESSIONE NON SI CREA CON UNA SCADENZA TROPPO VICINA (CONTRATTO W3 N. 1)");
   {
     const env = ambiente();
@@ -676,10 +672,14 @@ export async function prove(mod, { c, gruppo, radice }) {
     const primo = await vai(env, corpo);
     const o0 = { ...ordini(env)[0] };
     c("il primo clic non arriva a Stripe: ordine `in_attesa`, nessuna sessione registrata", [500, "in_attesa", null, 0], [primo.stato, o0.stato_pagamento, o0.stripe_sessione_id, env.db.tabelle.shop_stripe_sessioni.length]);
-    env.ora.t += 40 * MIN; // mancano 20 minuti: meno dei 35 (30 di Stripe + 5 di margine)
+    env.ora.t += 40 * MIN; // mancano 20 minuti: meno dei 35 (30 di Stripe + 5), ma `scade_il` non è passato
+    const chiamateStripe = env.finto.chiamate.length;
     const secondo = await vai(env, { ...corpo, permesso: await permesso(env) });
+    c("sessione chiesta 40 minuti dopo l'ordine (scadenza vicina, non passata) → `non_riproponibile`: niente chiamata a Stripe col vecchio valore, nessuna chiusura", [409, "non_riproponibile", chiamateStripe, "in_attesa", 0], [secondo.stato, secondo.corpo.motivo, env.finto.chiamate.length, ordini(env)[0].stato_pagamento, ordini(env)[0].riprova_n]);
+    env.ora.t += 21 * MIN; // `scade_il` è passato di un minuto
+    const terzo = await vai(env, { ...corpo, permesso: await permesso(env) });
     const o = ordini(env)[0];
-    c("sessione chiesta 40 minuti dopo l'ordine → una RIAPERTURA (n=1), non una chiusura `scaduto`", [true, "in_attesa", 1, 1], [secondo.corpo.ok, o.stato_pagamento, o.riprova_n, env.finto.sessioni().length]);
+    c("a scadenza PASSATA → si chiude e si riapre (n=1): sessione nuova, ordine `in_attesa`", [true, "in_attesa", 1, 1], [terzo.corpo.ok, o.stato_pagamento, o.riprova_n, env.finto.sessioni().length]);
     c("…`scade_il` nuovo = adesso + 60 minuti, `expires_at` = quel valore, chiave idempotente `r1`", [env.ora.t + 60 * MIN, Math.floor(Date.parse(o.scade_il) / 1000), `sessione-${o.id}-${o.firma_tentativo}-r1`], [Date.parse(o.scade_il), Number(sessioniCreate(env).at(-1).corpo.expires_at), sessioniCreate(env).at(-1).chiaveIdempotenza]);
     c("…e il margine è almeno di 35 minuti (30 di Stripe + 5)", true, Number(sessioniCreate(env).at(-1).corpo.expires_at) * 1000 - env.ora.t >= 35 * MIN);
     const presto = ambiente();
@@ -689,6 +689,17 @@ export async function prove(mod, { c, gruppo, radice }) {
     presto.ora.t += 20 * MIN; // mancano 40 minuti: basta, si usa il valore dell'ordine
     await vai(presto, { ...c2, permesso: await permesso(presto) });
     c("a 20 minuti dall'ordine (ne restano 40) NON si riapre: stesso `scade_il`, `r0`", [0, true], [ordini(presto)[0].riprova_n, sessioniCreate(presto).at(-1).chiaveIdempotenza.endsWith("-r0")]);
+    // due clic insieme su un ordine in attesa senza sessione e con `scade_il` passato: UNA sola sessione nuova (nota 1 della revisione di T51, chiusa da T53b)
+    const doppio = ambiente();
+    doppio.finto.fallisci("POST /v1/checkout/sessions", { rete: true });
+    const c3 = await corpoOnesto(doppio);
+    await vai(doppio, c3);
+    doppio.ora.t += 61 * MIN;
+    const [a, b] = await Promise.all([vai(doppio, { ...c3, permesso: await permesso(doppio) }), vai(doppio, { ...c3, permesso: await permesso(doppio, 6000) })]);
+    c("DUE clic insieme a scadenza passata → UNA sola sessione nuova (n=1); l'altro `riprova_in_corso` e poi trova la stessa", [["ok", "riprova_in_corso"], 1, 1], [[a, b].map((x) => (x.corpo.ok ? "ok" : x.corpo.motivo)).sort(), env0(doppio), ordini(doppio)[0].riprova_n]);
+    const vincitore = [a, b].find((x) => x.corpo.ok);
+    const ritenta = await vai(doppio, { ...c3, permesso: await permesso(doppio) });
+    c("…il clic che ritenta riceve la sessione già aperta: stessa `url`, ancora una sola sessione", [true, vincitore.corpo.url, 1], [ritenta.corpo.ok, ritenta.corpo.url, env0(doppio)]);
   }
 
   // ═════ 13 · prova di sorgente ═════
