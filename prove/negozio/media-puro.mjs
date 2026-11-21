@@ -207,6 +207,14 @@ async function caricamento(M, c) {
     file: [{ chiave: "video", tipo: "video", blob: blob(900), mime: "video/mp4" }, { chiave: "copertina", tipo: "copertina", blob: blob(40), mime: "image/jpeg", per: [960] }],
   };
 
+  // la liberatoria vale SOLO se c'è una persona: nel video come nella foto, `liberatoriaOk` non esce mai vero senza `ritraePersone`
+  const regDi = async (lavoro) => { const f = porteFinte(); await M.eseguiLavoro(M.nuovoLavoro(lavoro), f.porte); const r = f.log.find((x) => x[1] === "media_registra")[2]; return [r.ritraePersone, r.liberatoriaOk]; };
+  c("video con una persona e la liberatoria: `media_registra` porta ritraePersone vero e liberatoriaOk vero", [true, true], await regDi({ ...video, sottotitoliOk: false, ritraePersone: true, liberatoriaOk: true }));
+  c("video con una persona SENZA liberatoria: ritraePersone vero, liberatoriaOk falso", [true, false], await regDi({ ...video, sottotitoliOk: false, ritraePersone: true, liberatoriaOk: false }));
+  c("video SENZA persone ma con una liberatoria rimasta spuntata: ritraePersone falso e liberatoriaOk falso (mai una liberatoria senza persona)", [false, false], await regDi({ ...video, sottotitoliOk: false, ritraePersone: false, liberatoriaOk: true }));
+  c("foto SENZA persone con una liberatoria rimasta spuntata: ritraePersone falso e liberatoriaOk falso", [false, false], await regDi(foto({ ritraePersone: false, liberatoriaOk: true })));
+  c("foto con una persona e la liberatoria: entrambi veri", [true, true], await regDi(foto({ ritraePersone: true, liberatoriaOk: true })));
+
   // ── media_flag che non riesce: una persona ha già il suo segno (è nel registro), quindi NIENTE ritiro ──
   const persona = () => foto({ ritraePersone: true, liberatoriaOk: true });
   const fl_g1 = porteFinte({ media_flag: 99 });
