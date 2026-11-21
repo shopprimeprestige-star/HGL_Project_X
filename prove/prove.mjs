@@ -870,6 +870,10 @@ const MODULI = [
     ["src/crm/negozio", "negozio/"],
     ["src/crm/tracciamento", "tracciamento/"],
     ["src/lib/tracciamento", "lib/tracciamento/"],
+    //  Rilascio 2 (PIANO-R2, T40): solo `.ts`, mai `.tsx` né `*.functions.ts`. Le cartelle nascono coi compiti W1+.
+    ["src/shop/stripe", "shop/stripe/"],
+    ["src/shop/cassa", "shop/cassa/"],
+    ["src/shop/email", "shop/email/"],
   ].flatMap(([cartella, prefisso]) =>
     existsSync(join(radice, cartella))
       ? readdirSync(join(radice, cartella))
