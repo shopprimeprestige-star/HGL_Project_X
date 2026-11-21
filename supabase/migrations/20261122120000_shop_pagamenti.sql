@@ -31,7 +31,7 @@
 --      NESSUNA policy, tolto OGNI permesso ad anon e authenticated e, per questi
 --      «registri dei soldi», anche a service_role (REVOKE ALL): il server le LEGGE
 --      (solo SELECT) ma le SCRIVE soltanto con le funzioni qui sotto.
---   4. Crea 12 funzioni (SECURITY DEFINER, solo service_role) e tre aiuti interni
+--   4. Crea 14 funzioni (SECURITY DEFINER, solo service_role) e tre aiuti interni
 --      (shop_s4_avviso, shop_s4_evento, shop_s4_scadenza):
 --        shop_ordine_crea              ordine + riservati in una transazione, con una LISTA BIANCA di colonne
 --        shop_ordine_sessione_registra una sessione Stripe in più per l'ordine (la corrente è l'ultima)
@@ -46,6 +46,8 @@
 --        shop_ordine_giacenza_rimetti  rimette in magazzino SOLO ciò che i movimenti dell'ordine dicono, una volta sola
 --        shop_limite_consuma           limite per impronta, INSERT … ON CONFLICT DO UPDATE (D49)
 --        shop_cassa_righe              l'unica lettura della giacenza fuori dal CRM (sku, slug, prezzo, attiva, giacenza)
+--        shop_rimborso_rifiuta         un rimborso che Stripe ha rifiutato davvero: «richiesto» senza id Stripe → «fallito», con un evento (T53b)
+--        shop_ordine_riattiva          «annullato → nuovo» con un motivo, rifiutato se c'è un rimborso richiesto o riuscito; lo storico lo scrive lei (T53b)
 --      LA SCADENZA DELL'ORDINE la decide il database, in un punto solo (shop_s4_scadenza): adesso + 60 MINUTI, sia alla creazione
 --      (shop_ordine_crea) sia alla riapertura (shop_ordine_riapri). Un valore proposto dal chiamante non conta. Stripe accetta sessioni di
 --      almeno 30 minuti: con una scadenza più corta una riprova dopo pochi minuti verrebbe rifiutata (errore non ritentabile). Nessuna
@@ -501,7 +503,9 @@ $$;
 
 -- ── 8. Chiudere un pagamento non concluso: fallito o scaduto ──────────────────
 -- Solo da «in_attesa» e solo per la sessione corrente: l'evento «scaduta» tardivo di una sessione già sostituita dalla riprova NON chiude
--- l'ordine. p_sessione vuota = decisione della cassa (Stripe ha rifiutato la creazione): chiude. Una sessione che non è dell'ordine → «ignorato».
+-- l'ordine. p_sessione vuota (o nulla) = decisione della cassa: chiude SOLO se `scade_il` è già passato (T53b, nota 1 della revisione di T51). Finché `scade_il`
+-- è nel futuro risponde «ignorato»: un secondo clic non richiude l'ordine che il primo ha appena riaperto (due sessioni aperte, n+1 e n+2).
+-- Una sessione che non è dell'ordine → «ignorato».
 CREATE OR REPLACE FUNCTION public.shop_ordine_chiudi(
   p_ordine   uuid,
   p_sessione text,
@@ -531,7 +535,8 @@ BEGIN
   END IF;
 
   IF v_ordine.stato_pagamento IS DISTINCT FROM 'in_attesa'
-     OR (v_con_sessione AND v_ordine.stripe_sessione_id IS NOT NULL AND p_sessione <> v_ordine.stripe_sessione_id) THEN
+     OR (v_con_sessione AND v_ordine.stripe_sessione_id IS NOT NULL AND p_sessione <> v_ordine.stripe_sessione_id)
+     OR (NOT v_con_sessione AND (v_ordine.scade_il IS NULL OR v_ordine.scade_il >= now())) THEN
     RETURN jsonb_build_object('esito', 'ignorato');
   END IF;
 
@@ -777,6 +782,84 @@ BEGIN
 END
 $$;
 
+-- ── 12b. Un rimborso che Stripe ha rifiutato davvero (T53b) ───────────────────
+-- Il CRM ha prenotato la riga («richiesto») e ha chiesto il rimborso a Stripe, che ha detto no (richiesta rifiutata: nessun rimborso esiste). La riga passa a
+-- «fallito» (il massimo si libera) SENZA scrivere un id Stripe (non ce n'è uno: un id inventato sarebbe un falso nel registro dei soldi) e con un evento nello
+-- storico. Agisce SOLO su una riga «richiesto» che non ha ancora un id Stripe: un rimborso «riuscito», o «richiesto» ma già conosciuto da Stripe (ha un id: potrebbe
+-- riuscire), non si tocca mai. Ripetuta: «ignorato», nessun evento in più. Stesso ordine di blocco di prenota e riconcilia: prima l'ordine, poi la riga.
+-- Il codice di Stripe si scrive nello storico solo se è un codice (lettere, cifre, «_», «.», «-», al massimo 64): ogni altra cosa diventa «sconosciuto», così nello
+-- storico non può finire testo libero. Non ricalcola lo stato di pagamento: contano solo i rimborsi «riusciti».
+CREATE OR REPLACE FUNCTION public.shop_rimborso_rifiuta(
+  p_rimborso uuid,
+  p_codice   text
+) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  v_ordine_id uuid;
+  v_riga      public.shop_rimborsi%ROWTYPE;
+  v_codice    text;
+BEGIN
+  SELECT ordine_id INTO v_ordine_id FROM public.shop_rimborsi WHERE id = p_rimborso;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'rimborso_non_trovato' USING ERRCODE = 'no_data_found';
+  END IF;
+  PERFORM 1 FROM public.shop_orders WHERE id = v_ordine_id FOR UPDATE;
+  SELECT * INTO v_riga FROM public.shop_rimborsi WHERE id = p_rimborso FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'rimborso_non_trovato' USING ERRCODE = 'no_data_found';
+  END IF;
+
+  IF v_riga.stato = 'richiesto' AND v_riga.stripe_rimborso_id IS NULL THEN
+    v_codice := CASE WHEN p_codice IS NOT NULL AND p_codice ~ '^[A-Za-z0-9_.-]{1,64}$' THEN p_codice ELSE 'sconosciuto' END;
+    UPDATE public.shop_rimborsi SET stato = 'fallito', aggiornato_il = now() WHERE id = v_riga.id;
+    PERFORM public.shop_s4_evento(v_riga.ordine_id, 'rimborso_rifiutato', 'stripe', NULL, jsonb_build_object('riga', v_riga.id, 'codice', v_codice));
+    RETURN jsonb_build_object('esito', 'rifiutato', 'id', v_riga.id);
+  END IF;
+  RETURN jsonb_build_object('esito', 'ignorato', 'stato', v_riga.stato);
+END
+$$;
+
+-- ── 12c. Riattivare un ordine annullato (T53b) ────────────────────────────────
+-- «annullato → nuovo» con un motivo. Sotto il blocco dell'ordine, lo stesso di prenota: se un rimborso è «richiesto» o «riuscito», o `rimborsato_cent` è maggiore di zero,
+-- o lo stato di pagamento è già rimborsato (anche in parte), NON si riattiva (`rimborso_attivo`): o il rimborso c'è e la riattivazione è rifiutata, o l'ordine è già
+-- «nuovo» e il rimborso nasce dopo; mai un ordine annullato con un rimborso nato dopo la lettura. Un ordine che non è (più) annullato → «cambiato», niente scritto.
+-- Riporta `status` a «nuovo», azzera motivo e data di annullo; `giacenza_da_verificare` diventa vero solo se i pezzi erano stati rimessi in magazzino (l'ordine
+-- annullato li aveva ridati: chi lo riattiva deve ricontare). Non tocca pagamento, sessioni, giacenza né email. Lo storico (`stato_corretto`, con chi e motivo) lo
+-- scrive la funzione, nella stessa transazione.
+CREATE OR REPLACE FUNCTION public.shop_ordine_riattiva(
+  p_ordine  uuid,
+  p_motivo  text,
+  p_chi     text
+) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  v_ordine public.shop_orders%ROWTYPE;
+  v_da_verificare boolean;
+BEGIN
+  SELECT * INTO v_ordine FROM public.shop_orders WHERE id = p_ordine FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'ordine_non_trovato' USING ERRCODE = 'no_data_found';
+  END IF;
+  IF btrim(COALESCE(p_motivo, '')) = '' THEN
+    RAISE EXCEPTION 'motivo_obbligatorio' USING ERRCODE = 'invalid_parameter_value';
+  END IF;
+  IF v_ordine.status IS DISTINCT FROM 'annullato' THEN
+    RETURN jsonb_build_object('esito', 'cambiato');
+  END IF;
+  IF EXISTS (SELECT 1 FROM public.shop_rimborsi WHERE ordine_id = v_ordine.id AND stato IN ('richiesto', 'riuscito'))
+     OR COALESCE(v_ordine.rimborsato_cent, 0) > 0
+     OR v_ordine.stato_pagamento IN ('rimborsato', 'rimborsato_in_parte') THEN
+    RAISE EXCEPTION 'rimborso_attivo' USING ERRCODE = 'object_not_in_prerequisite_state';
+  END IF;
+
+  v_da_verificare := COALESCE(v_ordine.giacenza_da_verificare, false) OR v_ordine.giacenza_rimessa_il IS NOT NULL;
+  UPDATE public.shop_orders
+     SET status = 'nuovo', annullo_motivo = NULL, annullato_il = NULL, giacenza_da_verificare = v_da_verificare, aggiornato_il = now()
+   WHERE id = v_ordine.id;
+  PERFORM public.shop_s4_evento(v_ordine.id, 'stato_corretto', p_chi, jsonb_build_object('stato', 'annullato'),
+    jsonb_build_object('stato', 'nuovo', 'motivo', left(btrim(p_motivo), 500)));
+  RETURN jsonb_build_object('esito', 'riattivato', 'giacenza_da_verificare', v_da_verificare);
+END
+$$;
+
 -- ── 13. Il limite per impronta (D49): atomico, una riga per chiave, NESSUNA cancellazione ──
 -- true se la richiesta passa. Finestra scaduta → la stessa riga riparte da 1 (INSERT … ON CONFLICT DO UPDATE). Oltre il massimo → false e il conteggio non cresce.
 CREATE OR REPLACE FUNCTION public.shop_limite_consuma(
@@ -843,6 +926,8 @@ REVOKE ALL ON FUNCTION public.shop_rimborso_riconcilia(uuid, jsonb, boolean) FRO
 REVOKE ALL ON FUNCTION public.shop_ordine_giacenza_rimetti(uuid, text) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.shop_limite_consuma(text, integer, integer) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.shop_cassa_righe(text[]) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.shop_rimborso_rifiuta(uuid, text) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.shop_ordine_riattiva(uuid, text, text) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.shop_s4_avviso(uuid, text, text, text) TO service_role;
 GRANT EXECUTE ON FUNCTION public.shop_s4_evento(uuid, text, text, jsonb, jsonb) TO service_role;
 GRANT EXECUTE ON FUNCTION public.shop_s4_scadenza() TO service_role;
@@ -858,6 +943,8 @@ GRANT EXECUTE ON FUNCTION public.shop_rimborso_riconcilia(uuid, jsonb, boolean) 
 GRANT EXECUTE ON FUNCTION public.shop_ordine_giacenza_rimetti(uuid, text) TO service_role;
 GRANT EXECUTE ON FUNCTION public.shop_limite_consuma(text, integer, integer) TO service_role;
 GRANT EXECUTE ON FUNCTION public.shop_cassa_righe(text[]) TO service_role;
+GRANT EXECUTE ON FUNCTION public.shop_rimborso_rifiuta(uuid, text) TO service_role;
+GRANT EXECUTE ON FUNCTION public.shop_ordine_riattiva(uuid, text, text) TO service_role;
 
 -- ── 16. I tre interruttori di partenza (mai riscritti se già presenti) ───────
 INSERT INTO public.shop_impostazioni (chiave, valore)
