@@ -107,7 +107,7 @@ export async function prove(mod, { c, gruppo, radice }) {
   const r = await p.vai(REF_A, kA);
   c("chiave giusta → `{ok:true, ordine, testi}` e nient'altro", [true, ["ok", "ordine", "testi"]], [r.ok, Object.keys(r).sort()]);
   const o = r.ordine ?? {};
-  c("…l'ordine ha le chiavi del contratto di §3.3 (D66) e nessun'altra", CONTRATTO_ORDINE, Object.keys(o).sort());
+  c("…l'ordine ha le chiavi del contratto di §3.3 (D66) e nessun'altra", [...CONTRATTO_ORDINE].sort(), Object.keys(o).sort());
   c("…`in_attesa` → fase `verifica`, MAI `pagato`; il numero d'ordine non si dà (`ref` nullo)", ["verifica", null], [o.fase, o.ref]);
   c("…`tempo` ha le cinque tappe: ricevuto sì, tutte le altre nulle (nessuna data inventata)", { ricevuto: "2026-11-20T10:00:00.000Z", pagato: null, inPreparazione: null, spedito: null, consegnato: null }, o.tempo);
   c("…righe: nome, variante, quantità, totale riga in centesimi, `foto` nulla (la riempie V2)", [
@@ -219,7 +219,7 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("la lettura degli eventi che fallisce: l'ordine si vede lo stesso, tappe nulle, il codice nel log", [true, null, true], await (async () => {
     const x = nuova([riga({ ...pg, status: "in_preparazione" })], { errori: { "shop_order_eventi.select": { error: { code: "57P01", message: "PROVA testo con dati", details: "Giovanna" } } } });
     const y = await x.vai(REF_A, kA);
-    return [y.ok === true, y.ordine?.tempo.inPreparazione ?? "assente", x.log.some((l) => l.includes("57p01"))];
+    return [y.ok === true, y.ordine ? y.ordine.tempo.inPreparazione : "assente", x.log.some((l) => l.includes("57p01"))];
   })());
   c("le date arrivano in ISO (UTC) anche se la colonna le dà in un altro formato", "2026-11-20T10:05:00.000Z", (await fase({ ...pg, pagato_il: "2026-11-20T11:05:00+01:00" })).tempo.pagato);
 
@@ -227,8 +227,8 @@ export async function prove(mod, { c, gruppo, radice }) {
   const sped = (extra) => fase({ ...pg, status: "spedito", spedito_il: "2026-11-20T11:30:00.000Z", corriere: "BRT", tracking: "BRT123456789", ...extra });
   const tr = async (url) => (await sped({ tracking_url: url })).tracking;
   c("tracking con link https → corriere, numero e link", { corriere: "BRT", numero: "BRT123456789", url: "https://tracking.example.test/BRT123456789" }, await tr("https://tracking.example.test/BRT123456789"));
-  for (const [nome, url] of [["http", "http://tracking.example.test/x"], ["javascript:", "javascript:alert(1)"], ["data:", "data:text/html,<b>x</b>"], ["senza protocollo", "//tracking.example.test/x"], ["ftp", "ftp://tracking.example.test/x"], ["con credenziali", "https://utente:segreto@tracking.example.test/x"], ["non un indirizzo", "tracking.example.test/x"], ["vuoto", ""]])
-    c(`link ${nome} → il link è nullo, il numero resta`, [null, "BRT123456789"], ((t) => [t?.url ?? "assente", t?.numero])(await tr(url)));
+  for (const [nome, url] of [["http", "http://tracking.example.test/x"], ["javascript:", "javascript:alert(1)"], ["data:", "data:text/html,<b>x</b>"], ["senza protocollo", "//tracking.example.test/x"], ["ftp", "ftp://tracking.example.test/x"], ["con credenziali", "https://utente:segreto@tracking.example.test/x"], ["non un indirizzo", "tracking.example.test/x"], ["vuoto", ""], ["con uno spazio dentro", "https://tracking.example.test/a b"], ["con un a capo", "https://tracking.example.test/a\nb"]])
+    c(`link ${nome} → il link è nullo, il numero resta`, [null, "BRT123456789"], ((t) => (t ? [t.url, t.numero] : ["assente", "assente"]))(await tr(url)));
   c("HTTPS in maiuscolo è comunque https", "string", typeof (await tr("HTTPS://tracking.example.test/x"))?.url);
   c("tracking prima della spedizione (ordine non ancora spedito) → nullo, anche se la colonna è piena", null, (await fase({ ...pg, status: "in_preparazione", corriere: "BRT", tracking: "BRT123456789", tracking_url: "https://tracking.example.test/x" })).tracking);
   c("spedito senza corriere né numero né link → nullo", null, (await sped({ corriere: null, tracking: null, tracking_url: null })).tracking);
@@ -266,7 +266,7 @@ export async function prove(mod, { c, gruppo, radice }) {
     ["tabella degli ordini assente", nuova([riga()], { mancante: ["shop_orders"] })],
     ["il database lancia un'eccezione sugli ordini", nuova([riga()], { errori: { "shop_orders.select": { lancia: new TypeError("PROVA rete con dati di Giovanna") } } })],
     ["il database risponde con un errore sugli ordini", nuova([riga()], { errori: { "shop_orders.select": { error: { code: "XX000", message: "PROVA con la riga di Giovanna", details: "Key (email)=(giovanna.rossettini@example.test)" } } } })],
-    ["chiave di servizio mancante", nuova([riga()], { chiaveServizio: undefined })],
+    ["chiave di servizio mancante", nuova([riga()], { chiaveServizio: null })],
     ["chiave di servizio vuota", nuova([riga()], { chiaveServizio: "" })],
   ];
   for (const [nome, x] of guasti) c(`${nome} → la stessa risposta di rifiuto`, RIFIUTO, JSON.stringify(await x.vai(REF_A, kA).catch(() => "ECCEZIONE")));
