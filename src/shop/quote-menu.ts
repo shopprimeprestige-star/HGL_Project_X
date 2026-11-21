@@ -370,6 +370,16 @@ export interface PricingOverrides {
   was?: Record<string, number>;
   disabled?: Record<string, boolean>;
   upsellSconti?: boolean;
+  /** ── ⚠️ SCONTO CHE SCATTA SCEGLIENDO UN'OPZIONE ───────────────────────
+   *  Richiesta del titolare: «se metto l'opzione "Solo regione frontale"
+   *  toglie, e posso impostare dal listino quanto è lo sconto».
+   *  id della voce → euro tolti dal totale, PER IMPIANTO come il prezzo della
+   *  voce, finché la voce è spuntata. Non è un prezzo e non è un codice: il
+   *  prezzo della voce resta quello che è, e lo sconto compare nel riepilogo
+   *  come riga a sé. Si legge sempre con `scontoOpzioni()`.
+   *  ⚠️ Assente = nessuno sconto: i listini salvati prima non hanno questo
+   *   campo e devono dare gli stessi totali di sempre. */
+  scontiOpzione?: Record<string, number>;
   /** ── ⚠️ COSA DEL PREVENTIVO NON SI MOSTRA ─────────────────────────────
    *  Richiesta del committente: «fai che posso disattivare le opzioni del
    *  preventivo dalle impostazioni presentazione».
@@ -749,6 +759,30 @@ export function accontoDi(o: PricingOverrides = {}, baseId?: string): number {
   return typeof a === "number" && Number.isFinite(a) && a >= 0 ? a : ACCONTO_DI_CASA;
 }
 
+/** ── QUANTO SCONTO DANNO LE OPZIONI SCELTE ─────────────────────────────────
+ *  L'UNICA funzione che lo dice: la pagina del preventivo, la stima in diretta
+ *  e il preventivo tipo del listino leggono tutti da qui, così il totale non
+ *  può essere due numeri diversi in due schermate.
+ *  `sconti` = `menu.scontiOpzione` (id → euro per impianto); `scelte` = le voci
+ *  spuntate; lo sconto segue il prezzo della voce, quindi si moltiplica per la
+ *  quantità. Un valore che non è un numero positivo si scarta in silenzio:
+ *  meglio nessuno sconto che uno inventato. */
+export interface ScontoOpzione { id: string; nome: string; eur: number }
+export function scontoOpzioni(
+  sconti: Record<string, number> | undefined,
+  scelte: { id: string; name: string }[],
+  quantita = 1,
+): { righe: ScontoOpzione[]; totale: number } {
+  const q = Number.isFinite(quantita) && quantita >= 1 ? quantita : 1;
+  const righe: ScontoOpzione[] = [];
+  for (const v of scelte) {
+    const unitario = sconti?.[v.id];
+    if (typeof unitario !== "number" || !Number.isFinite(unitario) || unitario <= 0) continue;
+    righe.push({ id: v.id, nome: v.name, eur: Math.round(unitario * q * 100) / 100 });
+  }
+  return { righe, totale: Math.round(righe.reduce((t, r) => t + r.eur, 0) * 100) / 100 };
+}
+
 export function buildMenu(o: PricingOverrides = {}) {
   const p = o.prices ?? {}, w = o.was ?? {}, d = o.disabled ?? {};
   //  Spegnere gli sconti si fa QUI, in un punto solo: togliendo il `wasPrice`
@@ -772,7 +806,16 @@ export function buildMenu(o: PricingOverrides = {}) {
     return typeof pieno === "number" && pieno > corrente ? pieno : corrente;
   };
   const was = (id: string, base?: number) => (sconti ? listinoDi(id, base) : undefined);
+  //  Lo sconto-opzione segue gli sconti del listino: spegnerli vuol dire
+  //  vendere a prezzo pieno, e questo sconto non fa eccezione. Le voci
+  //  nascoste non arrivano al preventivo, quindi non portano sconto.
+  const scontiOpzione = Object.fromEntries(
+    Object.entries(sconti ? (o.scontiOpzione ?? {}) : {}).filter(
+      ([id, v]) => !d[id] && typeof v === "number" && Number.isFinite(v) && v > 0,
+    ),
+  ) as Record<string, number>;
   return {
+    scontiOpzione,
     //  ⚠️ Anche le soluzioni di partenza: hanno un listino barrato come le
     //   altre voci, e lasciarle fuori voleva dire una pagina che toglie gli
     //   sconti dappertutto tranne che dal prezzo più grande.
@@ -856,11 +899,11 @@ export function vociAiPrezziDiOggi<T extends { name: string; price: number; wasP
 }
 
 /** Elenco piatto di tutte le voci con prezzo, per l'editor del CRM. */
-export interface PricingRow { id: string; label: string; group: string; price: number; wasPrice?: number; hasWas: boolean; }
+export interface PricingRow { id: string; label: string; group: string; price: number; wasPrice?: number; hasWas: boolean; /** true = ha il campo «Sconto se scelta» (le voci delle sezioni) */ scontabile?: boolean; }
 export function pricingRows(): PricingRow[] {
   const rows: PricingRow[] = [];
   BASE_SOLUTIONS.forEach((b) => rows.push({ id: b.id, label: b.name, group: "Soluzione base", price: b.price, hasWas: false }));
-  UPSELL_SECTIONS.forEach((s) => s.items.forEach((i) => rows.push({ id: i.id, label: i.name, group: s.title, price: i.price, wasPrice: i.wasPrice, hasWas: true })));
+  UPSELL_SECTIONS.forEach((s) => s.items.forEach((i) => rows.push({ id: i.id, label: i.name, group: s.title, price: i.price, wasPrice: i.wasPrice, hasWas: true, scontabile: true })));
   rows.push({ id: INSTALLATION.id, label: INSTALLATION.name, group: "Installazione", price: INSTALLATION.price, hasWas: false });
   FITTING_OPTIONS.forEach((f) => rows.push({ id: f.id, label: f.name, group: "Colore e analisi morfologica", price: f.price, hasWas: false }));
   rows.push({ id: SIMULATION.id, label: SIMULATION.name, group: "Simulazione", price: SIMULATION.price, wasPrice: SIMULATION.wasPrice, hasWas: true });
