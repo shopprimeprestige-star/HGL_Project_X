@@ -28,6 +28,7 @@ import {
 } from "./ordine";
 import type { Ordine, StatoOrdine } from "./ordine";
 import { euro } from "./pagina";
+import { statoEffettivo, statoPagamentoDi, type StatoPagamento } from "./pagamento";
 
 /** Quante righe si disegnano per volta: con migliaia di ordini nel periodo la pagina non deve disegnarli tutti. */
 export const PAGINA_RIGHE = 100;
@@ -41,6 +42,18 @@ export interface Filtri {
   /** Assente = tutti. «Sì» include gli annullati pagati: è la stessa regola di «Incassato». */
   pagato?: FiltroPagato;
   ricerca?: string;
+  // ── Rilascio 2 (T47): tutti facoltativi. Senza, l'elenco è quello di prima (SPEC 8A n. 7, provato con una fotografia). ──
+  /** «sito» = gli ordini della cassa nuova (colonna `canale`); «vecchio» = tutti gli altri. */
+  canale?: "sito" | "vecchio";
+  /** Lo stato di pagamento (D41). Con `adesso` si legge com'è ADESSO (una sessione scaduta in lettura è «scaduto», D52); senza, com'è in tabella. */
+  statoPagamento?: StatoPagamento;
+  adesso?: Date;
+  /** `true` = solo le fatture da fare (richiesta e non ancora emessa). */
+  fatturaDaFare?: boolean;
+  /** `true` = solo gli ordini con la giacenza da verificare. */
+  giacenzaDaVerificare?: boolean;
+  /** `false` = nasconde gli ordini di prova (D58); `true` o assente = si vedono (con il badge «PROVA»). */
+  mostraProva?: boolean;
 }
 
 /** I toni del CRM (`Chip`) per ogni stato: serve a distinguerli a colpo d'occhio, il nome è sempre scritto. */
@@ -84,10 +97,19 @@ const quando = (o: Ordine): number => {
   return Number.isFinite(t) ? t : 0;
 };
 
+/** Lo stato di pagamento com'è letto: con «adesso» una sessione scaduta si legge «scaduto» (D52), senza è quello della tabella. */
+const lettoPagamento = (o: Ordine, adesso?: Date): StatoPagamento =>
+  adesso ? statoEffettivo(o, adesso) : statoPagamentoDi(o);
+
 function passa(o: Ordine, f: Omit<Filtri, "stato">, q: string): boolean {
   if (!nelPeriodo(o, f.periodo)) return false;
   if (f.pagato === "si" && !eIncassato(o)) return false;
   if (f.pagato === "no" && eIncassato(o)) return false;
+  if (f.canale && (o.canale === "sito") !== (f.canale === "sito")) return false;
+  if (f.statoPagamento && lettoPagamento(o, f.adesso) !== f.statoPagamento) return false;
+  if (f.fatturaDaFare === true && !(o.fatturaRichiesta && o.fatturaEmessaIl === null)) return false;
+  if (f.giacenzaDaVerificare === true && !o.giacenzaDaVerificare) return false;
+  if (f.mostraProva === false && o.prova) return false;
   return !q || combacia(o, q);
 }
 /** Una ricerca di soli segni («-», «+», «()») non cerca niente: «-» combacerebbe con ogni «HG-…». */
@@ -107,7 +129,9 @@ export function filtraOrdini(ordini: Ordine[], f: Filtri): Ordine[] {
     .sort((a, b) => quando(b) - quando(a) || (a.id < b.id ? -1 : 1));
 }
 
-/** Quanti ordini per stato con gli ALTRI filtri applicati (lo stato scelto no: serve a poter cambiare filtro). */
+/** Quanti ordini per stato con gli ALTRI filtri applicati (lo stato scelto no: serve a poter cambiare filtro).
+ *  Gli ordini che non sono ancora (o non saranno mai) pagati — in attesa, scaduti, falliti — non contano come «Nuovo» né negli altri stati, come il numeretto
+ *  (regola n. 2 del product owner); se il filtro `statoPagamento` li chiede espressamente, si contano. */
 export function conteggiPerStato(
   ordini: Ordine[],
   f: Filtri,
@@ -117,11 +141,14 @@ export function conteggiPerStato(
   for (const s of STATI_ORDINE) n[s] = 0;
   for (const o of ordini) {
     if (!passa(o, f, q)) continue;
+    if (!f.statoPagamento && NON_PAGATI.includes(lettoPagamento(o, f.adesso))) continue;
     n[o.stato]++;
     n.tutti++;
   }
   return n;
 }
+
+const NON_PAGATI: readonly StatoPagamento[] = ["in_attesa", "scaduto", "fallito"];
 
 /** L'ordine con quell'identificativo (UUID), o `null`. Mai per numero ordine. */
 export const ordineDaId = (ordini: Ordine[], id: string | undefined): Ordine | null =>
@@ -161,9 +188,15 @@ export function controllaPagamento(
 
 // ── conferme ───────────────────────────────────────────────────────────────
 
-/** «Annullato» come stato e «Annulla pagamento» chiedono sempre conferma; il resto no. */
+/** Chiedono conferma: l'annullo (come stato o con «Annulla»), «Annulla pagamento», il rimborso, la correzione di stato e l'email mandata a mano (non si disfano).
+ *  «Spedisci», «Controlla con Stripe», «Fattura emessa» e «Giacenza verificata» no: la schermata è già il modulo. */
 export const serveConferma = (a: Azione): boolean =>
-  (a?.azione === "stato" && a.a === "annullato") || a?.azione === "pagamento_annullato";
+  (a?.azione === "stato" && a.a === "annullato") ||
+  a?.azione === "pagamento_annullato" ||
+  a?.azione === "annulla" ||
+  a?.azione === "rimborso" ||
+  a?.azione === "correggi_stato" ||
+  a?.azione === "email_invia";
 
 export interface TestoConferma {
   titolo: string;
@@ -189,6 +222,66 @@ export function testoConferma(a: Azione, o: Ordine): TestoConferma | null {
       testo: `L'ordine ${o.ref} torna «da incassare». Il pagamento (importo, metodo e data) resta scritto nello storico.`,
       si: "Sì, annulla il pagamento",
     };
+  if (a?.azione === "annulla") {
+    const pagato =
+      ["pagato", "rimborsato_in_parte", "rimborsato"].includes(statoPagamentoDi(o)) &&
+      o.statoPagamento !== null;
+    const restante = Math.max(0, importoIncassato(o) - o.rimborsatoCent / 100);
+    const frasi = [
+      `L'ordine di ${nomeCliente(o)} resta nell'elenco e nello storico, ma non conta più fra gli ordini.`,
+    ];
+    if (o.statoPagamento === "in_attesa")
+      frasi.push("La sessione di pagamento su Stripe viene chiusa.");
+    if (pagato) {
+      frasi.push(
+        a.rimborso === "ora"
+          ? `Il cliente viene rimborsato su Stripe (quanto resta da rimborsare: ${euro(restante)}).`
+          : "Nessun rimborso: i soldi restano incassati.",
+      );
+      frasi.push(
+        a.rimettiInMagazzino
+          ? "I pezzi tornano in magazzino."
+          : "I pezzi non tornano in magazzino.",
+      );
+    }
+    frasi.push("Per riattivarlo servirà «Correggi lo stato», con il motivo.");
+    return {
+      titolo: `Annullare l'ordine ${o.ref}?`,
+      testo: frasi.join(" "),
+      si: "Sì, annulla l'ordine",
+    };
+  }
+  if (a?.azione === "rimborso") {
+    const importo =
+      typeof a.importoCent === "number" && Number.isFinite(a.importoCent)
+        ? euro(a.importoCent / 100)
+        : "l'importo scritto";
+    return {
+      titolo: `Rimborsare ${importo}?`,
+      testo: `Il rimborso (${importo}) torna al cliente dell'ordine ${o.ref} tramite Stripe. Un rimborso non si può annullare.`,
+      si: "Sì, rimborsa",
+    };
+  }
+  if (a?.azione === "correggi_stato") {
+    const nomeDi = (s: unknown): string =>
+      typeof s === "string" && s in ETICHETTA_STATO ? ETICHETTA_STATO[s as StatoOrdine] : "—";
+    const partita = a.da === "spedito" && o.emailInviate.spedito?.stato === "inviata";
+    return {
+      titolo: `Correggere lo stato dell'ordine ${o.ref}?`,
+      testo:
+        `Da «${nomeDi(a.da)}» a «${nomeDi(a.a)}»: la correzione resta nello storico con il motivo.` +
+        (partita
+          ? " L'email «spedito» è già partita al cliente e resta un fatto: non si può richiamare."
+          : ""),
+      si: "Sì, correggi lo stato",
+    };
+  }
+  if (a?.azione === "email_invia")
+    return {
+      titolo: "Mandare l'email al cliente?",
+      testo: `Parte subito a ${o.email}. Se il messaggio è spento o non approvato non parte, e il CRM ti dice perché.`,
+      si: "Sì, manda l'email",
+    };
   return null;
 }
 
@@ -209,6 +302,58 @@ const FRASE_OK: Record<Azione["azione"], string> = {
   pagamento_annullato: "Pagamento annullato: resta nello storico.",
   tracking: "Tracking salvato.",
   nota_interna: "Nota salvata.",
+  spedisci: "Ordine segnato come spedito.",
+  annulla: "Ordine annullato.",
+  rimborso: "Rimborso richiesto: arriva al cliente tramite Stripe.",
+  riconcilia: "Controllato con Stripe: l'ordine è aggiornato.",
+  fattura_emessa: "Fattura segnata come emessa.",
+  email_invia: "Email in invio al cliente.",
+  giacenza_verificata: "Giacenza segnata come verificata.",
+  correggi_stato: "Stato corretto: la correzione resta nello storico.",
+};
+
+// ── gli errori e gli avvisi nuovi del Rilascio 2 ───────────────────────────
+
+/** Le frasi degli errori che le funzioni SQL di S4 sollevano (il codice è quello di `RAISE EXCEPTION`). Mai il codice al cliente del CRM. */
+const FRASE_ERRORE: Record<string, string> = {
+  rimborso_chiave_altro_ordine:
+    "Questa richiesta di rimborso appartiene a un altro ordine: ricarica la pagina e riprova.",
+  sessione_di_un_altro_ordine:
+    "La sessione di pagamento appartiene a un altro ordine: non è stata collegata a questo.",
+  ordine_id_gia_usato:
+    "Esiste già un ordine con questo identificativo: guarda l'elenco prima di riprovare.",
+  rimborso_oltre_pagato:
+    "Il rimborso supera quanto è stato pagato, contando i rimborsi già richiesti.",
+  rimborso_importo_non_valido: "L'importo, il motivo o la chiave del rimborso non sono validi.",
+  ordine_non_pagato: "L'ordine non risulta pagato: non c'è niente da rimborsare.",
+  ordine_non_riapribile:
+    "Questo ordine non si può riaprire: è annullato, già pagato o non della cassa nuova.",
+  ordine_non_trovato: "Non trovo più questo ordine: ricarica l'elenco.",
+};
+/** La frase per un errore delle funzioni SQL; un codice che non conosciamo (o non testo) dà una frase generica. */
+export const fraseErroreOrdine = (codice: unknown): string =>
+  (typeof codice === "string" && Object.prototype.hasOwnProperty.call(FRASE_ERRORE, codice)
+    ? FRASE_ERRORE[codice]
+    : "") || "L'operazione non è riuscita: ricarica la pagina e riprova.";
+
+/** Le frasi degli avvisi che le funzioni SQL e il webhook scrivono sull'ordine (colonna `avvisi`). */
+export const ETICHETTA_AVVISO: Record<string, string> = {
+  giacenza_da_verificare:
+    "La giacenza è da verificare: una riga non si è potuta scalare dal magazzino. Contala e segna «Giacenza verificata».",
+  importo_diverso:
+    "Stripe ha incassato un importo diverso dal totale dell'ordine: l'ordine NON è stato segnato come pagato. Controlla su Stripe.",
+  valuta_diversa:
+    "Stripe ha incassato in una valuta diversa dall'euro: l'ordine NON è stato segnato come pagato. Controlla su Stripe.",
+  doppio_pagamento:
+    "Il cliente ha pagato due volte con due sessioni diverse: rimborsa quello in più.",
+  sessione_sconosciuta:
+    "È arrivato un pagamento da una sessione che non risulta di questo ordine: controlla su Stripe.",
+  contestazione:
+    "Il cliente ha aperto una contestazione sul pagamento: rispondi su Stripe entro i termini.",
+  pagato_dopo_annullo:
+    "Il cliente ha pagato dopo l'annullo dell'ordine: rimborsalo, oppure riattiva l'ordine.",
+  pagato_dopo_scadenza: "Pagato dopo la scadenza della sessione: controlla la giacenza.",
+  stripe_errore: "Stripe ha rifiutato la richiesta di pagamento: l'ordine è stato chiuso.",
 };
 
 /** Cosa dire dopo un'azione. Ogni risposta della rotta ha una frase: nessuna resta muta. */
@@ -280,7 +425,15 @@ export function avvisiOrdine(o: Ordine): string[] {
     v.push(
       "L'ordine è annullato ma risulta pagato: i soldi contano come incassati. I rimborsi non si gestiscono qui.",
     );
-  return v;
+  // Rilascio 2: la colonna della giacenza e gli avvisi scritti dal server, ognuno una volta sola (frasi uguali non si ripetono)
+  const nuovi = new Set<string>();
+  if (o.giacenzaDaVerificare) nuovi.add(ETICHETTA_AVVISO.giacenza_da_verificare);
+  for (const a of o.avvisi)
+    nuovi.add(
+      ETICHETTA_AVVISO[a.codice] ??
+        `Avviso sull'ordine che questa versione non conosce («${a.codice}»): controlla l'ordine.`,
+    );
+  return [...v, ...nuovi];
 }
 
 // ── lo storico ─────────────────────────────────────────────────────────────
@@ -357,6 +510,46 @@ export function descriviEvento(e: EventoStorico): RigaStorico {
       dettaglio = nuovo;
       break;
     }
+    case "spedito": {
+      titolo = "Segnato come spedito";
+      dettaglio =
+        dopo.senza_tracking === true
+          ? "Senza tracking"
+          : unisci(testoDi(dopo.corriere, 60), testoDi(dopo.tracking, 60));
+      break;
+    }
+    case "annullato":
+      titolo = "Ordine annullato";
+      dettaglio = testoDi(dopo.motivo, 140);
+      break;
+    case "rimborso_richiesto":
+      titolo = "Rimborso richiesto";
+      dettaglio = unisci(
+        typeof dopo.importo_cent === "number" ? importoDi(dopo.importo_cent / 100) : "",
+        testoDi(dopo.motivo, 140),
+      );
+      break;
+    case "riconciliato":
+      titolo = "Controllato con Stripe";
+      break;
+    case "fattura_emessa":
+      titolo = "Fattura segnata come emessa";
+      dettaglio = testoDi(dopo.nota, 140);
+      break;
+    case "email_inviata":
+      titolo = "Email mandata a mano";
+      dettaglio = testoDi(dopo.chiave, 60);
+      break;
+    case "giacenza_verificata":
+      titolo = "Giacenza verificata";
+      break;
+    case "stato_corretto":
+      titolo = "Stato corretto";
+      dettaglio = unisci(
+        `${nomeStato(prima.stato)} → ${nomeStato(dopo.stato)}`,
+        testoDi(dopo.motivo, 140),
+      );
+      break;
     case "nota_interna": {
       const nuova = testoDi(dopo.note_interne, 140);
       titolo = nuova ? "Nota interna aggiornata" : "Nota interna tolta";

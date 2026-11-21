@@ -116,8 +116,10 @@ export const contaComeLavoro = (o: ConStato & Pick<Ordine, "prova">): boolean =>
 export const contaNelleCifre = (o: Pick<Ordine, "prova">): boolean => !o.prova;
 
 /** «Riprova il pagamento» (D66): serve lo stato IN TABELLA fallito|scaduto. Se la tabella dice ancora «in attesa» non basta che `statoEffettivo`
- *  dica «scaduto»: prima si rilegge Stripe (la sessione potrebbe essere stata pagata). */
-export const puoRiprovare = (o: ConStato): boolean => RIAPRI_DA.includes(statoPagamentoDi(o));
+ *  dica «scaduto»: prima si rilegge Stripe (la sessione potrebbe essere stata pagata). Un ordine ANNULLATO non si riapre mai
+ *  (decisione del capo progetto, 21/11: `ordine_non_riapribile` anche in SQL). */
+export const puoRiprovare = (o: ConStato & Pick<Ordine, "stato">): boolean =>
+  o.stato !== "annullato" && RIAPRI_DA.includes(statoPagamentoDi(o));
 
 // ── la pagina ordine del cliente ───────────────────────────────────────────
 
@@ -157,13 +159,14 @@ export function fasePubblica(
 // ── i passaggi di evasione degli ordini con stato di pagamento (D55) ───────
 
 /** Da → a ammessi per gli ordini con `stato_pagamento`; `motivo: true` = il motivo è obbligatorio (correzioni all'indietro e annullo).
- *  In avanti un passo alla volta. Consegnato e annullato sono finali, salvo `annullato → nuovo` (annullo fatto per errore). */
+ *  In avanti un passo alla volta (salvo `nuovo → spedito`). Consegnato e annullato sono finali, salvo `annullato → nuovo` (annullo fatto per errore). */
 export const PASSAGGI_EVASIONE: Record<
   StatoOrdine,
   readonly { a: StatoOrdine; motivo: boolean }[]
 > = {
   nuovo: [
     { a: "in_preparazione", motivo: false },
+    { a: "spedito", motivo: false }, // lo studio può spedire senza passare da «in preparazione» (decisione del capo progetto, 21/11)
     { a: "annullato", motivo: true },
   ],
   in_preparazione: [

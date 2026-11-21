@@ -13,6 +13,16 @@
  *  (D11): una richiesta «elimina», «cancella», «delete»… è `azione_sconosciuta`.
  *  Le azioni di collegamento al lead (`collega`, `scollega`, `senza_lead`) sono di R3 (T8b).
  *
+ *  ── RILASCIO 2 (T47; PIANO-R2 D55) ─────────────────────────────────────────────────────────────────
+ *  Otto azioni nuove, sempre pure: `spedisci`, `annulla`, `rimborso`, `riconcilia`, `fattura_emessa`, `email_invia`, `giacenza_verificata`,
+ *  `correggi_stato`. Le cinque vecchie non cambiano di una riga di comportamento, con UN vincolo: per un ordine con `stato_pagamento` valorizzato
+ *  (la cassa Stripe) `pagato`, `pagamento_annullato`, `tracking` e `stato → spedito|annullato` sono rifiutati («usa Controlla con Stripe / Spedisci /
+ *  Annulla»); per gli ordini di prima (colonna vuota, `statoPagamento === null`) TUTTO resta com'è, e motivo e corriere non si impongono (SPEC 8A n. 7).
+ *  Il terzo argomento facoltativo, `contesto`, porta ciò che l'ordine da solo non sa: i rimborsi (`shop_rimborsi`) e l'elenco dei corrieri.
+ *  Alcune azioni non scrivono colonne ma chiedono al server di fare qualcosa (`effetti`: rimborso, giacenza, sessione di Stripe, email, riconciliazione):
+ *  la rotta li esegue con le funzioni SQL e mai con una scrittura diretta; `patch` può essere vuoto (la rotta, allora, non fa l'`update`).
+ *  Per quelle azioni lo storico lo scrivono già le funzioni SQL: la rotta decide se aggiungere anche `evento`.
+ *
  *  ── OBBLIGHI PER CHI SCRIVE LA ROTTA (T9), dal parere del revisore ────────────────────────────────
  *  1. I valori di `condizioni` si passano al database TALE E QUALE: mai attraverso `new Date()` (perde i
  *     microsecondi di `pagato_il` e il confronto non combacia mai).
@@ -24,14 +34,44 @@
  *  4. Se 0 righe, e il valore normalizzato di testo era uguale al visto (riga con spazi ai bordi scritta a mano:
  *     la condizione tagliata non combacia), rileggere la riga UNA volta prima di rispondere 409.
  *  5. Una prova su dato vero con un `pagato_il` a microsecondi (es. `2026-11-17T15:00:00.123456+00:00`). */
-import { ETICHETTA_METODO, STATI_ORDINE, importoIncassato, type MetodoPagamento, type Ordine, type StatoOrdine } from "./ordine";
+import { ETICHETTA_METODO, ETICHETTA_STATO, STATI_ORDINE, importoIncassato, type MetodoPagamento, type Ordine, type StatoOrdine } from "./ordine";
+import { PASSAGGI_EVASIONE, puoLavorare, statoPagamentoDi } from "./pagamento";
+import { controllaRimborso, massimoRimborsabileCent } from "./rimborso";
+import { CORRIERI_DI_PARTENZA, costruisciLink, numeroValido } from "./tracking";
 
 export type Azione =
   | { azione: "stato"; ordineId: string; a: StatoOrdine; da: StatoOrdine }
   | { azione: "pagato"; ordineId: string; metodo: MetodoPagamento; importo?: number | string; data?: string }
   | { azione: "pagamento_annullato"; ordineId: string }
   | { azione: "tracking"; ordineId: string; valore: string }
-  | { azione: "nota_interna"; ordineId: string; valore: string };
+  | { azione: "nota_interna"; ordineId: string; valore: string }
+  // ── Rilascio 2 (D55): le scelte che il server impone sono facoltative nel tipo perché per gli ordini di prima non si chiedono ──
+  | { azione: "spedisci"; ordineId: string; corriere?: string; numero?: string; senzaTracking?: boolean }
+  | { azione: "annulla"; ordineId: string; motivo?: string; rimborso?: "ora" | "nessuno"; rimettiInMagazzino?: boolean; chiaveRichiesta?: string }
+  | { azione: "rimborso"; ordineId: string; importoCent?: number; motivo?: string; chiaveRichiesta?: string; conferma?: boolean }
+  | { azione: "riconcilia"; ordineId: string }
+  | { azione: "fattura_emessa"; ordineId: string; nota?: string }
+  | { azione: "email_invia"; ordineId: string; chiave: ChiaveEmailOrdine }
+  | { azione: "giacenza_verificata"; ordineId: string }
+  | { azione: "correggi_stato"; ordineId: string; da: StatoOrdine; a: StatoOrdine; motivo: string };
+
+/** I cinque messaggi dello shop (D53); la lista vera dei modelli sta nel database. */
+export type ChiaveEmailOrdine = "conferma_ordine" | "spedito" | "pagamento_non_riuscito" | "rimborso" | "annullato";
+const CHIAVI_EMAIL: readonly string[] = ["conferma_ordine", "spedito", "pagamento_non_riuscito", "rimborso", "annullato"];
+
+/** Ciò che l'ordine da solo non sa. `rimborsi` = le righe di `shop_rimborsi` come `{importoCent, stato}`; `corrieri` = `[{nome, modello}]` di `shop_impostazioni`. */
+export interface ContestoAzione {
+  rimborsi?: unknown;
+  corrieri?: unknown;
+}
+
+/** Una cosa che la rotta deve far fare al server, già validata. Mai una scrittura diretta: sono le funzioni SQL e Stripe. */
+export type Effetto =
+  | { tipo: "rimborso"; importoCent: number; motivo: string; chiaveRichiesta: string }
+  | { tipo: "giacenza_rimetti" }
+  | { tipo: "scadi_sessione" }
+  | { tipo: "riconcilia" }
+  | { tipo: "email"; chiave: string; manuale: true };
 
 /** Perché un'azione non parte. `nessun_cambio` non è un guasto: la pagina può solo ignorarlo. */
 export type MotivoErrore = "valore" | "conflitto" | "nessun_cambio" | "azione_sconosciuta";
@@ -40,19 +80,25 @@ export type MotivoErrore = "valore" | "conflitto" | "nessun_cambio" | "azione_sc
 export interface EventoOrdine {
   order_id: string;
   order_ref: string;
-  tipo: "stato" | "pagato" | "pagamento_annullato" | "tracking" | "nota_interna";
+  tipo:
+    | "stato" | "pagato" | "pagamento_annullato" | "tracking" | "nota_interna"
+    | "spedito" | "annullato" | "rimborso_richiesto" | "riconciliato" | "fattura_emessa" | "email_inviata" | "giacenza_verificata" | "stato_corretto";
   prima: Record<string, unknown>;
   dopo: Record<string, unknown>;
 }
 
 export type EsitoAzione =
-  | { ok: true; patch: Record<string, unknown>; condizioni: Record<string, unknown>; evento: EventoOrdine }
+  | { ok: true; patch: Record<string, unknown>; condizioni: Record<string, unknown>; evento: EventoOrdine; effetti?: Effetto[] }
   | { ok: false; errore: string; motivo: MotivoErrore };
 
 /** Le sole colonne che una azione può scrivere: mai dati del cliente, righe o totali. */
-export const CHIAVI_PATCH: readonly string[] = ["status", "pagato_il", "pagato_importo", "metodo_pagamento", "tracking", "note_interne", "lead_id", "senza_lead", "aggiornato_il"];
+export const CHIAVI_PATCH: readonly string[] = [
+  "status", "pagato_il", "pagato_importo", "metodo_pagamento", "tracking", "note_interne", "lead_id", "senza_lead", "aggiornato_il",
+  // Rilascio 2 (S4): spedizione, annullo, fattura, giacenza. Mai i soldi (`pagato_*`, `rimborsato_cent`, `stato_pagamento`): li scrivono solo le funzioni SQL.
+  "spedito_il", "corriere", "tracking_url", "senza_tracking", "annullo_motivo", "annullato_il", "fattura_emessa_il", "fattura_nota", "giacenza_da_verificare",
+];
 
-export const LIMITI = { tracking: 120, nota: 2000, importoMax: 100000, anticipoDataMs: 60_000 } as const;
+export const LIMITI = { tracking: 120, nota: 2000, importoMax: 100000, anticipoDataMs: 60_000, motivo: 500, fatturaNota: 500 } as const;
 // shortcut: 1 minuto di tolleranza sulla data di pagamento (orologio del browser un po' avanti); stringere se serve la data esatta
 const GIORNO_MS = 86_400_000;
 /** Il giorno di calendario di un istante, a Roma (AAAA-MM-GG). shortcut: fuso fisso, il negozio è italiano; da parametrizzare se serve un altro fuso. */
@@ -69,6 +115,12 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const CONTROLLO_TRACKING = /[\u0000-\u001f\u007f]/;
 const CONTROLLO_NOTA = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/; // a capo e tab ammessi
 
+/** Le azioni che si conoscono (le cinque di prima e le otto del Rilascio 2). Nessuna cancella niente (D11). */
+const NOMI_AZIONE: readonly string[] = [
+  "stato", "pagato", "pagamento_annullato", "tracking", "nota_interna",
+  "spedisci", "annulla", "rimborso", "riconcilia", "fattura_emessa", "email_invia", "giacenza_verificata", "correggi_stato",
+];
+
 export const eUuid = (v: unknown): v is string => typeof v === "string" && UUID.test(v);
 
 const errore = (motivo: MotivoErrore, testo: string): EsitoAzione => ({ ok: false, errore: testo, motivo });
@@ -83,12 +135,29 @@ function leggiImporto(v: unknown): number | undefined {
   return IMPORTO_TESTO.test(t) ? Number(t.replace(",", ".")) : NaN;
 }
 
+/** L'ordine passa dalla cassa Stripe: ha `stato_pagamento` valorizzato (anche `da_incassare`). Vuoto = ordine di prima, che resta com'è. */
+const conStripe = (o: Ordine): boolean => o.statoPagamento !== null;
+const FRASE_USA_STRIPE = "Il pagamento di questo ordine lo gestisce Stripe: usa «Controlla con Stripe».";
+const FRASE_USA_SPEDISCI = "Questo ordine si segna spedito con «Spedisci»: serve il corriere e il numero di tracking, oppure «senza tracking».";
+const FRASE_USA_ANNULLA = "Questo ordine si annulla con «Annulla»: serve il motivo, e se è pagato il rimborso.";
+
 function stato(a: Record<string, unknown>, o: Ordine, adesso: Date): EsitoAzione {
   const da = a.da, nuovo = a.a;
   const noto = (s: unknown): s is StatoOrdine => typeof s === "string" && (STATI_ORDINE as readonly string[]).includes(s);
   if (!noto(da) || !noto(nuovo)) return errore("valore", "Stato non valido: scegli uno degli stati dell'elenco.");
+  if (conStripe(o)) {
+    if (nuovo === "spedito") return errore("valore", FRASE_USA_SPEDISCI);
+    if (nuovo === "annullato") return errore("valore", FRASE_USA_ANNULLA);
+  }
   if (da !== o.stato) return errore("conflitto", "Lo stato dell'ordine è cambiato nel frattempo: ricarica e riprova.");
   if (nuovo === o.stato) return errore("nessun_cambio", "L'ordine è già in questo stato.");
+  if (conStripe(o)) {
+    // la tabella dei passaggi (pagamento.ts) vale solo per la cassa Stripe: un passo alla volta, in avanti; indietro serve il motivo
+    if (!puoLavorare(o)) return errore("valore", "Senza un pagamento confermato l'ordine non si prepara: se è in attesa, aspetta Stripe o usa «Controlla con Stripe».");
+    const passo = PASSAGGI_EVASIONE[da].find((p) => p.a === nuovo);
+    if (!passo) return errore("valore", "Questo cambio di stato non è possibile.");
+    if (passo.motivo) return errore("valore", "Per tornare indietro usa «Correggi lo stato»: serve il motivo.");
+  }
   return {
     ok: true,
     // condizione = lo stato com'è scritto in tabella (se è uno sconosciuto, letto come «nuovo», si confronta il testo vero)
@@ -114,6 +183,7 @@ function dataPagamento(v: unknown, o: Ordine, adesso: Date): Date | string {
 }
 
 function pagato(a: Record<string, unknown>, o: Ordine, adesso: Date): EsitoAzione {
+  if (conStripe(o)) return errore("valore", FRASE_USA_STRIPE);
   const metodo = a.metodo;
   if (typeof metodo !== "string" || !METODI.includes(metodo)) return errore("valore", "Metodo di pagamento non valido: scegli bonifico, contanti, carta o altro.");
   const importo = leggiImporto(a.importo) ?? o.totale; // di partenza, il totale dell'ordine
@@ -138,6 +208,7 @@ function pagato(a: Record<string, unknown>, o: Ordine, adesso: Date): EsitoAzion
 }
 
 function pagamentoAnnullato(o: Ordine, adesso: Date): EsitoAzione {
+  if (conStripe(o)) return errore("valore", FRASE_USA_STRIPE);
   if (o.pagatoIl === null) return errore("conflitto", "L'ordine non risulta pagato: non c'è un pagamento da annullare.");
   return {
     ok: true,
@@ -155,6 +226,7 @@ function pagamentoAnnullato(o: Ordine, adesso: Date): EsitoAzione {
 /** Tracking e nota interna: stesso schema, cambiano colonna, tetto e caratteri ammessi. */
 function testoLibero(a: Record<string, unknown>, o: Ordine, adesso: Date, tipo: "tracking" | "nota_interna"): EsitoAzione {
   const tracking = tipo === "tracking";
+  if (tracking && conStripe(o)) return errore("valore", "Il tracking si scrive spedendo: usa «Spedisci».");
   const nome = tracking ? "Il numero di tracking" : "La nota";
   const max = tracking ? LIMITI.tracking : LIMITI.nota;
   if (typeof a.valore !== "string") return errore("valore", `${nome} deve essere un testo.`);
@@ -174,18 +246,179 @@ function testoLibero(a: Record<string, unknown>, o: Ordine, adesso: Date, tipo: 
   };
 }
 
-/** Valida la richiesta della pagina contro l'ordine com'è e costruisce ciò che la rotta deve scrivere. Non lancia, non muta `attuale`. */
-export function costruisciAzione(richiesta: unknown, attuale: Ordine, adesso: Date): EsitoAzione {
+// ── RILASCIO 2 · le azioni nuove (D55) ─────────────────────────────────────
+
+const ok = (patch: Record<string, unknown>, condizioni: Record<string, unknown>, evento: EventoOrdine, effetti: Effetto[] = []): EsitoAzione => ({ ok: true, patch, condizioni, evento, effetti });
+const eventoDi = (o: Ordine, tipo: EventoOrdine["tipo"], prima: Record<string, unknown>, dopo: Record<string, unknown>): EventoOrdine => ({ order_id: o.id, order_ref: o.ref, tipo, prima, dopo });
+const testoPulito = (v: unknown): string => (typeof v === "string" ? v.trim() : "");
+/** Un testo libero con tetto: `""` se vuoto, `null` se non è testo ammesso (troppo lungo o con caratteri di controllo). */
+const nota = (v: unknown, max: number): string | null => {
+  const t = testoPulito(v);
+  return t.length > max || CONTROLLO_NOTA.test(t) ? null : t;
+};
+
+/** Il corriere scritto → il nome com'è nell'elenco (maiuscole comprese), o `null` se nell'elenco non c'è. L'elenco vero lo passa il server; senza, quello di partenza. */
+function corriereDellElenco(scritto: string, corrieri: unknown): string | null {
+  const nomi = Array.isArray(corrieri) ? corrieri.map((v) => (eOggetto(v) ? testoPulito(v.nome) : "")) : [...CORRIERI_DI_PARTENZA];
+  return nomi.find((n) => n && n.toLowerCase() === scritto.toLowerCase()) ?? null;
+}
+
+function spedisci(a: Record<string, unknown>, o: Ordine, adesso: Date, ctx: ContestoAzione): EsitoAzione {
+  const nuovoSistema = conStripe(o);
+  if (o.stato === "spedito") return errore("nessun_cambio", "L'ordine è già spedito.");
+  if (nuovoSistema) {
+    const s = statoPagamentoDi(o);
+    if (s !== "pagato" && s !== "rimborsato_in_parte") return errore("valore", "Si spedisce solo un ordine con il pagamento confermato: questo non lo è.");
+    if (!PASSAGGI_EVASIONE[o.stato].some((p) => p.a === "spedito")) return errore("valore", `Un ordine «${ETICHETTA_STATO[o.stato]}» non si può spedire.`);
+  }
+  // il tracking: corriere + numero, oppure «senza tracking». Per gli ordini di prima non è obbligatorio (se lo scrivi, però, deve essere giusto)
+  const senza = a.senzaTracking === true;
+  const corriereScritto = testoPulito(a.corriere);
+  const numeroScritto = testoPulito(a.numero);
+  let dati: Record<string, unknown> = {};
+  let nomeCorriere: string | null = null;
+  if (senza) dati = { tracking: null, corriere: null, tracking_url: null, senza_tracking: true };
+  else if (corriereScritto || numeroScritto || nuovoSistema) {
+    if (!corriereScritto) return errore("valore", "Scegli il corriere dell'elenco, oppure segna «senza tracking».");
+    nomeCorriere = corriereDellElenco(corriereScritto, ctx.corrieri);
+    if (!nomeCorriere) return errore("valore", "Il corriere non è nell'elenco: scegline uno dell'elenco.");
+    if (!numeroScritto) return errore("valore", "Scrivi il numero di tracking, oppure segna «senza tracking».");
+    if (!numeroValido(numeroScritto)) return errore("valore", "Il numero di tracking non è valido: servono lettere e cifre, da 5 a 40 caratteri.");
+    dati = { corriere: nomeCorriere, tracking: numeroScritto, tracking_url: costruisciLink(ctx.corrieri, nomeCorriere, numeroScritto), senza_tracking: false };
+  }
+  return ok(
+    { status: "spedito", spedito_il: adesso.toISOString(), ...dati, aggiornato_il: adesso.toISOString() },
+    nuovoSistema ? { status: o.statoGrezzo || null, stato_pagamento: o.statoPagamento } : { status: o.statoGrezzo || null },
+    eventoDi(o, "spedito", { stato: o.stato }, { stato: "spedito", corriere: dati.corriere ?? null, tracking: dati.tracking ?? null, senza_tracking: senza }),
+  );
+}
+
+function annulla(a: Record<string, unknown>, o: Ordine, adesso: Date, ctx: ContestoAzione): EsitoAzione {
+  if (o.stato === "annullato") return errore("nessun_cambio", "L'ordine è già annullato.");
+  const nuovoSistema = conStripe(o);
+  const motivo = nota(a.motivo, LIMITI.motivo);
+  if (motivo === null) return errore("valore", `Il motivo è troppo lungo o contiene caratteri non ammessi: al massimo ${LIMITI.motivo} caratteri.`);
+  if (nuovoSistema && !motivo) return errore("valore", "Scrivi il motivo dell'annullo: serve per lo storico.");
+  const effetti: Effetto[] = [];
+  let rimborso: string | null = null;
+  let rimetti: boolean | null = null;
+  if (nuovoSistema) {
+    if (!PASSAGGI_EVASIONE[o.stato].some((p) => p.a === "annullato")) return errore("valore", `Un ordine «${ETICHETTA_STATO[o.stato]}» non si può annullare.`);
+    const s = statoPagamentoDi(o);
+    if (s === "in_attesa") effetti.push({ tipo: "scadi_sessione" });
+    if (s === "pagato" || s === "rimborsato_in_parte" || s === "rimborsato") {
+      const massimo = massimoRimborsabileCent(o, ctx.rimborsi);
+      if (massimo > 0) {
+        if (a.rimborso !== "ora" && a.rimborso !== "nessuno") return errore("valore", "L'ordine è pagato: scegli «Rimborsa ora» oppure «Nessun rimborso dovuto».");
+        rimborso = a.rimborso;
+        if (rimborso === "ora") {
+          if (!eUuid(a.chiaveRichiesta)) return errore("valore", "Manca la chiave della richiesta di rimborso: ricarica la pagina e riprova.");
+          effetti.push({ tipo: "rimborso", importoCent: massimo, motivo, chiaveRichiesta: a.chiaveRichiesta });
+        }
+      }
+      if (typeof a.rimettiInMagazzino !== "boolean") return errore("valore", "L'ordine è pagato: scegli se rimettere i pezzi in magazzino, sì o no.");
+      rimetti = a.rimettiInMagazzino;
+      if (rimetti) effetti.push({ tipo: "giacenza_rimetti" });
+    }
+  }
+  return ok(
+    { status: "annullato", ...(motivo ? { annullo_motivo: motivo } : {}), annullato_il: adesso.toISOString(), aggiornato_il: adesso.toISOString() },
+    nuovoSistema ? { status: o.statoGrezzo || null, stato_pagamento: o.statoPagamento } : { status: o.statoGrezzo || null },
+    eventoDi(o, "annullato", { stato: o.stato }, { stato: "annullato", motivo: motivo || null, rimborso, rimetti_in_magazzino: rimetti }),
+    effetti,
+  );
+}
+
+function rimborso(a: Record<string, unknown>, o: Ordine, ctx: ContestoAzione): EsitoAzione {
+  const r = controllaRimborso(a, o, ctx.rimborsi); // la stessa funzione della schermata: le due non possono dire cose diverse
+  if (!r.ok) return errore("valore", r.errore);
+  return ok(
+    {},
+    { stato_pagamento: o.statoPagamento, rimborsato_cent: o.rimborsatoCent },
+    eventoDi(o, "rimborso_richiesto", { rimborsato_cent: o.rimborsatoCent }, { importo_cent: r.importoCent, motivo: r.motivo }),
+    [{ tipo: "rimborso", importoCent: r.importoCent, motivo: r.motivo, chiaveRichiesta: r.chiaveRichiesta }],
+  );
+}
+
+function riconcilia(o: Ordine): EsitoAzione {
+  if (!conStripe(o)) return errore("valore", "Questo ordine non passa da Stripe: non c'è niente da controllare.");
+  return ok({}, { stato_pagamento: o.statoPagamento }, eventoDi(o, "riconciliato", { stato_pagamento: o.statoPagamento }, {}), [{ tipo: "riconcilia" }]);
+}
+
+function fatturaEmessa(a: Record<string, unknown>, o: Ordine, adesso: Date): EsitoAzione {
+  if (!o.fatturaRichiesta) return errore("valore", "Per questo ordine il cliente non ha chiesto la fattura.");
+  if (o.fatturaEmessaIl !== null) return errore("nessun_cambio", "La fattura risulta già segnata come emessa.");
+  const testo = nota(a.nota, LIMITI.fatturaNota);
+  if (testo === null) return errore("valore", `La nota è troppo lunga o contiene caratteri non ammessi: al massimo ${LIMITI.fatturaNota} caratteri.`);
+  return ok(
+    { fattura_emessa_il: adesso.toISOString(), fattura_nota: testo || null, aggiornato_il: adesso.toISOString() },
+    { fattura_emessa_il: null },
+    eventoDi(o, "fattura_emessa", { fattura_emessa_il: null }, { fattura_emessa_il: adesso.toISOString(), nota: testo || null }),
+  );
+}
+
+function emailInvia(a: Record<string, unknown>, o: Ordine): EsitoAzione {
+  if (!conStripe(o)) return errore("valore", "Le email dello shop partono solo per gli ordini della cassa nuova.");
+  if (typeof a.chiave !== "string" || !CHIAVI_EMAIL.includes(a.chiave)) return errore("valore", "Scegli quale email mandare.");
+  if (!o.email.includes("@")) return errore("valore", "L'ordine non ha un indirizzo email: non c'è a chi mandarla.");
+  return ok({}, { stato_pagamento: o.statoPagamento }, eventoDi(o, "email_inviata", {}, { chiave: a.chiave, manuale: true }), [{ tipo: "email", chiave: a.chiave, manuale: true }]);
+}
+
+function giacenzaVerificata(o: Ordine, adesso: Date): EsitoAzione {
+  if (!o.giacenzaDaVerificare) return errore("nessun_cambio", "La giacenza di questo ordine non era da verificare.");
+  return ok(
+    { giacenza_da_verificare: false, aggiornato_il: adesso.toISOString() },
+    { giacenza_da_verificare: true },
+    eventoDi(o, "giacenza_verificata", { giacenza_da_verificare: true }, { giacenza_da_verificare: false }),
+  );
+}
+
+/** I tre passi all'indietro della tabella di evasione (`pagamento.ts`): gli unici che questa azione fa. */
+const CORREZIONI: readonly string[] = ["in_preparazione>nuovo", "spedito>in_preparazione", "annullato>nuovo"];
+
+function correggiStato(a: Record<string, unknown>, o: Ordine, adesso: Date, ctx: ContestoAzione): EsitoAzione {
+  if (!conStripe(o)) return errore("valore", "Per questo ordine il cambio di stato è libero: usa «Cambia stato».");
+  const noto = (s: unknown): s is StatoOrdine => typeof s === "string" && (STATI_ORDINE as readonly string[]).includes(s);
+  const { da, a: verso } = a;
+  if (!noto(da) || !noto(verso)) return errore("valore", "Stato non valido: scegli uno degli stati dell'elenco.");
+  if (da !== o.stato) return errore("conflitto", "Lo stato dell'ordine è cambiato nel frattempo: ricarica e riprova.");
+  if (!CORREZIONI.includes(`${da}>${verso}`)) return errore("valore", "Questa non è una correzione: si torna indietro di un passo, o si riattiva un ordine annullato.");
+  const motivo = nota(a.motivo, LIMITI.motivo);
+  if (!motivo) return errore("valore", `Scrivi il motivo della correzione (al massimo ${LIMITI.motivo} caratteri): serve per lo storico.`);
+  if (da === "annullato") {
+    const attivo = (Array.isArray(ctx.rimborsi) ? ctx.rimborsi : []).some((r) => eOggetto(r) && (r.stato === "richiesto" || r.stato === "riuscito"));
+    if (attivo) return errore("valore", "L'ordine ha un rimborso richiesto o riuscito: non si può riattivare.");
+  }
+  const patch: Record<string, unknown> = { status: verso, aggiornato_il: adesso.toISOString() };
+  if (da === "spedito") patch.spedito_il = null; // non è più spedito (la email «spedito», se è partita, resta un fatto)
+  if (da === "annullato") {
+    patch.annullo_motivo = null;
+    patch.annullato_il = null; // l'annullo resta nello storico
+    if (o.giacenzaRimessaIl !== null) patch.giacenza_da_verificare = true; // i pezzi erano tornati in magazzino: da ricontare prima di spedire
+  }
+  return ok(patch, { status: o.statoGrezzo || null }, eventoDi(o, "stato_corretto", { stato: da }, { stato: verso, motivo }));
+}
+
+/** Valida la richiesta della pagina contro l'ordine com'è e costruisce ciò che la rotta deve scrivere. Non lancia, non muta `attuale`.
+ *  `contesto` (facoltativo): i rimborsi e l'elenco dei corrieri, che l'ordine da solo non sa. */
+export function costruisciAzione(richiesta: unknown, attuale: Ordine, adesso: Date, contesto: ContestoAzione = {}): EsitoAzione {
   if (!eOggetto(richiesta)) return errore("valore", "Richiesta non valida.");
   const nome = richiesta.azione;
-  if (nome !== "stato" && nome !== "pagato" && nome !== "pagamento_annullato" && nome !== "tracking" && nome !== "nota_interna")
-    return errore("azione_sconosciuta", "Azione non prevista.");
+  if (typeof nome !== "string" || !NOMI_AZIONE.includes(nome)) return errore("azione_sconosciuta", "Azione non prevista.");
   if (!eUuid(richiesta.ordineId) || richiesta.ordineId !== attuale.id) return errore("valore", "Ordine non valido.");
 
   switch (nome) {
     case "stato": return stato(richiesta, attuale, adesso);
     case "pagato": return pagato(richiesta, attuale, adesso);
     case "pagamento_annullato": return pagamentoAnnullato(attuale, adesso);
-    default: return testoLibero(richiesta, attuale, adesso, nome);
+    case "spedisci": return spedisci(richiesta, attuale, adesso, contesto);
+    case "annulla": return annulla(richiesta, attuale, adesso, contesto);
+    case "rimborso": return rimborso(richiesta, attuale, contesto);
+    case "riconcilia": return riconcilia(attuale);
+    case "fattura_emessa": return fatturaEmessa(richiesta, attuale, adesso);
+    case "email_invia": return emailInvia(richiesta, attuale);
+    case "giacenza_verificata": return giacenzaVerificata(attuale, adesso);
+    case "correggi_stato": return correggiStato(richiesta, attuale, adesso, contesto);
+    default: return testoLibero(richiesta, attuale, adesso, nome as "tracking" | "nota_interna");
   }
 }
