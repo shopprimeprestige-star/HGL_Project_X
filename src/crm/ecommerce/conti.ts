@@ -4,9 +4,13 @@
  *
  *  ── REGOLE (PIANO D7, D8) ───────────────────────────────────────────────────
  *   · «Ordini», valore medio e «Da incassare» escludono gli annullati.
- *   · «Incassato» somma OGNI ordine con `pagatoIl`, annullati compresi: un annullato pagato è
- *     denaro entrato (rimborsi qui non esistono). `annullatiPagati` lo dice, così la cifra coincide
- *     con le righe del filtro «pagato = sì».
+ *   · «Incassato» somma OGNI ordine pagato, annullati compresi: un annullato pagato è denaro entrato.
+ *     `annullatiPagati` lo dice, così la cifra coincide con le righe del filtro «pagato = sì».
+ *   · RILASCIO 2 (T46): «pagato» lo dice `statoPagamentoDi` (pagamento.ts), non la data da sola: per gli ordini R1/R2 (colonna
+ *     `stato_pagamento` vuota) è comunque la data, quindi le cifre di prima NON cambiano (la prova `conti-invariati` lo fotografa).
+ *     Un ordine in attesa, scaduto, fallito o rimborsato del tutto non è un ordine da lavorare: non entra in «Ordini», «Da incassare»,
+ *     «da lavorare», «fermi», «più venduti», clienti. Un ordine di PROVA non entra in nessuna cifra (si conta a parte: `prova`).
+ *     «Incassato» toglie i rimborsi (`rimborsatoCent`), senza mai scendere sotto zero.
  *   · «Ordini fermi» e «da lavorare» NON seguono il periodo: è il lavoro arretrato.
  *   · Il periodo è in giorni LOCALI, estremi inclusi (come `rangeBoundsAsDates` del filtro del CRM:
  *     00:00:00 del primo giorno dentro, 00:00:00 del giorno dopo l'ultimo fuori).
@@ -16,7 +20,7 @@
  *  `pagato_importo`: possono arrivare importi negativi, enormi, o la cui somma straborda. Qui un
  *  importo fuori norma (negativo o sopra `IMPORTO_MAX`) vale 0 nelle somme e l'ordine si CONTA in
  *  `importiAnomali`: la pagina può dirlo, e nessuna cifra diventa `Infinity`/`NaN`. */
-import { chiaveEmail, chiaveTelefono, eAnnullato, eIncassato, importoIncassato, nomeCliente, STATI_ORDINE } from "./ordine";
+import { chiaveEmail, chiaveTelefono, contaComeLavoro, contaNelleCifre, eAnnullato, importoIncassato, nomeCliente, puoLavorare, STATI_ORDINE, statoEffettivo, statoPagamentoDi } from "./ordine";
 import type { Ordine, StatoOrdine } from "./ordine";
 
 /** Oltre questo (100.000 €, lo stesso tetto di T8) un importo non è un ordine di un negozio di capelli: vale 0 e si segnala.
@@ -69,12 +73,26 @@ const dentro = (o: Ordine, l: { inizio: number; fine: number } | null): boolean 
 export const nelPeriodo = (o: Ordine, p: Periodo): boolean => dentro(o, limiti(p));
 
 /** Gli importi che contano per un ordine, già ripuliti. */
-/** L'ordine ha un importo che la Panoramica NON conta (negativo o sopra `IMPORTO_MAX`)? Conta il totale se non è annullato e l'incassato se è pagato.
- *  È la stessa regola di `importiAnomali`: la lista Ordini la usa per segnalare le stesse righe. */
-export const importoFuoriNorma = (o: Ordine): boolean => (!eAnnullato(o) && !sano(o.totale)) || (eIncassato(o) && !sano(importoIncassato(o)));
+/** Il denaro è entrato: pagato, rimborsato in parte o del tutto (D41). Per gli ordini R1/R2 (colonna vuota) è la data di pagamento, come prima. */
+const incassato = (o: Ordine): boolean => {
+  const s = statoPagamentoDi(o);
+  return s === "pagato" || s === "rimborsato_in_parte" || s === "rimborsato";
+};
+
+/** L'ordine ha un importo che la Panoramica NON conta (negativo o sopra `IMPORTO_MAX`)? Conta il totale se è un ordine vero non annullato e l'incassato se è pagato.
+ *  È la stessa regola di `importiAnomali`: la lista Ordini la usa per segnalare le stesse righe. Un ordine di prova o in attesa non è nelle cifre: non è anomalo. */
+export const importoFuoriNorma = (o: Ordine): boolean =>
+  (!eAnnullato(o) && contaComeLavoro(o) && !sano(o.totale)) || (incassato(o) && contaNelleCifre(o) && !sano(importoIncassato(o)));
 
 const totaleSano = (o: Ordine): number => oZero(o.totale);
-const incassoSano = (o: Ordine): number => oZero(importoIncassato(o));
+/** I rimborsi in euro: sani o 0. */
+const rimborsoSano = (o: Ordine): number => oZero(o.rimborsatoCent / 100);
+/** L'incasso meno i rimborsi, mai sotto zero. Senza rimborsi è l'importo com'è (le cifre di prima non si toccano, nemmeno nell'arrotondamento). */
+const incassoSano = (o: Ordine): number => {
+  const inc = oZero(importoIncassato(o));
+  const rimb = rimborsoSano(o);
+  return rimb ? Math.max(0, euro(inc - rimb)) : inc;
+};
 
 // ── Panoramica ─────────────────────────────────────────────────────────────
 
@@ -87,29 +105,47 @@ export interface Panoramica {
   annullatiPagati: number;
   /** Ordini del periodo con un importo fuori norma (negativo o enorme): valgono 0 nelle somme. */
   importiAnomali: number;
+  /** Ordini con almeno un rimborso: quanti e quanto (già tolto da `incassato`). */
+  rimborsato: { n: number; importo: number };
+  /** Ordini che aspettano ancora il pagamento (la sessione è aperta): non sono ordini, ma si dicono. */
+  inAttesa: number;
+  /** Ordini di prova del periodo: non contati in nessuna cifra. */
+  prova: number;
 }
 
-export function panoramica(ordini: Ordine[], p: Periodo): Panoramica {
+/** `adesso` serve solo a leggere «scaduto» un ordine in attesa la cui scadenza è passata (D52): senza, vale lo stato della tabella. */
+export function panoramica(ordini: Ordine[], p: Periodo, adesso?: Date): Panoramica {
   const l = limiti(p);
   const perStato = Object.fromEntries(STATI_ORDINE.map((s) => [s, 0])) as Record<StatoOrdine, number>;
-  let nOrdini = 0, totOrdini = 0, nInc = 0, totInc = 0, nDa = 0, totDa = 0, annullatiPagati = 0, anomali = 0;
+  let nOrdini = 0, totOrdini = 0, nInc = 0, totInc = 0, nDa = 0, totDa = 0, annullatiPagati = 0, anomali = 0, nRimb = 0, totRimb = 0, inAttesa = 0, prova = 0;
   for (const o of ordini) {
     if (!dentro(o, l)) continue;
-    perStato[o.stato]++;
+    if (!contaNelleCifre(o)) {
+      prova++;
+      continue;
+    }
+    if ((adesso ? statoEffettivo(o, adesso) : statoPagamentoDi(o)) === "in_attesa") inAttesa++;
     const annullato = eAnnullato(o);
-    const pagato = eIncassato(o);
-    if (!annullato) {
-      nOrdini++;
-      totOrdini += totaleSano(o);
-      if (!pagato) {
-        nDa++;
-        totDa += totaleSano(o);
+    const pagato = incassato(o);
+    if (puoLavorare(o)) {
+      perStato[o.stato]++;
+      if (!annullato) {
+        nOrdini++;
+        totOrdini += totaleSano(o);
+        if (!pagato) {
+          nDa++;
+          totDa += totaleSano(o);
+        }
       }
     }
     if (pagato) {
       nInc++;
       totInc += incassoSano(o);
       if (annullato) annullatiPagati++;
+    }
+    if (rimborsoSano(o) > 0) {
+      nRimb++;
+      totRimb += rimborsoSano(o);
     }
     if (importoFuoriNorma(o)) anomali++;
   }
@@ -120,21 +156,24 @@ export function panoramica(ordini: Ordine[], p: Periodo): Panoramica {
     perStato,
     annullatiPagati,
     importiAnomali: anomali,
+    rimborsato: { n: nRimb, importo: euro(totRimb) },
+    inAttesa,
+    prova,
   };
 }
 
 // ── fermi e da lavorare (di sempre, non seguono il periodo) ────────────────
 
-/** Nuovi da più di `ore` ore senza che nessuno li abbia toccati (`aggiornatoIl` vuoto). Il più vecchio per primo. */
+/** Nuovi da più di `ore` ore senza che nessuno li abbia toccati (`aggiornatoIl` vuoto). Il più vecchio per primo. Solo ordini da lavorare e non di prova. */
 export function ordiniFermi(ordini: Ordine[], adesso: Date, ore = 48): Ordine[] {
   const t = adesso.getTime();
   if (!Number.isFinite(t)) return [];
   const soglia = t - ore * 3600 * 1000;
-  return ordini.filter((o) => o.stato === "nuovo" && o.aggiornatoIl === null && ms(o) < soglia).sort((a, b) => ms(a) - ms(b));
+  return ordini.filter((o) => o.stato === "nuovo" && o.aggiornatoIl === null && ms(o) < soglia && contaComeLavoro(o)).sort((a, b) => ms(a) - ms(b));
 }
 
-/** Quanti ordini sono ancora «nuovo»: il numeretto del menu. Di sempre. */
-export const daLavorare = (ordini: Ordine[]): number => ordini.reduce((n, o) => n + (o.stato === "nuovo" ? 1 : 0), 0);
+/** Quanti ordini sono ancora «nuovo» e da lavorare (non in attesa di pagamento, non di prova): il numeretto del menu. Di sempre. */
+export const daLavorare = (ordini: Ordine[]): number => ordini.reduce((n, o) => n + (o.stato === "nuovo" && contaComeLavoro(o) ? 1 : 0), 0);
 
 // ── andamento ──────────────────────────────────────────────────────────────
 
@@ -144,11 +183,11 @@ export function andamento(ordini: Ordine[], p: Periodo): { giorno: string; ordin
   if (!l) return [];
   const per = new Map<string, { ordini: number; incassato: number }>();
   for (const o of ordini) {
-    if (!dentro(o, l)) continue;
+    if (!dentro(o, l) || !contaNelleCifre(o)) continue;
     const g = iso(new Date(ms(o)));
     const v = per.get(g) ?? { ordini: 0, incassato: 0 };
-    if (!eAnnullato(o)) v.ordini++;
-    if (eIncassato(o)) v.incassato += incassoSano(o);
+    if (!eAnnullato(o) && puoLavorare(o)) v.ordini++;
+    if (incassato(o)) v.incassato += incassoSano(o);
     per.set(g, v);
   }
   // I giorni, dal primo all'ultimo; oltre GIORNI_MAX si tengono gli ultimi.
@@ -180,13 +219,13 @@ export interface Venduto {
   varianti: { variante: string | null; pezzi: number; ricavo: number }[];
 }
 
-/** Per prodotto (non per variante), annullati e fuori periodo esclusi; i più venduti per pezzi, poi per ricavo. */
+/** Per prodotto (non per variante), annullati, fuori periodo, in attesa e di prova esclusi; i più venduti per pezzi, poi per ricavo. */
 export function piuVenduti(ordini: Ordine[], p: Periodo, max = PIU_VENDUTI): Venduto[] {
   const l = limiti(p);
   const tetto = Number.isFinite(max) ? Math.max(0, Math.floor(max)) : PIU_VENDUTI;
   const per = new Map<string, Venduto & { _ordini: Set<string>; _var: Map<string, { variante: string | null; pezzi: number; ricavo: number }> }>();
   for (const o of ordini) {
-    if (!dentro(o, l) || eAnnullato(o)) continue;
+    if (!dentro(o, l) || eAnnullato(o) || !contaComeLavoro(o)) continue;
     for (const r of o.righe) {
       const chiave = r.prodottoId ? `id:${r.prodottoId}` : `nome:${r.nome.trim().toLowerCase()}`;
       let v = per.get(chiave);
@@ -239,9 +278,10 @@ export interface Cliente {
 }
 
 /** Un cliente = chi condivide la scheda, o il telefono, o l'email. Due ordini su schede principali DIVERSE non si uniscono mai,
- *  nemmeno con lo stesso numero. Gli annullati non contano: chi ha solo annullati non è un cliente. */
+ *  nemmeno con lo stesso numero. Gli annullati non contano: chi ha solo annullati non è un cliente. Idem chi ha solo ordini in attesa,
+ *  scaduti, falliti o rimborsati del tutto, o solo di prova (T46). */
 export function raggruppaClienti(ordini: Ordine[], principale?: Principale): Cliente[] {
-  const validi = ordini.filter((o) => !eAnnullato(o)).sort((a, b) => ms(a) - ms(b) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)); // ordine fisso: l'esito non dipende da come arrivano
+  const validi = ordini.filter((o) => !eAnnullato(o) && contaComeLavoro(o)).sort((a, b) => ms(a) - ms(b) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)); // ordine fisso: l'esito non dipende da come arrivano
   const scheda = (o: Ordine): string | null => (o.leadId ? (principale ? principale(o.leadId) : o.leadId) : null);
   const schede = validi.map(scheda);
 
