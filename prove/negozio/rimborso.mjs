@@ -25,7 +25,8 @@ export async function prove(mod, { c, gruppo }) {
   c("massimo: ordine non pagato (in attesa, scaduto, fallito, da incassare) → 0", [0, 0, 0, 0], ["in_attesa", "scaduto", "fallito", "da_incassare"].map((s) => R.massimoRimborsabileCent(pagato({ stato_pagamento: s, pagato_il: null, pagato_importo: null }), [])));
   c("massimo: ordine vecchio (colonna vuota) → 0: i suoi soldi non passano da Stripe", 0, R.massimoRimborsabileCent(O.normalizzaOrdine(rigaOrdineProva({ pagato_il: "2026-11-20T10:00:00.000Z", pagato_importo: 24.9 })), []));
   c("massimo: l'importo pagato è `pagato_importo` (come il SQL): niente importo → 0", 0, R.massimoRimborsabileCent(pagato({ pagato_importo: null }), []));
-  c("massimo: elenco assente o che non è un elenco → come nessun rimborso", [2490, 2490, 2490], [undefined, null, "boh"].map((l) => R.massimoRimborsabileCent(pagato(), l)));
+  c("massimo: elenco assente, che non è un elenco o con voci illeggibili → 0 (fallisce chiuso, mai «nessun rimborso»)", [0, 0, 0, 0, 0], [undefined, null, "boh", [null], [{ stato: "boh", importoCent: 100 }]].map((l) => R.massimoRimborsabileCent(pagato(), l)));
+  c("rimborsiLeggibili / haRimborsoAttivo", [true, true, false, false, true, false, false], [R.rimborsiLeggibili([]), R.rimborsiLeggibili([rimb(100, "fallito")]), R.rimborsiLeggibili(undefined), R.rimborsiLeggibili([{ stato: "riuscito" }]), R.haRimborsoAttivo([rimb(100, "richiesto")]), R.haRimborsoAttivo([rimb(100, "fallito")]), R.haRimborsoAttivo("boh")]);
   c("massimo: importo in centesimi senza errori binari (19,99 → 1999, 0,29 → 29)", [1999, 29], [R.massimoRimborsabileCent(pagato({ pagato_importo: 19.99 }), []), R.massimoRimborsabileCent(pagato({ pagato_importo: 0.29 }), [])]);
 
   // ── la richiesta buona ──
@@ -40,6 +41,7 @@ export async function prove(mod, { c, gruppo }) {
   const rifiuta = (nome, r, regex) => c(`rifiutato: ${nome}`, [false, true, true], [r.ok, typeof r.errore === "string" && r.errore.length > 12, regex.test(r.errore ?? "")]);
   rifiuta("oltre il massimo (e la frase dice quanto si può)", no(ok({ importoCent: 2491 })), /al massimo.*24,90/);
   rifiuta("oltre il massimo che tiene conto dei rimborsi RICHIESTI", no(ok({ importoCent: 500 }), pagato(), [rimb(2200, "richiesto")]), /al massimo.*2,90/);
+  rifiuta("elenco dei rimborsi illeggibile", R.controllaRimborso(ok(), pagato(), undefined), /rimborsi/i);
   rifiuta("importo 0", no(ok({ importoCent: 0 })), /importo/i);
   rifiuta("importo negativo", no(ok({ importoCent: -100 })), /importo/i);
   rifiuta("importo con decimali (12,5 centesimi)", no(ok({ importoCent: 12.5 })), /importo|centesim/i);

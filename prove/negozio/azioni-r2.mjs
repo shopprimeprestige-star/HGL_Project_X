@@ -26,7 +26,10 @@ export async function prove(mod, { c, gruppo, radice }) {
   const src = readFileSync(join(radice, "src/crm/ecommerce/azioni.ts"), "utf8");
   const stripe = (extra = {}) => congela(O.normalizzaOrdine(rigaOrdineProva({ stato_pagamento: "pagato", pagato_il: "2026-11-20T10:00:00.000Z", pagato_importo: 24.9, metodo_pagamento: "stripe", canale: "sito", totale_cent: 2490, ...extra })));
   const vecchio = (extra = {}) => congela(O.normalizzaOrdine(rigaOrdineProva(extra)));
-  const va = (a, o = stripe(), ctx) => A.costruisciAzione({ ordineId: ID, ...a }, o, ADESSO, ctx);
+  // di norma la rotta passa i rimborsi e dichiara di eseguire tutti gli effetti; i casi senza contesto (fallire chiuso) usano `senza(...)`
+  const TUTTI_GLI_EFFETTI = ["rimborso", "giacenza_rimetti", "scadi_sessione", "riconcilia", "email"];
+  const va = (a, o = stripe(), ctx) => A.costruisciAzione({ ordineId: ID, ...a }, o, ADESSO, { rimborsi: [], effettiGestiti: TUTTI_GLI_EFFETTI, ...ctx });
+  const senza = (a, o = stripe(), ctx) => A.costruisciAzione({ ordineId: ID, ...a }, o, ADESSO, ctx);
   const chiavi = (r) => Object.keys(r.patch).sort();
   const rifiutata = (r, regex, motivo = "valore") => r.ok === false && r.motivo === motivo && typeof r.errore === "string" && r.errore.length > 12 && (!regex || regex.test(r.errore));
   const IN_ATTESA = { stato_pagamento: "in_attesa", pagato_il: null, pagato_importo: null, metodo_pagamento: null };
@@ -190,6 +193,27 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("CHIAVI_PATCH guadagna le colonne nuove e perde niente", [[], true], [["status", "pagato_il", "pagato_importo", "metodo_pagamento", "tracking", "note_interne", "lead_id", "senza_lead", "aggiornato_il"].filter((k) => !A.CHIAVI_PATCH.includes(k)),
     ["spedito_il", "corriere", "tracking_url", "senza_tracking", "annullo_motivo", "annullato_il", "fattura_emessa_il", "fattura_nota", "giacenza_da_verificare"].every((k) => A.CHIAVI_PATCH.includes(k))]);
   const tutte = [va(sp({})), a1, a2, a3, r1, rc, fe, em, gv, c1, c2, sv, av];
+  // ══ fallire chiuso (revisione di sicurezza) ═══════════════════════════════════════════════════════
+  const RIMB_SPORCHI = [undefined, null, "boh", {}, [null], [{ stato: "strano", importoCent: 100 }], [{ stato: "riuscito", importoCent: -5 }], [{ stato: "riuscito", importoCent: 1.5 }]];
+  c("correggi_stato annullato → nuovo con i rimborsi mancanti o illeggibili → RIFIUTATO (non «nessun rimborso»)", [], RIMB_SPORCHI.filter((r) => !rifiutata(va(cs("annullato", "nuovo"), stripe({ status: "annullato" }), { rimborsi: r }), /rimborsi/i)));
+  c("annulla un ordine pagato con i rimborsi illeggibili → RIFIUTATO", [], RIMB_SPORCHI.filter((r) => !rifiutata(va(an({}), stripe(), { rimborsi: r }), /rimborsi/i)));
+  c("rimborso con i rimborsi illeggibili → RIFIUTATO", [], RIMB_SPORCHI.filter((r) => !rifiutata(va(ri({}), stripe(), { rimborsi: r }), /rimborsi/i)));
+  c("senza contesto alcuno: correggi annullato → nuovo, annulla pagato, rimborso → rifiutati", [true, true, true], [
+    rifiutata(senza(cs("annullato", "nuovo"), stripe({ status: "annullato" }))), rifiutata(senza(an({}))), rifiutata(senza(ri({})))]);
+  c("il massimo rimborsabile con l'elenco illeggibile è 0", [0, 0], [mod["ecommerce/rimborso"].massimoRimborsabileCent(stripe(), undefined), mod["ecommerce/rimborso"].massimoRimborsabileCent(stripe(), [{ stato: "x", importoCent: 1 }])]);
+  // la rotta di oggi non esegue gli effetti: senza `effettiGestiti` ogni azione con effetti è rifiutata (non si applica la sola patch di stato)
+  c("senza `effettiGestiti`: rimborso, riconcilia, email_invia, annulla di un ordine in attesa e annulla con rimborso/magazzino → rifiutati «non ancora attiva»", [], [
+    senza(ri({}), stripe(), { rimborsi: [] }), senza({ azione: "riconcilia" }, stripe(), { rimborsi: [] }), senza({ azione: "email_invia", chiave: "spedito" }, stripe(), { rimborsi: [] }),
+    senza(an({ rimborso: undefined, rimettiInMagazzino: undefined }), stripe(IN_ATTESA), { rimborsi: [] }), senza(an({ rimborso: "ora", chiaveRichiesta: CHIAVE }), stripe(), { rimborsi: [] }), senza(an({ rimettiInMagazzino: true }), stripe(), { rimborsi: [] }),
+  ].filter((r) => !rifiutata(r, /non è ancora attiva/)));
+  c("senza `effettiGestiti`: le azioni senza effetti passano (spedisci, fattura, giacenza, correggi in avanti-indietro, annulla senza scelte da eseguire, vecchi)", [], [
+    senza(sp({})), senza({ azione: "fattura_emessa" }, stripe({ fattura_richiesta: true })), senza({ azione: "giacenza_verificata" }, stripe({ giacenza_da_verificare: true })),
+    senza(cs("spedito", "in_preparazione"), stripe({ status: "spedito" })), senza(an({}), stripe(), { rimborsi: [] }), senza({ azione: "annulla" }, vecchio()), senza({ azione: "nota_interna", valore: "x" }),
+  ].filter((r) => !r.ok));
+  c("`effettiGestiti` parziale: serve OGNI effetto dell'azione (annulla con rimborso + magazzino, gestito solo il magazzino → rifiutato)", [true, true], [
+    rifiutata(va(an({ rimborso: "ora", chiaveRichiesta: CHIAVE, rimettiInMagazzino: true }), stripe(), { effettiGestiti: ["giacenza_rimetti"] }), /non è ancora attiva/),
+    va(an({ rimborso: "ora", chiaveRichiesta: CHIAVE, rimettiInMagazzino: true }), stripe(), { effettiGestiti: ["giacenza_rimetti", "rimborso"] }).ok]);
+
   c("ogni patch scrive SOLO colonne della lista bianca", [], tutte.flatMap((r) => Object.keys(r.patch)).filter((k) => !A.CHIAVI_PATCH.includes(k)));
   c("ogni azione riuscita porta `aggiornato_il` quando scrive qualcosa", [], tutte.filter((r) => Object.keys(r.patch).length && r.patch.aggiornato_il !== ISO));
   c("nessuna azione si chiama o contiene elimina/cancella/delete", [], ["elimina", "cancella", "delete", "elimina_ordine", "cancella_ordine", "rimuovi"].filter((nome) => A.costruisciAzione({ azione: nome, ordineId: ID }, stripe(), ADESSO).motivo !== "azione_sconosciuta"));

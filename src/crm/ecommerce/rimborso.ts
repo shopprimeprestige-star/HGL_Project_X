@@ -30,21 +30,35 @@ const pagatoCent = (o: Pick<Ordine, "pagatoImporto">): number =>
     ? Math.round(o.pagatoImporto * 100)
     : 0;
 
-/** Quanto resta da rimborsare: pagato − (rimborsi richiesti + riusciti), mai sotto zero. 0 se l'ordine non passa da Stripe o non è pagato.
- *  Un rimborso `fallito` libera la cifra. Una voce illeggibile non si somma (il database ricontrolla sotto blocco). */
+/** L'elenco dei rimborsi è leggibile? Un array in cui OGNI voce ha uno stato noto e un importo intero > 0. Contesto mancante o sporco = non leggibile:
+ *  chi decide cose sui soldi (massimo, riattivare un annullo) deve FALLIRE CHIUSO, mai trattarlo come «nessun rimborso». */
+export function rimborsiLeggibili(rimborsi: unknown): rimborsi is RimborsoRiga[] {
+  return (
+    Array.isArray(rimborsi) &&
+    rimborsi.every(
+      (r) =>
+        eOggetto(r) &&
+        (r.stato === "richiesto" || r.stato === "riuscito" || r.stato === "fallito") &&
+        eCentesimi(r.importoCent) &&
+        r.importoCent > 0,
+    )
+  );
+}
+
+/** C'è un rimborso richiesto o riuscito? (blocca la riattivazione di un ordine annullato). `false` anche se l'elenco non si legge: controllare prima con `rimborsiLeggibili`. */
+export const haRimborsoAttivo = (rimborsi: unknown): boolean =>
+  rimborsiLeggibili(rimborsi) &&
+  rimborsi.some((r) => r.stato === "richiesto" || r.stato === "riuscito");
+
+/** Quanto resta da rimborsare: pagato − (rimborsi richiesti + riusciti), mai sotto zero. 0 se l'ordine non passa da Stripe o non è pagato,
+ *  e 0 se l'elenco dei rimborsi non si legge (fallisce chiuso). Un rimborso `fallito` libera la cifra. */
 export function massimoRimborsabileCent(o: Ordine, rimborsi: unknown): number {
-  if (o.statoPagamento === null) return 0;
+  if (o.statoPagamento === null || !rimborsiLeggibili(rimborsi)) return 0;
   const s = statoPagamentoDi(o);
   if (s !== "pagato" && s !== "rimborsato_in_parte" && s !== "rimborsato") return 0;
   let impegnato = 0;
-  for (const r of Array.isArray(rimborsi) ? rimborsi : [])
-    if (
-      eOggetto(r) &&
-      (r.stato === "richiesto" || r.stato === "riuscito") &&
-      eCentesimi(r.importoCent) &&
-      r.importoCent > 0
-    )
-      impegnato += r.importoCent;
+  for (const r of rimborsi)
+    if (r.stato === "richiesto" || r.stato === "riuscito") impegnato += r.importoCent;
   return Math.max(0, pagatoCent(o) - impegnato);
 }
 
@@ -65,6 +79,10 @@ export function controllaRimborso(richiesta: unknown, o: Ordine, rimborsi: unkno
       s === "rimborsato"
         ? "L'ordine è già rimborsato per intero: non c'è niente da rimborsare."
         : "L'ordine non risulta pagato: non c'è niente da rimborsare.",
+    );
+  if (!rimborsiLeggibili(rimborsi))
+    return no(
+      "Non riesco a leggere i rimborsi già fatti su questo ordine: ricarica la pagina e riprova.",
     );
   const massimo = massimoRimborsabileCent(o, rimborsi);
   if (massimo <= 0) return no("Non resta niente da rimborsare su questo ordine.");

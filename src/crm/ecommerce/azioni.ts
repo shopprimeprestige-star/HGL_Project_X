@@ -36,7 +36,7 @@
  *  5. Una prova su dato vero con un `pagato_il` a microsecondi (es. `2026-11-17T15:00:00.123456+00:00`). */
 import { ETICHETTA_METODO, ETICHETTA_STATO, STATI_ORDINE, importoIncassato, type MetodoPagamento, type Ordine, type StatoOrdine } from "./ordine";
 import { PASSAGGI_EVASIONE, puoLavorare, statoPagamentoDi } from "./pagamento";
-import { controllaRimborso, massimoRimborsabileCent } from "./rimborso";
+import { controllaRimborso, haRimborsoAttivo, massimoRimborsabileCent, rimborsiLeggibili } from "./rimborso";
 import { CORRIERI_DI_PARTENZA, costruisciLink, numeroValido } from "./tracking";
 
 export type Azione =
@@ -63,6 +63,9 @@ const CHIAVI_EMAIL: readonly string[] = ["conferma_ordine", "spedito", "pagament
 export interface ContestoAzione {
   rimborsi?: unknown;
   corrieri?: unknown;
+  /** I tipi di `effetti` che la rotta ESEGUE davvero. Senza, nessuno: un'azione che chiede un effetto non gestito è rifiutata (fallisce chiuso),
+   *  così non si applica la sola patch di stato lasciando indietro rimborso, giacenza o sessione. T53/T57 dichiarano qui ciò che implementano. */
+  effettiGestiti?: readonly Effetto["tipo"][];
 }
 
 /** Una cosa che la rotta deve far fare al server, già validata. Mai una scrittura diretta: sono le funzioni SQL e Stripe. */
@@ -138,6 +141,10 @@ function leggiImporto(v: unknown): number | undefined {
 /** L'ordine passa dalla cassa Stripe: ha `stato_pagamento` valorizzato (anche `da_incassare`). Vuoto = ordine di prima, che resta com'è. */
 const conStripe = (o: Ordine): boolean => o.statoPagamento !== null;
 const FRASE_USA_STRIPE = "Il pagamento di questo ordine lo gestisce Stripe: usa «Controlla con Stripe».";
+const FRASE_RIMBORSI_ILLEGGIBILI = "Non riesco a leggere i rimborsi già fatti su questo ordine: ricarica la pagina e riprova.";
+const FRASE_NON_ATTIVA = "Questa azione non è ancora attiva: il server non sa ancora eseguirne tutti i passi.";
+/** L'ordine ha incassato (anche se poi rimborsato): da qui contano rimborso e magazzino. */
+const conPagamentoRicevuto = (o: Ordine): boolean => ["pagato", "rimborsato_in_parte", "rimborsato"].includes(statoPagamentoDi(o));
 const FRASE_USA_SPEDISCI = "Questo ordine si segna spedito con «Spedisci»: serve il corriere e il numero di tracking, oppure «senza tracking».";
 const FRASE_USA_ANNULLA = "Questo ordine si annulla con «Annulla»: serve il motivo, e se è pagato il rimborso.";
 
@@ -297,6 +304,7 @@ function annulla(a: Record<string, unknown>, o: Ordine, adesso: Date, ctx: Conte
   if (o.stato === "annullato") return errore("nessun_cambio", "L'ordine è già annullato.");
   const nuovoSistema = conStripe(o);
   const motivo = nota(a.motivo, LIMITI.motivo);
+  if (nuovoSistema && conPagamentoRicevuto(o) && !rimborsiLeggibili(ctx.rimborsi)) return errore("valore", FRASE_RIMBORSI_ILLEGGIBILI);
   if (motivo === null) return errore("valore", `Il motivo è troppo lungo o contiene caratteri non ammessi: al massimo ${LIMITI.motivo} caratteri.`);
   if (nuovoSistema && !motivo) return errore("valore", "Scrivi il motivo dell'annullo: serve per lo storico.");
   const effetti: Effetto[] = [];
@@ -306,7 +314,7 @@ function annulla(a: Record<string, unknown>, o: Ordine, adesso: Date, ctx: Conte
     if (!PASSAGGI_EVASIONE[o.stato].some((p) => p.a === "annullato")) return errore("valore", `Un ordine «${ETICHETTA_STATO[o.stato]}» non si può annullare.`);
     const s = statoPagamentoDi(o);
     if (s === "in_attesa") effetti.push({ tipo: "scadi_sessione" });
-    if (s === "pagato" || s === "rimborsato_in_parte" || s === "rimborsato") {
+    if (conPagamentoRicevuto(o)) {
       const massimo = massimoRimborsabileCent(o, ctx.rimborsi);
       if (massimo > 0) {
         if (a.rimborso !== "ora" && a.rimborso !== "nessuno") return errore("valore", "L'ordine è pagato: scegli «Rimborsa ora» oppure «Nessun rimborso dovuto».");
@@ -386,8 +394,8 @@ function correggiStato(a: Record<string, unknown>, o: Ordine, adesso: Date, ctx:
   const motivo = nota(a.motivo, LIMITI.motivo);
   if (!motivo) return errore("valore", `Scrivi il motivo della correzione (al massimo ${LIMITI.motivo} caratteri): serve per lo storico.`);
   if (da === "annullato") {
-    const attivo = (Array.isArray(ctx.rimborsi) ? ctx.rimborsi : []).some((r) => eOggetto(r) && (r.stato === "richiesto" || r.stato === "riuscito"));
-    if (attivo) return errore("valore", "L'ordine ha un rimborso richiesto o riuscito: non si può riattivare.");
+    if (!rimborsiLeggibili(ctx.rimborsi)) return errore("valore", FRASE_RIMBORSI_ILLEGGIBILI); // contesto mancante o sporco: non si sa se c'è un rimborso → no
+    if (haRimborsoAttivo(ctx.rimborsi)) return errore("valore", "L'ordine ha un rimborso richiesto o riuscito: non si può riattivare.");
   }
   const patch: Record<string, unknown> = { status: verso, aggiornato_il: adesso.toISOString() };
   if (da === "spedito") patch.spedito_il = null; // non è più spedito (la email «spedito», se è partita, resta un fatto)
@@ -402,6 +410,14 @@ function correggiStato(a: Record<string, unknown>, o: Ordine, adesso: Date, ctx:
 /** Valida la richiesta della pagina contro l'ordine com'è e costruisce ciò che la rotta deve scrivere. Non lancia, non muta `attuale`.
  *  `contesto` (facoltativo): i rimborsi e l'elenco dei corrieri, che l'ordine da solo non sa. */
 export function costruisciAzione(richiesta: unknown, attuale: Ordine, adesso: Date, contesto: ContestoAzione = {}): EsitoAzione {
+  const r = costruisci(richiesta, attuale, adesso, contesto);
+  // Fallisce chiuso: un'azione che chiede effetti (rimborso, giacenza, sessione, email, riconciliazione) che la rotta non dichiara di eseguire non parte,
+  // altrimenti si applicherebbe la sola patch di stato (es. «annullato» senza il rimborso scelto).
+  if (r.ok && r.effetti?.some((e) => !contesto.effettiGestiti?.includes(e.tipo))) return errore("valore", FRASE_NON_ATTIVA);
+  return r;
+}
+
+function costruisci(richiesta: unknown, attuale: Ordine, adesso: Date, contesto: ContestoAzione): EsitoAzione {
   if (!eOggetto(richiesta)) return errore("valore", "Richiesta non valida.");
   const nome = richiesta.azione;
   if (typeof nome !== "string" || !NOMI_AZIONE.includes(nome)) return errore("azione_sconosciuta", "Azione non prevista.");
