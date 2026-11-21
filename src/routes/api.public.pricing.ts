@@ -61,7 +61,7 @@ export const Route = createFileRoute("/api/public/pricing")({
         //   listino del consulente, o è quello di casa. Mescolarli vorrebbe
         //   dire un prezzo preso da una parte e una spunta dall'altra.
         const { valore } = await grezzoListino(chi);
-        let prices = {}, was = {}, disabled = {}, scontiOpzione = {}, spente = {}, preselezionate = {}, preselezionatePerBase = {}, manutenzione = {};
+        let prices = {}, was = {}, disabled = {}, spente = {}, preselezionate = {}, preselezionatePerBase = {}, manutenzione = {};
         //  L'acconto del preventivo. `undefined` = quello di casa: si manda
         //  solo se il listino lo dice, così la pagina non riceve uno zero che
         //  vorrebbe dire «nessun acconto».
@@ -77,9 +77,6 @@ export const Route = createFileRoute("/api/public/pricing")({
           prices = parsed.prices ?? {};
           was = parsed.was ?? {};
           disabled = parsed.disabled ?? {};
-          //  Sconto che scatta scegliendo un'opzione (vedi `scontiOpzione` in
-          //  shop/quote-menu). Assente = nessuno: i listini vecchi non l'hanno.
-          scontiOpzione = parsed.scontiOpzione ?? {};
           //  Cosa il cliente NON deve vedere: sezioni intere e parti fisse
           //  della pagina. Vedi `spente` in shop/quote-menu.
           spente = parsed.spente ?? {};
@@ -99,7 +96,7 @@ export const Route = createFileRoute("/api/public/pricing")({
           if (typeof parsed.causale === "string") causale = parsed.causale;
           if (parsed.upsellSconti === false) upsellSconti = false;
         } catch { /* default vuoto */ }
-        return json({ prices, was, disabled, scontiOpzione, upsellSconti, spente, preselezionate, preselezionatePerBase, manutenzione, causale, ...(acconto === undefined ? {} : { acconto }) });
+        return json({ prices, was, disabled, upsellSconti, spente, preselezionate, preselezionatePerBase, manutenzione, causale, ...(acconto === undefined ? {} : { acconto }) });
       },
     },
   },

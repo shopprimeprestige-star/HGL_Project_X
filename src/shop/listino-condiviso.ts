@@ -19,7 +19,6 @@ import {
   TRANSPLANT_ID,
   preselezione,
   buildMenu,
-  scontoOpzioni,
   pricingRows,
   sectionsFor,
   type PricingOverrides,
@@ -47,6 +46,36 @@ export function numeroDaTesto(t: string): number | null {
   else if (/^\d{1,3}(\.\d{3})+$/.test(s)) s = s.replace(/\./g, "");
   const n = Number(s);
   return Number.isFinite(n) && n >= 0 ? n : null;
+}
+
+/** ── UN PREZZO PUÒ ESSERE NEGATIVO ─────────────────────────────────────────
+ *  Richiesta del titolare: «una cosa come prezzo è −300: quando la seleziono
+ *  toglie quella cifra, non è uno sconto, quel servizio costa meno». Il segno
+ *  si accetta in tutte le forme in cui lo si scrive o lo si incolla: «-», il
+ *  meno tipografico «−» e il trattino lungo «–». Il resto della lettura è
+ *  quella di `numeroDaTesto` (virgola, punto delle migliaia).
+ *  ⚠️ SOLO PER IL PREZZO DELLE OPZIONI (`ammetteNegativo`): acconto, prezzo
+ *   pieno, assistenza e codici restano ≥ 0, e continuano a leggersi con
+ *   `numeroDaTesto`. */
+export function prezzoDaTesto(t: string): number | null {
+  const s = String(t ?? "").replace(/[€\s]/g, "").replace(/^[\u2212\u2013\u2012\u2014]/, "-");
+  if (!s.startsWith("-")) return numeroDaTesto(s);
+  const n = numeroDaTesto(s.slice(1));
+  return n == null ? null : n > 0 ? -n : 0;
+}
+
+/** La stessa lettura dal valore che arriva al server: numero (qualunque segno)
+ *  o testo digitato. Una sola funzione, perché client e server devono leggere
+ *  lo stesso «-47,20» allo stesso modo. */
+export function prezzoDaValore(v: unknown): number | null {
+  if (typeof v === "number") return Number.isFinite(v) ? v : null;
+  return typeof v === "string" ? prezzoDaTesto(v) : null;
+}
+
+/** Il prezzo scritto in una riga del listino non è un importo valido? Le opzioni
+ *  delle sezioni ammettono il segno meno; tutte le altre voci no. */
+export function prezzoNonValido(riga: { ammetteNegativo?: boolean }, testo: string): boolean {
+  return (riga.ammetteNegativo ? prezzoDaTesto(testo) : numeroDaTesto(testo)) == null;
 }
 
 /** Da numero a testo modificabile: virgola decimale, niente zeri inutili. */
@@ -104,8 +133,6 @@ export const QUANTITA = [1, 2, 3, 4, 5, 6, 7, 8, 9];
 export interface Voce {
   prezzo: string;
   pieno: string;
-  /** «Sconto se scelta (€)»: vuoto = nessuno. Solo per le voci delle sezioni. */
-  sconto: string;
   nascosta: boolean;
 }
 
@@ -115,7 +142,6 @@ export function vociDaListino(ov: PricingOverrides): Listino {
   const prezzi = ov.prices ?? {};
   const pieni = ov.was ?? {};
   const nascoste = ov.disabled ?? {};
-  const sconti = ov.scontiOpzione ?? {};
   const out: Listino = {};
   RIGHE.forEach((r) => {
     //  Il prezzo pieno salvato a 0 significa "nessun barrato" e vince sul
@@ -126,27 +152,23 @@ export function vociDaListino(ov: PricingOverrides): Listino {
     out[r.id] = {
       prezzo: testoDaNumero(prezzi[r.id] ?? r.price),
       pieno: r.hasWas ? testoDaNumero(pieno) : "",
-      sconto: r.scontabile && sconti[r.id] > 0 ? testoDaNumero(sconti[r.id]) : "",
       nascosta: !!nascoste[r.id],
     };
   });
   return out;
 }
 
-/** Il listino da scrivere: stessa forma di prima (prices / was / disabled, più
- *  `scontiOpzione`), perché è quella che legge `buildMenu`. */
+/** Il listino da scrivere: stessa forma di prima (prices / was / disabled),
+ *  perché è quella che legge `buildMenu`. */
 export function listinoDaVoci(voci: Listino): PricingOverrides {
   const prices: Record<string, number> = {};
   const was: Record<string, number> = {};
   const disabled: Record<string, boolean> = {};
-  const scontiOpzione: Record<string, number> = {};
   RIGHE.forEach((r) => {
     const v = voci[r.id];
     if (!v) return;
-    //  Si scrive solo uno sconto leggibile e positivo: vuoto o 0 = nessuno.
-    const sc = r.scontabile ? numeroDaTesto(v.sconto ?? "") : null;
-    if (sc != null && sc > 0) scontiOpzione[r.id] = sc;
-    const p = numeroDaTesto(v.prezzo);
+    //  Il segno meno vale solo per le opzioni delle sezioni.
+    const p = r.ammetteNegativo ? prezzoDaTesto(v.prezzo) : numeroDaTesto(v.prezzo);
     if (p != null) prices[r.id] = p;
     if (r.hasWas) {
       const w = numeroDaTesto(v.pieno);
@@ -154,15 +176,16 @@ export function listinoDaVoci(voci: Listino): PricingOverrides {
     }
     if (v.nascosta) disabled[r.id] = true;
   });
-  return { prices, was, disabled, scontiOpzione };
+  return { prices, was, disabled };
 }
 
 export const stessoImporto = (a: string, b: string) =>
   (numeroDaTesto(a) ?? -1) === (numeroDaTesto(b) ?? -1);
 
-/** Per lo sconto «vuoto» e «0» sono la stessa cosa: nessuno sconto. */
-const stessoSconto = (a: string, b: string) =>
-  (numeroDaTesto(a ?? "") || 0) === (numeroDaTesto(b ?? "") || 0);
+/** Lo stesso confronto per il prezzo, che può avere il segno meno. */
+const stessoPrezzo = (a: string, b: string) =>
+  (prezzoDaTesto(a) ?? Number.NaN) === (prezzoDaTesto(b) ?? Number.NaN) ||
+  (prezzoDaTesto(a) == null && prezzoDaTesto(b) == null);
 
 /* ═══════════════════════════════════════════════════════════════════════════
    2. IL PRIMA → DOPO
@@ -191,6 +214,8 @@ export interface VoceModificata {
  *  troppo, lo zero mancante, e la voce diventata gratis per errore. */
 export function avvisoPrezzo(prima: number | null, dopo: number | null): string | undefined {
   if (prima == null || dopo == null) return undefined;
+  if (dopo < 0 && prima >= 0) return "toglie dal totale invece di aggiungere";
+  if (prima < 0 && dopo >= 0) return "non toglie più dal totale";
   if (prima > 0 && dopo === 0) return "diventa GRATIS per tutti";
   if (prima === 0 && dopo > 0) return "non è più inclusa nel prezzo";
   if (prima > 0 && dopo >= prima * 5) return `moltiplicato per ${Math.round(dopo / prima)}`;
@@ -213,9 +238,9 @@ export function vociModificate(
     const b = bozza[r.id];
     if (!a || !b) return;
     const cambi: Cambio[] = [];
-    if (!stessoImporto(a.prezzo, b.prezzo)) {
-      const prima = numeroDaTesto(a.prezzo);
-      const dopo = numeroDaTesto(b.prezzo);
+    if (!stessoPrezzo(a.prezzo, b.prezzo)) {
+      const prima = prezzoDaTesto(a.prezzo);
+      const dopo = prezzoDaTesto(b.prezzo);
       cambi.push({
         campo: "Prezzo",
         prima: prima == null ? "—" : formatta(prima),
@@ -232,15 +257,6 @@ export function vociModificate(
         dopo: dopo == null ? "nessuno" : formatta(dopo),
       });
     }
-    if (r.scontabile && !stessoSconto(a.sconto, b.sconto)) {
-      const prima = numeroDaTesto(a.sconto ?? "");
-      const dopo = numeroDaTesto(b.sconto ?? "");
-      cambi.push({
-        campo: "Sconto se scelta",
-        prima: prima ? formatta(prima) : "nessuno",
-        dopo: dopo ? formatta(dopo) : "nessuno",
-      });
-    }
     if (a.nascosta !== b.nascosta) {
       cambi.push({
         campo: "Presenza nel preventivo",
@@ -253,7 +269,7 @@ export function vociModificate(
       out.push({
         riga: r,
         cambi,
-        prezzo: numeroDaTesto(b.prezzo) ?? 0,
+        prezzo: prezzoDaTesto(b.prezzo) ?? 0,
         pieno: numeroDaTesto(b.pieno),
         nascosta: b.nascosta,
       });
@@ -317,26 +333,23 @@ export function calcolaPreventivoTipo(
   //   `DEFAULT_SELECTED` il preventivo tipo prometteva un totale che il cliente
   //   non avrebbe più visto appena si cambiava una preselezione.
   const spuntate = preselezione(listino, base?.id);
-  const scelte = sectionsFor(menu.sections, base?.id ?? "")
+  sectionsFor(menu.sections, base?.id ?? "")
     .flatMap((s) => s.items)
-    .filter((i) => spuntate.includes(i.id));
-  scelte.forEach((i) => voci.push({ nome: i.name, eur: i.price }));
+    .filter((i) => spuntate.includes(i.id))
+    .forEach((i) => voci.push({ nome: i.name, eur: i.price }));
   if (!trapianto && menu.installation)
     voci.push({ nome: menu.installation.name, eur: menu.installation.price });
 
   const perImpianto = voci.reduce((s, v) => s + v.eur, 0);
   const remoto = menu.fitting.find((f) => f.id === "remoto") ?? menu.fitting[0];
   const analisi = trapianto ? 0 : (remoto?.price ?? 0);
-  const lordo = perImpianto * quantita + analisi;
+  //  Un'opzione a prezzo negativo abbassa il lordo, ma mai sotto zero.
+  const lordo = Math.max(0, perImpianto * quantita + analisi);
 
   const righeSconto: VoceCalcolo[] = sconti.auto.map((a) => ({
     nome: `Video testimonianza (${a.code})`,
     eur: a.eur,
   }));
-  //  Lo sconto delle opzioni scelte: la stessa funzione della pagina.
-  scontoOpzioni(menu.scontiOpzione, scelte, quantita).righe.forEach((r) =>
-    righeSconto.push({ nome: `Sconto ${r.nome}`, eur: r.eur }),
-  );
   const perQuantita = Number(sconti.quantita[String(quantita)]) || 0;
   if (perQuantita > 0)
     righeSconto.push({ nome: `Sconto quantità (${quantita} impianti)`, eur: perQuantita });

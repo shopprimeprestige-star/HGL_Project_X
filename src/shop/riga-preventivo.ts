@@ -63,13 +63,20 @@ const numero = (v: unknown, max: number, interi?: boolean): number | null => {
   return interi ? Math.round(dentro) : Math.round(dentro * 100) / 100;
 };
 
+/** Il prezzo di una voce può essere NEGATIVO (opzione che costa meno): qui si
+ *  limita, non si azzera come `numero`. */
+const prezzoVoce = (v: unknown, max: number): number => {
+  const n = Number(v);
+  return Number.isFinite(n) ? Math.round(Math.min(Math.max(n, -max), max) * 100) / 100 : 0;
+};
+
 function vociPulite(v: unknown): { name: string; price: number; wasPrice?: number; dove?: string }[] {
   if (!Array.isArray(v)) return [];
   return v.slice(0, MAX_VOCI).map((x) => {
     const o = (x && typeof x === "object" ? x : {}) as Record<string, unknown>;
     const fuori: { name: string; price: number; wasPrice?: number; dove?: string } = {
       name: testo(o.name, MAX_NOME_VOCE),
-      price: numero(o.price, 1_000_000) ?? 0,
+      price: prezzoVoce(o.price, 1_000_000),
     };
     const was = numero(o.wasPrice, 1_000_000);
     if (was != null && was > 0) fuori.wasPrice = was;

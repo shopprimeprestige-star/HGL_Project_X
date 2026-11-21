@@ -83,6 +83,8 @@ import {
   euroCorto,
   listinoDaVoci,
   numeroDaTesto,
+  prezzoDaTesto,
+  prezzoNonValido,
   parlaDiManutenzione,
   testoDaNumero,
   vociDaListino,
@@ -500,15 +502,7 @@ export function SettingsListino({
     () =>
       Object.keys(bozza).length === 0
         ? []
-        : RIGHE.filter(
-            (r) =>
-              numeroDaTesto(bozza[r.id]?.prezzo ?? "") == null ||
-              //  Lo sconto può restare vuoto, ma se c'è scritto qualcosa deve
-              //  essere una cifra: sennò si salverebbe «nessuno sconto» in silenzio.
-              (r.scontabile &&
-                (bozza[r.id]?.sconto ?? "").trim() !== "" &&
-                numeroDaTesto(bozza[r.id]?.sconto ?? "") == null),
-          ),
+        : RIGHE.filter((r) => prezzoNonValido(r, bozza[r.id]?.prezzo ?? "")),
     [bozza],
   );
 
@@ -520,7 +514,7 @@ export function SettingsListino({
       const v = bozza[r.id];
       if (!v) return;
       if (v.nascosta) nascoste++;
-      const p = numeroDaTesto(v.prezzo) ?? 0;
+      const p = prezzoDaTesto(v.prezzo) ?? 0;
       const pieno = numeroDaTesto(v.pieno);
       if (p === 0 || (pieno != null && pieno > p)) promo++;
     });
@@ -559,7 +553,7 @@ export function SettingsListino({
       if (filtro === "modificate") return idsModificati.has(r.id);
       if (filtro === "nascoste") return v.nascosta;
       if (filtro === "promo") {
-        const p = numeroDaTesto(v.prezzo) ?? 0;
+        const p = prezzoDaTesto(v.prezzo) ?? 0;
         const pieno = numeroDaTesto(v.pieno);
         return p === 0 || (pieno != null && pieno > p);
       }
@@ -1813,7 +1807,7 @@ function RigaListino({
   //  mai salvata) non si disegna una riga a metà, si salta.
   if (!voce || !precedente) return null;
 
-  const prezzo = numeroDaTesto(voce.prezzo);
+  const prezzo = riga.ammetteNegativo ? prezzoDaTesto(voce.prezzo) : numeroDaTesto(voce.prezzo);
   const pieno = numeroDaTesto(voce.pieno);
   //  Un barrato che non è più alto del prezzo semplicemente non compare: è
   //  un'impostazione che sembra fatta e non fa niente, e va detto qui.
@@ -1838,7 +1832,7 @@ function RigaListino({
             </span>
           ) : prezzo == null ? (
             <span className="text-[11.5px] font-medium text-rose-300">
-              prezzo non valido: scrivi una cifra da 0 in su
+              prezzo non valido: scrivi una cifra{riga.ammetteNegativo ? " (anche negativa, es. −300)" : " da 0 in su"}
             </span>
           ) : (
             <AnteprimaPrezzo prezzo={prezzo} pieno={pieno} senzaPiu={IDS_BASE.has(riga.id)} />
@@ -1862,21 +1856,9 @@ function RigaListino({
             onCambio={(v) => onCambio({ pieno: v })}
           />
         )}
-        {/*  Sconto che scatta scegliendo questa opzione (vedi `scontiOpzione` in
-            shop/quote-menu): vuoto = nessuno. Solo per le voci delle sezioni. */}
-        {riga.scontabile && (
-          <CampoImporto
-            etichetta="Sconto se scelta (€)"
-            largo
-            valore={voce.sconto}
-            salvato={precedente.sconto}
-            disabilitato={voce.nascosta}
-            vuotoAmmesso
-            onCambio={(v) => onCambio({ sconto: v })}
-          />
-        )}
         <CampoImporto
           etichetta="Prezzo"
+          negativo={riga.ammetteNegativo}
           valore={voce.prezzo}
           salvato={precedente.prezzo}
           disabilitato={voce.nascosta}
@@ -1925,7 +1907,7 @@ function CampoImporto({
   disabilitato,
   forte,
   vuotoAmmesso,
-  largo,
+  negativo,
   onCambio,
 }: {
   etichetta: string;
@@ -1936,11 +1918,11 @@ function CampoImporto({
   forte?: boolean;
   /** true = si può lasciare vuoto (il prezzo pieno è facoltativo) */
   vuotoAmmesso?: boolean;
-  /** true = l'etichetta è lunga: la casella è un po' più larga */
-  largo?: boolean;
+  /** true = l'importo può essere negativo (opzione che costa meno) */
+  negativo?: boolean;
   onCambio: (v: string) => void;
 }) {
-  const larghezza = largo ? "w-[148px]" : "w-[108px]";
+  const leggi = negativo ? prezzoDaTesto : numeroDaTesto;
   const [aperto, setAperto] = useState(false);
   const daRipristinare = useRef(valore);
   const campo = useRef<HTMLInputElement>(null);
@@ -1949,8 +1931,8 @@ function CampoImporto({
     if (aperto) campo.current?.select();
   }, [aperto]);
 
-  const numero = numeroDaTesto(valore);
-  const numeroSalvato = numeroDaTesto(salvato);
+  const numero = leggi(valore);
+  const numeroSalvato = leggi(salvato);
   const cambiato = (numero ?? -1) !== (numeroSalvato ?? -1);
   const invalido = numero == null && !(vuotoAmmesso && valore.trim() === "");
 
@@ -1977,7 +1959,7 @@ function CampoImporto({
               setAperto(false);
             }
           }}
-          className={`h-8 ${larghezza} rounded-lg border bg-white/10 px-2 text-right text-[13px] font-semibold tabular-nums text-white outline-none ${
+          className={`h-8 w-[108px] rounded-lg border bg-white/10 px-2 text-right text-[13px] font-semibold tabular-nums text-white outline-none ${
             invalido
               ? "border-rose-400 ring-2 ring-rose-400/30"
               : "border-brand ring-2 ring-brand/30"
@@ -1995,7 +1977,7 @@ function CampoImporto({
         setAperto(true);
       }}
       title={`Modifica ${etichetta.toLowerCase()}`}
-      className={`group ${larghezza} shrink-0 rounded-lg border px-2 py-1 text-right transition-colors ${
+      className={`group w-[108px] shrink-0 rounded-lg border px-2 py-1 text-right transition-colors ${
         cambiato
           ? "border-amber-400/50 bg-amber-400/15"
           : "border-white/15 bg-white/5 hover:bg-white/10"

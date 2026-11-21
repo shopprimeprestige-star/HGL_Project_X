@@ -17,7 +17,7 @@
  *  ⚠️ NIENTE DATI PERSONALI: le schede leggono solo le scelte del
  *   configuratore, mai il profilo del cliente.
  *  ───────────────────────────────────────────────────────────────────────── */
-import { scontoOpzioni, sectionsFor, TRANSPLANT_ID, type QuoteMenu } from "./quote-menu";
+import { sectionsFor, TRANSPLANT_ID, type QuoteMenu } from "./quote-menu";
 import { haIlSuo, type RegiaGruppo } from "./preventivi-di-gruppo";
 
 /** Le parti dello stato del configuratore che servono a una scheda. */
@@ -75,11 +75,7 @@ export function schedaDelPreventivo(s: StatoVivo | null | undefined, menu: Quote
     voci: voci.map((u) => u.name),
     quantita,
     applicazione: trapianto ? "" : (fit?.name ?? ""),
-    //  Stima: oltre al codice scritto a mano scende anche lo sconto delle
-    //  opzioni spuntate (stessa funzione della pagina).
-    totale: esatto
-      ? creato
-      : Math.max(0, lordo - scontoManuale - scontoOpzioni(menu.scontiOpzione, voci, quantita).totale),
+    totale: esatto ? creato : Math.max(0, lordo - scontoManuale),
     esatto,
     codice: testo(manuale?.code),
   };
