@@ -181,7 +181,7 @@ export async function prove(mod, { c, gruppo, radice }) {
     c("…senza database e senza risposta con dettagli", [0, '{"ok":false}'], [m.db.chiamate, r.corpo]);
     // Content-Length dichiarato di 2 MB: si risponde SENZA leggere il corpo (il flusso non viene nemmeno toccato)
     let letto = false;
-    const flusso = new ReadableStream({ pull(x) { letto = true; x.enqueue(new Uint8Array(10)); x.close(); } });
+    const flusso = new ReadableStream({ pull(x) { letto = true; x.enqueue(new Uint8Array(10)); x.close(); } }, { highWaterMark: 0 }); // 0: si legge solo se qualcuno lo chiede
     const finta = new Request("https://sito.test/api/public/stripe-webhook", { method: "POST", body: flusso, duplex: "half", headers: { "content-length": String(2 * 1024 * 1024), "stripe-signature": `t=${T0},v1=00` } });
     const r2 = await W.gestisciWebhook(finta, m.porte);
     c("Content-Length di 2 MB → 413 senza leggere il corpo", [413, false], [r2.status, letto]);
@@ -202,7 +202,8 @@ export async function prove(mod, { c, gruppo, radice }) {
     const m = await mondo({ cancello });
     const s = m.paga(0, { metodo: "paypal" });
     const ev = completato(m);
-    const r = await m.vai(ev);
+    // se il webhook aspettasse l'email (ferma al cancello) la risposta non arriverebbe: dopo mezzo secondo la prova lo dice invece di restare appesa
+    const r = await Promise.race([m.vai(ev), new Promise((ok) => setTimeout(() => ok({ stato: "bloccato", corpo: "la risposta aspetta l'email" }), 500))]);
     const o = m.ordine();
     c("evento firmato giusto → 200", [200, '{"ok":true}'], [r.stato, r.corpo]);
     c("ordine pagato: stato, importo, metodo `stripe`, sessione e pagamento salvati", ["pagato", 28.9, "stripe", m.sessioni[0], s.payment_intent], [o.stato_pagamento, o.pagato_importo, o.metodo_pagamento, o.stripe_sessione_id, o.stripe_pagamento_id]);
