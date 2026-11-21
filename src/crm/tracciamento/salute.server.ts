@@ -71,15 +71,23 @@ export async function gestisciGET(request: Request, d: DipendenzeSalute): Promis
     // 2. gli ID e la modalità prova di LUI (solo sì/no): sono quelli che il sito usa davvero
     let pixel: { meta: boolean; tiktok: boolean; ga4: boolean; ads: boolean } | null = null;
     let prova: { meta: boolean; tiktok: boolean } | null = null;
+    let configLeggibile = true;
     if (haProprietario) {
       const r = await d.db
         .from("tracking_config")
         .select("meta_pixel_id,tiktok_pixel_id,google_ga4_id,google_ads_id,meta_test_event_code,tiktok_test_event_code")
         .eq("user_id", proprietarioId)
         .limit(1);
-      const riga = (!r.error && Array.isArray(r.data) ? (r.data[0] as Record<string, unknown> | undefined) : undefined) ?? {};
-      pixel = { meta: pieno(riga.meta_pixel_id), tiktok: pieno(riga.tiktok_pixel_id), ga4: pieno(riga.google_ga4_id), ads: pieno(riga.google_ads_id) };
-      prova = { meta: pieno(riga.meta_test_event_code), tiktok: pieno(riga.tiktok_test_event_code) };
+      if (r.error || !Array.isArray(r.data)) {
+        // la lettura non è riuscita: «non leggibile», MAI «tutto no» (sarebbe un'informazione falsa). Solo il codice nel registro.
+        configLeggibile = false;
+        const k = (r.error as { code?: unknown } | null)?.code;
+        d.log(`lettura_config_${typeof k === "string" ? k.toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 20) || "errore" : "errore"}`);
+      } else {
+        const riga = (r.data[0] as Record<string, unknown> | undefined) ?? {};
+        pixel = { meta: pieno(riga.meta_pixel_id), tiktok: pieno(riga.tiktok_pixel_id), ga4: pieno(riga.google_ga4_id), ads: pieno(riga.google_ads_id) };
+        prova = { meta: pieno(riga.meta_test_event_code), tiktok: pieno(riga.tiktok_test_event_code) };
+      }
     }
 
     // 3. gli ultimi invii dal server: solo codici. Una lettura PER piattaforma, così una che riempie il tetto non nasconde l'altra
@@ -138,6 +146,7 @@ export async function gestisciGET(request: Request, d: DipendenzeSalute): Promis
       proprietario: !haProprietario ? "nessuno" : proprietarioId === g.utenteId ? "tu" : "altro",
       pixel,
       prova,
+      configLeggibile,
       piattaforme,
       errori,
       adesso: adesso.toISOString(),

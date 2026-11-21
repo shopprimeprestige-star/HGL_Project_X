@@ -29,6 +29,8 @@ interface Salute {
   proprietario?: "nessuno" | "tu" | "altro";
   pixel?: { meta: boolean; tiktok: boolean; ga4: boolean; ads: boolean } | null;
   prova?: { meta: boolean; tiktok: boolean } | null;
+  /** `false` se il server non è riuscito a leggere gli ID del proprietario: si dice «non leggibile», non «non impostato». */
+  configLeggibile?: boolean;
   piattaforme?: Piattaforma[] | null;
   errori?: { piattaforma: string; evento: string; esito: string; quando: string }[] | null;
   adesso: string;
@@ -68,6 +70,8 @@ export function PannelloTracciamento() {
   const [colonneMancanti, setColonneMancanti] = useState(false);
   // la lettura degli ID di Google è fallita per un altro motivo (rete, permessi): i campi restano spenti, o un «Salva» cancellerebbe quelli veri
   const [letturaGoogleRotta, setLetturaGoogleRotta] = useState(false);
+  // i quattro ID sono stati letti davvero: finché non è così i campi sono vuoti per caso e un «Salva» cancellerebbe quelli veri
+  const [googleLetti, setGoogleLetti] = useState(false);
   const [salvando, setSalvando] = useState(false);
 
   const leggiSalute = useCallback(async () => {
@@ -88,21 +92,28 @@ export function PannelloTracciamento() {
   const userId = user?.id;
   const leggiIdGoogle = useCallback(async () => {
     if (!userId) return;
-    const { data, error } = await supabase
-      .from("tracking_config")
-      .select("google_ga4_id,google_ads_id,google_ads_label_acquisto,google_merchant_id")
-      .eq("user_id", userId)
-      .maybeSingle();
-    if (error) {
-      // colonne mancanti = la migrazione S3 non è applicata; ogni altro errore = non riesco a leggere ora
-      setColonneMancanti(colonnaOTabellaMancante(error));
-      setLetturaGoogleRotta(!colonnaOTabellaMancante(error));
-      return;
+    setGoogleLetti(false);
+    try {
+      const { data, error } = await supabase
+        .from("tracking_config")
+        .select("google_ga4_id,google_ads_id,google_ads_label_acquisto,google_merchant_id")
+        .eq("user_id", userId)
+        .maybeSingle();
+      if (error) {
+        // colonne mancanti = la migrazione S3 non è applicata; ogni altro errore = non riesco a leggere ora
+        setColonneMancanti(colonnaOTabellaMancante(error));
+        setLetturaGoogleRotta(!colonnaOTabellaMancante(error));
+        return;
+      }
+      const r = (data ?? {}) as Record<string, string | null>;
+      setColonneMancanti(false);
+      setLetturaGoogleRotta(false);
+      setValori({ ga4: r.google_ga4_id ?? "", ads: r.google_ads_id ?? "", etichetta: r.google_ads_label_acquisto ?? "", merchant: r.google_merchant_id ?? "" });
+      setGoogleLetti(true);
+    } catch {
+      // una lettura che lancia (rete) vale «non riesco a leggere»: i campi restano spenti
+      setLetturaGoogleRotta(true);
     }
-    const r = (data ?? {}) as Record<string, string | null>;
-    setColonneMancanti(false);
-    setLetturaGoogleRotta(false);
-    setValori({ ga4: r.google_ga4_id ?? "", ads: r.google_ads_id ?? "", etichetta: r.google_ads_label_acquisto ?? "", merchant: r.google_merchant_id ?? "" });
   }, [userId]);
 
   useEffect(() => {
@@ -113,7 +124,7 @@ export function PannelloTracciamento() {
   }, [leggiIdGoogle]);
 
   const salva = async () => {
-    if (!user || salvando) return;
+    if (!user || salvando || !googleLetti || colonneMancanti || letturaGoogleRotta) return;
     const v = validaIdGoogle(valori);
     setErrori(v.errori);
     if (!v.ok) {
@@ -231,7 +242,12 @@ export function PannelloTracciamento() {
               </div>
             </div>
           )}
-          {s?.attivo && s.pixel && (
+          {s?.attivo && s.configLeggibile === false && (
+            <p className="flex items-center gap-2 pt-1 text-sm text-muted-foreground" role="status">
+              <AlertTriangle className="h-4 w-4 shrink-0 text-warning" aria-hidden /> Gli ID impostati non sono leggibili in questo momento: non vuol dire che manchino. Premi «Aggiorna» nella sezione degli invii.
+            </p>
+          )}
+          {s?.attivo && s.configLeggibile !== false && s.pixel && (
             <div className="flex flex-wrap gap-x-5 gap-y-1 pt-1" role="group" aria-label="ID impostati per il proprietario">
               <Voce ok={s.pixel.meta}>Pixel Meta</Voce>
               <Voce ok={s.pixel.tiktok}>Pixel TikTok</Voce>
@@ -273,7 +289,7 @@ export function PannelloTracciamento() {
                 <Input
                   id={`tr-${c.chiave}`}
                   value={valori[c.chiave]}
-                  disabled={colonneMancanti || letturaGoogleRotta}
+                  disabled={!googleLetti || colonneMancanti || letturaGoogleRotta}
                   placeholder={c.esempio}
                   autoComplete="off"
                   spellCheck={false}
@@ -290,7 +306,7 @@ export function PannelloTracciamento() {
               </div>
             ))}
           </div>
-          <Button type="button" onClick={() => void salva()} disabled={salvando || colonneMancanti || letturaGoogleRotta || !user}>
+          <Button type="button" onClick={() => void salva()} disabled={salvando || !googleLetti || colonneMancanti || letturaGoogleRotta || !user}>
             {salvando ? "Salvo…" : "Salva gli ID di Google"}
           </Button>
         </CardContent>

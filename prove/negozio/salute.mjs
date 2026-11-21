@@ -20,7 +20,7 @@ const ISO = (minutiFa) => new Date(T0.getTime() - minutiFa * 60_000).toISOString
 const RIGA = { user_id: UTENTE, meta_pixel_id: "123456789012345", tiktok_pixel_id: "C1ABCDEF2GHIJKL3MNOP", google_ga4_id: "G-TEST1234", google_ads_id: "AW-12345678", meta_test_event_code: null, tiktok_test_event_code: null, meta_access_token: TOKEN, tiktok_access_token: TOKEN };
 
 /** Un database finto con le sole chiamate di `salute.server.ts`. */
-function db({ proprietari = [{ user_id: UTENTE, creato_il: ISO(9999) }], config = [RIGA], esiti = [], senzaS3 = false, esitiRotti = false, erroreProprietari = null } = {}) {
+function db({ proprietari = [{ user_id: UTENTE, creato_il: ISO(9999) }], config = [RIGA], esiti = [], senzaS3 = false, esitiRotti = false, erroreProprietari = null, erroreConfig = null } = {}) {
   const chiamate = [];
   const dbf = {
     chiamate,
@@ -34,7 +34,7 @@ function db({ proprietari = [{ user_id: UTENTE, creato_il: ISO(9999) }], config 
           chiamate.push({ t, cols: q.cols, filtri: q.filtri });
           let r;
           if (t === "tracciamento_proprietario") r = erroreProprietari ? { data: null, error: erroreProprietari } : senzaS3 ? { data: null, error: { code: "42P01" } } : { data: [...proprietari].sort((a, b) => String(a.creato_il).localeCompare(String(b.creato_il))).map((p) => ({ user_id: p.user_id })), error: null };
-          else if (t === "tracking_config") r = { data: config.filter((x) => q.filtri.every(([k, v]) => x[k] === v)).map((x) => Object.fromEntries(q.cols.split(",").map((k) => [k.trim(), x[k.trim()] ?? null]))), error: null };
+          else if (t === "tracking_config") r = erroreConfig ? { data: null, error: erroreConfig } : { data: config.filter((x) => q.filtri.every(([k, v]) => x[k] === v)).map((x) => Object.fromEntries(q.cols.split(",").map((k) => [k.trim(), x[k.trim()] ?? null]))), error: null };
           else if (t === "tracciamento_esiti") r = senzaS3 || esitiRotti ? { data: null, error: { code: "42P01" } } : { data: esiti.filter((x) => q.filtri.every(([k, v]) => x[k] === v)).sort((a, b) => (Date.parse(b.creato_il) || 0) - (Date.parse(a.creato_il) || 0)).slice(0, q.limite), error: null };
           else throw new Error(`tabella non prevista: ${t}`);
           return Promise.resolve(r).then(ok, ko);
@@ -118,6 +118,14 @@ export async function prove(mod, { c, gruppo, radice }) {
   const senzaRiga = await chiama(S, { dbf: db({ config: [] }) });
   c("proprietario senza riga in tracking_config: tutto «no», nessun errore", [200, "tu", { meta: false, tiktok: false, ga4: false, ads: false }], [senzaRiga.r.status, senzaRiga.corpo.proprietario, senzaRiga.corpo.pixel]);
 
+  // D35 · nota 3b del revisore: se `tracking_config` non si legge, NON è «Pixel: no» (sarebbe un'informazione falsa): è «non leggibile»
+  for (const err of [{ code: "08006", message: `connessione persa ${TOKEN}` }, { code: "42501" }, { message: "Failed to fetch" }]) {
+    const rotta = await chiama(S, { dbf: db({ erroreConfig: err, esiti }) });
+    c(`tracking_config illeggibile (${err.code ?? err.message}): 200, «configLeggibile:false», pixel e prova NULLI (non «tutto no»), il resto della pagina c'è`, [200, true, "tu", false, null, null, true], [rotta.r.status, rotta.corpo.ok, rotta.corpo.proprietario, rotta.corpo.configLeggibile, rotta.corpo.pixel, rotta.corpo.prova, Array.isArray(rotta.corpo.piattaforme)]);
+    c(`…e nel corpo e nel registro non c'è il testo dell'errore, solo un codice`, [false, true], [JSON.stringify([rotta.corpo, rotta.logs]).includes(TOKEN), rotta.logs.length > 0 && rotta.logs.every((l) => /^[a-z0-9_]{1,60}$/.test(l))]);
+  }
+  c("tracking_config letto bene: `configLeggibile` è vero (anche se la riga manca); senza proprietario non c'è niente da leggere e vale vero", [true, true, true], [n.corpo.configLeggibile, senzaRiga.corpo.configLeggibile, nessuno.corpo.configLeggibile]);
+
   /* ── S3 non applicata ── */
   const senzaS3 = await chiama(S, { dbf: db({ senzaS3: true }) });
   c("S3 assente: 200, «non ancora attivo», nessun errore, nessuna frase d'errore tecnica", [200, true, false, "non_ancora_attivo"], [senzaS3.r.status, senzaS3.corpo.ok, senzaS3.corpo.attivo, senzaS3.corpo.motivo]);
@@ -190,10 +198,34 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("il pannello salva con upsert sulla riga dell'utente (onConflict user_id) SOLO le colonne di Google, dopo `validaIdGoogle`", [true, true, true, false], [/\.upsert\(/.test(pannello) && /onConflict: "user_id"/.test(pannello), /google_ga4_id/.test(pannello) && /google_ads_id/.test(pannello) && /google_ads_label_acquisto/.test(pannello) && /google_merchant_id/.test(pannello), pannello.indexOf("validaIdGoogle(") < pannello.indexOf(".upsert("), /meta_pixel_id|tiktok_pixel_id|daily_spend|ads_history_start/.test(pannello)]);
   c("il pannello dice «Imposta il proprietario dal SQL Editor» e mostra il comando; dice «non ancora attivo» se manca S3; ha la «modalità prova»", [true, true, true, true], [/Imposta il proprietario dal SQL Editor/.test(pannello), /COMANDO_PROPRIETARIO/.test(pannello), /non ancora attivo/i.test(pannello), /modalità prova/i.test(pannello)]);
   c("il pannello non ha controlli «a icona» senza nome (ogni bottone ha testo o aria-label) e ogni campo ha la sua etichetta", [true, true], [!/<Button[^>]*>\s*<\w+ className="[^"]*"\s*\/>\s*<\/Button>/.test(pannello), /<Label htmlFor=\{`tr-\$\{c\.chiave\}`\}>/.test(pannello) && (pannello.match(/chiave: "(ga4|ads|etichetta|merchant)"/g) || []).length === 4]);
-  const primaDelBottone = pannello.slice(Math.max(0, pannello.indexOf("<RefreshCw") - 260), pannello.indexOf("<RefreshCw"));
-  c("il pannello nota 3: «Aggiorna» rilegge SOLO lo stato degli invii (non cancella gli ID di Google che si stanno digitando)", [true, false], [/leggiSalute\(\)/.test(primaDelBottone), /leggiIdGoogle/.test(primaDelBottone)]);
+  // il bottone «Aggiorna» intero (dal suo `<Button` fino a `</Button>`), non una finestra di caratteri: una chiamata in più, ovunque stia, deve far diventare rossa la prova
+  const iAggiorna = pannello.indexOf("<RefreshCw");
+  const bottoneAggiorna = iAggiorna < 0 ? "" : pannello.slice(pannello.lastIndexOf("<Button", iAggiorna), pannello.indexOf("</Button>", iAggiorna));
+  const gestoreAggiorna = /onClick=\{([\s\S]*?)\}\s*className=/.exec(bottoneAggiorna)?.[1] ?? "";
+  c("il pannello nota 3: «Aggiorna» ha UN solo gestore e fa solo `leggiSalute()`: niente `leggiIdGoogle`, niente `setValori`, niente `setErrori`, niente `salva`", [true, "() => void leggiSalute()", false, 1], [bottoneAggiorna.includes("Aggiorna") && bottoneAggiorna.includes("<RefreshCw"), gestoreAggiorna.trim(), /leggiIdGoogle|setValori|setErrori|setLetturaGoogle|salva\b|VUOTI/.test(bottoneAggiorna), (bottoneAggiorna.match(/onClick=/g) || []).length]);
+  c("il pannello nota 3: le due letture (`leggiSalute`, `leggiIdGoogle`) partono da due `useEffect` separati: nessuna delle due richiama l'altra", [false, false], [/const leggiSalute = useCallback\([\s\S]*?\n  \}, \[\]\);/.exec(pannello)?.[0].includes("leggiIdGoogle") ?? true, /const leggiIdGoogle = useCallback\([\s\S]*?\n  \}, \[userId\]\);/.exec(pannello)?.[0].includes("leggiSalute") ?? true]);
   c("il pannello nota 3: gli ID di Google si rileggono quando cambia l'utente (`user.id`), non a ogni nuovo oggetto `user`", [true, false], [/\}, \[userId\]\);/.test(pannello), /\}, \[user\]\);/.test(pannello)]);
-  c("il pannello nota 2: legge `colonnaOTabellaMancante` per decidere «non ancora attivo»; un altro errore dice «non riesco a leggere» e spegne i campi", [true, true, true], [/colonnaOTabellaMancante\(error\)/.test(pannello), /Non riesco a leggere gli ID di Google/.test(pannello), /disabled=\{colonneMancanti \|\| letturaGoogleRotta\}/.test(pannello)]);
+  c("il pannello nota 2: legge `colonnaOTabellaMancante` per decidere «non ancora attivo»; un altro errore dice «non riesco a leggere» e spegne i campi", [true, true, true], [/colonnaOTabellaMancante\(error\)/.test(pannello), /Non riesco a leggere gli ID di Google/.test(pannello), /disabled=\{!googleLetti \|\| colonneMancanti \|\| letturaGoogleRotta\}/.test(pannello)]);
+  // osservazione 3a: alla prima apertura i campi sono vuoti e un «Salva» in quella finestra cancellerebbe gli ID veri
+  c("il pannello 3a: c'è lo stato `googleLetti`, parte `false`, diventa `true` SOLO in `leggiIdGoogle` dopo una lettura riuscita (non prima dell'esito)", [true, 1, true], [
+    /const \[googleLetti, setGoogleLetti\] = useState\(false\)/.test(pannello),
+    (pannello.match(/setGoogleLetti\(true\)/g) || []).length,
+    (() => { const f = /const leggiIdGoogle = useCallback\([\s\S]*?\n  \}, \[userId\]\);/.exec(pannello)?.[0] ?? ""; return f.indexOf("setGoogleLetti(true)") > f.indexOf("if (error)") && f.indexOf("setGoogleLetti(true)") > f.indexOf("const r = (data"); })(),
+  ]);
+  c("il pannello 3a: quattro campi e «Salva» sono spenti finché non c'è `googleLetti` (e anche con colonne mancanti o lettura rotta); `salva()` rifiuta da sé se non si è letto", [true, true, true], [
+    /<Input[\s\S]*?disabled=\{!googleLetti \|\| colonneMancanti \|\| letturaGoogleRotta\}[\s\S]*?\/>/.test(pannello),
+    /<Button type="button" onClick=\{\(\) => void salva\(\)\} disabled=\{salvando \|\| !googleLetti \|\| colonneMancanti \|\| letturaGoogleRotta \|\| !user\}>/.test(pannello),
+    /const salva = async \(\) => \{\s*if \(!user \|\| salvando \|\| !googleLetti \|\| colonneMancanti \|\| letturaGoogleRotta\) return;/.test(pannello),
+  ]);
+  c("il pannello 3a: ogni nuova lettura riparte da `googleLetti` falso; una lettura che LANCIA vale «non riesco a leggere» (campi spenti), mai campi accesi", [true, true], [
+    /const leggiIdGoogle = useCallback\(async \(\) => \{\s*if \(!userId\) return;\s*setGoogleLetti\(false\);/.test(pannello),
+    /catch \{\s*setLetturaGoogleRotta\(true\);/.test(pannello),
+  ]);
+  // osservazione 3b: «non leggibile» al posto di «Pixel: no»
+  c("il pannello 3b: con `configLeggibile === false` dice «non leggibile» e NON mostra le quattro voci «non impostato»", [true, true], [
+    /s\?\.attivo && s\.configLeggibile === false && \(/.test(pannello) && /non sono leggibili/.test(pannello.slice(pannello.indexOf("s?.attivo && s.configLeggibile === false"))),
+    /s\?\.attivo && s\.configLeggibile !== false && s\.pixel && \(/.test(pannello),
+  ]);
   c("il pannello nota 1: con `oltreTetto` il numero porta il «+» (200+)", true, /p\.oltreTetto \? "\+" : ""/.test(pannello));
   c("il pannello nota 4: l'`aria-label` dei pixel impostati sta su un elemento con `role=\"group\"`", true, /<div[^>]*role="group"[^>]*aria-label="ID impostati per il proprietario"|<div[^>]*aria-label="ID impostati per il proprietario"[^>]*role="group"/.test(pannello));
   const pagina = leggi("src/routes/CRM.impostazioni.tsx");
