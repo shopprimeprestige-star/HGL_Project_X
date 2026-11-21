@@ -7,7 +7,7 @@
 import { createHmac } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { fintoDb, CHIUSE, COLONNE_S4, ERRORI_SQL_R2, FUNZIONI_R2 } from "./_finto-db.mjs";
+import { fintoDb, CHIUSE, SOLO_RPC, PARAMETRI_FUNZIONI, COLONNE_S4, ERRORI_SQL_R2, FUNZIONI_R2 } from "./_finto-db.mjs";
 import { ordiniR1R2, conDefaultS4, righeSporche, partenzaDa, tariffaSeme, modelliEmailSeme, sessioneStripeProva, rimborsoStripeProva, eventoStripeProva } from "./_dati-r2.mjs";
 import { stripeFinto, parsaForm, firmaStripe, eventoFirmato, CHIAVE_PROVA, SEGRETO_PROVA, T0 } from "./_stripe-finto.mjs";
 
@@ -43,7 +43,7 @@ export async function eseguiScenario(sc, adesso0) {
     if (p.adesso && !p.rpc && !p.insert) { ora = p.adesso; continue; }
     n++;
     if (p.insert) {
-      const r = await db.from(p.insert.tabella).insert(p.insert.riga);
+      const r = await db.from(p.insert.tabella, { proprietario: p.insert.come === "proprietario" }).insert(p.insert.riga); // «come: proprietario» = il SQL Editor (nessun REVOKE)
       if (p.errore_codice) metti(`${n}) insert in ${p.insert.tabella} → errore ${p.errore_codice}`, p.errore_codice, r.error?.code ?? null, r.error?.code === p.errore_codice);
       else metti(`${n}) insert in ${p.insert.tabella}: passa`, null, r.error, r.error === null);
       continue;
@@ -150,6 +150,64 @@ export async function prove(mod, { c, gruppo, radice }) {
   const nuova = (await dopoS4.from("shop_orders").insert({ id: "n1", order_ref: "HG-9" }).select("*").single()).data;
   c("dopo S4 una riga vecchia nasce coi default di S4 (prova=false, rimborsato_cent=0, stato_pagamento vuoto, avvisi [])", [false, 0, null, [], {}], [nuova.prova, nuova.rimborsato_cent, nuova.stato_pagamento, nuova.avvisi, nuova.email_inviate]);
   c("le colonne di S4 sono 28 e la seconda forma della fotografia le porta tutte", [28, true], [Object.keys(COLONNE_S4).length, Object.keys(COLONNE_S4).every((k) => k in conDefaultS4({}))]);
+  // ── S5 allineato alla revisione di T42: giorni da 1, p_campi severo, tariffe scrivibili solo con `rpc` ──
+  const T_ID = tariffaSeme().id;
+  const tar = () => fintoDb({ tabelle: partenzaDa({ tariffe: [tariffaSeme()] }), adesso: () => "2026-11-20T12:00:00.000Z" });
+  const imposta = (db, campi, extra = {}) => db.rpc("shop_tariffa_imposta", { p_id: T_ID, p_atteso: tariffaSeme().aggiornato_il, p_campi: campi, p_conferma: false, p_chi: "titolare", ...extra });
+  const giorni = tar();
+  c("S5: giorni_min/giorni_max da 1 in su: 0 e -1 → CHECK 23514 (la vetrina non scrive «0-3 giorni»), 1 passa, null passa",
+    ["23514", "23514", "23514", true, true], [(await imposta(giorni, { giorni_min: 0 })).error?.code, (await imposta(giorni, { giorni_max: 0 })).error?.code, (await imposta(giorni, { giorni_min: -1 })).error?.code, (await imposta(giorni, { giorni_min: 1 })).data, (await imposta(giorni, { giorni_min: null }, { p_atteso: giorni.tabelle.shop_spedizioni_tariffe[0].aggiornato_il })).data]);
+  const ins0 = await giorni.from("shop_spedizioni_tariffe", { proprietario: true }).insert({ id: "t0", paese: "IT", nome: "Spenta", costo_cent: 1, attiva: false, giorni_min: 0 });
+  c("S5: anche con l'INSERT diretto del proprietario i giorni a 0 sono rifiutati (CHECK della tabella)", "23514", ins0.error?.code);
+  const sev = tar();
+  const casiSev = [["p_campi non è un oggetto (lista)", [1]], ["p_campi non è un oggetto (testo)", "costo_cent"], ["costo_cent testo «5»", { costo_cent: "5" }], ["costo_cent 1.5", { costo_cent: 1.5 }], ["costo_cent oltre i 32 bit", { costo_cent: 2147483648 }],
+    ["giorni_min booleano", { giorni_min: true }], ["attiva null", { attiva: null }], ["attiva testo «true»", { attiva: "true" }], ["nome numero", { nome: 5 }], ["corriere oggetto", { corriere: {} }], ["campo che non si cambia (paese)", { paese: "DE" }]];
+  const esitiSev = [];
+  for (const [, campi] of casiSev) esitiSev.push((await imposta(sev, campi)).error?.message ?? null);
+  c(`S5: severità di p_campi come in SQL: ${casiSev.map((x) => x[0]).join("; ")} → tariffa_campo_non_valido`, casiSev.map(() => "tariffa_campo_non_valido"), esitiSev);
+  c("S5: e dopo quei rifiuti niente è stato scritto (tariffa e storico intatti)", [490, 0], [sev.tabelle.shop_spedizioni_tariffe[0].costo_cent, (sev.tabelle.shop_storico ?? []).length]);
+  c("S5: i tipi giusti passano: nome e corriere testo o null, interi, attiva booleano; p_campi null = niente da cambiare (false)", [true, true, true, true, false], await (async () => {
+    const t = tar(); const r = [];
+    for (const campi of [{ nome: "Corriere espresso" }, { corriere: "BRT" }, { costo_cent: 590, gratis_da_cent: 9000 }, { giorni_min: 2, giorni_max: 4, attiva: true }]) r.push((await imposta(t, campi, { p_atteso: t.tabelle.shop_spedizioni_tariffe[0].aggiornato_il })).data);
+    r.push((await imposta(t, null, { p_atteso: t.tabelle.shop_spedizioni_tariffe[0].aggiornato_il })).data);
+    return r;
+  })());
+  const sola = tar();
+  const sInsert = await sola.from("shop_spedizioni_tariffe").insert({ id: "t1", paese: "IT", nome: "X", costo_cent: 1, attiva: false });
+  const sUpdate = await sola.from("shop_spedizioni_tariffe").update({ costo_cent: 1 }).eq("id", T_ID);
+  const sUpsert = await sola.from("shop_spedizioni_tariffe").upsert({ id: T_ID, costo_cent: 1 });
+  const sLeggi = await sola.from("shop_spedizioni_tariffe").select("*");
+  c("S5: le tariffe si leggono ma dal client NON si scrivono (REVOKE ALL + GRANT SELECT a service_role): insert, update, upsert → 42501; l'unica via è `rpc`", ["42501", "42501", "42501", null, 490, true], [sInsert.error?.code, sUpdate.error?.code, sUpsert.error?.code, sLeggi.error, sola.tabelle.shop_spedizioni_tariffe[0].costo_cent, (await imposta(sola, { costo_cent: 600 })).data]);
+  const mail = fintoDb({ tabelle: partenzaDa({ modelli: modelliEmailSeme() }) });
+  const mInsert = await mail.from("shop_email_modelli").insert({ chiave: "conferma_ordine", oggetto: "x", testo: "y" });
+  const mUpdate = await mail.from("shop_email_modelli").update({ acceso: true }).eq("chiave", "conferma_ordine");
+  const mUpsert = await mail.from("shop_email_modelli").upsert({ chiave: "conferma_ordine", acceso: true });
+  const mLeggi = await mail.from("shop_email_modelli").select("*");
+  c("S6: i modelli email si leggono ma dal client NON si scrivono (una chiave di servizio uscita non accende un'email): insert, update, upsert → 42501; nessun modello acceso", ["42501", "42501", "42501", null, 5, 0], [
+    mInsert.error?.code, mUpdate.error?.code, mUpsert.error?.code, mLeggi.error, mLeggi.data.length, mail.tabelle.shop_email_modelli.filter((m) => m.acceso).length]);
+  c("le tabelle «solo rpc» sono le tariffe (S5) e i modelli email (S6), distinte dalle cinque dei soldi di S4 (CHIUSE)", [["shop_email_modelli", "shop_spedizioni_tariffe"], true, 5], [[...SOLO_RPC].sort(), [...SOLO_RPC].every((t) => !CHIUSE.has(t)), CHIUSE.size]);
+
+  // ── una funzione chiamata con un argomento che NON ha: come PostgREST, PGRST202 (e niente è scritto) ──
+  const arg = fintoDb({ tabelle: partenzaDa({ ordini: [{ id: "00000000-0000-4000-8000-000000006001", ref: "HG-S001", totale_cent: 100, sessioni: ["cs_test_a"], campi: { stato_pagamento: "fallito" } }] }) });
+  const conVecchio = await arg.rpc("shop_ordine_riapri", { p_ordine: "00000000-0000-4000-8000-000000006001", p_nuova_scade: "2026-11-20T12:31:00.000Z" });
+  c("shop_ordine_riapri col vecchio secondo argomento (p_nuova_scade) → PGRST202 e l'ordine non cambia; con il solo p_ordine riapre", ["PGRST202", "fallito", "riaperto"], [
+    conVecchio.error?.code, arg.tabelle.shop_orders[0].stato_pagamento, (await arg.rpc("shop_ordine_riapri", { p_ordine: "00000000-0000-4000-8000-000000006001" })).data?.esito]);
+  const inventati = [];
+  for (const [nome, parametri] of Object.entries(PARAMETRI_FUNZIONI)) {
+    const r = await fintoDb({ tabelle: partenzaDa({}) }).rpc(nome, { p_inventato: 1 });
+    if (r.error?.code !== "PGRST202") inventati.push(nome);
+    const senza = await fintoDb({ tabelle: partenzaDa({}) }).rpc(nome, Object.fromEntries(parametri.map((k) => [k, null])));
+    if (senza.error?.code === "PGRST202") inventati.push(`${nome} (rifiuta i suoi argomenti)`);
+  }
+  c("ogni funzione (S1, S4, S5, S6) rifiuta con PGRST202 un argomento che non ha, e accetta tutti i suoi; ogni funzione del finto è nell'elenco degli argomenti", [[], []], [
+    inventati, [...Object.values(FUNZIONI_R2).flat(), "shop_giacenza_muovi", "shop_giacenza_imposta", "shop_impostazione_imposta"].filter((f) => !(f in PARAMETRI_FUNZIONI))]);
+
+  // ── S4: la scadenza è del database, +60 minuti (contratto 1, rev. T44) ──
+  const sc = fintoDb({ tabelle: partenzaDa({ ordini: [{ id: "00000000-0000-4000-8000-000000006002", ref: "HG-S002", totale_cent: 100, sessioni: [], campi: { stato_pagamento: "fallito" } }] }), adesso: () => "2026-11-20T12:00:00.000Z" });
+  const cre = await sc.rpc("shop_ordine_crea", { p_ordine: { id: "00000000-0000-4000-8000-000000006001", order_ref: "HG-S001", nome: "A", cognome: "B", email: "a@example.com", telefono: "1", indirizzo: "v", citta: "c", cap: "1", totale_cent: 100, scade_il: "2099-01-01T00:00:00.000Z" }, p_riservati: {} });
+  const rea = await sc.rpc("shop_ordine_riapri", { p_ordine: "00000000-0000-4000-8000-000000006002" });
+  c("scadenza: crea mette adesso + 60 minuti anche se il chiamante ne manda un'altra; riapri idem (e senza il secondo argomento); la risposta la dice",
+    ["2026-11-20T13:00:00.000Z", "2026-11-20T13:00:00.000Z", "riaperto"], [cre.data?.scade_il, rea.data?.scade_il, rea.data?.esito]);
   const reg = fintoDb({ tabelle: partenzaDa({ ordini: [{ id: "o1", ref: "R", totale_cent: 100 }] }) });
   await reg.rpc("shop_ordine_pagato", { p_ordine: "x" });
   await reg.rpc("shop_stripe_evento_registra", { p_id: "evt_1", p_tipo: "t", p_ordine: null });
