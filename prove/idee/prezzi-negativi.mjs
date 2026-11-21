@@ -51,7 +51,9 @@ export function provePrezziNegativi(mod, { c, gruppo, radice }) {
   const racconto = L.vociModificate(voci, bozza, formatta);
   c("il «prima → dopo» racconta il prezzo negativo",
     "-300,00 €", racconto[0].cambi.find((x) => x.campo === "Prezzo").dopo);
-  c("senza avvisi da «GRATIS»", undefined, racconto[0].cambi.find((x) => x.campo === "Prezzo").avviso);
+  c("l'avviso dice che toglie, non «GRATIS»", true,
+    /toglie/.test(racconto[0].cambi.find((x) => x.campo === "Prezzo").avviso) &&
+      !/GRATIS/.test(racconto[0].cambi.find((x) => x.campo === "Prezzo").avviso));
   c("le voci non hanno più «Sconto se scelta»", false,
     L.RIGHE.some((r) => "scontabile" in r));
 
