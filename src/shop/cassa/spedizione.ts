@@ -23,7 +23,14 @@ export type CorriereVoce = { nome?: unknown; modello?: unknown };
 
 /** Il contratto per la vetrina (D62). Mai `provvisoria`, id, date. */
 export type SpedizionePubblica =
-  | { stato: "ok"; costoCent: number; confermata: boolean; corriere: string | null; tempi: { min: number; max: number } | null; frase: string | null }
+  | {
+      stato: "ok";
+      costoCent: number;
+      confermata: boolean;
+      corriere: string | null;
+      tempi: { min: number; max: number } | null;
+      frase: string | null;
+    }
   | { stato: "assente" };
 
 const intero = (n: unknown): n is number => typeof n === "number" && Number.isSafeInteger(n);
@@ -36,13 +43,17 @@ const GIORNI_MAX = 60;
 export function tariffaAttiva(tariffe: unknown, paese: unknown): TariffaRiga | null {
   const p = testo(paese).toUpperCase();
   if (!Array.isArray(tariffe) || !p) return null;
-  for (const t of tariffe) if (oggetto(t) && t.attiva === true && testo(t.paese).toUpperCase() === p) return t;
+  for (const t of tariffe)
+    if (oggetto(t) && t.attiva === true && testo(t.paese).toUpperCase() === p) return t;
   return null;
 }
 
 /** Cosa paga il cliente per la spedizione, in centesimi; `null` = non c'è una tariffa valida (la cassa non si apre).
  *  Soglia vuota (o zero) = ignorata, mai gratis; il subtotale storto non regala mai la spedizione. */
-export function costoSpedizione(tariffa: TariffaRiga | null | undefined, subtotaleCent: unknown): number | null {
+export function costoSpedizione(
+  tariffa: TariffaRiga | null | undefined,
+  subtotaleCent: unknown,
+): number | null {
   if (!oggetto(tariffa) || !intero(tariffa.costo_cent) || tariffa.costo_cent < 0) return null;
   const soglia = tariffa.gratis_da_cent;
   if (intero(soglia) && soglia > 0 && intero(subtotaleCent) && subtotaleCent >= soglia) return 0;
@@ -53,7 +64,8 @@ export function costoSpedizione(tariffa: TariffaRiga | null | undefined, subtota
 function giorni(t: TariffaRiga | null | undefined): { min: number; max: number } | null {
   if (!oggetto(t)) return null;
   const { giorni_min: min, giorni_max: max } = t;
-  if (!intero(min) || !intero(max) || min < 0 || max < 1 || max > GIORNI_MAX || min > max) return null;
+  if (!intero(min) || !intero(max) || min < 0 || max < 1 || max > GIORNI_MAX || min > max)
+    return null;
   return { min, max };
 }
 
@@ -61,7 +73,8 @@ function giorni(t: TariffaRiga | null | undefined): { min: number; max: number }
 export function tempiStimati(tariffa: TariffaRiga | null | undefined): string | null {
   const g = giorni(tariffa);
   if (!g) return null;
-  if (g.min === g.max) return `Consegna in ${g.max} ${g.max === 1 ? "giorno lavorativo" : "giorni lavorativi"} dopo la preparazione`;
+  if (g.min === g.max)
+    return `Consegna in ${g.max} ${g.max === 1 ? "giorno lavorativo" : "giorni lavorativi"} dopo la preparazione`;
   return `Consegna in ${g.min}-${g.max} giorni lavorativi dopo la preparazione`;
 }
 
@@ -86,12 +99,16 @@ export function corriereLink(corrieri: unknown, nome: unknown, numero: unknown):
 
 /** La riga della tariffa attiva → il contratto per la vetrina (D62). `adesso`: ora in millisecondi o `Date` (per le prove).
  *  «Confermata» = `confermata_il` è una data già passata e la tariffa non è ancora `provvisoria`. */
-export function leggiSpedizione(riga: unknown, adesso: number | Date = Date.now()): SpedizionePubblica {
+export function leggiSpedizione(
+  riga: unknown,
+  adesso: number | Date = Date.now(),
+): SpedizionePubblica {
   if (!oggetto(riga) || riga.attiva === false) return { stato: "assente" };
   const costo = costoSpedizione(riga, 0);
   if (costo === null) return { stato: "assente" };
   const quando = typeof riga.confermata_il === "string" ? Date.parse(riga.confermata_il) : NaN;
-  const confermata = riga.provvisoria !== true && Number.isFinite(quando) && quando <= Number(adesso);
+  const confermata =
+    riga.provvisoria !== true && Number.isFinite(quando) && quando <= Number(adesso);
   const corriere = testo(riga.corriere) || null;
   return {
     stato: "ok",

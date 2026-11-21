@@ -5,7 +5,14 @@
  *  e la riga NON si disegna (pagina ordine, email, «Serve aiuto?»).
  *  Le chiavi sono provvisorie: V1(b) (`testi-shop.ts`) le allinea, e questo è l'unico punto di rinomina. */
 
-export const CHIAVI_TESTI = ["reso", "assistenza", "assistenza_whatsapp", "pronta_consegna", "garanzia", "firmatario"] as const;
+export const CHIAVI_TESTI = [
+  "reso",
+  "assistenza",
+  "assistenza_whatsapp",
+  "pronta_consegna",
+  "garanzia",
+  "firmatario",
+] as const;
 
 export type ChiaveTesto = (typeof CHIAVI_TESTI)[number];
 /** Per ogni chiave: il testo confermato, oppure `null` = niente da mostrare. */
@@ -13,7 +20,10 @@ export type TestiConfermati = Record<ChiaveTesto, string | null>;
 
 /** Solo i testi veri: scritti (non vuoti, non solo spazi) e senza segnaposto `{{…}}`. Le chiavi sconosciute si ignorano. */
 export function filtraConfermati(grezzi: unknown): TestiConfermati {
-  const fonte = grezzi && typeof grezzi === "object" && !Array.isArray(grezzi) ? (grezzi as Record<string, unknown>) : {};
+  const fonte =
+    grezzi && typeof grezzi === "object" && !Array.isArray(grezzi)
+      ? (grezzi as Record<string, unknown>)
+      : {};
   const fuori = {} as TestiConfermati;
   for (const k of CHIAVI_TESTI) {
     const v = Object.hasOwn(fonte, k) ? fonte[k] : null;
