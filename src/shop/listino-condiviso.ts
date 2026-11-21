@@ -72,6 +72,17 @@ export function prezzoDaValore(v: unknown): number | null {
   return typeof v === "string" ? prezzoDaTesto(v) : null;
 }
 
+/** Il prezzo di una riga, dal valore che arriva al server. Lo STESSO limite
+ *  per testo e per numero: un `-300` JSON su una voce che non ammette il meno
+ *  (base, installazione, analisi…) si scarta come il testo «-300», non passa. */
+export function prezzoDaValoreRiga(
+  riga: { ammetteNegativo?: boolean } | undefined,
+  v: unknown,
+): number | null {
+  const n = prezzoDaValore(v);
+  return n != null && n < 0 && !riga?.ammetteNegativo ? null : n;
+}
+
 /** Il prezzo scritto in una riga del listino non è un importo valido? Le opzioni
  *  delle sezioni ammettono il segno meno; tutte le altre voci no. */
 export function prezzoNonValido(riga: { ammetteNegativo?: boolean }, testo: string): boolean {

@@ -30,7 +30,7 @@ import { grezzoListino, scriviListino } from "@/crm/listino-di-chi.server";
 //  La virgola dei decimali si legge in un solo posto, quello dei coupon: due
 //  letture diverse dello stesso "450,73" sono due importi diversi.
 import { euroDaValore } from "./api.presenter.coupons";
-import { RIGHE, prezzoDaValore } from "@/shop/listino-condiviso";
+import { RIGHE, prezzoDaValoreRiga } from "@/shop/listino-condiviso";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -177,7 +177,7 @@ function ripulisci(v: unknown): { listino: Listino; guaste: string[] } {
   Object.entries((dentro.prices ?? {}) as Record<string, unknown>).forEach(([id, val]) => {
     //  Il segno meno si accetta SOLO sulle opzioni delle sezioni («costa meno»,
     //  non uno sconto); su tutte le altre voci un negativo resta un errore.
-    const n = RIGHE.find((r) => r.id === id)?.ammetteNegativo ? prezzoDaValore(val) : euroDaValore(val);
+    const n = prezzoDaValoreRiga(RIGHE.find((r) => r.id === id), val);
     if (n == null) guaste.push(id);
     else out.prices[id] = n;
   });

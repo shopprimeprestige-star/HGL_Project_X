@@ -634,7 +634,8 @@ export function prezzoDiPartenza(
   const b = menu.base.find((x) => x.id === baseId);
   const partenza = b?.price ?? 0;
   const voci = vociPreselezionate(menu.sections, baseId, selezionati);
-  const totale = partenza + voci.reduce((s, i) => s + i.price, 0);
+  //  Mai sotto zero: con opzioni a prezzo negativo la scheda non scende sotto 0.
+  const totale = Math.max(0, partenza + voci.reduce((s, i) => s + i.price, 0));
   //  Il prezzo pieno di una voce senza barrato è il suo prezzo: sommare
   //  `wasPrice ?? 0` cancellerebbe dal barrato tutte le voci non scontate, e
   //  il "prima" uscirebbe più basso del "dopo".

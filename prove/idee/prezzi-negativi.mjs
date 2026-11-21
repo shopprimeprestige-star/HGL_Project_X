@@ -32,6 +32,19 @@ export function provePrezziNegativi(mod, { c, gruppo, radice }) {
   c("…e il server scarta il non numero", null, L.prezzoDaValore(Number.NaN));
   c("«numeroDaTesto» non cambia: gli altri campi restano ≥ 0", null, L.numeroDaTesto("-5"));
 
+  //  ── IL SERVER: LO STESSO LIMITE PER IL NUMERO E PER IL TESTO ─────────────
+  const riga = (id) => L.RIGHE.find((r) => r.id === id);
+  c("server: numero -300 su un'opzione di sezione passa", -300, L.prezzoDaValoreRiga(riga("zona-frontale"), -300));
+  c("server: testo «-300» su un'opzione di sezione passa", -300, L.prezzoDaValoreRiga(riga("zona-frontale"), "-300"));
+  c("server: numero -300 su una soluzione base si scarta", null, L.prezzoDaValoreRiga(riga("patch-standard"), -300));
+  c("server: testo «-300» su una soluzione base si scarta", null, L.prezzoDaValoreRiga(riga("patch-standard"), "-300"));
+  c("server: numero -5 sull'installazione si scarta", null, L.prezzoDaValoreRiga(riga("installation"), -5));
+  c("server: numero -5 sull'analisi si scarta", null, L.prezzoDaValoreRiga(riga("sede"), -5));
+  c("server: voce sconosciuta con numero negativo si scarta", null, L.prezzoDaValoreRiga(undefined, -1));
+  c("server: positivo su una base passa", 389, L.prezzoDaValoreRiga(riga("patch-standard"), 389));
+  c("server: la scheda di partenza non scende sotto zero", 0,
+    Q.prezzoDiPartenza(buildMenu({ prices: { "zona-frontale": -99999 } }), "invisible-derm", ["zona-frontale"]).totale);
+
   //  ── SALVATO E RILETTO UGUALE (solo le opzioni delle sezioni) ─────────────
   const voci = L.vociDaListino({});
   const bozza = { ...voci, "zona-frontale": { ...voci["zona-frontale"], prezzo: "−300" } };
@@ -103,7 +116,7 @@ export function provePrezziNegativi(mod, { c, gruppo, radice }) {
   c("il lordo della pagina non scende sotto zero", true,
     /const gross = Math\.max\(0,/.test(pagina));
   c("il server legge il prezzo col segno", true,
-    /prezzoDaValore\(/.test(leggi("src/routes/api.presenter.pricing.ts")));
+    /prezzoDaValoreRiga\(/.test(leggi("src/routes/api.presenter.pricing.ts")));
   c("l'editor non mostra più il campo sconto", false,
     /Sconto se scelta/.test(leggi("src/shop/SettingsListino.tsx")));
   c("l'editor blocca il salvataggio con un prezzo non valido", true,
