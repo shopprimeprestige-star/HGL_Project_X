@@ -27,12 +27,13 @@
 --     CHIUSA sulle colonne nuove: anon e authenticated non possono scriverne nessuna (ordini finti «pagati», 42501);
 --   · le 5 tabelle chiuse: RLS accesa e nessuna policy; `anon` e `authenticated` non leggono niente; `service_role` legge ma NON
 --     scrive (UPDATE, INSERT, DELETE, TRUNCATE rifiutati); le funzioni le eseguono solo `service_role` e il proprietario;
---   · gli scenari dei soldi di `prove/negozio/_scenari-soldi.json` (marcatori `-- SCENARIO: nome`, 35 per questo file):
+--   · gli scenari dei soldi di `prove/negozio/_scenari-soldi.json` (marcatori `-- SCENARIO: nome`, 40 per questo file):
 --     pagato due volte, importo e valuta diversi, ultimo pezzo, SKU che non si risolve, sessione sostituita, doppio pagamento,
---     riprova con due clic, scadenza a 60 minuti (crea e riapri), rimborso oltre il pagato, rimessa dai soli movimenti, limite con finestra scaduta senza DELETE, …;
+--     riprova con due clic, scadenza a 60 minuti (crea e riapri), chiusura senza sessione solo a scadenza passata, rifiuto di un rimborso e riattivazione di un ordine annullato (T53b), rimborso oltre il pagato, rimessa dai soli movimenti, limite con finestra scaduta senza DELETE, …;
 --   · DUE SESSIONI VERE (dblink) sulle corse che il finto non vede: stesso pagamento consegnato due volte insieme (una
 --     sola scalatura), due ordini insieme sull'ultimo pezzo, due rimborsi insieme oltre il pagato (uno solo), due «riprova»
---     insieme (una sola `riprova_n`), la stessa chiave di rimborso insieme (una riga), due richieste insieme sul limite.
+--     insieme (una sola `riprova_n`), la stessa chiave di rimborso insieme (una riga), due richieste insieme sul limite,
+--     «riattiva» e «prenota» insieme sullo stesso ordine annullato (nei due ordini di arrivo), «riapri» e «chiudi senza sessione» insieme.
 --
 -- Dati inventati: nessun nome, numero o indirizzo vero.
 -- ─────────────────────────────────────────────────────────────────────────────
@@ -267,9 +268,9 @@ SELECT pg_temp.uguale('i permessi di scrittura del browser sono ESATTAMENTE le c
 SELECT pg_temp.uguale('anon non legge ordini (come oggi) e l''ordine di checkout ha le colonne nuove ai default', '0|false|0',
   pg_temp.vede('anon', 'public.shop_orders') || '|' || (SELECT prova::text FROM public.shop_orders WHERE order_ref = 'HG-CHECKOUT-OGGI') || '|' || (SELECT rimborsato_cent::text FROM public.shop_orders WHERE order_ref = 'HG-CHECKOUT-OGGI'));
 
--- ── 4. Le cinque tabelle chiuse e le dodici funzioni ──────────────────────────
+-- ── 4. Le cinque tabelle chiuse e le quattordici funzioni ──────────────────────────
 \set chiuse '(''shop_ordini_riservati'', ''shop_stripe_sessioni'', ''shop_stripe_eventi'', ''shop_rimborsi'', ''shop_limiti'')'
-\set funzioni '(''shop_ordine_crea'', ''shop_ordine_sessione_registra'', ''shop_ordine_pagato'', ''shop_ordine_chiudi'', ''shop_ordine_riapri'', ''shop_stripe_evento_registra'', ''shop_stripe_evento_chiudi'', ''shop_rimborso_prenota'', ''shop_rimborso_riconcilia'', ''shop_ordine_giacenza_rimetti'', ''shop_limite_consuma'', ''shop_cassa_righe'')'
+\set funzioni '(''shop_ordine_crea'', ''shop_ordine_sessione_registra'', ''shop_ordine_pagato'', ''shop_ordine_chiudi'', ''shop_ordine_riapri'', ''shop_stripe_evento_registra'', ''shop_stripe_evento_chiudi'', ''shop_rimborso_prenota'', ''shop_rimborso_riconcilia'', ''shop_ordine_giacenza_rimetti'', ''shop_limite_consuma'', ''shop_cassa_righe'', ''shop_rimborso_rifiuta'', ''shop_ordine_riattiva'')'
 
 SELECT pg_temp.uguale('RLS accesa su tutte e 5 le tabelle chiuse', '5',
   (SELECT count(*)::text FROM pg_class WHERE relnamespace = 'public'::regnamespace AND relname IN :chiuse AND relrowsecurity));
@@ -286,10 +287,10 @@ SELECT pg_temp.uguale('… e anon e authenticated non hanno NESSUN privilegio su
 SELECT pg_temp.uguale('… provato con il ruolo del server: INSERT e UPDATE diretti sulle tabelle chiuse → 42501', '42501|42501|42501',
   pg_temp.come('service_role', $q$INSERT INTO public.shop_rimborsi (ordine_id, importo_cent, motivo, chiave_richiesta) VALUES ('00000000-0000-4000-8000-0000000a0001', 100, 'x', 'diretta')$q$) || '|'
   || pg_temp.come('service_role', $q$UPDATE public.shop_limiti SET conteggio = 0$q$) || '|' || pg_temp.come('service_role', $q$INSERT INTO public.shop_stripe_eventi (id) VALUES ('evt_diretto')$q$));
-SELECT pg_temp.uguale('le 12 funzioni di S4 esistono, tutte SECURITY DEFINER con search_path = public', '12|12',
+SELECT pg_temp.uguale('le 14 funzioni di S4 esistono, tutte SECURITY DEFINER con search_path = public', '14|14',
   (SELECT count(*)::text FROM pg_proc WHERE pronamespace = 'public'::regnamespace AND proname IN :funzioni)
   || '|' || (SELECT count(*)::text FROM pg_proc WHERE pronamespace = 'public'::regnamespace AND prosecdef AND proconfig = ARRAY['search_path=public'] AND proname IN :funzioni));
-SELECT pg_temp.uguale('anon e authenticated NON eseguono nessuna funzione nuova; service_role le esegue tutte', '0|0|12',
+SELECT pg_temp.uguale('anon e authenticated NON eseguono nessuna funzione nuova (comprese shop_rimborso_rifiuta e shop_ordine_riattiva); service_role le esegue tutte', '0|0|14',
   (SELECT count(*)::text FROM pg_proc WHERE pronamespace = 'public'::regnamespace AND proname IN :funzioni AND has_function_privilege('anon', oid, 'EXECUTE'))
   || '|' || (SELECT count(*)::text FROM pg_proc WHERE pronamespace = 'public'::regnamespace AND proname IN :funzioni AND has_function_privilege('authenticated', oid, 'EXECUTE'))
   || '|' || (SELECT count(*)::text FROM pg_proc WHERE pronamespace = 'public'::regnamespace AND proname IN :funzioni AND has_function_privilege('service_role', oid, 'EXECUTE')));
@@ -732,9 +733,131 @@ SELECT pg_temp.uguale('riapri_annullato · niente cambia', 'fallito|0|in_attesa|
 SELECT pg_temp.mondo(32, 5);
 SELECT pg_temp.ordine(32, 1, ARRAY['cs_t32_a']);
 SELECT pg_temp.uguale('chiudi_sessione_non_registrata · una sessione che NON è dell''ordine: ignorato', 'ignorato', pg_temp.j(public.shop_ordine_chiudi(pg_temp.oid(32, 1), 'cs_t32_estranea', 'scaduto'), 'esito'));
-SELECT pg_temp.uguale('chiudi_sessione_non_registrata · senza sessione (decisione della cassa): chiuso', 'chiuso', pg_temp.j(public.shop_ordine_chiudi(pg_temp.oid(32, 1), NULL, 'scaduto'), 'esito'));
+SELECT pg_temp.uguale('chiudi_sessione_non_registrata · senza sessione (NULL o vuota) con `scade_il` nel FUTURO: ignorato, l''ordine resta in attesa (un secondo clic non richiude ciò che il primo ha riaperto)', 'ignorato|ignorato|in_attesa',
+  pg_temp.j(public.shop_ordine_chiudi(pg_temp.oid(32, 1), NULL, 'scaduto'), 'esito') || '|' || pg_temp.j(public.shop_ordine_chiudi(pg_temp.oid(32, 1), '', 'scaduto'), 'esito') || '|' || pg_temp.col(32, 1, 'stato_pagamento'));
+UPDATE public.shop_orders SET scade_il = now() - interval '1 minute' WHERE id = pg_temp.oid(32, 1);
+SELECT pg_temp.uguale('chiudi_sessione_non_registrata · senza sessione con `scade_il` PASSATO (decisione della cassa): chiuso', 'chiuso', pg_temp.j(public.shop_ordine_chiudi(pg_temp.oid(32, 1), NULL, 'scaduto'), 'esito'));
 SELECT pg_temp.uguale('chiudi_sessione_non_registrata · ordine scaduto, la sua sessione resta «aperta» (la decisione era della cassa, non di un evento)', 'scaduto|aperta',
   pg_temp.col(32, 1, 'stato_pagamento') || '|' || (SELECT stato FROM public.shop_stripe_sessioni WHERE sessione_id = 'cs_t32_a'));
+
+-- SCENARIO: rimborso_rifiuta
+-- T53b. Stripe rifiuta davvero un rimborso (nessun rimborso creato): la riga «richiesto» senza id Stripe diventa «fallito» senza inventare un id, con un evento; il massimo si libera.
+SELECT pg_temp.mondo(60, 5);
+SELECT pg_temp.ordine(60, 1);
+SELECT pg_temp.uguale('rimborso_rifiuta · paga', 'pagato_ora|false', pg_temp.paga(60, 1, 'cs_t60_1'));
+SELECT pg_temp.uguale('rimborso_rifiuta · prenota tutto il pagato', 'prenotato', pg_temp.j(public.shop_rimborso_prenota(pg_temp.oid(60, 1), 2890, 'reso', 'chiave-60-1', 'titolare'), 'esito'));
+SELECT pg_temp.uguale('rimborso_rifiuta · finché la riga è «richiesto» il massimo è impegnato', '23514 rimborso_oltre_pagato',
+  pg_temp.errore(format($q$SELECT public.shop_rimborso_prenota(%L, 100, 'reso', 'chiave-60-2', 'titolare')$q$, pg_temp.oid(60, 1))));
+SELECT pg_temp.uguale('rimborso_rifiuta · Stripe rifiuta: «rifiutato» con l''id della riga', 'rifiutato|true',
+  (SELECT pg_temp.j(r, 'esito') || '|' || (pg_temp.j(r, 'id') = (SELECT id::text FROM public.shop_rimborsi WHERE chiave_richiesta = 'chiave-60-1'))::text
+   FROM (SELECT public.shop_rimborso_rifiuta((SELECT id FROM public.shop_rimborsi WHERE chiave_richiesta = 'chiave-60-1'), 'card_declined') AS r) x));
+SELECT pg_temp.uguale('rimborso_rifiuta · la riga è «fallito», SENZA id Stripe; l''ordine è ancora pagato e rimborsato 0', 'fallito||pagato|0',
+  (SELECT stato || '|' || COALESCE(stripe_rimborso_id, '') FROM public.shop_rimborsi WHERE chiave_richiesta = 'chiave-60-1') || '|' || pg_temp.col(60, 1, 'stato_pagamento') || '|' || pg_temp.col(60, 1, 'rimborsato_cent'));
+SELECT pg_temp.uguale('rimborso_rifiuta · UN evento nello storico: chi «stripe», codice, riga', '1|stripe|card_declined|true',
+  (SELECT count(*)::text || '|' || min(chi) || '|' || min(dopo ->> 'codice') || '|' || bool_and((dopo ->> 'riga') = (SELECT id::text FROM public.shop_rimborsi WHERE chiave_richiesta = 'chiave-60-1'))::text
+   FROM public.shop_order_eventi WHERE order_id = pg_temp.oid(60, 1) AND tipo = 'rimborso_rifiutato'));
+SELECT pg_temp.uguale('rimborso_rifiuta · una seconda chiamata: «ignorato» con lo stato, nessun evento in più', 'ignorato|fallito|1',
+  (SELECT pg_temp.j(r, 'esito') || '|' || pg_temp.j(r, 'stato') || '|' || (SELECT count(*)::text FROM public.shop_order_eventi WHERE order_id = pg_temp.oid(60, 1) AND tipo = 'rimborso_rifiutato')
+   FROM (SELECT public.shop_rimborso_rifiuta((SELECT id FROM public.shop_rimborsi WHERE chiave_richiesta = 'chiave-60-1'), 'card_declined') AS r) x));
+SELECT pg_temp.uguale('rimborso_rifiuta · il massimo si è liberato: lo stesso importo si prenota di nuovo', 'prenotato', pg_temp.j(public.shop_rimborso_prenota(pg_temp.oid(60, 1), 2890, 'reso', 'chiave-60-3', 'titolare'), 'esito'));
+
+-- SCENARIO: rimborso_rifiuta_ignorato
+-- T53b. Un rimborso «riuscito», o «richiesto» ma già conosciuto da Stripe (ha un id), non si tocca mai. Una riga che non c'è: errore.
+SELECT pg_temp.mondo(61, 5);
+SELECT pg_temp.ordine(61, 1);
+SELECT pg_temp.uguale('rimborso_rifiuta_ignorato · paga', 'pagato_ora|false', pg_temp.paga(61, 1, 'cs_t61_1'));
+SELECT pg_temp.uguale('rimborso_rifiuta_ignorato · prenota 20,00 €', 'prenotato', pg_temp.j(public.shop_rimborso_prenota(pg_temp.oid(61, 1), 2000, 'reso', 'chiave-61-a', 'titolare'), 'esito'));
+SELECT pg_temp.uguale('rimborso_rifiuta_ignorato · Stripe lo dice riuscito', '2000|rimborsato_in_parte',
+  (SELECT pg_temp.j(r, 'rimborsato_cent') || '|' || pg_temp.j(r, 'stato_pagamento') FROM (SELECT public.shop_rimborso_riconcilia(pg_temp.oid(61, 1), jsonb_build_array(
+    jsonb_build_object('id', 're_t61_a', 'amount', 2000, 'status', 'succeeded', 'metadata', jsonb_build_object('riga_id', (SELECT id FROM public.shop_rimborsi WHERE chiave_richiesta = 'chiave-61-a')))), false) AS r) x));
+SELECT pg_temp.uguale('rimborso_rifiuta_ignorato · un «riuscito» non si rifiuta: ignorato con lo stato', 'ignorato|riuscito',
+  (SELECT pg_temp.j(r, 'esito') || '|' || pg_temp.j(r, 'stato') FROM (SELECT public.shop_rimborso_rifiuta((SELECT id FROM public.shop_rimborsi WHERE chiave_richiesta = 'chiave-61-a'), 'card_declined') AS r) x));
+SELECT pg_temp.uguale('rimborso_rifiuta_ignorato · prenota 8,00 €', 'prenotato', pg_temp.j(public.shop_rimborso_prenota(pg_temp.oid(61, 1), 800, 'reso', 'chiave-61-b', 'titolare'), 'esito'));
+SELECT pg_temp.uguale('rimborso_rifiuta_ignorato · Stripe lo conosce ma è ancora in corso (ha l''id, «pending»): resta «richiesto»', '2000|rimborsato_in_parte',
+  (SELECT pg_temp.j(r, 'rimborsato_cent') || '|' || pg_temp.j(r, 'stato_pagamento') FROM (SELECT public.shop_rimborso_riconcilia(pg_temp.oid(61, 1), jsonb_build_array(
+    jsonb_build_object('id', 're_t61_b', 'amount', 800, 'status', 'pending', 'metadata', jsonb_build_object('riga_id', (SELECT id FROM public.shop_rimborsi WHERE chiave_richiesta = 'chiave-61-b')))), false) AS r) x));
+SELECT pg_temp.uguale('rimborso_rifiuta_ignorato · un «richiesto» che HA l''id di Stripe non si rifiuta: ignorato con lo stato', 'ignorato|richiesto',
+  (SELECT pg_temp.j(r, 'esito') || '|' || pg_temp.j(r, 'stato') FROM (SELECT public.shop_rimborso_rifiuta((SELECT id FROM public.shop_rimborsi WHERE chiave_richiesta = 'chiave-61-b'), 'card_declined') AS r) x));
+SELECT pg_temp.uguale('rimborso_rifiuta_ignorato · le due righe sono invariate (stato e id Stripe) e non c''è nessun evento di rifiuto', 'riuscito|re_t61_a|richiesto|re_t61_b|0',
+  (SELECT stato || '|' || stripe_rimborso_id FROM public.shop_rimborsi WHERE chiave_richiesta = 'chiave-61-a') || '|' || (SELECT stato || '|' || stripe_rimborso_id FROM public.shop_rimborsi WHERE chiave_richiesta = 'chiave-61-b')
+  || '|' || (SELECT count(*)::text FROM public.shop_order_eventi WHERE order_id = pg_temp.oid(61, 1) AND tipo = 'rimborso_rifiutato'));
+SELECT pg_temp.uguale('rimborso_rifiuta_ignorato · una riga che non c''è: rimborso_non_trovato', 'P0002 rimborso_non_trovato',
+  pg_temp.errore($q$SELECT public.shop_rimborso_rifiuta('00000000-0000-4000-8000-000000009999', 'card_declined')$q$));
+
+-- SCENARIO: rimborso_rifiuta_codice
+-- T53b. Il codice va nello storico solo se è un codice (`[A-Za-z0-9_.-]`, 1..64): un testo libero, vuoto, nullo, troppo lungo o con un a capo diventa «sconosciuto».
+SELECT pg_temp.mondo(62, 5);
+SELECT pg_temp.ordine(62, 1);
+SELECT pg_temp.uguale('rimborso_rifiuta_codice · paga', 'pagato_ora|false', pg_temp.paga(62, 1, 'cs_t62_1'));
+SELECT public.shop_rimborso_prenota(pg_temp.oid(62, 1), 100, 'reso', 'chiave-62-' || k, 'titolare') FROM generate_series(1, 6) k;
+SELECT pg_temp.uguale('rimborso_rifiuta_codice · un testo libero con un nome e un''email', 'rifiutato',
+  pg_temp.j(public.shop_rimborso_rifiuta((SELECT id FROM public.shop_rimborsi WHERE chiave_richiesta = 'chiave-62-1'), 'Mario Rossi mario@example.com ha rifiutato'), 'esito'));
+SELECT public.shop_rimborso_rifiuta((SELECT id FROM public.shop_rimborsi WHERE chiave_richiesta = 'chiave-62-2'), '');
+SELECT public.shop_rimborso_rifiuta((SELECT id FROM public.shop_rimborsi WHERE chiave_richiesta = 'chiave-62-3'), NULL);
+SELECT public.shop_rimborso_rifiuta((SELECT id FROM public.shop_rimborsi WHERE chiave_richiesta = 'chiave-62-4'), repeat('x', 65));
+SELECT public.shop_rimborso_rifiuta((SELECT id FROM public.shop_rimborsi WHERE chiave_richiesta = 'chiave-62-5'), E'card\nx');
+SELECT public.shop_rimborso_rifiuta((SELECT id FROM public.shop_rimborsi WHERE chiave_richiesta = 'chiave-62-6'), 'a.b-c_D9');
+SELECT pg_temp.uguale('rimborso_rifiuta_codice · nello storico: testo libero, vuoto, nullo, 65 segni e a capo → «sconosciuto»; un codice vero resta com''è', 'sconosciuto,sconosciuto,sconosciuto,sconosciuto,sconosciuto,a.b-c_D9',
+  (SELECT string_agg(e.dopo ->> 'codice', ',' ORDER BY r.chiave_richiesta) FROM public.shop_order_eventi e JOIN public.shop_rimborsi r ON r.id::text = e.dopo ->> 'riga'
+    WHERE e.order_id = pg_temp.oid(62, 1) AND e.tipo = 'rimborso_rifiutato'));
+
+-- SCENARIO: riattiva_con_rimborsi
+-- T53b. Un ordine annullato con un rimborso richiesto, o riuscito, o con rimborsato_cent > 0 (o già «rimborsato») NON si riattiva: resta annullato e non lascia nessun evento.
+SELECT pg_temp.mondo(63, 5);
+SELECT pg_temp.ordine(63, 1);
+SELECT pg_temp.ordine(63, 2);
+SELECT pg_temp.ordine(63, 3);
+SELECT pg_temp.ordine(63, 4);
+SELECT pg_temp.paga(63, k, 'cs_t63_' || k) FROM generate_series(1, 4) k;
+UPDATE public.shop_orders SET status = 'annullato', annullo_motivo = 'prova', annullato_il = now() WHERE id IN (pg_temp.oid(63, 1), pg_temp.oid(63, 2), pg_temp.oid(63, 3), pg_temp.oid(63, 4));
+SELECT pg_temp.uguale('riattiva_con_rimborsi · un rimborso «richiesto» (ordine 1)', 'prenotato', pg_temp.j(public.shop_rimborso_prenota(pg_temp.oid(63, 1), 1000, 'reso', 'chiave-63-1', 'titolare'), 'esito'));
+SELECT pg_temp.uguale('riattiva_con_rimborsi · … la riattivazione è rifiutata: rimborso_attivo', '55000 rimborso_attivo',
+  pg_temp.errore(format($q$SELECT public.shop_ordine_riattiva(%L, 'errore di click', 'titolare')$q$, pg_temp.oid(63, 1))));
+SELECT pg_temp.uguale('riattiva_con_rimborsi · un rimborso «riuscito» (ordine 2)', 'prenotato', pg_temp.j(public.shop_rimborso_prenota(pg_temp.oid(63, 2), 1000, 'reso', 'chiave-63-2', 'titolare'), 'esito'));
+SELECT pg_temp.uguale('riattiva_con_rimborsi · Stripe lo dice riuscito', '1000|rimborsato_in_parte',
+  (SELECT pg_temp.j(r, 'rimborsato_cent') || '|' || pg_temp.j(r, 'stato_pagamento') FROM (SELECT public.shop_rimborso_riconcilia(pg_temp.oid(63, 2), jsonb_build_array(
+    jsonb_build_object('id', 're_t63_2', 'amount', 1000, 'status', 'succeeded', 'metadata', jsonb_build_object('riga_id', (SELECT id FROM public.shop_rimborsi WHERE chiave_richiesta = 'chiave-63-2')))), false) AS r) x));
+SELECT pg_temp.uguale('riattiva_con_rimborsi · … rimborso_attivo', '55000 rimborso_attivo',
+  pg_temp.errore(format($q$SELECT public.shop_ordine_riattiva(%L, 'errore di click', 'titolare')$q$, pg_temp.oid(63, 2))));
+UPDATE public.shop_orders SET rimborsato_cent = 500, stato_pagamento = 'rimborsato_in_parte' WHERE id = pg_temp.oid(63, 3);
+SELECT pg_temp.uguale('riattiva_con_rimborsi · solo `rimborsato_cent` > 0 (nessuna riga di rimborso, ordine 3): rimborso_attivo', '55000 rimborso_attivo',
+  pg_temp.errore(format($q$SELECT public.shop_ordine_riattiva(%L, 'errore di click', 'titolare')$q$, pg_temp.oid(63, 3))));
+UPDATE public.shop_orders SET stato_pagamento = 'rimborsato' WHERE id = pg_temp.oid(63, 4);
+SELECT pg_temp.uguale('riattiva_con_rimborsi · stato «rimborsato» (ordine 4): rimborso_attivo', '55000 rimborso_attivo',
+  pg_temp.errore(format($q$SELECT public.shop_ordine_riattiva(%L, 'errore di click', 'titolare')$q$, pg_temp.oid(63, 4))));
+SELECT pg_temp.uguale('riattiva_con_rimborsi · i quattro ordini sono ancora annullati col loro motivo, e nessun evento «stato_corretto»', '4|0',
+  (SELECT count(*)::text FROM public.shop_orders WHERE id IN (pg_temp.oid(63, 1), pg_temp.oid(63, 2), pg_temp.oid(63, 3), pg_temp.oid(63, 4)) AND status = 'annullato' AND annullo_motivo = 'prova' AND annullato_il IS NOT NULL)
+  || '|' || (SELECT count(*)::text FROM public.shop_order_eventi WHERE order_id IN (pg_temp.oid(63, 1), pg_temp.oid(63, 2), pg_temp.oid(63, 3), pg_temp.oid(63, 4)) AND tipo = 'stato_corretto'));
+
+-- SCENARIO: riattiva
+-- T53b. Senza rimborsi un ordine annullato torna «nuovo» (motivo e data di annullo azzerati), con `giacenza_da_verificare` solo se i pezzi erano stati rimessi; lo storico lo scrive la funzione.
+SELECT pg_temp.mondo(64, 5);
+SELECT pg_temp.ordine(64, 1);
+SELECT pg_temp.ordine(64, 2);
+SELECT pg_temp.ordine(64, 3);
+SELECT pg_temp.paga(64, k, 'cs_t64_' || k) FROM generate_series(1, 3) k;
+UPDATE public.shop_orders SET status = 'annullato', annullo_motivo = 'prova', annullato_il = now() WHERE id IN (pg_temp.oid(64, 1), pg_temp.oid(64, 2));
+UPDATE public.shop_orders SET giacenza_rimessa_il = now() - interval '10 minutes' WHERE id = pg_temp.oid(64, 2);
+SELECT pg_temp.uguale('riattiva · un motivo di soli spazi: motivo_obbligatorio', '22023 motivo_obbligatorio',
+  pg_temp.errore(format($q$SELECT public.shop_ordine_riattiva(%L, '   ', 'titolare')$q$, pg_temp.oid(64, 1))));
+SELECT pg_temp.uguale('riattiva · un ordine che non c''è: ordine_non_trovato', 'P0002 ordine_non_trovato',
+  pg_temp.errore($q$SELECT public.shop_ordine_riattiva('00000000-0000-4000-8000-000000009999', 'errore', 'titolare')$q$));
+SELECT pg_temp.uguale('riattiva · senza rimborsi e senza pezzi rimessi: riattivato, giacenza non da verificare', 'riattivato|false',
+  (SELECT pg_temp.j(r, 'esito') || '|' || pg_temp.j(r, 'giacenza_da_verificare') FROM (SELECT public.shop_ordine_riattiva(pg_temp.oid(64, 1), 'cliente ha ripreso l''ordine', 'titolare') AS r) x));
+SELECT pg_temp.uguale('riattiva · «nuovo», motivo e data di annullo azzerati, il pagamento non si tocca', 'nuovo|||false|pagato',
+  pg_temp.col(64, 1, 'status') || '|' || pg_temp.col(64, 1, 'annullo_motivo') || '|' || pg_temp.col(64, 1, 'annullato_il') || '|' || pg_temp.col(64, 1, 'giacenza_da_verificare') || '|' || pg_temp.col(64, 1, 'stato_pagamento'));
+SELECT pg_temp.uguale('riattiva · UN evento «stato_corretto» scritto dalla funzione: chi, prima e dopo col motivo', '1|titolare|annullato|nuovo|cliente ha ripreso l''ordine',
+  (SELECT count(*)::text || '|' || min(chi) || '|' || min(prima ->> 'stato') || '|' || min(dopo ->> 'stato') || '|' || min(dopo ->> 'motivo')
+   FROM public.shop_order_eventi WHERE order_id = pg_temp.oid(64, 1) AND tipo = 'stato_corretto'));
+SELECT pg_temp.uguale('riattiva · di nuovo: l''ordine non è più annullato → «cambiato», niente scritto', 'cambiato|1',
+  (SELECT pg_temp.j(r, 'esito') || '|' || (SELECT count(*)::text FROM public.shop_order_eventi WHERE order_id = pg_temp.oid(64, 1) AND tipo = 'stato_corretto')
+   FROM (SELECT public.shop_ordine_riattiva(pg_temp.oid(64, 1), 'cliente ha ripreso l''ordine', 'titolare') AS r) x));
+SELECT pg_temp.uguale('riattiva · con i pezzi già rimessi in magazzino: riattivato e giacenza DA VERIFICARE (e la data della rimessa resta)', 'riattivato|true|true',
+  (SELECT pg_temp.j(r, 'esito') || '|' || pg_temp.j(r, 'giacenza_da_verificare') || '|' || (pg_temp.col(64, 2, 'giacenza_da_verificare') = 'true' AND pg_temp.col(64, 2, 'giacenza_rimessa_il') <> '')::text
+   FROM (SELECT public.shop_ordine_riattiva(pg_temp.oid(64, 2), 'pezzi già in magazzino', 'titolare') AS r) x));
+SELECT pg_temp.uguale('riattiva · un ordine mai annullato: «cambiato», niente scritto', 'cambiato|nuovo|0',
+  (SELECT pg_temp.j(r, 'esito') FROM (SELECT public.shop_ordine_riattiva(pg_temp.oid(64, 3), 'mai annullato', 'titolare') AS r) x) || '|' || pg_temp.col(64, 3, 'status')
+  || '|' || (SELECT count(*)::text FROM public.shop_order_eventi WHERE order_id = pg_temp.oid(64, 3) AND tipo = 'stato_corretto'));
 
 -- SCENARIO: crea_lista_bianca
 SELECT pg_temp.mondo(33, 5);
@@ -842,6 +965,43 @@ SELECT pg_temp.uguale('CORSA · lo stesso ordine creato due volte INSIEME: il se
     format($q$SELECT public.shop_ordine_crea(jsonb_build_object('id', %L, 'order_ref', 'HG-T451', 'nome', 'Anna', 'cognome', 'Esempio', 'email', 'cliente0@example.com', 'telefono', '3330000000', 'indirizzo', 'Via Prova 1', 'citta', 'Roma', 'cap', '00100', 'totale_cent', 2890), '{}'::jsonb) ->> 'esito'$q$, pg_temp.oid(45, 1))));
 SELECT pg_temp.uguale('CORSA · … UNA riga d''ordine e UNA dei riservati', '1|1',
   (SELECT count(*)::text FROM public.shop_orders WHERE id = pg_temp.oid(45, 1)) || '|' || (SELECT count(*)::text FROM public.shop_ordini_riservati WHERE ordine_id = pg_temp.oid(45, 1)));
+
+-- T53b: «riattiva» e «prenota» INSIEME sullo stesso ordine annullato e pagato, nei due ordini di arrivo. Entrambe prendono prima il blocco dell'ordine:
+-- la seconda aspetta e poi rilegge. Mai «annullato con un rimborso nato dopo la lettura della riattivazione».
+-- (a) la riattivazione arriva prima: l'ordine torna «nuovo» e il rimborso, che arriva dopo, si prenota su un ordine «nuovo».
+SELECT pg_temp.mondo(47, 5);
+SELECT pg_temp.ordine(47, 1);
+SELECT pg_temp.paga(47, 1, 'cs_t47_1');
+UPDATE public.shop_orders SET status = 'annullato', annullo_motivo = 'prova', annullato_il = now() WHERE id = pg_temp.oid(47, 1);
+SELECT pg_temp.uguale('CORSA · «riattiva» poi «prenota» INSIEME: il rimborso aspetta il blocco e poi si prenota sull''ordine già «nuovo»', 'true|riattivato|prenotato',
+  pg_temp.corsa(:'conn',
+    format($q$SELECT public.shop_ordine_riattiva(%L, 'errore di click', 'titolare') ->> 'esito'$q$, pg_temp.oid(47, 1)),
+    format($q$SELECT public.shop_rimborso_prenota(%L, 1000, 'reso', 'chiave-47', 'titolare') ->> 'esito'$q$, pg_temp.oid(47, 1))));
+SELECT pg_temp.uguale('CORSA · … l''ordine è «nuovo» con UN rimborso richiesto (mai annullato con un rimborso nato dopo)', 'nuovo|1',
+  pg_temp.col(47, 1, 'status') || '|' || (SELECT count(*)::text FROM public.shop_rimborsi WHERE ordine_id = pg_temp.oid(47, 1) AND stato = 'richiesto'));
+
+-- (b) il rimborso arriva prima: la riattivazione aspetta, trova il rimborso richiesto e fallisce; l'ordine resta annullato.
+SELECT pg_temp.mondo(48, 5);
+SELECT pg_temp.ordine(48, 1);
+SELECT pg_temp.paga(48, 1, 'cs_t48_1');
+UPDATE public.shop_orders SET status = 'annullato', annullo_motivo = 'prova', annullato_il = now() WHERE id = pg_temp.oid(48, 1);
+SELECT pg_temp.uguale('CORSA · «prenota» poi «riattiva» INSIEME: la riattivazione aspetta il blocco e poi è rifiutata (rimborso_attivo)', 'true|prenotato|rimborso_attivo',
+  (SELECT split_part(x, '|', 1) || '|' || split_part(x, '|', 2) || '|' || CASE WHEN split_part(x, '|', 3) LIKE '%rimborso_attivo%' THEN 'rimborso_attivo' ELSE split_part(x, '|', 3) END
+   FROM (SELECT pg_temp.corsa(:'conn',
+    format($q$SELECT public.shop_rimborso_prenota(%L, 1000, 'reso', 'chiave-48', 'titolare') ->> 'esito'$q$, pg_temp.oid(48, 1)),
+    format($q$SELECT public.shop_ordine_riattiva(%L, 'errore di click', 'titolare') ->> 'esito'$q$, pg_temp.oid(48, 1))) AS x) y));
+SELECT pg_temp.uguale('CORSA · … l''ordine è ANCORA annullato, con UN rimborso richiesto e nessun evento «stato_corretto»', 'annullato|1|0',
+  pg_temp.col(48, 1, 'status') || '|' || (SELECT count(*)::text FROM public.shop_rimborsi WHERE ordine_id = pg_temp.oid(48, 1) AND stato = 'richiesto')
+  || '|' || (SELECT count(*)::text FROM public.shop_order_eventi WHERE order_id = pg_temp.oid(48, 1) AND tipo = 'stato_corretto'));
+
+-- «Riprova» (riapri) e una chiusura senza sessione INSIEME: la chiusura senza sessione non richiude l'ordine appena riaperto.
+SELECT pg_temp.mondo(49, 5);
+SELECT pg_temp.ordine(49, 1, stato => 'scaduto');
+SELECT pg_temp.uguale('CORSA · «riapri» e «chiudi senza sessione» INSIEME su un ordine scaduto: la chiusura aspetta, trova l''ordine in attesa con la scadenza nuova e risponde «ignorato»', 'true|riaperto|ignorato',
+  pg_temp.corsa(:'conn',
+    format($q$SELECT public.shop_ordine_riapri(%L) ->> 'esito'$q$, pg_temp.oid(49, 1)),
+    format($q$SELECT public.shop_ordine_chiudi(%L, '', 'scaduto') ->> 'esito'$q$, pg_temp.oid(49, 1))));
+SELECT pg_temp.uguale('CORSA · … l''ordine è in attesa, riprova_n 1', 'in_attesa|1', pg_temp.col(49, 1, 'stato_pagamento') || '|' || pg_temp.col(49, 1, 'riprova_n'));
 
 -- Il limite: l'ultimo posto conteso da due richieste insieme.
 SELECT count(*) FROM (SELECT public.shop_limite_consuma('ordine:corsa-t46', 3600, 10) FROM generate_series(1, 9)) x \gset limite_

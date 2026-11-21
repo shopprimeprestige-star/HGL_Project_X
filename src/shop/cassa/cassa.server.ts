@@ -21,10 +21,11 @@
  *    L'id dell'ordine è il `tentativo` del client: un doppio clic ritrova lo stesso ordine; la firma (HMAC dei dati) distingue «lo stesso
  *    tentativo» da «lo stesso tentativo con dati diversi».
  *  · SESSIONE (D47): `expires_at` = `scade_il` che ha deciso il database (mai ricalcolato: due richieste sovrapposte hanno parametri
- *    IDENTICI e la stessa `Idempotency-Key`); se mancano meno di 35 minuti si passa da «riapri» (contratto W3 n. 1). Si ricostruisce
+ *    IDENTICI e la stessa `Idempotency-Key`); con meno di 35 minuti non si chiama Stripe col vecchio valore: se `scade_il` è già passato si chiude e si riapre (contratto W3 n. 1, `r<n>`), altrimenti `non_riproponibile`. Si ricostruisce
  *    SEMPRE dall'ordine salvato, così la prima richiesta e le ripetizioni mandano gli stessi byte.
- *  · Un rifiuto vero di Stripe (400, 402) chiude l'ordine `scaduto` con l'avviso `stripe_errore`; idempotenza, timeout, rete, 5xx, 401 e
- *    il resto sono guasti nostri o passeggeri: l'ordine resta `in_attesa` e la risposta è `guasto` (ritentabile).
+ *  · Un rifiuto vero di Stripe (400, 402) lascia l'avviso rosso `stripe_errore` e la risposta `guasto`; idempotenza, timeout, rete, 5xx, 401 e il resto sono guasti
+ *    passeggeri o nostri: `guasto` ritentabile. In ogni caso l'ordine resta `in_attesa` (si legge `scaduto` a `scade_il`, D52): `shop_ordine_chiudi` senza sessione
+ *    chiude solo a scadenza passata (T53b), quindi la cassa non chiude da sola un ordine appena creato.
  *  · Nessuna risposta ripete dati del cliente. Nei log SOLO codici (`error.code`, mai `message`/`details`/`hint`). */
 import { hmacHex } from "@/lib/tracciamento/permesso";
 import { codiceDi, tabellaAssente } from "../cms/cassa-sito";
@@ -332,18 +333,17 @@ const urlDi = (p: PorteCassaServer, s: SessioneStripe): Risposta => {
 
 /* ══ LA SESSIONE DI STRIPE ══════════════════════════════════════════════════ */
 
-/** L'ordine passa a `scaduto` (rifiuto vero di Stripe, o scadenza troppo vicina): `shop_ordine_chiudi` senza sessione = decisione della cassa. */
-async function chiudiOrdine(
-  p: PorteCassaServer,
-  id: string,
-  sessione = "",
-): Promise<{ errore: unknown } | null> {
+type Chiusura = { ok: true; chiuso: boolean } | { ok: false; errore: unknown };
+/** `shop_ordine_chiudi(…, 'scaduto')`. Senza sessione la funzione chiude SOLO se `scade_il` è già passato (T53b): `chiuso:false` = qualcun altro l'ha già chiuso o
+ *  riaperto (un secondo clic non richiude ciò che il primo ha appena riaperto). Con la sessione corrente chiude subito. */
+async function chiudiOrdine(p: PorteCassaServer, id: string, sessione = ""): Promise<Chiusura> {
   const r = await p.db.rpc("shop_ordine_chiudi", {
     p_ordine: id,
     p_sessione: sessione,
     p_stato: "scaduto",
   });
-  return r.error ? { errore: r.error } : null;
+  if (r.error) return { ok: false, errore: r.error };
+  return { ok: true, chiuso: oggetto(r.data) && r.data.esito === "chiuso" };
 }
 async function avviso(p: PorteCassaServer, id: string, codice: string, rif: string): Promise<void> {
   const r = await p.db.rpc("shop_s4_avviso", {
@@ -374,7 +374,8 @@ async function riapri(p: PorteCassaServer, id: string): Promise<Riaperto> {
   return { ok: false, risposta: no(500, "guasto") };
 }
 
-/** Un rifiuto vero di Stripe (400, 402) chiude l'ordine; il resto (idempotenza, timeout, rete, 5xx, 401…) lo lascia `in_attesa`. */
+/** Un rifiuto vero di Stripe (400, 402) lascia l'avviso rosso `stripe_errore` sull'ordine (il CRM lo vede); l'ordine non si chiude da qui — `shop_ordine_chiudi`
+ *  senza sessione chiude solo a scadenza passata — e si legge `scaduto` da solo (D52). Il resto (idempotenza, timeout, rete, 5xx, 401…) è un guasto ritentabile. */
 async function dopoErroreStripe(
   p: PorteCassaServer,
   o: OrdineLetto,
@@ -383,8 +384,6 @@ async function dopoErroreStripe(
 ): Promise<Risposta> {
   const risposta = erroreStripe(p, e);
   if (!e.ritentabile && (e.stato === 400 || e.stato === 402)) {
-    const chiuso = await chiudiOrdine(p, o.id);
-    if (chiuso) p.log(`chiudi ${codiceErrore(chiuso.errore)}`);
     await avviso(p, o.id, "stripe_errore", `r${n}`);
   }
   return risposta;
@@ -427,8 +426,10 @@ async function creaSessioneOrdine(
   return ok({ url: s.dati.url });
 }
 
-/** La sessione di un ordine `in_attesa` che non ne ha ancora una: col valore di `scade_il` dell'ordine, o — se mancano meno di 35 minuti —
- *  chiudendolo e riaprendolo (D66), così Stripe riceve una scadenza che regge e una chiave idempotente nuova (`r<n>`). */
+/** La sessione di un ordine `in_attesa` che non ne ha ancora una: col valore di `scade_il` dell'ordine; se mancano meno di 35 minuti (30 di Stripe + 5)
+ *  non si chiama Stripe col vecchio valore. Se `scade_il` è già PASSATO si chiude e si riapre (D66): scadenza nuova e chiave idempotente nuova (`r<n>`); se
+ *  nel frattempo l'ha già fatto un altro clic, `riprova_in_corso`. Se è ancora nel futuro (0-35 minuti) nessuno può chiuderlo (T53b): `non_riproponibile`,
+ *  il cliente riparte dal carrello con un tentativo nuovo. */
 async function apriSessione(
   p: PorteCassaServer,
   o: OrdineLetto,
@@ -437,8 +438,10 @@ async function apriSessione(
   let n = Number(o.riprova_n ?? 0);
   let scadeIl = testo(o.scade_il);
   if (scadeIl === "" || Date.parse(scadeIl) - p.adesso() < MARGINE_SCADENZA_MS) {
+    if (scadeIl === "" || Date.parse(scadeIl) >= p.adesso()) return no(409, "non_riproponibile");
     const chiuso = await chiudiOrdine(p, o.id);
-    if (chiuso) return erroreDb(p, "chiudi", chiuso.errore);
+    if (!chiuso.ok) return erroreDb(p, "chiudi", chiuso.errore);
+    if (!chiuso.chiuso) return no(409, "riprova_in_corso");
     const a = await riapri(p, o.id);
     if (!a.ok) return a.risposta;
     n = a.n;
@@ -656,7 +659,8 @@ async function riprovaDa(r: RichiestaRiprova, p: PorteCassaServer): Promise<Risp
     // Scaduta (o mai creata) ma la tabella dice ancora «in attesa»: se `scade_il` è nel futuro qualcuno ha appena riaperto l'ordine.
     if (Date.parse(testo(ordine.scade_il)) > p.adesso()) return no(409, "riprova_in_corso");
     const chiuso = await chiudiOrdine(p, ordine.id, sessione?.id ?? "");
-    if (chiuso) return erroreDb(p, "chiudi", chiuso.errore);
+    if (!chiuso.ok) return erroreDb(p, "chiudi", chiuso.errore);
+    if (!chiuso.chiuso) return no(409, "riprova_in_corso"); // l'ha già chiuso o riaperto un altro clic
   }
 
   // (4) i prezzi di oggi: se sono cambiati o non c'è più qualcosa, si torna alla cassa PRIMA di toccare Stripe o l'ordine

@@ -202,6 +202,50 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("ogni funzione (S1, S4, S5, S6) rifiuta con PGRST202 un argomento che non ha, e accetta tutti i suoi; ogni funzione del finto è nell'elenco degli argomenti", [[], []], [
     inventati, [...Object.values(FUNZIONI_R2).flat(), "shop_giacenza_muovi", "shop_giacenza_imposta", "shop_impostazione_imposta"].filter((f) => !(f in PARAMETRI_FUNZIONI))]);
 
+  // ── T53b: gli aiuti interni di S4 (avvisi e storico), le due funzioni nuove e `chiudi` senza sessione ──
+  const O = "00000000-0000-4000-8000-000000006001";
+  const T53 = () => fintoDb({ tabelle: partenzaDa({ ordini: [{ id: O, ref: "HG-S001", totale_cent: 2890, sessioni: ["cs_test_a"], campi: { status: "annullato", stato_pagamento: "pagato", pagato_importo: 28.9, annullo_motivo: "prova", annullato_il: "2026-11-20T11:30:00.000Z" } }] }) });
+  const aiuti = T53();
+  await aiuti.rpc("shop_s4_avviso", { p_ordine: O, p_codice: "stripe_errore", p_gravita: "rosso", p_rif: "r0" });
+  await aiuti.rpc("shop_s4_avviso", { p_ordine: O, p_codice: "stripe_errore", p_gravita: "rosso", p_rif: "r0" });
+  await aiuti.rpc("shop_s4_avviso", { p_ordine: O, p_codice: "stripe_errore", p_gravita: "rosso", p_rif: "r1" });
+  c("shop_s4_avviso: lo stesso codice con lo stesso riferimento si scrive una volta sola (come il SQL); con un altro riferimento un'altra", [2, ["r0", "r1"], "rosso"], [aiuti.tabelle.shop_orders[0].avvisi.length, aiuti.tabelle.shop_orders[0].avvisi.map((x) => x.rif), aiuti.tabelle.shop_orders[0].avvisi[0].gravita]);
+  c("shop_s4_avviso su un ordine che non c'è: niente, nessun errore (come il SQL: un UPDATE senza righe)", [null, 2], [(await aiuti.rpc("shop_s4_avviso", { p_ordine: "00000000-0000-4000-8000-000000009999", p_codice: "x", p_gravita: "rosso", p_rif: null })).error, aiuti.tabelle.shop_orders[0].avvisi.length]);
+  const ev = T53();
+  const evr = await ev.rpc("shop_s4_evento", { p_ordine: O, p_tipo: "prova", p_chi: "  ", p_prima: { a: 1 }, p_dopo: null });
+  await ev.rpc("shop_s4_evento", { p_ordine: "00000000-0000-4000-8000-000000009999", p_tipo: "prova", p_chi: "x", p_prima: null, p_dopo: null });
+  c("shop_s4_evento scrive in shop_order_eventi (chi vuoto = «sconosciuto»); su un ordine che non c'è non scrive", [null, 1, "prova", "sconosciuto", { a: 1 }], [evr.error, ev.tabelle.shop_order_eventi.length, ev.tabelle.shop_order_eventi[0]?.tipo, ev.tabelle.shop_order_eventi[0]?.chi, ev.tabelle.shop_order_eventi[0]?.prima]);
+  c("gli aiuti rifiutano un argomento che non hanno (PGRST202) e hanno i loro nomi", ["PGRST202", "PGRST202", ["p_ordine", "p_codice", "p_gravita", "p_rif"], ["p_ordine", "p_tipo", "p_chi", "p_prima", "p_dopo"]], [
+    (await T53().rpc("shop_s4_avviso", { p_inventato: 1 })).error?.code, (await T53().rpc("shop_s4_evento", { p_inventato: 1 })).error?.code, PARAMETRI_FUNZIONI.shop_s4_avviso, PARAMETRI_FUNZIONI.shop_s4_evento]);
+  c("le due funzioni di T53b hanno i loro argomenti (e `shop_ordine_riattiva` ha p_chi: lo storico lo scrive la funzione)", [["p_rimborso", "p_codice"], ["p_ordine", "p_motivo", "p_chi"]], [PARAMETRI_FUNZIONI.shop_rimborso_rifiuta, PARAMETRI_FUNZIONI.shop_ordine_riattiva]);
+  c("sono nel gruppo S4: con S4 assente rispondono PGRST202; i loro errori hanno nome e SQLSTATE", ["PGRST202", "PGRST202", "P0002", "22023", "55000"], [
+    (await fintoDb({ mancante: ["shop_stripe_sessioni"] }).rpc("shop_rimborso_rifiuta", {})).error?.code, (await fintoDb({ mancante: ["shop_stripe_sessioni"] }).rpc("shop_ordine_riattiva", {})).error?.code,
+    ERRORI_SQL_R2.rimborso_non_trovato.code, ERRORI_SQL_R2.motivo_obbligatorio.code, ERRORI_SQL_R2.rimborso_attivo.code]);
+  // il codice del rifiuto: solo `[A-Za-z0-9_.-]{1,64}`, il resto «sconosciuto»
+  const codici = [["card_declined", "card_declined"], ["a.b-c_D9", "a.b-c_D9"], ["x".repeat(64), "x".repeat(64)], ["x".repeat(65), "sconosciuto"], ["", "sconosciuto"], [null, "sconosciuto"], ["Mario Rossi", "sconosciuto"], ["a@b", "sconosciuto"], ["card\nx", "sconosciuto"], [42, "sconosciuto"]];
+  const lette = [];
+  for (const [dato] of codici) {
+    const w = fintoDb({ tabelle: partenzaDa({ ordini: [{ id: O, ref: "HG-S001", totale_cent: 2890, sessioni: ["cs_test_a"], campi: { stato_pagamento: "pagato", pagato_importo: 28.9 } }] }) });
+    await w.rpc("shop_rimborso_prenota", { p_ordine: O, p_importo_cent: 100, p_motivo: "reso", p_chiave: "k", p_chi: "t" });
+    await w.rpc("shop_rimborso_rifiuta", { p_rimborso: w.tabelle.shop_rimborsi[0].id, p_codice: dato });
+    lette.push(w.tabelle.shop_order_eventi.find((x) => x.tipo === "rimborso_rifiutato")?.dopo?.codice);
+  }
+  c("shop_rimborso_rifiuta: il codice nello storico è quello valido oppure «sconosciuto» (mai testo libero, mai un numero)", codici.map(([, atteso]) => atteso), lette);
+  const vuota = T53();
+  vuota.tabelle.shop_orders[0].status = "nuovo";
+  vuota.tabelle.shop_orders[0].stato_pagamento = "in_attesa";
+  vuota.tabelle.shop_orders[0].scade_il = "2026-11-20T12:31:00.000Z";
+  const c1 = await vuota.rpc("shop_ordine_chiudi", { p_ordine: O, p_sessione: "", p_stato: "scaduto" });
+  const c2 = await vuota.rpc("shop_ordine_chiudi", { p_ordine: O, p_sessione: null, p_stato: "scaduto" });
+  c("shop_ordine_chiudi senza sessione (vuota o nulla) con `scade_il` nel futuro → ignorato, l'ordine resta in_attesa", ["ignorato", "ignorato", "in_attesa"], [c1.data?.esito, c2.data?.esito, vuota.tabelle.shop_orders[0].stato_pagamento]);
+  vuota.tabelle.shop_orders[0].scade_il = "2026-11-20T11:59:59.000Z";
+  c("…con `scade_il` passato chiude; con una sessione dell'ordine chiude come prima (la corrente)", ["chiuso", "scaduto"], [(await vuota.rpc("shop_ordine_chiudi", { p_ordine: O, p_sessione: "", p_stato: "scaduto" })).data?.esito, vuota.tabelle.shop_orders[0].stato_pagamento]);
+  const conSessione = T53();
+  conSessione.tabelle.shop_orders[0].status = "nuovo";
+  conSessione.tabelle.shop_orders[0].stato_pagamento = "in_attesa";
+  conSessione.tabelle.shop_orders[0].scade_il = "2026-11-20T12:31:00.000Z";
+  c("con la sessione corrente `scade_il` non conta: chiude subito (l'evento `expired` di Stripe è la verità)", ["chiuso", "scaduto"], [(await conSessione.rpc("shop_ordine_chiudi", { p_ordine: O, p_sessione: "cs_test_a", p_stato: "scaduto" })).data?.esito, conSessione.tabelle.shop_orders[0].stato_pagamento]);
+
   // ── S4: la scadenza è del database, +60 minuti (contratto 1, rev. T44) ──
   const sc = fintoDb({ tabelle: partenzaDa({ ordini: [{ id: "00000000-0000-4000-8000-000000006002", ref: "HG-S002", totale_cent: 100, sessioni: [], campi: { stato_pagamento: "fallito" } }] }), adesso: () => "2026-11-20T12:00:00.000Z" });
   const cre = await sc.rpc("shop_ordine_crea", { p_ordine: { id: "00000000-0000-4000-8000-000000006001", order_ref: "HG-S001", nome: "A", cognome: "B", email: "a@example.com", telefono: "1", indirizzo: "v", citta: "c", cap: "1", totale_cent: 100, scade_il: "2099-01-01T00:00:00.000Z" }, p_riservati: {} });
