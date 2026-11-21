@@ -8,7 +8,7 @@
  *   · nessun UPDATE … SET fuori dai corpi; dentro i corpi solo sulle tabelle del R2 e su `shop_orders`;
  *   · le colonne di `shop_orders` sono quelle (e i default) che il finto di T40 conosce, tutte `ADD COLUMN IF NOT EXISTS`, nessuna NOT NULL;
  *   · le 5 tabelle chiuse: protezione per riga, `REVOKE ALL … FROM … service_role`, solo SELECT a service_role;
- *   · le 12 funzioni: nomi e parametri `p_…` del finto, SECURITY DEFINER SET search_path = public, REVOKE/GRANT, blocco di riga dove serve,
+ *   · le 14 funzioni (12 + T53b: `shop_rimborso_rifiuta`, `shop_ordine_riattiva`): nomi e parametri `p_…` del finto, SECURITY DEFINER SET search_path = public, REVOKE/GRANT, blocco di riga dove serve,
  *     errori col nome e il SQLSTATE del finto; «pagato» nasce in UNA sola funzione; i tre semi; `ON CONFLICT … DO UPDATE` nel limite. */
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -33,11 +33,13 @@ const PARAMETRI = {
   shop_ordine_giacenza_rimetti: ["p_ordine", "p_chi"],
   shop_limite_consuma: ["p_chiave", "p_finestra_s", "p_max"],
   shop_cassa_righe: ["p_skus"],
+  shop_rimborso_rifiuta: ["p_rimborso", "p_codice"],
+  shop_ordine_riattiva: ["p_ordine", "p_motivo", "p_chi"],
 };
 /** Le tabelle su cui un corpo può fare UPDATE (PIANO-R2 T41). */
 const UPDATE_AMMESSI = ["shop_orders", "shop_rimborsi", "shop_stripe_sessioni", "shop_stripe_eventi", "shop_limiti"];
 /** Le funzioni che toccano una riga d'ordine: devono prenderla con `FOR UPDATE` (D44: blocco di riga). */
-const CON_BLOCCO = ["shop_ordine_sessione_registra", "shop_ordine_pagato", "shop_ordine_chiudi", "shop_ordine_riapri", "shop_rimborso_prenota", "shop_rimborso_riconcilia", "shop_ordine_giacenza_rimetti"];
+const CON_BLOCCO = ["shop_ordine_sessione_registra", "shop_ordine_pagato", "shop_ordine_chiudi", "shop_ordine_riapri", "shop_rimborso_prenota", "shop_rimborso_riconcilia", "shop_ordine_giacenza_rimetti", "shop_ordine_riattiva"];
 
 export async function prove(mod, { c, gruppo, radice }) {
   gruppo("SHOP R2 · T41 · S4 PAGAMENTI E ORDINI: TESTO SQL, FUORI E DENTRO I CORPI (21/11/2026)");
@@ -160,7 +162,7 @@ export async function prove(mod, { c, gruppo, radice }) {
 
   /* ── le 12 funzioni ── */
   const dichiarate = [...sql.matchAll(/CREATE OR REPLACE FUNCTION public\.([a-z_0-9]+)\(/g)].map((m) => m[1]);
-  c("le 12 funzioni di S4 del finto ci sono tutte, ognuna una volta (più, al massimo, gli aiuti interni `shop_s4_…`)", [[], [], []], [
+  c("le 14 funzioni di S4 del finto ci sono tutte, ognuna una volta (più, al massimo, gli aiuti interni `shop_s4_…`)", [[], [], []], [
     FUNZIONI_R2.S4.filter((f) => !dichiarate.includes(f)), dichiarate.filter((f, i) => dichiarate.indexOf(f) !== i), dichiarate.filter((f) => !FUNZIONI_R2.S4.includes(f) && !f.startsWith("shop_s4_")),
   ]);
   c("l'elenco dei parametri di questa prova è lo stesso del finto (FUNZIONI_R2.S4)", JSON.stringify([...FUNZIONI_R2.S4].sort()), JSON.stringify(nomi.sort()));
@@ -246,12 +248,40 @@ export async function prove(mod, { c, gruppo, radice }) {
   ]);
   const chiudi = corpoDi("shop_ordine_chiudi")?.[2] ?? "";
   c("shop_ordine_chiudi: chiude SOLO da in_attesa e ignora la sessione che non è dell'ordine (nota c)", [true, true], [/stato_pagamento IS DISTINCT FROM 'in_attesa'/.test(chiudi), /'ignorato'/.test(chiudi)]);
+  c("shop_ordine_chiudi (T53b, nota 1 di T51): senza sessione chiude SOLO se `scade_il < now()` (un secondo clic non richiude l'ordine che il primo ha appena riaperto)", [true, true], [
+    /NOT v_con_sessione AND \(v_ordine\.scade_il IS NULL OR v_ordine\.scade_il >= now\(\)\)/.test(piatto(chiudi)), /FOR UPDATE/.test(chiudi),
+  ]);
+  // ── T53b: le due funzioni nuove ──
+  const rifiuta = corpoDi("shop_rimborso_rifiuta")?.[2] ?? "";
+  const iOrdine = rifiuta.search(/FROM public\.shop_orders[^;]*FOR UPDATE/);
+  const iRiga = rifiuta.search(/FROM public\.shop_rimborsi[^;]*WHERE id = p_rimborso FOR UPDATE/);
+  c("shop_rimborso_rifiuta: blocca PRIMA l'ordine e poi la riga del rimborso (stesso ordine di prenota/riconcilia); legge l'ordine dalla riga senza bloccarla", [true, true, true], [
+    iOrdine >= 0 && iRiga > iOrdine, /SELECT ordine_id INTO \w+ FROM public\.shop_rimborsi WHERE id = p_rimborso;/.test(rifiuta), /rimborso_non_trovato/.test(rifiuta),
+  ]);
+  c("shop_rimborso_rifiuta: agisce solo su `richiesto` senza `stripe_rimborso_id`, scrive `fallito` e NON l'id; evento `rimborso_rifiutato` con chi `stripe`; altrimenti `ignorato`", [true, true, true, true], [
+    /stato = 'richiesto' AND \w+\.stripe_rimborso_id IS NULL/.test(rifiuta), /SET stato = 'fallito', aggiornato_il = now\(\)/.test(rifiuta) && !/stripe_rimborso_id\s*=/.test(rifiuta),
+    /shop_s4_evento\([^;]*'rimborso_rifiutato', 'stripe', NULL/.test(piatto(rifiuta)), /'ignorato'/.test(rifiuta) && /'rifiutato'/.test(rifiuta),
+  ]);
+  c("shop_rimborso_rifiuta: il codice è ripulito (solo `[A-Za-z0-9_.-]{1,64}`, altrimenti 'sconosciuto'): mai testo libero nello storico", [true, true], [
+    /~ '\^\[A-Za-z0-9_\.-\]\{1,64\}\$'/.test(rifiuta), /'sconosciuto'/.test(rifiuta),
+  ]);
+  const riattiva = corpoDi("shop_ordine_riattiva")?.[2] ?? "";
+  c("shop_ordine_riattiva: blocca l'ordine; ordine/motivo/stato/rimborsi nell'ordine del contratto, con i nomi di errore e l'ERRCODE del finto", [true, true, true, true, true], [
+    /FROM public\.shop_orders WHERE id = p_ordine FOR UPDATE/.test(riattiva), /ordine_non_trovato/.test(riattiva) && /motivo_obbligatorio/.test(riattiva) && /rimborso_attivo/.test(riattiva),
+    riattiva.indexOf("ordine_non_trovato") < riattiva.indexOf("motivo_obbligatorio") && riattiva.indexOf("motivo_obbligatorio") < riattiva.indexOf("'cambiato'") && riattiva.indexOf("'cambiato'") < riattiva.indexOf("rimborso_attivo"),
+    /status IS DISTINCT FROM 'annullato'/.test(riattiva), /stato IN \('richiesto', 'riuscito'\)/.test(riattiva) && /rimborsato_cent/.test(riattiva) && /'rimborsato', 'rimborsato_in_parte'/.test(riattiva),
+  ]);
+  c("shop_ordine_riattiva: porta a `nuovo`, azzera motivo e data di annullo, `giacenza_da_verificare` solo se i pezzi erano rimessi, non tocca pagamento, sessioni, giacenza né email; evento `stato_corretto` nella stessa transazione", [true, true, true, true], [
+    /SET status = 'nuovo', annullo_motivo = NULL, annullato_il = NULL/.test(piatto(riattiva)), /giacenza_rimessa_il IS NOT NULL/.test(riattiva),
+    !/stato_pagamento\s*=|stripe_|giacenza_rimessa_il\s*=|email_inviate|shop_giacenza_muovi/.test(riattiva.replace(/IN \('rimborsato', 'rimborsato_in_parte'\)/g, "")),
+    /shop_s4_evento\([^;]*'stato_corretto', p_chi/.test(piatto(riattiva)) && /left\(btrim\(p_motivo\), 500\)/.test(riattiva),
+  ]);
 
   /* ── gli errori: nome e SQLSTATE del finto ── */
   const noti = { ...ERRORI_SQL, ...ERRORI_SQL_R2 };
   const raise = corpi.flatMap((b) => [...b.matchAll(/RAISE EXCEPTION '([a-z_]+)' USING ERRCODE = '([a-z_]+)'/g)].map((m) => [m[1], m[2]]));
   c("ogni RAISE EXCEPTION dei corpi usa un nome del finto e lo stesso ERRCODE (tranne il controllo iniziale, che ha una frase)", [], raise.filter(([n, e]) => !noti[n] || noti[n].errcode !== e));
   const usati = new Set(raise.map(([n]) => n));
-  c("gli errori del contratto per S4 ci sono tutti (non ne manca uno)", [], ["ordine_non_trovato", "ordine_non_valido", "parametro_non_valido", "ordine_non_riapribile", "ordine_non_pagato", "stato_non_valido", "rimborso_importo_non_valido", "rimborso_oltre_pagato", "rimborso_chiave_altro_ordine", "sessione_di_un_altro_ordine", "ordine_id_gia_usato", "limite_non_valido"].filter((n) => !usati.has(n)));
+  c("gli errori del contratto per S4 ci sono tutti (non ne manca uno)", [], ["ordine_non_trovato", "ordine_non_valido", "parametro_non_valido", "ordine_non_riapribile", "ordine_non_pagato", "stato_non_valido", "rimborso_importo_non_valido", "rimborso_oltre_pagato", "rimborso_chiave_altro_ordine", "sessione_di_un_altro_ordine", "ordine_id_gia_usato", "limite_non_valido", "rimborso_non_trovato", "motivo_obbligatorio", "rimborso_attivo"].filter((n) => !usati.has(n)));
   c("la frase del controllo iniziale NON contiene parole che i controlli «mai DELETE/DROP» possano scambiare per comandi (la prova sopra ha già letto tutto il file)", true, !/\b(DELETE|DROP|TRUNCATE)\b/i.test(tuttoPiatto));
 }
