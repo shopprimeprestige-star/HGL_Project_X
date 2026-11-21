@@ -500,7 +500,15 @@ export function SettingsListino({
     () =>
       Object.keys(bozza).length === 0
         ? []
-        : RIGHE.filter((r) => numeroDaTesto(bozza[r.id]?.prezzo ?? "") == null),
+        : RIGHE.filter(
+            (r) =>
+              numeroDaTesto(bozza[r.id]?.prezzo ?? "") == null ||
+              //  Lo sconto può restare vuoto, ma se c'è scritto qualcosa deve
+              //  essere una cifra: sennò si salverebbe «nessuno sconto» in silenzio.
+              (r.scontabile &&
+                (bozza[r.id]?.sconto ?? "").trim() !== "" &&
+                numeroDaTesto(bozza[r.id]?.sconto ?? "") == null),
+          ),
     [bozza],
   );
 
@@ -1683,7 +1691,7 @@ export function SettingsListino({
       {nonValide.length > 0 && (
         <Avviso tono="grave">
           {nonValide.length === 1 ? "Una voce non ha" : `${nonValide.length} voci non hanno`} un
-          prezzo valido (
+          importo valido, prezzo o sconto (
           {nonValide
             .slice(0, 3)
             .map((r) => r.label)

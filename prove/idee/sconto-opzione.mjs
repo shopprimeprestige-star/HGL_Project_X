@@ -102,4 +102,15 @@ export function proveScontoOpzione(mod, { c, gruppo, radice }) {
     /scontiOpzione/.test(leggi("src/routes/api.presenter.pricing.ts")));
   c("il server scompone lo sconto salvato", true,
     /kind:\s*"opzione"/.test(leggi("src/routes/api.public.quote.ts")));
+  //  ── «AZZERA SCONTI»: lo sconto-opzione non deve sopravvivere nella copia ──
+  //   Il browser dichiara `reset` e il server ricopia le voci senza `scontoOpz`;
+  //   altrimenti, azzerando e mettendo un codice >= sconto, la riapertura
+  //   spiegherebbe il totale con una riga «Sconto <opzione>» che non c'è più.
+  const revise = leggi("src/routes/api.presenter.quote-revise.ts");
+  c("azzera: il browser lo dichiara al server", true,
+    /\.\.\.\(azzera \? \{ reset: true \} : \{\}\)/.test(pagina));
+  c("azzera: il server ricopia le voci senza scontoOpz", true,
+    /b\.reset === true[\s\S]{0,200}scontoOpz/.test(revise));
+  c("listino: uno sconto illeggibile blocca il salvataggio", true,
+    /r\.scontabile[\s\S]{0,200}\.sconto/.test(leggi("src/shop/SettingsListino.tsx").split("const nonValide")[1].slice(0, 700)));
 }

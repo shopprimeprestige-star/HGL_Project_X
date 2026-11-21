@@ -7297,6 +7297,10 @@ function ConsultantPanel({
             //  opzioni non gliele rimanda il browser, quindi la modifica va
             //  DICHIARATA o si perderebbe nella copia.
             ...(upsellCambia ? { upsellSconti: false } : {}),
+            //  «Azzera» = prezzo pieno: anche lo sconto delle opzioni, che il
+            //  server tiene dentro le voci che ricopia, deve uscire dalla copia
+            //  — o la riga nuova lo spiegherebbe come uno sconto che non c'è più.
+            ...(azzera ? { reset: true } : {}),
             //  Stessa ragione: le voci le ricopia il server dalla riga vecchia,
             //  quindi se vanno riprezzate deve saperlo — e le riprezza lui, con
             //  la stessa funzione che ha appena disegnato l'anteprima qui.
