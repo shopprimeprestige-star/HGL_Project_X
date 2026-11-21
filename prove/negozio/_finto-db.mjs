@@ -42,6 +42,11 @@ const SENZA_ID = new Set([
 ]);
 /** Le tabelle dei soldi di S4: nessuna scrittura da fuori (REVOKE ALL FROM service_role); si scrive solo con le funzioni. Si legge. */
 export const CHIUSE = new Set(["shop_rimborsi", "shop_stripe_eventi", "shop_stripe_sessioni", "shop_ordini_riservati", "shop_limiti"]);
+/** Tabelle di S5 che il server LEGGE ma non scrive: `REVOKE ALL … FROM service_role` e `GRANT SELECT` (rev. T42, T41b). Si scrive solo con `rpc` (`shop_tariffa_imposta`);
+ *  un `insert`/`update` dal client dà 42501. Separate da `CHIUSE` (che sono le cinque tabelle di S4). `from(tab, { proprietario: true })` imita il proprietario del database (SQL Editor). */
+export const SOLO_RPC = new Set(["shop_spedizioni_tariffe"]);
+/** Per quanto tempo un ordine aspetta il pagamento (contratto 1, rev. T44): adesso + 60 minuti, deciso dal DATABASE (`shop_s4_scadenza`) alla creazione e alla riapertura. */
+export const SCADENZA_MIN = 60;
 /** Le colonne che S4 aggiunge a `shop_orders` e il valore che hanno su una riga VECCHIA dopo la migrazione (default costante o vuoto). */
 export const COLONNE_S4 = {
   stato_pagamento: null, stripe_sessione_id: null, stripe_pagamento_id: null, metodo_dettaglio: null, prova: false, canale: null,
@@ -57,10 +62,11 @@ export const FUNZIONI_R2 = {
   S5: ["shop_tariffa_imposta"],
   S6: ["shop_email_modello_salva", "shop_email_modello_approva", "shop_email_modello_acceso", "shop_email_prenota", "shop_email_esito"],
 };
-/** Le colonne che `shop_ordine_crea` copia dal chiamante (lista bianca: il SQL le nomina una per una; ogni altra chiave di `p_ordine` si ignora). */
+/** Le colonne che `shop_ordine_crea` copia dal chiamante (lista bianca: il SQL le nomina una per una; ogni altra chiave di `p_ordine` si ignora).
+ *  `scade_il` NON c'è: la scadenza la decide il database (+60 minuti), qualunque valore mandi il chiamante. */
 export const COLONNE_CREA = [
   "id", "order_ref", "nome", "cognome", "email", "telefono", "indirizzo", "citta", "cap", "provincia", "nazione", "note", "items",
-  "subtotal", "shipping", "total", "totale_cent", "scade_il", "chiave_pubblica_hash", "firma_tentativo", "prova", "fattura_richiesta",
+  "subtotal", "shipping", "total", "totale_cent", "chiave_pubblica_hash", "firma_tentativo", "prova", "fattura_richiesta",
 ];
 export const STATI_PAGAMENTO = ["in_attesa", "pagato", "fallito", "scaduto", "rimborsato_in_parte", "rimborsato", "da_incassare"];
 export const CHIAVI_EMAIL = ["conferma_ordine", "spedito", "pagamento_non_riuscito", "rimborso", "annullato"];
@@ -118,6 +124,7 @@ const chiDi = (chi) => (typeof chi === "string" && chi.trim() ? chi.trim() : "sc
 /** Uguaglianza fra valori JSON come jsonb: l'ordine delle chiavi non conta. */
 const canonico = (v) => (Array.isArray(v) ? v.map(canonico) : v && typeof v === "object" ? Object.fromEntries(Object.keys(v).sort().map((k) => [k, canonico(v[k])])) : v);
 const nonNeg = (v) => v == null || v >= 0;
+const daUno = (v) => v == null || v >= 1; // i tempi di consegna si dicono in giorni DA UNO in su (CHECK di S5, rev. T42): «0-3 giorni» non esiste
 const pieno = (v) => typeof v === "string" && v.trim() !== ""; // btrim(x) <> ''
 const tipoJson = (v, tipo) => v == null || (tipo === "array" ? Array.isArray(v) : v !== null && typeof v === "object" && !Array.isArray(v)); // jsonb_typeof
 const CHECK = {
@@ -131,7 +138,7 @@ const CHECK = {
   shop_giacenza_movimenti: (r) => r.motivo == null || MOTIVI.includes(r.motivo),
   shop_orders: (r) => r.stato_pagamento == null || r.stato_pagamento === "" || STATI_PAGAMENTO.includes(r.stato_pagamento),
   shop_rimborsi: (r) => Number.isInteger(r.importo_cent) && r.importo_cent > 0 && pieno(r.motivo) && ["richiesto", "riuscito", "fallito"].includes(r.stato) && ["crm", "stripe"].includes(r.origine),
-  shop_spedizioni_tariffe: (r) => r.paese === "IT" && pieno(r.nome) && Number.isInteger(r.costo_cent) && r.costo_cent >= 0 && nonNeg(r.gratis_da_cent) && nonNeg(r.giorni_min) && nonNeg(r.giorni_max),
+  shop_spedizioni_tariffe: (r) => r.paese === "IT" && pieno(r.nome) && Number.isInteger(r.costo_cent) && r.costo_cent >= 0 && nonNeg(r.gratis_da_cent) && daUno(r.giorni_min) && daUno(r.giorni_max),
   shop_email_modelli: (r) => CHIAVI_EMAIL.includes(r.chiave),
   shop_media: (r) =>
     SLOT.includes(r.slot) &&
@@ -301,6 +308,8 @@ export function fintoDb({ tabelle = {}, mancante = false, codiceMancante = "42P0
   const ins = (t, r) => { const x = inserisci(t, [r]); if (x.err) throw new ErroreSql(x.err); return x.messe[0]; };
   const mod = (t, riga, patch) => { const x = aggiorna(t, [riga], patch); if (x.err) throw new ErroreSql(x.err); return riga; };
   const ms = (iso) => Date.parse(iso);
+  /** `shop_s4_scadenza()`: adesso + 60 minuti. */
+  const scadenza = () => new Date(ms(adesso()) + SCADENZA_MIN * 60_000).toISOString();
   const ordineDi = (id) => righe("shop_orders").find((o) => o.id === id);
   const tocca = (o, patch) => mod("shop_orders", o, { ...patch, aggiornato_il: adesso() });
   const storico = (entita, id, campo, prima, dopo, chi) => ins("shop_storico", { entita, entita_id: String(id), campo, prima, dopo, chi: chiDi(chi) });
@@ -320,10 +329,11 @@ export function fintoDb({ tabelle = {}, mancante = false, codiceMancante = "42P0
    *  Risposte come PostgREST: `jsonb` → oggetto, `boolean` → true/false, `text` → stringa. Gli errori sono `ERRORI_SQL`. */
   const R2 = {
     /* ── S4 ─────────────────────────────────────────────────────────────────────────────────────────────────────────
-     * shop_ordine_crea(p_ordine jsonb, p_riservati jsonb) → jsonb {esito: 'creato'|'esistente', id}
+     * shop_ordine_crea(p_ordine jsonb, p_riservati jsonb) → jsonb {esito: 'creato'|'esistente', id, scade_il}
      *    ordine e riservati in UNA transazione; LISTA BIANCA (nota d del revisore su T40, `COLONNE_CREA`): del `p_ordine` si copiano SOLO le colonne
-     *    ammesse (contatti, righe, importi, scadenza, impronta della chiave, firma, prova, fattura richiesta), ogni altra chiave si ignora;
+     *    ammesse (contatti, righe, importi, impronta della chiave, firma, prova, fattura richiesta), ogni altra chiave si ignora;
      *    forza status='nuovo', stato_pagamento='in_attesa', canale='sito', rimborsato_cent=0, niente pagato_il, e il resto ai default.
+     *    `scade_il` = adesso + 60 minuti (SCADENZA_MIN, come `shop_s4_scadenza`): il valore del chiamante si ignora. Risponde anche con `scade_il`.
      *    Stesso id due volte → una riga ('esistente'), ma SOLO se la riga che c'è è la stessa (canale 'sito', stesso order_ref, email e totale_cent): altrimenti errore
      *    `ordine_id_gia_usato` (23505). order_ref unico fra le righe canale='sito' (23505). */
     shop_ordine_crea: ["S4", (a) => {
@@ -334,13 +344,13 @@ export function fintoDb({ tabelle = {}, mancante = false, codiceMancante = "42P0
         // «esistente» solo se è DAVVERO lo stesso ordine del sito; un ordine vecchio o altrui con quell'id non si spaccia per la creazione appena fatta
         const stesso = gia.canale === "sito" && gia.order_ref === o.order_ref && gia.email === o.email && gia.totale_cent === o.totale_cent;
         if (!stesso) lancia("ordine_id_gia_usato");
-        return { data: { esito: "esistente", id: o.id } };
+        return { data: { esito: "esistente", id: o.id, scade_il: gia.scade_il } };
       }
-      const riga = ins("shop_orders", { created_at: adesso(), ...Object.fromEntries(Object.entries(o).filter(([k]) => COLONNE_CREA.includes(k))), status: "nuovo", stato_pagamento: "in_attesa", canale: "sito", pagato_il: null, pagato_importo: null, rimborsato_cent: 0 });
+      const riga = ins("shop_orders", { created_at: adesso(), ...Object.fromEntries(Object.entries(o).filter(([k]) => COLONNE_CREA.includes(k))), status: "nuovo", stato_pagamento: "in_attesa", canale: "sito", pagato_il: null, pagato_importo: null, rimborsato_cent: 0, scade_il: scadenza() });
       const { fattura = null, attribuzione = null, consensi = null, ip = null, user_agent = null } = a.p_riservati ?? {};
       ins("shop_ordini_riservati", { ordine_id: riga.id, fattura, attribuzione, consensi, ip, user_agent });
       evento(riga, "creato", "cassa");
-      return { data: { esito: "creato", id: riga.id } };
+      return { data: { esito: "creato", id: riga.id, scade_il: riga.scade_il } };
     }],
     /* shop_ordine_sessione_registra(p_ordine uuid, p_sessione text) → jsonb {esito: 'registrata'|'gia_registrata'}
      *    registra la sessione fra quelle dell'ordine e, se l'ordine è `in_attesa`, la fa diventare la corrente (`stripe_sessione_id`). */
@@ -427,20 +437,21 @@ export function fintoDb({ tabelle = {}, mancante = false, codiceMancante = "42P0
       evento(o, a.p_stato, "stripe", { stato_pagamento: "in_attesa" }, { stato_pagamento: a.p_stato });
       return { data: { esito: "chiuso" } };
     }],
-    /* shop_ordine_riapri(p_ordine uuid, p_nuova_scade timestamptz) → jsonb {esito: 'riaperto', n} | {esito: 'riprova_in_corso'}
-     *    D66: solo da `fallito`/`scaduto` → `in_attesa`, riprova_n + 1, nuovo scade_il. Già `in_attesa` (il secondo clic) → 'riprova_in_corso', niente cambia.
+    /* shop_ordine_riapri(p_ordine uuid, p_nuova_scade timestamptz DEFAULT NULL) → jsonb {esito: 'riaperto', n, scade_il} | {esito: 'riprova_in_corso'}
+     *    D66: solo da `fallito`/`scaduto` → `in_attesa`, riprova_n + 1, nuovo scade_il = adesso + 60 minuti (come alla creazione). `p_nuova_scade` NON conta (resta nella
+     *    firma per il contratto di D66; si può anche non darlo): la scadenza è del database. Già `in_attesa` (il secondo clic) → 'riprova_in_corso', niente cambia.
      *    Da `pagato`, `rimborsato*`, `da_incassare` o vuoto → errore `ordine_non_riapribile`.
      *    (nota b) un ordine `annullato` (status) non si riapre mai, qualunque sia lo stato del pagamento → `ordine_non_riapribile`. */
     shop_ordine_riapri: ["S4", (a) => {
       const o = ordineDi(a.p_ordine) ?? lancia("ordine_non_trovato");
-      if (!Number.isFinite(ms(a.p_nuova_scade))) lancia("parametro_non_valido");
       if (o.status === "annullato") lancia("ordine_non_riapribile");
       if (o.stato_pagamento === "in_attesa") return { data: { esito: "riprova_in_corso" } };
       if (!["fallito", "scaduto"].includes(o.stato_pagamento)) lancia("ordine_non_riapribile");
       const n = (o.riprova_n ?? 0) + 1;
-      tocca(o, { stato_pagamento: "in_attesa", riprova_n: n, scade_il: a.p_nuova_scade });
+      const scade_il = scadenza();
+      tocca(o, { stato_pagamento: "in_attesa", riprova_n: n, scade_il });
       evento(o, "riaperto", "cassa", { stato_pagamento: o.stato_pagamento }, { riprova_n: n });
-      return { data: { esito: "riaperto", n } };
+      return { data: { esito: "riaperto", n, scade_il } };
     }],
     /* shop_stripe_evento_registra(p_id text, p_tipo text, p_ordine uuid) → text 'nuovo'|'gia_elaborato'|'da_rielaborare'
      * shop_stripe_evento_chiudi(p_id text, p_esito text) → boolean (true se l'evento c'era) */
@@ -540,12 +551,20 @@ export function fintoDb({ tabelle = {}, mancante = false, codiceMancante = "42P0
     /* ── S5 ─────────────────────────────────────────────────────────────────────────────────────────────────────────
      * shop_tariffa_imposta(p_id uuid, p_atteso timestamptz, p_campi jsonb, p_conferma boolean, p_chi text) → boolean
      *    confronto-e-scambio su `aggiornato_il`: valore visto vecchio → false, niente scritto. Campi ammessi: nome, corriere, costo_cent, gratis_da_cent,
-     *    giorni_min, giorni_max, attiva (altri → errore `tariffa_campo_non_valido`). `p_conferma` → confermata_il = adesso e provvisoria = false.
+     *    giorni_min, giorni_max, attiva (altri → errore `tariffa_campo_non_valido`). SEVERITÀ come in S5 (rev. T42): `p_campi` deve essere un OGGETTO (null = {});
+     *    nome e corriere testo o null; attiva booleano (non null); costo_cent, gratis_da_cent, giorni_min, giorni_max intero a 32 bit o null (una stringa «5», 1.5, true → errore).
+     *    Un valore del tipo giusto ma fuori regola (costo < 0, giorni < 1, nome vuoto, seconda tariffa attiva) lo rifiuta la tabella (CHECK, 23514/23505), non la funzione. `p_conferma` → confermata_il = adesso e provvisoria = false.
      *    Una riga di `shop_storico` (entita 'tariffa') per campo cambiato. Nessuna modifica e nessuna conferma → false. */
     shop_tariffa_imposta: ["S5", (a) => {
       const t = righe("shop_spedizioni_tariffe").find((x) => x.id === a.p_id) ?? lancia("tariffa_inesistente");
       const campi = a.p_campi ?? {};
-      if (Object.keys(campi).some((k) => !["nome", "corriere", "costo_cent", "gratis_da_cent", "giorni_min", "giorni_max", "attiva"].includes(k))) lancia("tariffa_campo_non_valido");
+      if (typeof campi !== "object" || Array.isArray(campi)) lancia("tariffa_campo_non_valido");
+      const INTERI = ["costo_cent", "gratis_da_cent", "giorni_min", "giorni_max"];
+      const tipoGiusto = (k, v) => k === "nome" || k === "corriere" ? v === null || typeof v === "string"
+        : k === "attiva" ? typeof v === "boolean"
+        : INTERI.includes(k) ? v === null || (typeof v === "number" && Number.isInteger(v) && v >= -2147483648 && v <= 2147483647)
+        : false;
+      if (Object.entries(campi).some(([k, v]) => !tipoGiusto(k, v))) lancia("tariffa_campo_non_valido");
       if (ms(a.p_atteso) !== ms(t.aggiornato_il)) return { data: false };
       const cambi = Object.entries(campi).filter(([k, v]) => !uguali(t[k] ?? null, v ?? null));
       if (!cambi.length && a.p_conferma !== true) return { data: false };
@@ -663,8 +682,8 @@ export function fintoDb({ tabelle = {}, mancante = false, codiceMancante = "42P0
       });
     },
 
-    from(tab) {
-      const q = { tab, op: "select", cols: "*", opzioni: undefined, filtri: [], ordine: [], range: null, limite: null, patch: null, righe: null, conflitto: null, ignora: false, indietro: null, singolo: null, scrisse: false };
+    from(tab, { proprietario = false } = {}) {
+      const q = { tab, proprietario, op: "select", cols: "*", opzioni: undefined, filtri: [], ordine: [], range: null, limite: null, patch: null, righe: null, conflitto: null, ignora: false, indietro: null, singolo: null, scrisse: false };
       const b = {
         select(cols = "*", opzioni) {
           if (q.op === "select") { q.cols = cols; q.opzioni = opzioni; } else q.indietro = cols;
@@ -703,6 +722,7 @@ export function fintoDb({ tabelle = {}, mancante = false, codiceMancante = "42P0
   function corpoQuery(q) {
     const t = q.tab;
     if (manca(t)) return { error: ERR(codiceMancante, `Could not find the table 'public.${t}'`) };
+    if (SOLO_RPC.has(t) && !q.proprietario && q.op !== "select") return { error: ERR("42501", `permission denied for table ${t}`) }; // REVOKE ALL FROM service_role + GRANT SELECT: si scrive solo con `rpc`
     if (CHIUSE.has(t) && q.op !== "select") return { error: ERR("42501", `permission denied for table ${t}`) }; // REVOKE ALL FROM service_role: si scrive solo con le funzioni
     const proiezione = (r) => {
       const cols = q.op === "select" ? q.cols : q.indietro;

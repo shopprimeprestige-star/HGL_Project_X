@@ -213,8 +213,15 @@ export async function prove(mod, { c, gruppo, radice }) {
   const crea = corpoDi("shop_ordine_crea")?.[2] ?? "";
   const colonneCrea = (/INSERT INTO public\.shop_orders \(([^)]*)\)/.exec(crea)?.[1] ?? "").split(",").map((x) => x.trim()).filter(Boolean);
   c("shop_ordine_crea (nota d): le colonne che copia dal chiamante sono ESATTAMENTE la lista bianca del finto (COLONNE_CREA); le altre le decide la funzione", [[], [], true], [
-    COLONNE_CREA.filter((k) => !colonneCrea.includes(k)), colonneCrea.filter((k) => !COLONNE_CREA.includes(k) && !["status", "stato_pagamento", "canale", "rimborsato_cent"].includes(k)),
+    COLONNE_CREA.filter((k) => !colonneCrea.includes(k)), colonneCrea.filter((k) => !COLONNE_CREA.includes(k) && !["status", "stato_pagamento", "canale", "rimborsato_cent", "scade_il"].includes(k)),
     ["status", "stato_pagamento", "canale", "rimborsato_cent"].every((k) => colonneCrea.includes(k)) && /'nuovo', 'in_attesa', 'sito', 0/.test(crea),
+  ]);
+  const scadenza = corpoDi("shop_s4_scadenza")?.[2] ?? "";
+  c("la scadenza dell'ordine (contratto 1, rev. T44): UNA costante nominata, `shop_s4_scadenza()` = now() + 60 minuti; nessun altro punto del file scrive una durata di scadenza", [true, 1, 0], [
+    /SELECT now\(\) \+ interval '60 minutes'/.test(scadenza), (sql.match(/interval '60 minutes'/g) ?? []).length, (sql.match(/interval '(31|30) minutes'/g) ?? []).length,
+  ]);
+  c("shop_ordine_crea: `scade_il` lo decide il database (shop_s4_scadenza), NON si copia dal chiamante (nessun `p_ordine ->> 'scade_il'`); e la risposta lo dice", [true, false, true], [
+    /v_scade timestamptz := public\.shop_s4_scadenza\(\)/.test(crea) && /'totale_cent'\)::integer, v_scade, /.test(piatto(crea)), /p_ordine\s*->>\s*'scade_il'/.test(crea), /'creato', 'id', v_id, 'scade_il', v_scade/.test(crea),
   ]);
   c("shop_ordine_crea scrive l'ordine e i riservati nella stessa funzione e rilegge l'id prima (due volte lo stesso id → 'esistente')", [true, true, true], [
     /INSERT INTO public\.shop_ordini_riservati/.test(crea), /'esistente'/.test(crea), /ON CONFLICT \(id\) DO NOTHING/.test(crea),
@@ -233,6 +240,9 @@ export async function prove(mod, { c, gruppo, radice }) {
   ].filter((k) => !cassa.includes(`'${k}'`)));
   const riapri = corpoDi("shop_ordine_riapri")?.[2] ?? "";
   c("shop_ordine_riapri: incrementa riprova_n sotto blocco, un annullato non si riapre (nota b)", [true, true], [/riprova_n = COALESCE\(riprova_n, 0\) \+ 1/.test(riapri), /status = 'annullato'/.test(riapri)]);
+  c("shop_ordine_riapri: la nuova scadenza è `shop_s4_scadenza()` e il parametro `p_nuova_scade` non si usa nel corpo (resta nella firma, con DEFAULT NULL); la risposta dice la scadenza", [true, false, true, true], [
+    /scade_il = public\.shop_s4_scadenza\(\)/.test(riapri), /p_nuova_scade/.test(riapri), /p_nuova_scade\s+timestamptz DEFAULT NULL/.test(corpoDi("shop_ordine_riapri")?.[1] ?? ""), /'riaperto', 'n', v_n, 'scade_il', v_scade/.test(riapri),
+  ]);
   const chiudi = corpoDi("shop_ordine_chiudi")?.[2] ?? "";
   c("shop_ordine_chiudi: chiude SOLO da in_attesa e ignora la sessione che non è dell'ordine (nota c)", [true, true], [/stato_pagamento IS DISTINCT FROM 'in_attesa'/.test(chiudi), /'ignorato'/.test(chiudi)]);
 

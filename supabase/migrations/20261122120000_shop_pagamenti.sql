@@ -31,14 +31,14 @@
 --      NESSUNA policy, tolto OGNI permesso ad anon e authenticated e, per questi
 --      «registri dei soldi», anche a service_role (REVOKE ALL): il server le LEGGE
 --      (solo SELECT) ma le SCRIVE soltanto con le funzioni qui sotto.
---   4. Crea 12 funzioni (SECURITY DEFINER, solo service_role) e due aiuti interni
---      (shop_s4_avviso, shop_s4_evento):
+--   4. Crea 12 funzioni (SECURITY DEFINER, solo service_role) e tre aiuti interni
+--      (shop_s4_avviso, shop_s4_evento, shop_s4_scadenza):
 --        shop_ordine_crea              ordine + riservati in una transazione, con una LISTA BIANCA di colonne
 --        shop_ordine_sessione_registra una sessione Stripe in più per l'ordine (la corrente è l'ultima)
 --        shop_ordine_pagato            L'UNICO punto in cui un ordine diventa pagato (D44): blocco di riga,
 --                                      importo e valuta, giacenza riga per riga, doppio pagamento, sessione sconosciuta
 --        shop_ordine_chiudi            in_attesa → fallito / scaduto (solo la sessione corrente)
---        shop_ordine_riapri            «Riprova il pagamento»: fallito/scaduto → in_attesa, riprova_n + 1 (D66)
+--        shop_ordine_riapri            «Riprova il pagamento»: fallito/scaduto → in_attesa, riprova_n + 1, nuova scadenza (D66)
 --        shop_stripe_evento_registra   idempotenza degli eventi del webhook (nuovo / già elaborato / da rielaborare)
 --        shop_stripe_evento_chiudi
 --        shop_rimborso_prenota         massimo = pagato − rimborsi richiesti o riusciti, sotto blocco; chiave unica
@@ -46,6 +46,10 @@
 --        shop_ordine_giacenza_rimetti  rimette in magazzino SOLO ciò che i movimenti dell'ordine dicono, una volta sola
 --        shop_limite_consuma           limite per impronta, INSERT … ON CONFLICT DO UPDATE (D49)
 --        shop_cassa_righe              l'unica lettura della giacenza fuori dal CRM (sku, slug, prezzo, attiva, giacenza)
+--      LA SCADENZA DELL'ORDINE la decide il database, in un punto solo (shop_s4_scadenza): adesso + 60 MINUTI, sia alla creazione
+--      (shop_ordine_crea) sia alla riapertura (shop_ordine_riapri). Un valore proposto dal chiamante non conta. Stripe accetta sessioni di
+--      almeno 30 minuti: con una scadenza più corta una riprova dopo pochi minuti verrebbe rifiutata (errore non ritentabile). Nessuna
+--      giacenza è riservata prima del pagamento (D52), quindi una finestra più lunga non costa niente. Per cambiarla: UNA riga, qui.
 --   5. Semina tre interruttori (mai riscritti se già presenti): cassa_sito = «vecchia»,
 --      pagamento_sicuro = false, metodi_pagamento = [].
 --   6. Chiede a PostgREST di ricaricare lo schema.
@@ -261,6 +265,12 @@ BEGIN
 END
 $$;
 
+-- La scadenza di un ordine in attesa di pagamento: adesso + 60 minuti. L'UNICA costante: la usano shop_ordine_crea e shop_ordine_riapri,
+-- e la sessione Stripe scade nello stesso istante (expires_at = scade_il, mai ricalcolato dal server).
+CREATE OR REPLACE FUNCTION public.shop_s4_scadenza() RETURNS timestamptz LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  SELECT now() + interval '60 minutes'
+$$;
+
 -- Una riga nel registro dei cambi dell'ordine (shop_order_eventi, di M1).
 CREATE OR REPLACE FUNCTION public.shop_s4_evento(
   p_ordine uuid,
@@ -278,7 +288,8 @@ $$;
 
 -- ── 5. L'ordine nasce: ordine e riservati in UNA transazione, con una lista bianca ──
 -- Del p_ordine si copiano SOLO le colonne elencate qui sotto; ogni altra chiave si ignora. Lo stato lo decide la funzione, non il chiamante:
--- status «nuovo», stato_pagamento «in_attesa», canale «sito», rimborsato 0, niente data di pagamento. Lo stesso id due volte → una riga («esistente»).
+-- status «nuovo», stato_pagamento «in_attesa», canale «sito», rimborsato 0, niente data di pagamento, scade_il = adesso + 60 minuti (shop_s4_scadenza:
+-- il «scade_il» eventualmente mandato nel p_ordine si ignora). Lo stesso id due volte → una riga («esistente»). Risponde anche con la scadenza.
 -- order_ref è unico fra gli ordini del sito (23505 sul secondo). Le colonne NOT NULL di shop_orders (nome, cognome, email, telefono, indirizzo, citta, cap)
 -- le valida la cassa PRIMA di chiamare: qui, se mancano, risponde il database (23502).
 CREATE OR REPLACE FUNCTION public.shop_ordine_crea(
@@ -288,6 +299,7 @@ CREATE OR REPLACE FUNCTION public.shop_ordine_crea(
 DECLARE
   v_id    uuid;
   v_righe integer;
+  v_scade timestamptz := public.shop_s4_scadenza();
 BEGIN
   IF p_ordine IS NULL OR jsonb_typeof(p_ordine) <> 'object' OR jsonb_typeof(p_ordine -> 'id') IS DISTINCT FROM 'string' THEN
     RAISE EXCEPTION 'ordine_non_valido' USING ERRCODE = 'invalid_parameter_value';
@@ -308,7 +320,7 @@ BEGIN
     p_ordine ->> 'indirizzo', p_ordine ->> 'citta', p_ordine ->> 'cap', p_ordine ->> 'provincia', p_ordine ->> 'nazione', p_ordine ->> 'note',
     COALESCE(p_ordine -> 'items', '[]'::jsonb),
     COALESCE((p_ordine ->> 'subtotal')::numeric, 0), COALESCE((p_ordine ->> 'shipping')::numeric, 0), COALESCE((p_ordine ->> 'total')::numeric, 0),
-    (p_ordine ->> 'totale_cent')::integer, (p_ordine ->> 'scade_il')::timestamptz, p_ordine ->> 'chiave_pubblica_hash', p_ordine ->> 'firma_tentativo',
+    (p_ordine ->> 'totale_cent')::integer, v_scade, p_ordine ->> 'chiave_pubblica_hash', p_ordine ->> 'firma_tentativo',
     COALESCE((p_ordine ->> 'prova')::boolean, false), COALESCE((p_ordine ->> 'fattura_richiesta')::boolean, false),
     'nuovo', 'in_attesa', 'sito', 0
   )
@@ -322,18 +334,17 @@ BEGIN
       p_riservati ->> 'ip', p_riservati ->> 'user_agent'
     );
     PERFORM public.shop_s4_evento(v_id, 'creato', 'cassa', NULL, NULL);
-    RETURN jsonb_build_object('esito', 'creato', 'id', v_id);
+    RETURN jsonb_build_object('esito', 'creato', 'id', v_id, 'scade_il', v_scade);
   END IF;
   END IF;
 
   -- L'id c'era già (prima, o per una corsa con un'altra richiesta uguale): «esistente» SOLO se è davvero lo stesso ordine del sito
   -- (canale «sito», stesso riferimento, stessa email, stesso totale). Una riga vecchia o altrui con quell'id non si spaccia per la creazione appena fatta.
-  IF EXISTS (
-    SELECT 1 FROM public.shop_orders
-     WHERE id = v_id AND canale = 'sito' AND order_ref IS NOT DISTINCT FROM (p_ordine ->> 'order_ref')
-       AND email IS NOT DISTINCT FROM (p_ordine ->> 'email') AND totale_cent IS NOT DISTINCT FROM (p_ordine ->> 'totale_cent')::integer
-  ) THEN
-    RETURN jsonb_build_object('esito', 'esistente', 'id', v_id);
+  SELECT scade_il INTO v_scade FROM public.shop_orders
+   WHERE id = v_id AND canale = 'sito' AND order_ref IS NOT DISTINCT FROM (p_ordine ->> 'order_ref')
+     AND email IS NOT DISTINCT FROM (p_ordine ->> 'email') AND totale_cent IS NOT DISTINCT FROM (p_ordine ->> 'totale_cent')::integer;
+  IF FOUND THEN
+    RETURN jsonb_build_object('esito', 'esistente', 'id', v_id, 'scade_il', v_scade);
   END IF;
   RAISE EXCEPTION 'ordine_id_gia_usato' USING ERRCODE = 'unique_violation';
 END
@@ -531,22 +542,22 @@ END
 $$;
 
 -- ── 9. «Riprova il pagamento» (D66): riaprire PRIMA di creare la sessione ─────
--- Solo da fallito o scaduto → in_attesa, riprova_n + 1, nuova scadenza; risponde con n. Un secondo clic insieme trova l'ordine già in attesa
--- (sotto blocco) → «riprova_in_corso». Pagato, rimborsato, da_incassare, vuoto, e QUALUNQUE ordine annullato → ordine_non_riapribile.
+-- Solo da fallito o scaduto → in_attesa, riprova_n + 1, nuova scadenza; risponde con n e con la scadenza. Un secondo clic insieme trova l'ordine
+-- già in attesa (sotto blocco) → «riprova_in_corso». Pagato, rimborsato, da_incassare, vuoto, e QUALUNQUE ordine annullato → ordine_non_riapribile.
+-- La nuova scadenza è adesso + 60 minuti (shop_s4_scadenza), come alla creazione: p_nuova_scade resta nella firma per il contratto di D66 ma NON conta
+-- (si può anche non darlo). shortcut: il parametro non fa niente / toglierlo quando la cassa (T51) avrà smesso di passarlo.
 CREATE OR REPLACE FUNCTION public.shop_ordine_riapri(
   p_ordine       uuid,
-  p_nuova_scade  timestamptz
+  p_nuova_scade  timestamptz DEFAULT NULL
 ) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE
   v_ordine public.shop_orders%ROWTYPE;
   v_n      integer;
+  v_scade  timestamptz;
 BEGIN
   SELECT * INTO v_ordine FROM public.shop_orders WHERE id = p_ordine FOR UPDATE;
   IF NOT FOUND THEN
     RAISE EXCEPTION 'ordine_non_trovato' USING ERRCODE = 'no_data_found';
-  END IF;
-  IF p_nuova_scade IS NULL THEN
-    RAISE EXCEPTION 'parametro_non_valido' USING ERRCODE = 'invalid_parameter_value';
   END IF;
   IF v_ordine.status = 'annullato' THEN
     RAISE EXCEPTION 'ordine_non_riapribile' USING ERRCODE = 'object_not_in_prerequisite_state';
@@ -559,11 +570,11 @@ BEGIN
   END IF;
 
   UPDATE public.shop_orders
-     SET stato_pagamento = 'in_attesa', riprova_n = COALESCE(riprova_n, 0) + 1, scade_il = p_nuova_scade, aggiornato_il = now()
+     SET stato_pagamento = 'in_attesa', riprova_n = COALESCE(riprova_n, 0) + 1, scade_il = public.shop_s4_scadenza(), aggiornato_il = now()
    WHERE id = v_ordine.id
-  RETURNING riprova_n INTO v_n;
+  RETURNING riprova_n, scade_il INTO v_n, v_scade;
   PERFORM public.shop_s4_evento(v_ordine.id, 'riaperto', 'cassa', jsonb_build_object('stato_pagamento', v_ordine.stato_pagamento), jsonb_build_object('riprova_n', v_n));
-  RETURN jsonb_build_object('esito', 'riaperto', 'n', v_n);
+  RETURN jsonb_build_object('esito', 'riaperto', 'n', v_n, 'scade_il', v_scade);
 END
 $$;
 
@@ -820,6 +831,7 @@ $$;
 -- ── 15. Le funzioni le esegue solo il server (service_role) ───────────────────
 REVOKE ALL ON FUNCTION public.shop_s4_avviso(uuid, text, text, text) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.shop_s4_evento(uuid, text, text, jsonb, jsonb) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.shop_s4_scadenza() FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.shop_ordine_crea(jsonb, jsonb) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.shop_ordine_sessione_registra(uuid, text) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.shop_ordine_pagato(uuid, text, integer, text, text, text) FROM PUBLIC, anon, authenticated;
@@ -834,6 +846,7 @@ REVOKE ALL ON FUNCTION public.shop_limite_consuma(text, integer, integer) FROM P
 REVOKE ALL ON FUNCTION public.shop_cassa_righe(text[]) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.shop_s4_avviso(uuid, text, text, text) TO service_role;
 GRANT EXECUTE ON FUNCTION public.shop_s4_evento(uuid, text, text, jsonb, jsonb) TO service_role;
+GRANT EXECUTE ON FUNCTION public.shop_s4_scadenza() TO service_role;
 GRANT EXECUTE ON FUNCTION public.shop_ordine_crea(jsonb, jsonb) TO service_role;
 GRANT EXECUTE ON FUNCTION public.shop_ordine_sessione_registra(uuid, text) TO service_role;
 GRANT EXECUTE ON FUNCTION public.shop_ordine_pagato(uuid, text, integer, text, text, text) TO service_role;

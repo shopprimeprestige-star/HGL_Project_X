@@ -327,7 +327,7 @@ BEGIN
     'id', v_id, 'order_ref', format('HG-T%s%s', n, k), 'nome', 'Anna', 'cognome', 'Esempio', 'email', 'cliente@example.com', 'telefono', '3330000000',
     'indirizzo', 'Via Prova 1', 'citta', 'Roma', 'cap', '00100', 'provincia', 'RM', 'nazione', 'IT',
     'items', jsonb_build_array(jsonb_build_object('product_id', COALESCE(sku, format('SC%s-V1', n)), 'name', 'Prodotto', 'qty', qty, 'unit_price', 28.9)),
-    'subtotal', 28.9, 'shipping', 0, 'total', 28.9, 'totale_cent', 2890, 'scade_il', now() + interval '31 minutes'),
+    'subtotal', 28.9, 'shipping', 0, 'total', 28.9, 'totale_cent', 2890, 'scade_il', now() + interval '5 minutes'),  -- un valore che il chiamante PROPONE: lo decide il database (+60 minuti), vedi lo scenario scadenza_sessanta_minuti
     jsonb_build_object('consensi', jsonb_build_object('termini', true, 'privacy', true)));
   FOREACH s IN ARRAY COALESCE(sessioni, ARRAY[format('cs_t%s_%s', n, k)]) LOOP
     PERFORM public.shop_ordine_sessione_registra(v_id, s);
@@ -471,8 +471,33 @@ SELECT pg_temp.ordine(12, 1, stato => 'fallito');
 SELECT pg_temp.uguale('riprova_due_clic · il primo clic riapre: riaperto con riprova_n 1', 'riaperto|1',
   (SELECT pg_temp.j(r, 'esito') || '|' || pg_temp.j(r, 'n') FROM (SELECT public.shop_ordine_riapri(pg_temp.oid(12, 1), '2026-12-01T12:31:00Z') AS r) x));
 SELECT pg_temp.uguale('riprova_due_clic · il secondo clic trova l''ordine già in attesa: riprova_in_corso', 'riprova_in_corso', pg_temp.j(public.shop_ordine_riapri(pg_temp.oid(12, 1), '2026-12-01T12:31:00Z'), 'esito'));
-SELECT pg_temp.uguale('riprova_due_clic · in attesa, riprova_n 1, la nuova scadenza', 'in_attesa|1|2026-12-01 12:31:00+00',
-  pg_temp.col(12, 1, 'stato_pagamento') || '|' || pg_temp.col(12, 1, 'riprova_n') || '|' || (SELECT scade_il AT TIME ZONE 'UTC' || '+00' FROM public.shop_orders WHERE id = pg_temp.oid(12, 1)));
+SELECT pg_temp.uguale('riprova_due_clic · in attesa, riprova_n 1, la nuova scadenza è quella del database (+60 minuti, non quella proposta dal chiamante)', 'in_attesa|1|60',
+  pg_temp.col(12, 1, 'stato_pagamento') || '|' || pg_temp.col(12, 1, 'riprova_n') || '|' || (SELECT (extract(epoch FROM scade_il - aggiornato_il) / 60)::integer::text FROM public.shop_orders WHERE id = pg_temp.oid(12, 1)));
+
+-- SCENARIO: scadenza_sessanta_minuti
+-- Contratto 1 (revisione di T44): `scade_il` = momento dell'ordine + 60 minuti, deciso dal DATABASE (una sola costante: shop_s4_scadenza). Stripe vuole almeno 30 minuti:
+-- con +31 bastava una riprova dopo un minuto per un errore «non ritentabile». Il valore che propone il chiamante (qui +5 minuti, o un anno) non conta.
+SELECT pg_temp.mondo(50, 5);
+SELECT pg_temp.ordine(50, 1);
+SELECT pg_temp.uguale('scadenza_sessanta_minuti · crea: scade_il = created_at + 60 minuti, anche se il chiamante ne propone altri', '60',
+  (SELECT (extract(epoch FROM scade_il - created_at) / 60)::integer::text FROM public.shop_orders WHERE id = pg_temp.oid(50, 1)));
+-- (la funzione scrive in un'istruzione e si legge in quella dopo: nella stessa istruzione la riga appena scritta non si vede)
+CREATE TEMP TABLE risposta_scadenza AS SELECT public.shop_ordine_crea(jsonb_build_object('id', pg_temp.oid(50, 2), 'order_ref', 'HG-T502', 'nome', 'Anna', 'cognome', 'Esempio',
+  'email', 'cliente@example.com', 'telefono', '3330000000', 'indirizzo', 'Via Prova 1', 'citta', 'Roma', 'cap', '00100', 'totale_cent', 2890, 'scade_il', now() + interval '1 year'), '{}'::jsonb) AS r;
+SELECT pg_temp.uguale('scadenza_sessanta_minuti · crea: anche con una scadenza di un anno proposta, +60 minuti', '60',
+  (SELECT (extract(epoch FROM scade_il - created_at) / 60)::integer::text FROM public.shop_orders WHERE id = pg_temp.oid(50, 2)));
+SELECT pg_temp.uguale('scadenza_sessanta_minuti · la risposta di crea dice la scadenza (la cassa non deve rileggere la riga)', 'true',
+  ((SELECT r ->> 'scade_il' FROM risposta_scadenza)::timestamptz = (SELECT scade_il FROM public.shop_orders WHERE id = pg_temp.oid(50, 2)))::text);
+SELECT pg_temp.ordine(50, 4, stato => 'fallito');
+SELECT pg_temp.ordine(50, 5, stato => 'scaduto');
+CREATE TEMP TABLE risposta_riapri AS SELECT public.shop_ordine_riapri(pg_temp.oid(50, 4), now() + interval '5 minutes') AS r;
+SELECT pg_temp.uguale('scadenza_sessanta_minuti · riapri con un valore proposto diverso: +60 minuti da adesso, e la risposta lo dice', 'riaperto|60|true',
+  (SELECT pg_temp.j(r, 'esito') || '|' || (extract(epoch FROM (r ->> 'scade_il')::timestamptz - aggiornato_il) / 60)::integer::text || '|'
+          || ((r ->> 'scade_il')::timestamptz = scade_il)::text
+     FROM risposta_riapri, public.shop_orders WHERE id = pg_temp.oid(50, 4)));
+SELECT pg_temp.uguale('scadenza_sessanta_minuti · riapri senza il secondo argomento (il database la decide da solo): +60 minuti', 'riaperto|60',
+  (SELECT pg_temp.j(r, 'esito') || '|' || (extract(epoch FROM (SELECT scade_il - aggiornato_il FROM public.shop_orders WHERE id = pg_temp.oid(50, 5))) / 60)::integer::text
+     FROM (SELECT public.shop_ordine_riapri(pg_temp.oid(50, 5)) AS r) x));
 
 -- SCENARIO: riapri_da_pagato
 SELECT pg_temp.mondo(13, 5);
