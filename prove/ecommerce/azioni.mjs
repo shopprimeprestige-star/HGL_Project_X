@@ -141,7 +141,9 @@ export async function prove(mod, { c, gruppo, radice }) {
   const tutte = [...richieste.map((r) => va(r)), va({ azione: "pagamento_annullato", ordineId: ID }, pagato())];
   c("ogni azione riuscita ha aggiornato_il = adesso", [true, true, true, true, true], tutte.map((r) => r.ok && r.patch.aggiornato_il === ADESSO.toISOString()));
   c("ogni patch usa solo chiavi della lista bianca", [], tutte.flatMap((r) => Object.keys(r.patch).filter((k) => !LISTA_BIANCA.includes(k))));
-  c("la lista bianca esportata è quella del piano", [...LISTA_BIANCA].sort(), [...A.CHIAVI_PATCH].sort());
+  //  T47 (Rilascio 2): la lista guadagna le nove colonne di S4 che le azioni nuove scrivono (PIANO-R2 T47); le nove di prima non cambiano.
+  const NUOVE_R2 = ["spedito_il", "corriere", "tracking_url", "senza_tracking", "annullo_motivo", "annullato_il", "fattura_emessa_il", "fattura_nota", "giacenza_da_verificare"];
+  c("la lista bianca esportata è quella del piano (le nove di prima) più le nove colonne di S4 del Rilascio 2", [...LISTA_BIANCA, ...NUOVE_R2].sort(), [...A.CHIAVI_PATCH].sort());
   c("ogni condizione parla di colonne della lista bianca", [], tutte.flatMap((r) => Object.keys(r.condizioni).filter((k) => !LISTA_BIANCA.includes(k))));
   c("ogni evento ha tipo, ordine e riferimento", [true, true, true, true, true], tutte.map((r) => typeof r.evento.tipo === "string" && r.evento.order_id === ID && r.evento.order_ref === "HG-PROVA1"));
   c("campi in più nella richiesta non entrano nella patch (nome, totale, righe, lead_id)", [["aggiornato_il", "tracking"], false],

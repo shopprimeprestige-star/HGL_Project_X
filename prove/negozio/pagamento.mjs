@@ -102,7 +102,7 @@ export async function prove(mod, { c, gruppo }) {
   // ── i passaggi di evasione (D55) ──
   const ev = (da, a, opz) => P.passaggioEvasione(da, a, opz);
   c("in avanti, un passo alla volta, senza motivo: nuovo → in_preparazione → spedito → consegnato", [true, true, true], [ev("nuovo", "in_preparazione").ok, ev("in_preparazione", "spedito").ok, ev("spedito", "consegnato").ok]);
-  c("in avanti saltando un passo (nuovo → spedito, in_preparazione → consegnato) no", [false, false], [ev("nuovo", "spedito").ok, ev("in_preparazione", "consegnato").ok]);
+  c("in avanti saltando un passo (nuovo → consegnato, in_preparazione → consegnato) no; nuovo → spedito sì (decisione del capo progetto, T47: lo studio può spedire senza passare da «in preparazione»)", [false, false, true], [ev("nuovo", "consegnato").ok, ev("in_preparazione", "consegnato").ok, ev("nuovo", "spedito").ok]);
   c("all'indietro SENZA motivo → rifiutato (in_preparazione → nuovo, spedito → in_preparazione, annullato → nuovo)", [false, false, false], [ev("in_preparazione", "nuovo").ok, ev("spedito", "in_preparazione").ok, ev("annullato", "nuovo").ok]);
   c("all'indietro con un motivo vero → ammesso", [true, true, true], [ev("in_preparazione", "nuovo", { motivo: "Clic sbagliato" }).ok, ev("spedito", "in_preparazione", { motivo: "Clic sbagliato" }).ok, ev("annullato", "nuovo", { motivo: "Annullato per errore" }).ok]);
   c("un motivo di soli spazi, null o non testo vale come nessun motivo", Array(4).fill(false), ["   ", "", null, 7].map((motivo) => ev("spedito", "in_preparazione", { motivo }).ok));
