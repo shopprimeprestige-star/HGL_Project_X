@@ -19,7 +19,7 @@ import { chiaveOrdine } from "../cassa/chiave-ordine";
 import { codiceDi, eMancante, eOggetto, righe, type ClienteDb } from "../../crm/negozio/comune";
 import { eUuid } from "../../crm/ecommerce/azioni";
 import { componi } from "./compone";
-import { messaggioInviabile } from "./inviabile";
+import { impronta, messaggioInviabile } from "./inviabile";
 import {
   CHIAVI_EMAIL,
   STATO_DEL_MOTIVO,
@@ -43,7 +43,8 @@ export type EsitoResend = { ok: boolean; codice: string };
 
 export interface PorteInvio {
   db: ClienteDb;
-  resend: (corpo: CorpoResend) => Promise<EsitoResend>;
+  /** `chiaveIdempotenza` va in `Idempotency-Key` (mai nel corpo): lo stesso invio ripetuto non manda una seconda mail. */
+  resend: (corpo: CorpoResend, chiaveIdempotenza?: string) => Promise<EsitoResend>;
   /** «Hair Genius Labs <indirizzo>» da `SHOP_EMAIL_INDIRIZZO`, oppure `null` se non è configurato (`intestazioneMittente`). */
   mittente: () => string | null;
   /** La chiave di servizio, per ricalcolare la chiave dell'ordine nel link. */
@@ -61,6 +62,8 @@ const COLONNE_ORDINE =
 const EMAIL = /^[^\s@<>,;"()]+@[^\s@<>,;"()]+\.[^\s@<>,;"()]+$/;
 const SITO = /^https:\/\/[^\s/?#]+$/;
 const MAX_RIGHE = 50;
+/** Il codice con cui Resend dice «la prima richiesta con questa chiave è ancora in corso»: non è un errore, è `in_corso`. */
+const CONCORRENTE = "concurrent_idempotent_requests";
 
 const nomeDi = (e: unknown): string =>
   String((e as { name?: unknown } | null)?.name ?? "?")
@@ -284,14 +287,20 @@ export async function inviaEmail(
     // 7 · l'invio e l'esito
     let esito: EsitoResend;
     try {
-      const r = await p.resend({
-        from: da,
-        to: [a],
-        subject: messaggio.oggetto,
-        text: messaggio.testo,
-        html: messaggio.html,
-        reply_to: da,
-      });
+      // La chiave dice «questa mail, a questa persona, con questo testo»: un retry identico (rete caduta dopo l'accettazione,
+      // processo morto prima dell'esito) non duplica; se il testo cambia la chiave cambia e la mail riparte. Niente dati del cliente.
+      const idem = `shop-email:${ordineId}:${chiave}:${impronta(`${a}\n${messaggio.oggetto}`, messaggio.testo)}`;
+      const r = await p.resend(
+        {
+          from: da,
+          to: [a],
+          subject: messaggio.oggetto,
+          text: messaggio.testo,
+          html: messaggio.html,
+          reply_to: da,
+        },
+        idem,
+      );
       esito =
         eOggetto(r) && r.ok === true
           ? { ok: true, codice: "ok" }
@@ -300,6 +309,7 @@ export async function inviaEmail(
       log(`resend ${nomeDi(e)}`);
       esito = { ok: false, codice: "resend_eccezione" };
     }
+    if (!esito.ok && esito.codice === CONCORRENTE) return { stato: "in_corso" }; // la prima è ancora in volo: l'esito lo scrive lei
     await scriviEsito(
       { ...p, log },
       ordineId,
@@ -321,6 +331,16 @@ export const creaPorteEmail = (p: PorteInvio): PorteEmail => ({
   invia: (chiave, ordineId, opzioni) => inviaEmail(p, chiave, ordineId, opzioni),
 });
 
+/** Il `name` di un errore di Resend, solo se si legge; altrimenti `null` (mai altro del corpo). */
+async function nomeErrore(r: { json?: () => Promise<unknown> }): Promise<string | null> {
+  try {
+    const corpo = r.json ? await r.json() : null;
+    return eOggetto(corpo) && typeof corpo.name === "string" ? corpo.name : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Come si chiama Resend. La rotta passa la chiave letta dall'ambiente DENTRO il gestore (`RESEND_API_KEY`): qui non si legge niente.
  *  Risultato: solo `ok` e un codice (`ok`, `http_<stato>`, `rete`, `non_configurata`), mai il testo di una risposta o un'eccezione. */
 export function resendConFetch(
@@ -328,21 +348,27 @@ export function resendConFetch(
   fetchFn: (
     url: string,
     opzioni: { method: string; headers: Record<string, string>; body: string; signal: AbortSignal },
-  ) => Promise<{ ok: boolean; status: number }> = fetch,
+  ) => Promise<{ ok: boolean; status: number; json?: () => Promise<unknown> }> = fetch,
 ): PorteInvio["resend"] {
-  return async (corpo) => {
+  return async (corpo, chiaveIdempotenza) => {
     if (typeof chiaveResend !== "string" || !chiaveResend)
       return { ok: false, codice: "non_configurata" };
     try {
       const r = await fetchFn("https://api.resend.com/emails", {
         method: "POST",
-        headers: { Authorization: `Bearer ${chiaveResend}`, "Content-Type": "application/json" },
+        headers: {
+          Authorization: `Bearer ${chiaveResend}`,
+          "Content-Type": "application/json",
+          ...(chiaveIdempotenza ? { "Idempotency-Key": chiaveIdempotenza.slice(0, 256) } : {}),
+        },
         body: JSON.stringify(corpo),
         signal: AbortSignal.timeout(8000),
       });
-      return r.ok
-        ? { ok: true, codice: "ok" }
-        : { ok: false, codice: `http_${Number.isSafeInteger(r.status) ? r.status : 0}` };
+      if (r.ok) return { ok: true, codice: "ok" };
+      // 409 con lo stesso nome di Resend = la prima richiesta con questa chiave è ancora in corso (non un errore); ogni altro nome resta `http_409`
+      if (r.status === 409 && (await nomeErrore(r)) === CONCORRENTE)
+        return { ok: false, codice: CONCORRENTE };
+      return { ok: false, codice: `http_${Number.isSafeInteger(r.status) ? r.status : 0}` };
     } catch {
       return { ok: false, codice: "rete" };
     }
