@@ -59,7 +59,7 @@ export function proveScontoOpzione(mod, { c, gruppo, radice }) {
   c("il «prima → dopo» lo racconta",
     ["Sconto se scelta"], racconto.flatMap((m) => m.cambi.map((x) => x.campo)));
   c("una voce di base non ha il campo sconto", false,
-    L.RIGHE.find((r) => r.id === "patch-standard").scontabile);
+    L.RIGHE.find((r) => r.id === "patch-standard").scontabile === true);
   c("una voce di sezione sì", true, L.RIGHE.find((r) => r.id === "zona-frontale").scontabile);
 
   //  ── IL TOTALE (preventivo tipo del pannello = stessa aritmetica della pagina) ──
