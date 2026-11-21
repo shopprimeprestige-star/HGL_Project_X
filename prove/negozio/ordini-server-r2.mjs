@@ -310,32 +310,46 @@ export async function prove(mod, { c, gruppo, radice }) {
     c("le due sono idempotenti nel senso giusto: la seconda volta è «nessun cambio», non una seconda scrittura", [false, false], [(await POST(db, { azione: "giacenza_verificata", ordineId: ID })).json.ok, (await POST(db, { azione: "fattura_emessa", ordineId: ID })).json.ok]);
   }
 
-  // ── la riattivazione «annullato → nuovo» ricontrolla i rimborsi nel database, DOPO la scrittura ──
+  // ── la riattivazione «annullato → nuovo» passa da `shop_ordine_riattiva` (T53b): sotto blocco nel database, senza `update` diretto né ripristino ──
   {
     const annullato = () => pagato(1, { status: "annullato", annullo_motivo: "Cliente pentito", annullato_il: "2026-11-20T11:00:00.000Z", giacenza_rimessa_il: "2026-11-20T11:00:00.000Z" });
     const corpo = { azione: "correggi_stato", ordineId: ID, da: "annullato", a: "nuovo", motivo: "Annullato per errore" };
+    const rpcDi = (db) => db.registro.filter((q) => q.op === "rpc");
+    const updateOrdini = (db) => db.registro.filter((q) => q.tab === "shop_orders" && q.op === "update");
     const pulita = fintoDb({ tabelle: { shop_orders: [annullato()], shop_order_eventi: [], shop_rimborsi: [] } });
     const ok = await POST(pulita, corpo);
     c("riattivazione senza rimborsi: passa, stato nuovo, motivo dell'annullo tolto, giacenza da verificare (i pezzi erano tornati)", [200, "nuovo", null, true], [ok.stato, riga(pulita).status, riga(pulita).annullo_motivo, riga(pulita).giacenza_da_verificare]);
+    c("…con UNA sola chiamata alla funzione, con gli argomenti esatti (ordine, motivo, chi) e nessun `update` diretto dell'ordine", [[{ p_ordine: ID, p_motivo: "Annullato per errore", p_chi: "Giulia Esempio" }], 0], [rpcDi(pulita).filter((q) => q.nome === "shop_ordine_riattiva").map((q) => q.args), updateOrdini(pulita).length]);
+    c("…lo storico lo scrive la funzione: UNA sola riga «stato_corretto», col motivo e col nome di chi agisce (non una seconda dalla rotta)", [1, "Annullato per errore", "Giulia Esempio"], (() => { const e = tab(pulita, "shop_order_eventi").filter((x) => x.tipo === "stato_corretto"); return [e.length, e[0]?.dopo?.motivo, e[0]?.chi]; })());
+    c("…e la risposta è quella di sempre (ok, ordine nuovo, storico vero)", [true, "nuovo", true], [ok.json.ok, ok.json.ordine?.stato, ok.json.storico]);
     const attivo = fintoDb({ tabelle: { shop_orders: [annullato()], shop_order_eventi: [], shop_rimborsi: [{ id: uuid(0xb1), ordine_id: ID, importo_cent: 500, stato: "richiesto", motivo: "x", creato_il: ADESSO }] } });
     const no = await POST(attivo, corpo);
-    c("riattivazione con un rimborso richiesto → rifiutata dalla regola pura, nessuna scrittura", [400, "annullato", 0], [no.stato, riga(attivo).status, attivo.scritture.length]);
-    // la corsa: il rimborso nasce DOPO la lettura dei rimborsi e PRIMA della scrittura dell'ordine
+    c("riattivazione con un rimborso richiesto → rifiutata dalla regola pura (prima cintura): la funzione non si chiama, nessuna scrittura", [400, "annullato", 0, 0], [no.stato, riga(attivo).status, attivo.scritture.length, rpcDi(attivo).length]);
+    // la corsa: il rimborso nasce DOPO la lettura dei rimborsi e PRIMA della funzione: la funzione, sotto blocco, lo vede
     const corsa = fintoDb({
       tabelle: { shop_orders: [annullato()], shop_order_eventi: [], shop_rimborsi: [] },
-      prima: { "shop_orders.update": (t) => t.shop_rimborsi.push({ id: uuid(0xb9), ordine_id: ID, importo_cent: 700, stato: "richiesto", motivo: "x", creato_il: ADESSO }) },
+      prima: { "rpc.shop_ordine_riattiva": (t) => t.shop_rimborsi.push({ id: uuid(0xb9), ordine_id: ID, importo_cent: 700, stato: "richiesto", motivo: "x", creato_il: ADESSO }) },
     });
     const rc = await POST(corsa, corpo);
-    c("riattivazione con un rimborso nato nel frattempo: 409 e l'ordine TORNA annullato (con motivo e data dell'annullo)", [409, "annullato", "Cliente pentito", "2026-11-20T11:00:00.000Z"], [rc.stato, riga(corsa).status, riga(corsa).annullo_motivo, riga(corsa).annullato_il]);
-    c("…senza lasciare uno storico «stato corretto» che non è mai successo", 0, tab(corsa, "shop_order_eventi").filter((e) => e.tipo === "stato_corretto").length);
-    // il ricontrollo che non si legge fallisce chiuso
-    let letture = 0;
-    const cieco = fintoDb({
+    c("riattivazione con un rimborso nato nel frattempo (`rimborso_attivo`): 409, ordine ANCORA annullato, motivo e data dell'annullo intatti", [409, "annullato", "Cliente pentito", "2026-11-20T11:00:00.000Z", true], [rc.stato, riga(corsa).status, riga(corsa).annullo_motivo, riga(corsa).annullato_il, /rimborso/i.test(rc.json.messaggio ?? "")]);
+    c("…senza `update` dell'ordine, senza ripristini e senza storico «stato corretto»", [0, 0], [updateOrdini(corsa).length, tab(corsa, "shop_order_eventi").filter((e) => e.tipo === "stato_corretto").length]);
+    // un collega l'ha già spostato: `cambiato` → 409
+    const cambiata = fintoDb({
       tabelle: { shop_orders: [annullato()], shop_order_eventi: [], shop_rimborsi: [] },
-      errori: { "shop_rimborsi.select": () => (++letture >= 2 ? { error: { code: "XX030" } } : undefined) },
+      prima: { "rpc.shop_ordine_riattiva": (t) => { t.shop_orders[0].status = "nuovo"; } },
     });
-    const rcie = await POST(cieco, corpo);
-    c("riattivazione con il RICONTROLLO che non si legge: torna annullato (fallisce chiuso)", [409, "annullato"], [rcie.stato, riga(cieco).status]);
+    const rcam = await POST(cambiata, corpo);
+    c("riattivazione di un ordine già spostato da un collega (`cambiato`): 409 «conflitto», niente scritto da noi", [409, "conflitto", 0], [rcam.stato, rcam.json.error, tab(cambiata, "shop_order_eventi").length]);
+    // la funzione che non risponde: fallisce chiuso, con una frase onesta
+    const guasta = fintoDb({ tabelle: { shop_orders: [annullato()], shop_order_eventi: [], shop_rimborsi: [] }, errori: { "rpc.shop_ordine_riattiva": { error: { code: "XX030", message: "dettaglio con Anna Esempio" } } } });
+    const rg = await POST(guasta, corpo);
+    c("riattivazione con la funzione che dà errore: l'ordine resta annullato, risposta d'errore con frase, nel log solo il codice", [502, "annullato", true, true, false], [rg.stato, riga(guasta).status, rg.json.ok === false && typeof rg.json.messaggio === "string" && rg.json.messaggio.length > 10, rg.log.some((l) => l.includes("XX030")), JSON.stringify([rg.json, rg.log]).includes("Anna")]);
+    const lancia = fintoDb({ tabelle: { shop_orders: [annullato()], shop_order_eventi: [], shop_rimborsi: [] }, errori: { "rpc.shop_ordine_riattiva": { lancia: new Error("rete: Anna Esempio") } } });
+    const rl = await POST(lancia, corpo);
+    c("riattivazione con la funzione che LANCIA: 500 generico, ordine annullato, nessun dato nel log", [500, "annullato", false], [rl.stato, riga(lancia).status, JSON.stringify([rl.json, rl.log]).includes("Anna")]);
+    // la funzione risponde in un modo che non conosciamo: fallisce chiuso
+    const strana = fintoDb({ tabelle: { shop_orders: [annullato()], shop_order_eventi: [], shop_rimborsi: [] }, errori: { "rpc.shop_ordine_riattiva": { error: null } } });
+    c("riattivazione senza errore ma con un esito sconosciuto (dato vuoto): non si dice «fatto»", true, (await POST(strana, corpo)).json.ok !== true);
   }
 
   // ── la condizione sul valore visto: 409, e niente effetti ──
@@ -381,7 +395,7 @@ export async function prove(mod, { c, gruppo, radice }) {
       ["spedisci: update", () => POST(fintoDb({ tabelle: t(), errori: { "shop_orders.update": err("XX043") } }), { azione: "spedisci", ordineId: ID, senzaTracking: true })],
       ["spedisci: evento", () => POST(fintoDb({ tabelle: t(), errori: { "shop_order_eventi.insert": err("XX044") } }), { azione: "spedisci", ordineId: ID, senzaTracking: true })],
       ["spedisci: corrieri", () => POST(fintoDb({ tabelle: t(), errori: { "shop_impostazioni.select": err("XX045") } }), { azione: "spedisci", ordineId: ID, corriere: "BRT", numero: "ABC12345" })],
-      ["correggi: eccezione", () => POST(fintoDb({ tabelle: { ...t(), shop_orders: [pagato(1, { status: "annullato" })] }, errori: { "shop_rimborsi.select": { lancia: new Error(`rete: ${dettagli}`) } } }), { azione: "correggi_stato", ordineId: ID, da: "annullato", a: "nuovo", motivo: "Annullato per errore" })],
+      ["correggi: eccezione", () => POST(fintoDb({ tabelle: { ...t(), shop_orders: [pagato(1, { status: "annullato" })] }, errori: { "rpc.shop_ordine_riattiva": { lancia: new Error(`rete: ${dettagli}`) } } }), { azione: "correggi_stato", ordineId: ID, da: "annullato", a: "nuovo", motivo: "Annullato per errore" })],
     ];
     const brutti = [];
     for (const [nome, vai] of scenari) {

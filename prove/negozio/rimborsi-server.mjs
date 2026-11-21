@@ -163,11 +163,20 @@ export async function prove(mod, { c, gruppo }) {
     m.stripe.fallisci("POST /v1/refunds", { stato: 400, errore: { type: "invalid_request_error", code: "charge_already_refunded" } });
     const r = await posta(m, rimb(1000, K1));
     c("Stripe rifiuta il rimborso: risposta d'errore con la frase, riga `fallito`", [false, "fallito", 1], [r.json.ok, tab(m, "shop_rimborsi")[0]?.stato, POSTrimborsi(m).length]);
+    c("…chiusa con `shop_rimborso_rifiuta` (argomenti esatti: id della riga e codice di Stripe), senza id inventati e con UNA riga di storico «rimborso_rifiutato»", [[{ p_rimborso: tab(m, "shop_rimborsi")[0]?.id, p_codice: "charge_already_refunded" }], null, false, 1], [m.db.registro.filter((q) => q.nome === "shop_rimborso_rifiuta").map((q) => q.args), tab(m, "shop_rimborsi")[0]?.stripe_rimborso_id ?? null, JSON.stringify(m.db.registro).includes("non_creato"), tab(m, "shop_order_eventi").filter((e) => e.tipo === "rimborso_rifiutato").length]);
     c("…e la risposta e il log portano solo il codice di Stripe, mai il suo messaggio", [false, true], [JSON.stringify(r.json).includes("messaggio di Stripe"), r.log.some((l) => l.includes("charge_already_refunded")) && r.log.every((l) => /^[A-Za-z0-9 _.:-]{1,80}$/.test(l)) && !r.log.some((l) => l.includes("messaggio di Stripe"))]);
     const ripeti = await posta(m, rimb(1000, K1));
     c("la stessa chiave dopo un rifiuto: dice di ricaricare, nessuna nuova chiamata", [false, 1], [ripeti.json.ok, POSTrimborsi(m).length]);
     const nuova = await posta(m, rimb(2490, K2));
     c("l'importo è di nuovo disponibile: una richiesta nuova per tutto passa", [200, true, 2, "fallito"], [nuova.stato, nuova.json.ok, tab(m, "shop_rimborsi").length, tab(m, "shop_rimborsi")[0]?.stato]);
+  }
+  {
+    const g = await mondo({ errori: { "rpc.shop_rimborso_rifiuta": { error: { code: "XX060", message: "dettaglio con Anna Esempio" } } } });
+    g.stripe.fallisci("POST /v1/refunds", { stato: 402, errore: { type: "card_error", code: "card_declined" } });
+    const rg = await posta(g, rimb(1000, K1));
+    c("Stripe rifiuta ma la funzione di chiusura non risponde: errore onesto («resta aperta, usa Controlla con Stripe»), riga `richiesto`, solo codici nel log", [false, "richiesto", true, true, false], [rg.json.ok, tab(g, "shop_rimborsi")[0]?.stato, /Controlla con Stripe/.test(rg.json.messaggio ?? ""), rg.log.some((l) => l.includes("XX060")), JSON.stringify([rg.json, rg.log]).includes("Anna")]);
+    const ignorato = await mondo({ tabelle: { shop_rimborsi: [{ id: uuid(0xb1), ordine_id: ID, importo_cent: 1000, motivo: "x", stato: "riuscito", stripe_rimborso_id: "re_x", chiave_richiesta: K3, origine: "crm", chi: "x", creato_il: ADESSO, aggiornato_il: ADESSO }] } });
+    c("un `riuscito` non si tocca mai: la funzione dice `ignorato` e la riga resta com'è", ["ignorato", "riuscito"], await (async () => { const r = await ignorato.db.rpc("shop_rimborso_rifiuta", { p_rimborso: uuid(0xb1), p_codice: "x" }); return [r.data?.esito, tab(ignorato, "shop_rimborsi")[0].stato]; })());
   }
   {
     const m = await mondo();
