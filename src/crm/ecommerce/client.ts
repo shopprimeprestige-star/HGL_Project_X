@@ -13,8 +13,8 @@
  *  ⚠️ `nessun_cambio` (200 con `ok:false`) non è un errore: l'ordine era già così, non c'è niente da fare.
  *  ⚠️ Una lettura partita PRIMA di un'azione e arrivata DOPO viene scartata: porterebbe l'ordine indietro.
  *  ⚠️ Nessun log da qui, mai: gli ordini contengono nome, telefono e indirizzo dei clienti. */
-import { eUuid, type Azione } from "./azioni";
-import type { Ordine } from "./ordine";
+import { eUuid, type Azione, type ChiaveEmailOrdine } from "./azioni";
+import type { Ordine, StatoOrdine } from "./ordine";
 
 const ROTTA = "/api/crm/ordini";
 /** Ogni quanto si rilegge l'elenco mentre la scheda si guarda. */
@@ -496,4 +496,422 @@ export function avviaConta(opz: {
   });
   lettore.avvia();
   return lettore.ferma;
+}
+
+/* ══ RILASCIO 2 (T61): IL DETTAGLIO E LE OTTO AZIONI NUOVE ═══════════════════
+ *  Tutto ciò che sta sotto è nuovo: le funzioni di sopra non cambiano. Parla con `?dettaglio=` e con le azioni di D55
+ *  (`spedisci`, `annulla`, `rimborso`, `riconcilia`, `fattura_emessa`, `email_invia`, `giacenza_verificata`, `correggi_stato`).
+ *  ⚠️ Il dettaglio porta i dati riservati (fattura, consensi): si legge SOLO a pannello aperto e si toglie dalla memoria alla chiusura.
+ *  ⚠️ Una POST parte una volta sola: un 409, una rete caduta, un guasto NON la rimandano. Si rilegge il dettaglio (una GET) e decide la persona.
+ *  ⚠️ `chiaveRichiesta` nasce quando si apre il dialogo e non cambia fino alla chiusura: premere due volte è la STESSA richiesta (il server la riconosce).
+ *  Nessuna chiamata senza il permesso: la «porta» `permesso` si chiede a ogni chiamata, non una volta sola. Il rifiuto vero lo dà comunque la rotta. */
+
+export type EsitoEffettoRisposta = "fatto" | "in_corso" | "non_riuscito";
+/** Voce per voce com'è andato ciò che l'azione ha chiesto al server (rimborso, magazzino, Stripe, email). `in_corso`: non ripetere. */
+export interface EffettoRisposta {
+  tipo: string;
+  esito: EsitoEffettoRisposta;
+  frase: string;
+}
+export interface EmailRisposta {
+  chiave: string;
+  stato: string;
+  frase: string;
+}
+export type RisultatoAzioneR2 =
+  | { ok: true; nessunCambio: true }
+  | {
+      ok: true;
+      nessunCambio: false;
+      ordine: Ordine;
+      /** `false`: l'ordine è scritto ma la riga di storico no → la pagina avvisa */
+      storico: boolean;
+      effetti: EffettoRisposta[];
+      email: EmailRisposta | null;
+      avvisi: string[];
+    }
+  | { ok: false; errore: ErroreOrdini };
+
+export interface RimborsoDettaglio {
+  id: string;
+  importoCent: number;
+  stato: string;
+  motivo: string;
+  origine: string;
+  chi: string;
+  creatoIl: string;
+  aggiornatoIl: string;
+  stripeRimborsoId: string | null;
+}
+export interface EmailDettaglio {
+  chiave: string;
+  stato: string;
+  il: string | null;
+  codice: string | null;
+}
+export interface DettaglioOrdine {
+  ordine: Ordine;
+  /** I dati fiscali e i consensi: solo qui, mai nella lista. `null` = il server non ha potuto leggerli. */
+  riservati: { fattura: unknown; consensi: unknown } | null;
+  /** `null` = non si sono potuti leggere (diverso da «nessun rimborso», che è `[]`) */
+  rimborsi: RimborsoDettaglio[] | null;
+  email: EmailDettaglio[];
+  storico: EventoStorico[] | null;
+  avvisi: string[];
+  migrazione: { pronta: boolean; pagamenti: boolean };
+}
+export type RisultatoDettaglio =
+  | { ok: true; dettaglio: DettaglioOrdine }
+  | { ok: false; errore: ErroreOrdini };
+
+/** `null` se l'id non è un UUID: l'indirizzo sbagliato non parte nemmeno. */
+export const urlDettaglio = (id: string): string | null =>
+  eUuid(id) ? `${ROTTA}?dettaglio=${id}` : null;
+
+const comeTesto = (v: unknown): string | null => (typeof v === "string" ? v : null);
+const elencoDi = <T>(v: unknown, vale: (x: Record<string, unknown>) => boolean): T[] | null =>
+  Array.isArray(v) ? (v.filter((x) => eOggetto(x) && vale(x)) as T[]) : null;
+
+export async function leggiDettaglio(f: FetchRotta, ordineId: string): Promise<RisultatoDettaglio> {
+  const url = urlDettaglio(ordineId);
+  if (!url) return { ok: false, errore: errore("valore") };
+  const g = await chiama(f, url);
+  if ("errore" in g) return { ok: false, errore: g.errore };
+  const { corpo } = g;
+  //  Un ordine diverso da quello chiesto non si mostra: sarebbe il dettaglio di un altro cliente.
+  if (!eOggetto(corpo.ordine) || corpo.ordine.id !== ordineId)
+    return { ok: false, errore: errore("server") };
+  const rim = eOggetto(corpo.riservati) ? corpo.riservati : null;
+  const mig = eOggetto(corpo.migrazione) ? corpo.migrazione : {};
+  return {
+    ok: true,
+    dettaglio: {
+      ordine: corpo.ordine as unknown as Ordine,
+      riservati: rim && { fattura: rim.fattura ?? null, consensi: rim.consensi ?? null },
+      rimborsi: elencoDi<RimborsoDettaglio>(corpo.rimborsi, (x) => typeof x.id === "string"),
+      email: elencoDi<EmailDettaglio>(corpo.email, (x) => typeof x.chiave === "string") ?? [],
+      storico: elencoDi<EventoStorico>(corpo.storico, (x) => typeof x.id === "string"),
+      avvisi: Array.isArray(corpo.avvisi)
+        ? corpo.avvisi.filter((a): a is string => typeof a === "string")
+        : [],
+      migrazione: { pronta: mig.pronta === true, pagamenti: mig.pagamenti === true },
+    },
+  };
+}
+
+/* ── le azioni: una funzione ciascuna ────────────────────────────────────── */
+
+const ESITI_EFFETTO: readonly string[] = ["fatto", "in_corso", "non_riuscito"];
+function effettiDi(v: unknown): EffettoRisposta[] {
+  return (
+    elencoDi<EffettoRisposta>(
+      v,
+      (x) =>
+        typeof x.tipo === "string" &&
+        typeof x.frase === "string" &&
+        ESITI_EFFETTO.includes(String(x.esito)),
+    ) ?? []
+  ).map(({ tipo, esito, frase }) => ({ tipo, esito, frase }));
+}
+const FRASE_RETE_AZIONE =
+  "Non so se la modifica sia stata salvata: controlla la connessione, aggiorna l'elenco e ricontrolla l'ordine.";
+
+/** Una POST, una volta sola. Non lancia mai e non ritenta mai. */
+async function inviaAzione(
+  f: FetchRotta,
+  ordineId: string,
+  corpo: Record<string, unknown>,
+): Promise<RisultatoAzioneR2> {
+  if (!eUuid(ordineId))
+    return { ok: false, errore: errore("valore", "L'ordine indicato non è valido.") };
+  const g = await chiama(f, ROTTA, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(corpo),
+  });
+  if ("errore" in g)
+    return {
+      ok: false,
+      errore: g.errore.tipo === "rete" ? errore("rete", FRASE_RETE_AZIONE) : g.errore,
+    };
+  if (g.corpo.ok !== true) return { ok: true, nessunCambio: true };
+  const o = g.corpo.ordine;
+  if (!eOggetto(o) || typeof o.id !== "string") return { ok: false, errore: errore("server") };
+  const em = eOggetto(g.corpo.email) ? g.corpo.email : null;
+  return {
+    ok: true,
+    nessunCambio: false,
+    ordine: o as unknown as Ordine,
+    storico: g.corpo.storico !== false,
+    effetti: effettiDi(g.corpo.effetti),
+    email:
+      em &&
+      typeof em.chiave === "string" &&
+      typeof em.stato === "string" &&
+      typeof em.frase === "string"
+        ? { chiave: em.chiave, stato: em.stato, frase: em.frase }
+        : null,
+    avvisi: Array.isArray(g.corpo.avvisi)
+      ? g.corpo.avvisi.filter((a): a is string => typeof a === "string")
+      : [],
+  };
+}
+
+export interface DatiSpedisci {
+  ordineId: string;
+  corriere?: string;
+  numero?: string;
+  senzaTracking?: boolean;
+}
+export const spedisci = (f: FetchRotta, d: DatiSpedisci) =>
+  inviaAzione(f, d.ordineId, {
+    azione: "spedisci",
+    ordineId: d.ordineId,
+    corriere: d.corriere,
+    numero: d.numero,
+    senzaTracking: d.senzaTracking,
+  });
+
+export interface DatiAnnulla {
+  ordineId: string;
+  motivo: string;
+  rimborso?: "ora" | "nessuno";
+  rimettiInMagazzino?: boolean;
+  /** serve con `rimborso: "ora"`: quella del dialogo (`apriDialogo`) */
+  chiaveRichiesta?: string;
+}
+export const annulla = (f: FetchRotta, d: DatiAnnulla) =>
+  inviaAzione(f, d.ordineId, {
+    azione: "annulla",
+    ordineId: d.ordineId,
+    motivo: d.motivo,
+    rimborso: d.rimborso,
+    rimettiInMagazzino: d.rimettiInMagazzino,
+    chiaveRichiesta: d.chiaveRichiesta,
+  });
+
+export interface DatiRimborso {
+  ordineId: string;
+  importoCent: number;
+  motivo: string;
+  chiaveRichiesta: string;
+  /** Il clic esplicito sul dialogo: senza `true` non parte niente. */
+  conferma: true;
+}
+export const rimborso = (f: FetchRotta, d: DatiRimborso) =>
+  d.conferma !== true
+    ? Promise.resolve<RisultatoAzioneR2>({
+        ok: false,
+        errore: errore("valore", "Conferma il rimborso per procedere."),
+      })
+    : inviaAzione(f, d.ordineId, {
+        azione: "rimborso",
+        ordineId: d.ordineId,
+        importoCent: d.importoCent,
+        motivo: d.motivo,
+        chiaveRichiesta: d.chiaveRichiesta,
+        conferma: true,
+      });
+
+export const riconcilia = (f: FetchRotta, d: { ordineId: string }) =>
+  inviaAzione(f, d.ordineId, { azione: "riconcilia", ordineId: d.ordineId });
+
+export const fatturaEmessa = (f: FetchRotta, d: { ordineId: string; nota?: string }) =>
+  inviaAzione(f, d.ordineId, { azione: "fattura_emessa", ordineId: d.ordineId, nota: d.nota });
+
+export const emailInvia = (f: FetchRotta, d: { ordineId: string; chiave: ChiaveEmailOrdine }) =>
+  inviaAzione(f, d.ordineId, { azione: "email_invia", ordineId: d.ordineId, chiave: d.chiave });
+
+export const giacenzaVerificata = (f: FetchRotta, d: { ordineId: string }) =>
+  inviaAzione(f, d.ordineId, { azione: "giacenza_verificata", ordineId: d.ordineId });
+
+export const correggiStato = (
+  f: FetchRotta,
+  d: { ordineId: string; da: StatoOrdine; a: StatoOrdine; motivo: string },
+) =>
+  inviaAzione(f, d.ordineId, {
+    azione: "correggi_stato",
+    ordineId: d.ordineId,
+    da: d.da,
+    a: d.a,
+    motivo: d.motivo,
+  });
+
+/** Un UUID v4 nuovo. shortcut: senza `crypto.randomUUID` (pagine non sicure) si costruisce da `getRandomValues`; da togliere se il CRM sarà sempre https. */
+export function nuovaChiaveRichiesta(): string {
+  const c = globalThis.crypto;
+  if (typeof c.randomUUID === "function") return c.randomUUID();
+  const b = c.getRandomValues(new Uint8Array(16));
+  b[6] = (b[6] & 0x0f) | 0x40;
+  b[8] = (b[8] & 0x3f) | 0x80;
+  const h = Array.from(b, (x) => x.toString(16).padStart(2, "0")).join("");
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
+}
+
+/* ══ L'ARCHIVIO DEL DETTAGLIO (quello che il pannello legge) ════════════════ */
+
+export interface StatoDettaglio {
+  /** l'ordine del pannello aperto; `null` = pannello chiuso (e niente in memoria) */
+  ordineId: string | null;
+  dettaglio: DettaglioOrdine | null;
+  /** prima lettura in corso (nessun dettaglio ancora da mostrare) */
+  inCaricamento: boolean;
+  /** l'errore dell'ULTIMA lettura o azione; il dettaglio è quello dell'ultima lettura buona */
+  errore: ErroreOrdini | null;
+  /** un'azione è partita e non è ancora finita: il bottone si disabilita */
+  inInvio: boolean;
+}
+const STATO_DETTAGLIO_INIZIALE: StatoDettaglio = {
+  ordineId: null,
+  dettaglio: null,
+  inCaricamento: false,
+  errore: null,
+  inInvio: false,
+};
+
+export function creaArchivioDettaglio(opz: {
+  fetch: FetchRotta;
+  /** Si chiede a ogni chiamata. Falso = nessuna richiesta, errore «permesso». */
+  permesso: () => boolean;
+  /** Per le prove. */
+  generaChiave?: () => string;
+}) {
+  const { fetch: f, permesso } = opz;
+  const genera = opz.generaChiave ?? nuovaChiaveRichiesta;
+  let stato = STATO_DETTAGLIO_INIZIALE;
+  let ascoltatori: Array<() => void> = [];
+  let lettura = 0; // sale a ogni apri/chiudi: una risposta arrivata dopo non vale più
+  let inInvio = false;
+  const imposta = (p: Partial<StatoDettaglio>) => {
+    stato = { ...stato, ...p };
+    ascoltatori.forEach((fn) => fn());
+  };
+  const negato = (): ErroreOrdini => errore("permesso");
+
+  /** Legge l'ordine aperto. Una risposta di un'apertura vecchia (o dopo `chiudi`) si butta. */
+  async function carica(): Promise<void> {
+    const id = stato.ordineId;
+    if (!id) return;
+    const mia = lettura;
+    const r = await leggiDettaglio(f, id);
+    if (mia !== lettura) return;
+    if (r.ok) return imposta({ dettaglio: r.dettaglio, inCaricamento: false, errore: null });
+    //  Senza permesso (o sessione) i dati riservati già letti non devono restare in memoria.
+    imposta({
+      errore: r.errore,
+      inCaricamento: false,
+      ...(eAccessoNegato(r.errore) || r.errore.tipo === "non_trovato" ? { dettaglio: null } : {}),
+    });
+  }
+
+  const apri = async (ordineId: string): Promise<void> => {
+    const mia = ++lettura;
+    if (!permesso())
+      return imposta({ ordineId: null, dettaglio: null, inCaricamento: false, errore: negato() });
+    if (!eUuid(ordineId))
+      return imposta({
+        ordineId: null,
+        dettaglio: null,
+        inCaricamento: false,
+        errore: errore("valore"),
+      });
+    imposta({
+      ordineId,
+      dettaglio: ordineId === stato.ordineId ? stato.dettaglio : null,
+      inCaricamento: true,
+      errore: null,
+    });
+    if (mia === lettura) await carica();
+  };
+  const ricarica = async (): Promise<void> => {
+    if (!stato.ordineId) return;
+    if (!permesso()) return imposta({ dettaglio: null, inCaricamento: false, errore: negato() });
+    await carica();
+  };
+  const chiudi = () => {
+    lettura++;
+    imposta({ ...STATO_DETTAGLIO_INIZIALE, inInvio });
+  };
+
+  /** Lancia UN'azione sull'ordine aperto: una alla volta, mai due insieme. Dopo, rilegge il dettaglio (una GET): mai una seconda POST. */
+  async function lancia(
+    fa: (ordineId: string) => Promise<RisultatoAzioneR2>,
+    //  `per`: l'ordine che c'era quando si è aperto il dialogo (solo per le azioni dei dialoghi).
+    //  `rileggiSuValore`: il server risponde «valore» anche dopo aver scritto una riga (rimborso rifiutato da Stripe, riconciliazione fallita): si rilegge.
+    opz: { per?: string | null; rileggiSuValore?: boolean } = {},
+  ): Promise<RisultatoAzioneR2> {
+    if (!permesso()) return { ok: false, errore: negato() };
+    const id = stato.ordineId;
+    if (!id) return { ok: false, errore: errore("valore", "Nessun ordine aperto.") };
+    //  Un dialogo scritto per l'ordine A non parte sull'ordine B (nemmeno se il pannello è passato da A a B con il dialogo ancora montato).
+    if ("per" in opz && opz.per !== id)
+      return {
+        ok: false,
+        errore: errore("valore", "Il dialogo era di un altro ordine: chiudilo e riaprilo."),
+      };
+    if (inInvio)
+      return {
+        ok: false,
+        errore: errore("valore", "Un'altra operazione è ancora in corso: attendi che finisca."),
+      };
+    inInvio = true;
+    imposta({ inInvio: true });
+    let r: RisultatoAzioneR2;
+    try {
+      r = await fa(id);
+    } finally {
+      inInvio = false;
+      imposta({ inInvio: false });
+    }
+    if (r.ok && !r.nessunCambio && stato.ordineId === id && stato.dettaglio)
+      imposta({ dettaglio: { ...stato.dettaglio, ordine: r.ordine } });
+    if (!r.ok && eAccessoNegato(r.errore)) imposta({ dettaglio: null, errore: r.errore });
+    else if (r.ok || r.errore.tipo !== "valore" || opz.rileggiSuValore) void ricarica();
+    return r;
+  }
+
+  return {
+    stato: () => stato,
+    iscrivi(fn: () => void) {
+      ascoltatori = [...ascoltatori, fn];
+      return () => {
+        ascoltatori = ascoltatori.filter((x) => x !== fn);
+      };
+    },
+    apri,
+    ricarica,
+    chiudi,
+    spedisci: (d: Omit<DatiSpedisci, "ordineId">) =>
+      lancia((ordineId) => spedisci(f, { ordineId, ...d })),
+    riconcilia: () => lancia((ordineId) => riconcilia(f, { ordineId }), { rileggiSuValore: true }),
+    fatturaEmessa: (d: { nota?: string }) =>
+      lancia((ordineId) => fatturaEmessa(f, { ordineId, ...d })),
+    emailInvia: (d: { chiave: ChiaveEmailOrdine }) =>
+      lancia((ordineId) => emailInvia(f, { ordineId, ...d }), { rileggiSuValore: true }),
+    giacenzaVerificata: () => lancia((ordineId) => giacenzaVerificata(f, { ordineId })),
+    correggiStato: (d: { da: StatoOrdine; a: StatoOrdine; motivo: string }) =>
+      lancia((ordineId) => correggiStato(f, { ordineId, ...d })),
+    /** Si chiama UNA volta quando il dialogo si apre. La chiave nasce qui e resta la stessa per tutti gli invii di quel dialogo. */
+    apriDialogo() {
+      const chiaveRichiesta = genera();
+      const per = stato.ordineId; // l'ordine di questo dialogo: se al momento dell'invio è un altro, non parte
+      return {
+        chiaveRichiesta,
+        rimborso: (d: { importoCent: number; motivo: string; conferma: true }) =>
+          lancia((ordineId) => rimborso(f, { ordineId, chiaveRichiesta, ...d }), {
+            per,
+            rileggiSuValore: true,
+          }),
+        annulla: (d: {
+          motivo: string;
+          rimborso: "ora" | "nessuno";
+          rimettiInMagazzino: boolean;
+        }) =>
+          lancia((ordineId) => annulla(f, { ordineId, chiaveRichiesta, ...d }), {
+            per,
+            rileggiSuValore: true,
+          }),
+      };
+    },
+  };
 }

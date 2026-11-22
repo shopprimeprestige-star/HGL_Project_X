@@ -5,8 +5,9 @@ import { PRODUCTS, formatPrice } from "@/shop/catalog";
 import { ShopVisual } from "@/shop/ShopVisual";
 import { useCart, type CartLine } from "@/shop/CartContext";
 import { modalitaCatalogo } from "@/shop/cms/catalogo.functions";
-import { MSG_NON_VERIFICABILE, SPEDIZIONE_CMS_CENT, datiEventoRighe } from "@/shop/cms/cassa";
+import { MSG_NON_VERIFICABILE, datiEventoRighe } from "@/shop/cms/cassa";
 import { useRivalidaCarrello } from "@/shop/useRivalidaCarrello";
+import { useTariffa } from "@/shop/useTariffa";
 import { emettiEvento } from "@/lib/tracciamento/api";
 
 export const Route = createFileRoute("/shop/carrello")({
@@ -31,8 +32,10 @@ function CartPage() {
   const { modo } = Route.useLoaderData();
   const { stato, avviso } = useRivalidaCarrello(modo);
   const cms = modo === "cms";
-  //  CMS (D37): tariffa fissa, nessuna soglia. `codice`: come oggi (gratis da 59 €).
-  const shipping = cms ? SPEDIZIONE_CMS_CENT / 100 : subtotal >= SHIPPING_THRESHOLD || subtotal === 0 ? 0 : SHIPPING_COST;
+  //  CMS: la tariffa del server (la stessa della cassa), nessuna soglia; senza cifra niente totale. `codice`: come oggi (gratis da 59 €).
+  const tariffa = useTariffa(cms);
+  const senzaCifra = cms && tariffa.costoCent === null;
+  const shipping = cms ? (tariffa.costoCent ?? 0) / 100 : subtotal >= SHIPPING_THRESHOLD || subtotal === 0 ? 0 : SHIPPING_COST;
   const total = subtotal + shipping;
 
   //  ViewCart: una volta per apertura, a controllo finito (il valore è quello del server)
@@ -171,8 +174,8 @@ function CartPage() {
             </div>
             <div className="flex justify-between text-white/70">
               <span>Spedizione</span>
-              <span className={shipping === 0 ? "text-emerald-300" : "text-white"}>
-                {shipping === 0 ? "Gratuita" : formatPrice(shipping)}
+              <span className={shipping === 0 && !senzaCifra ? "text-emerald-300" : "text-white"}>
+                {senzaCifra ? "—" : shipping === 0 ? "Gratuita" : formatPrice(shipping)}
               </span>
             </div>
             {shipping > 0 && !cms && (
@@ -183,14 +186,14 @@ function CartPage() {
             <div className="my-3 border-t border-white/10" />
             <div className="flex justify-between text-base font-bold">
               <span>Totale</span>
-              <span>{formatPrice(total)}</span>
+              <span>{senzaCifra ? "—" : formatPrice(total)}</span>
             </div>
           </div>
           <Link
             to="/shop/checkout"
             className="mt-5 flex items-center justify-center gap-2 rounded-lg bg-brand py-3 font-semibold text-white transition hover:brightness-110"
           >
-            Procedi al checkout <ArrowRight className="h-4 w-4" />
+            {tariffa.chiusa ? "Il negozio sta per aprire" : "Procedi al checkout"} <ArrowRight className="h-4 w-4" />
           </Link>
           <Link to="/shop" className="mt-3 block text-center text-sm text-white/50 hover:text-white">
             Continua lo shopping

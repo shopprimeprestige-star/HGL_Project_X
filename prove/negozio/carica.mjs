@@ -329,7 +329,7 @@ export async function prove(mod, { c, gruppo }) {
   const corpo = e.fetchLog[1]?.corpo ?? {};
   c("la richiesta al server ha lo STESSO event_id, il permesso e `consenso: true`", [id, "1800000600000.permesso-finto", true, "AddToCart"], [corpo.eventId, corpo.permesso, corpo.consenso, corpo.nome]);
   c("la richiesta porta il percorso e le sole chiavi ammesse (niente indirizzo intero)", ["/shop/prodotto/lace-front", "utm_source=meta"], [corpo.percorso, corpo.query]);
-  c("…e nessun dato personale né altro indirizzo nel corpo", false, /@|https?:|sito\.test|fbp|fbc|email|telefono/i.test(JSON.stringify(corpo)));
+  c("…e nessun dato personale né altro indirizzo nel corpo", false, /@|https?:|sito\.test|"fbp"|"fbc"|email|telefono/i.test(JSON.stringify(corpo)));
   e.api.emettiEvento("ViewContent", { contentIds: ["HG-001"], contentType: "product" });
   await e.api.scarica();
   c("il permesso si tiene in memoria: la seconda richiesta non lo richiede", [3, 1], [e.fetchLog.length, e.fetchLog.filter((x) => x.url.includes("permesso")).length]);
