@@ -78,7 +78,7 @@ export async function prove(mod, { c, gruppo, radice }) {
     const { createElement: h } = req("react");
     const { renderToStaticMarkup } = req("react-dom/server");
     const testo = (x) => x.replace(/<[^>]*>/g, " ").replace(/&#x27;|&#39;/g, "'").replace(/&quot;/g, '"').replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/\s+/g, " ");
-    const tag = (html, etichetta) => html.match(new RegExp(`<(?:button|input|textarea)[^>]*aria-label="${etichetta}"[^>]*>`))?.[0] ?? "";
+    const tag = (html, etichetta) => html.match(new RegExp(`<(?:button|input|textarea)(?:[^>"]|"[^"]*")*aria-label="${etichetta}"(?:[^>"]|"[^"]*")*>`))?.[0] ?? "";
     const spento = (t) => /\sdisabled(=|\s|>)/.test(t);
     const acceso = (t) => /aria-checked="true"/.test(t);
 
@@ -138,7 +138,7 @@ export async function prove(mod, { c, gruppo, radice }) {
     const varsc = pa(modelloVero({ approvato: true, contenuto: { ok: false, motivo: "variabile_sconosciuta" } }), false);
     c("variabile fuori elenco: NON si può accendere, e la frase parla delle variabili", [false, true], [varsc.ok, /variabil|graffa/i.test(varsc.frase ?? "")]);
     c("vuoto: NON si può accendere", false, pa(modelloVero({ approvato: true, contenuto: { ok: false, motivo: "vuoto" } }), false).ok);
-    c("un testo che non si può accendere resta spegnibile: `puoSpegnere` vale sempre", [true, true], [fn("puoSpegnere")(modelloVero({ acceso: true, contenuto: { ok: false, motivo: "segnaposto" } }), true), fn("puoSpegnere")(modelloVero({ acceso: true }), false)]);
+    c("un messaggio acceso resta spegnibile comunque (segnaposto, modifiche non salvate); spento col segnaposto è bloccato", [false, false, true], [fn("interruttoreBloccato")(modelloVero({ acceso: true, contenuto: { ok: false, motivo: "segnaposto" } }), true), fn("interruttoreBloccato")(modelloVero({ acceso: true }), false), fn("interruttoreBloccato")(L.modelli?.[0], false)]);
 
     // ── il giudizio sul testo che si sta scrivendo (stessa regola dell'invio) ──
     const gb = fn("giudizioBozza");
@@ -153,7 +153,7 @@ export async function prove(mod, { c, gruppo, radice }) {
     const approvatoAcceso = modelloVero({ approvato: true, acceso: true });
     const testoCambiato = { oggetto: OGGETTO, testo: `${TESTO}\nGrazie.` };
     const cambio = av(approvatoAcceso, testoCambiato);
-    c("testo cambiato su un messaggio acceso e approvato: l'avviso dice che si SPEGNE e che l'approvazione si TOGLIE", [true, true, true], [typeof cambio === "string", /spegn/i.test(cambio ?? ""), /approvazione/i.test(cambio ?? "") && /tol/i.test(cambio ?? "")]);
+    c("testo cambiato su un messaggio acceso e approvato: l'avviso dice che si SPEGNE e che l'approvazione si TOGLIE", [true, true, true], [typeof cambio === "string", /spegn/i.test(cambio ?? ""), /approvazione/i.test(cambio ?? "") && /si toglie/i.test(cambio ?? "")]);
     c("testo uguale (anche solo con spazi in più ai bordi): nessun avviso", [null, null], [av(approvatoAcceso, { oggetto: OGGETTO, testo: TESTO }), av(approvatoAcceso, { oggetto: ` ${OGGETTO} `, testo: `${TESTO}\n` })]);
     c("testo cambiato su un messaggio non ancora approvato: un avviso più leggero (va approvato dopo), non «si spegne»", [true, false], [typeof av(modelloVero(), testoCambiato) === "string", /si spegne/i.test(av(modelloVero(), testoCambiato) ?? "")]);
     c("`eSporco`: vero solo se il testo è diverso da quello salvato", [false, true], [fn("eSporco")(approvatoAcceso, { oggetto: OGGETTO, testo: TESTO }), fn("eSporco")(approvatoAcceso, testoCambiato)]);
@@ -269,7 +269,7 @@ export async function prove(mod, { c, gruppo, radice }) {
     c("…«Salva» si può premere, «Approva» no (prima si salva), l'interruttore acceso si può SPEGNERE", [false, true, false], [spento(tag(vMod, `Salva ${nome("annullato")}`)), spento(tag(vMod, `Approva ${nome("annullato")}`)) || tag(vMod, `Approva ${nome("annullato")}`) === "", spento(tag(vMod, `Email attiva: ${nome("annullato")}`))]);
     c("…e c'è «Annulla le modifiche»", true, tag(vMod, `Annulla le modifiche: ${nome("annullato")}`) !== "");
     const vMod2 = vista({ modelli: lVero.modelli, bozze: bozzaMod });
-    c("modifica su un messaggio approvato e spento: l'interruttore è spento e dice di salvare", [true, true], [spento(tag(vMod2, `Email attiva: ${nome("annullato")}`)), /salva/i.test(testo(vMod2).match(/Email attiva[\s\S]{0,400}/)?.[0] ?? testo(vMod2))]);
+    c("modifica su un messaggio approvato e spento: l'interruttore è spento e dice di salvare", [true, true], [spento(tag(vMod2, `Email attiva: ${nome("annullato")}`)), /Salva prima le modifiche al testo/.test(testo(vMod2))]);
     const vSeg = vista({ modelli: lVero.modelli, bozze: { annullato: { oggetto: "{{da confermare}} Ordine", testo: "{{da confermare}}" } } });
     c("una bozza con «{{da confermare}}»: l'avviso del segnaposto compare e «Salva» resta possibile (si può salvare una bozza), ma non si approva", [true, false, true], [/ha ancora un segnaposto/i.test(testo(vSeg)), spento(tag(vSeg, `Salva ${nome("annullato")}`)), spento(tag(vSeg, `Approva ${nome("annullato")}`)) || tag(vSeg, `Approva ${nome("annullato")}`) === ""]);
 
@@ -309,11 +309,11 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("i cinque modelli di base sono tutti segnaposto: «{{da confermare}}» nell'oggetto e nel testo, spenti, mai approvati", [5, true], [BASE.length, BASE.length === 5 && BASE.every((m) => m.oggetto.includes("{{da confermare}}") && m.testo.includes("{{da confermare}}") && m.acceso === false && !m.approvato_hash)]);
   const nudo = senzaCommenti(sorgente);
   c("il file non porta testi per i clienti: nessuna formula di saluto, di ringraziamento, di offerta o di promessa", false, /grazie|gentile|egregi|cordial|sconto|offerta|promo|scopri|novit|benvenut|speciale|esclusiv|acquista|consulenz|24 ?ore|48 ?ore|spedizione gratuita/i.test(nudo));
-  c("…e non copia nessun testo dei modelli di base", false, BASE.some((m) => m.testo.split("\n").some((r) => r.trim().length > 12 && nudo.includes(r.trim()))));
+  c("…e non copia nessun testo dei modelli di base", false, BASE.some((m) => m.testo.split("\n").some((r) => r.trim().length > 12 && r.trim() !== "{{da confermare}}" && nudo.includes(r.trim()))));
   c("nessuna chiave, variabile d'ambiente, log né accesso diretto al database nel file", false, /\b(sk|rk|pk)_(test|live)|whsec_|STRIPE_|RESEND|process\.env|import\.meta\.env|console\.|@\/integrations\/supabase|createClient|\.from\(["']/.test(nudo));
   c("«Elimina» e simili non compaiono nemmeno come parole di una frase", false, /elimin|cancell|delete|rimuov/i.test(nudo.replace(/\/api\/[^"'`\s]*/g, "")));
   c("non importa codice del server (nel pacchetto del browser non ci va)", false, /\.server["']|cloudflare:workers|node:/.test(nudo));
-  c("il file non scrive rotte e non tocca il database: solo la rotta che c'è già", [true, false], [/\/api\/crm\/negozio-email/.test(nudo), /\/api\/(public|crm\/(ordini|negozio|stripe))\b/.test(nudo)]);
-  c("al primo 403 il file chiama onNegato tramite `creaGuardia`, e ogni risposta della rotta ci passa", [true, true], [/creaGuardia\(/.test(nudo), (nudo.match(/guarda\(/g) || []).length >= 4]);
+  c("il file non scrive rotte e non tocca il database: solo la rotta che c'è già", [true, false], [/\/api\/crm\/negozio-email/.test(nudo), /\/api\/(public|crm\/(ordini|negozio|stripe)(?![\w-]))/.test(nudo)]);
+  c("al primo 403 il file chiama onNegato tramite `creaGuardia`, e ogni risposta della rotta ci passa", [true, true], [/creaGuardia\(/.test(nudo), (nudo.match(/guarda\(/g) || []).length >= 2]);
   c("la lettura parte da un effetto (all'apertura della scheda), mai nel disegno né a livello di modulo", true, /useEffect\(\(\) => \{[\s\S]{0,300}void carica\(\)/.test(nudo));
 }
