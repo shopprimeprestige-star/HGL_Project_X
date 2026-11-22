@@ -43,6 +43,8 @@ import { BASE_CONDIZIONI } from "@/shop/condizioni-preventivo";
     numeri dentro limiti sensati e decide lo stato. Non è una serratura: è la
     differenza fra «scrivi quello che vuoi» e «scrivi un preventivo». */
 import { rigaPulita } from "@/shop/riga-preventivo";
+import { buildMenu, voceDiListino } from "@/shop/quote-menu";
+import { consulenteDellaSessione, listinoDi } from "@/crm/listino-di-chi.server";
 import { chiaveSessione } from "@/shop/chiave-sessione";
 import { attesoDalGettone, chiaveAttesi, leggiAttesi } from "@/crm/fascia-consulenza";
 
@@ -239,7 +241,21 @@ export const Route = createFileRoute("/api/public/quote-create")({
         const chi = request.headers.get("cf-connecting-ip") || "ignoto";
         if (troppeRichieste(chi)) return json({ ok: false, reason: "troppe richieste, riprova fra un minuto" }, 429);
 
-        const { riga: row, scartati } = rigaPulita(grezza);
+        //  Un prezzo negativo passa solo per le opzioni che il listino di chi
+        //  conduce la consulenza dichiara davvero negative, e con la sua cifra
+        //  (vedi `NegativoDi` in shop/riga-preventivo). Se il listino non si
+        //  legge, niente è negativo.
+        let negativoDi: ((nome: string) => number | null) | undefined;
+        try {
+          const menu = buildMenu(await listinoDi(await consulenteDellaSessione(body.sess)));
+          negativoDi = (nome) => {
+            const v = voceDiListino(nome, menu);
+            return v && v.price < 0 ? v.price : null;
+          };
+        } catch {
+          negativoDi = undefined;
+        }
+        const { riga: row, scartati } = rigaPulita(grezza, negativoDi);
         if (scartati.length) console.warn("[QUOTE-CREATE] campi non previsti, scartati:", scartati.join(", "));
 
         let ref = String((grezza as { quote_ref?: unknown }).quote_ref || "").trim() || nuovoRef();

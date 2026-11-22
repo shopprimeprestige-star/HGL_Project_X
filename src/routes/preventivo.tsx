@@ -71,7 +71,7 @@ import {
   prezzoDiPartenza,
   setPromoDays,
   type PricingOverrides,
-  scontoOpzioni,
+  etichettaPrezzoVoce,
   type PartePreventivo,
   chiaveParte,
   parteAccesa,
@@ -451,7 +451,8 @@ const BARRATO_CLASSI =
   "font-bold tabular-nums text-white/80 line-through decoration-red-400 decoration-[2.5px]";
 function PromoPrice({ price, wasPrice }: { price: number; wasPrice?: number }) {
   const free = price === 0;
-  const discounted = !!wasPrice && wasPrice > price;
+  //  Un prezzo negativo («costa meno») non è un'offerta: mai barrato.
+  const discounted = price >= 0 && !!wasPrice && wasPrice > price;
   const tag = (
     <span
       className={`rounded-md px-2 py-0.5 text-sm font-bold ${
@@ -462,7 +463,7 @@ function PromoPrice({ price, wasPrice }: { price: number; wasPrice?: number }) {
             : "bg-brand/20 text-brand"
       }`}
     >
-      {free ? "GRATIS" : "+" + formatPrice(price)}
+      {etichettaPrezzoVoce(price, formatPrice)}
     </span>
   );
   if (discounted) {
@@ -1092,8 +1093,10 @@ function QuoteBuilder() {
         const fit = FITTING_OPTIONS.find((f) => f.id === (q.fitting_mode || "remoto"))!;
         const bs = q.base_system ?? {};
         const nQty = Number(q.qty) || 1;
-        const gross =
-          ((Number(bs.price) || 0) + items.reduce((s, i) => s + i.price, 0)) * nQty + fit.price;
+        const gross = Math.max(
+          0,
+          ((Number(bs.price) || 0) + items.reduce((s, i) => s + i.price, 0)) * nQty + fit.price,
+        );
         const dEur = Number(q.discount_eur) || 0;
         const total = Number(q.total) || Math.max(0, gross - dEur);
         const firstCode = String(q.discount_code || "")
@@ -3536,7 +3539,8 @@ function QuoteBuilder() {
     upsellTotal +
     (simOn && menu.simulation ? menu.simulation.price : 0) +
     (installOn && menu.installation && !isTransplant ? menu.installation.price : 0);
-  const gross = perUnit * qty + (isTransplant ? 0 : (fitOpt?.price ?? 0));
+  //  Mai sotto zero: con opzioni a prezzo negativo il lordo non scende sotto 0.
+  const gross = Math.max(0, perUnit * qty + (isTransplant ? 0 : (fitOpt?.price ?? 0)));
   // sconto automatico in base alla quantità selezionata (impostato dal CRM)
   const qtyDiscEur = Number(qtyDiscounts[String(qty)]) || 0;
   const qtyDisc: Discount | null =
@@ -3586,26 +3590,7 @@ function QuoteBuilder() {
        prezzo di un acquisto FUTURO. Restano due voci separate — vedi il
        cartello in shop/promo-garanzia. */
   const secondoImpianto = prezzoDalSecondo({ pieno: gross, offerta: garanziaVisibile ? offertaGaranzia : null });
-  //  ── LO SCONTO DELLE OPZIONI SCELTE ───────────────────────────────────
-  //   Una riga per opzione, con il suo nome, così il riepilogo dice «Sconto
-  //   Solo regione frontale −47,20 €». Entra qui e non in `codiciApplicati`:
-  //   non è un codice, e la garanzia legge i codici. Da qui in poi segue le
-  //   stesse regole degli altri sconti: si somma, non supera il lordo, il
-  //   totale non scende sotto zero.
-  const opzioniApplicate: Discount[] = scontoOpzioni(menu.scontiOpzione, selectedItems, qty).righe.map(
-    (r) => ({
-      code: `OPZ-${r.id}`,
-      discount_eur: r.eur,
-      stock_total: null,
-      stock_left: null,
-      label: r.nome,
-      apply_message: null,
-      scarcity_title: null,
-      scarcity_text: null,
-      kind: "opzione" as const,
-    }),
-  );
-  const allDiscounts = [...codiciApplicati, ...opzioniApplicate];
+  const allDiscounts = [...codiciApplicati];
   const rawDiscount = allDiscounts.reduce((s, d) => s + d.discount_eur, 0);
   const discountEur = Math.min(rawDiscount, gross);
   const total = Math.max(0, gross - discountEur);
@@ -3910,16 +3895,7 @@ function QuoteBuilder() {
       return scelta ? `${u.name} — ${scelta.name.toLowerCase()}` : u.name;
     };
     const items: QItem[] = [
-      ...selectedItems.map((u) => ({
-        name: conVariante(u),
-        price: u.price,
-        wasPrice: u.wasPrice,
-        //  Lo sconto della voce viaggia CON la voce: è così che il preventivo
-        //  riaperto sa spiegare quella parte dello sconto totale.
-        ...(opzioniApplicate.some((d) => d.code === `OPZ-${u.id}`)
-          ? { scontoOpz: menu.scontiOpzione[u.id] }
-          : {}),
-      })),
+      ...selectedItems.map((u) => ({ name: conVariante(u), price: u.price, wasPrice: u.wasPrice })),
       ...(simOn && menu.simulation
         ? [
             {
@@ -5863,6 +5839,10 @@ function QuoteBuilder() {
                                 {formatPrice(b.price)} di base + {formatPrice(par.extra)} di scelte
                                 già incluse
                               </>
+                            ) : par.extra < 0 ? (
+                              <>
+                                {par.voci.length} scelte già incluse, che abbassano il prezzo
+                              </>
                             ) : (
                               <>
                                 {par.voci.length} scelte già incluse, senza sovrapprezzo
@@ -7023,9 +7003,11 @@ function ConsultantPanel({
     const rilievo = menu.fitting.find((f) => f.id === s.fittingId);
     const basePrice = sistema ? Number(sistema.price) || 0 : s.basePrice;
     const fittingPrice = rilievo ? Number(rilievo.price) || 0 : s.fittingPrice;
-    const gross =
+    const gross = Math.max(
+      0,
       (basePrice + items.reduce((t, i) => t + (Number(i.price) || 0), 0)) * Math.max(1, s.qty) +
-      fittingPrice;
+        fittingPrice,
+    );
     return { ...s, items, basePrice, fittingPrice, gross };
   };
   const oggi = aOggi(base);

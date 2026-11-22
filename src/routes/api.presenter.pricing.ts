@@ -30,6 +30,7 @@ import { grezzoListino, scriviListino } from "@/crm/listino-di-chi.server";
 //  La virgola dei decimali si legge in un solo posto, quello dei coupon: due
 //  letture diverse dello stesso "450,73" sono due importi diversi.
 import { euroDaValore } from "./api.presenter.coupons";
+import { RIGHE, prezzoDaValoreRiga } from "@/shop/listino-condiviso";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -46,9 +47,6 @@ interface Listino {
   prices: Record<string, number>;
   was: Record<string, number>;
   disabled: Record<string, boolean>;
-  /** Sconto che scatta scegliendo un'opzione: id voce → euro (vedi
-   *  `scontiOpzione` in shop/quote-menu). Assente = nessuno. */
-  scontiOpzione: Record<string, number>;
   /** Se gli sconti sulle personalizzazioni si presentano come sconti (prezzo
    *  barrato accanto alla voce) o se il prezzo scontato è semplicemente IL
    *  prezzo. Non cambia di un euro quello che il cliente paga.
@@ -81,7 +79,7 @@ interface Listino {
 }
 
 const VUOTO: Listino = {
-  prices: {}, was: {}, disabled: {}, scontiOpzione: {}, upsellSconti: true, spente: {},
+  prices: {}, was: {}, disabled: {}, upsellSconti: true, spente: {},
   preselezionate: {}, preselezionatePerBase: {}, manutenzione: {}, accontoPerBase: {}, causale: "",
 };
 
@@ -120,7 +118,6 @@ async function leggi(consulente: string): Promise<Listino & { suo: boolean }> {
       prices: p.prices ?? {},
       was: p.was ?? {},
       disabled: p.disabled ?? {},
-      scontiOpzione: p.scontiOpzione ?? {},
       upsellSconti: p.upsellSconti !== false,
       spente: p.spente ?? {},
       preselezionate: p.preselezionate ?? {},
@@ -166,7 +163,6 @@ function ripulisci(v: unknown): { listino: Listino; guaste: string[] } {
     prices: {},
     was: {},
     disabled: {},
-    scontiOpzione: {},
     accontoPerBase: {},
     upsellSconti: (dentro as { upsellSconti?: unknown }).upsellSconti !== false,
     spente: {},
@@ -179,7 +175,9 @@ function ripulisci(v: unknown): { listino: Listino; guaste: string[] } {
   };
 
   Object.entries((dentro.prices ?? {}) as Record<string, unknown>).forEach(([id, val]) => {
-    const n = euroDaValore(val);
+    //  Il segno meno si accetta SOLO sulle opzioni delle sezioni («costa meno»,
+    //  non uno sconto); su tutte le altre voci un negativo resta un errore.
+    const n = prezzoDaValoreRiga(RIGHE.find((r) => r.id === id), val);
     if (n == null) guaste.push(id);
     else out.prices[id] = n;
   });
@@ -192,18 +190,6 @@ function ripulisci(v: unknown): { listino: Listino; guaste: string[] } {
   Object.entries((dentro.disabled ?? {}) as Record<string, unknown>).forEach(([id, val]) => {
     if (val) out.disabled[id] = true;
   });
-  //  ── LO SCONTO DELLE OPZIONI ──────────────────────────────────────────
-  //   Stesso metro degli altri importi. Vuoto o 0 = nessuno sconto, e non si
-  //   scrive; una cifra illeggibile NON sparisce in silenzio (il titolare
-  //   crederebbe di averla impostata): fa fallire la scrittura.
-  Object.entries((dentro as { scontiOpzione?: Record<string, unknown> }).scontiOpzione ?? {}).forEach(
-    ([id, val]) => {
-      if (val == null || (typeof val === "string" && val.trim() === "")) return;
-      const n = euroDaValore(val);
-      if (n == null) guaste.push(`sconto ${id}`);
-      else if (n > 0) out.scontiOpzione[id] = n;
-    },
-  );
   //  Si scrive solo ciò che è SPENTO: un elenco di «acceso: true» crescerebbe
   //  a ogni pubblicazione di una sezione nuova, e nessuno saprebbe più quali
   //  righe contano.
