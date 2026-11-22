@@ -89,6 +89,14 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 /** Codici di Postgres/PostgREST che dicono «S4 non è applicata»: funzione, tabella o colonna assente. */
 const MIGRAZIONE = new Set(["PGRST202", "PGRST204", "PGRST205", "42883", "42P01", "42703"]);
 
+/** Esiti dell'invio email che ritentare non cambia (configurazione, database o indirizzo da sistemare): avviso e 200. */
+const SENZA_RITENTO = new Set(["non_configurata", "migrazione", "senza_email"]);
+/** La porta email dà il codice HTTP di Resend in `codice` (`http_<stato>`): un 4xx diverso da 408 e 429 è un rifiuto che non passa da solo. */
+const eRifiutoPermanente = (codice: string | undefined): boolean => {
+  const stato = /^http_(4\d\d)$/.exec(codice ?? "")?.[1];
+  return stato !== undefined && stato !== "408" && stato !== "429";
+};
+
 /** Un guasto che il webhook non sa risolvere: porta solo un codice. `migrazione` → 503, il resto → 500. */
 class Guasto extends Error {
   constructor(
@@ -215,7 +223,9 @@ export async function gestisciWebhook(richiesta: Request, porte: PorteWebhook): 
   }
 
   /** E3 (D53), PRIMA di chiudere l'evento: se non parte, nessuno la rimanda. Un invio che lancia, finisce in `errore` o è `in_corso` lascia l'avviso
-   *  `email_non_inviata` (una sola volta per evento) e fa fallire la richiesta (500): Stripe ritenta. Senza indirizzo non c'è niente da ritentare, ma l'avviso c'è.
+   *  `email_non_inviata` (una sola volta per evento) e fa fallire la richiesta (500): Stripe ritenta.
+   *  Ritentare non serve, e quindi 200 con l'avviso e niente 500, quando manca l'indirizzo, quando la configurazione o il database non sono a posto
+   *  (`non_configurata`, `migrazione`, `senza_email`) e quando Resend rifiuta per sempre (4xx diverso da 408 e 429: indirizzo rifiutato, chiave o dominio).
    *  Stati come `spenta` o `non_approvata` sono scelte del titolare, non guasti: nessun avviso, nessun 500.
    *  shortcut: l'invio si aspetta dentro la richiesta (il tetto è quello della porta, 8 s di Resend), quando serve di più si sposta in una coda. */
   async function emailNonRiuscito(ordine: Ordine, eventoId: string): Promise<void> {
@@ -223,12 +233,16 @@ export async function gestisciWebhook(richiesta: Request, porte: PorteWebhook): 
       avviso(ordine.id, "email_non_inviata", eventoId).catch(() => avvisa("avviso_non_scritto"));
     if (ordine.email === "") return void (await segnala());
     let stato: string;
+    let codice: string | undefined;
     try {
-      stato = (await porte.email.invia("pagamento_non_riuscito", ordine.id, { manuale: false }))
-        .stato;
+      ({ stato, codice } = await porte.email.invia("pagamento_non_riuscito", ordine.id, {
+        manuale: false,
+      }));
     } catch {
       stato = "eccezione";
     }
+    if (SENZA_RITENTO.has(stato) || (stato === "errore" && eRifiutoPermanente(codice)))
+      return void (await segnala());
     if (stato !== "errore" && stato !== "in_corso" && stato !== "eccezione") return;
     await segnala();
     throw new Guasto(`email_${stato}`);

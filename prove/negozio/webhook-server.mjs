@@ -38,7 +38,9 @@ export async function prove(mod, { c, gruppo, radice }) {
 
   /** L'email finta, come la scriverà T54: la guardia `shop_email_prenota` è del database, l'invio è un conto. `cancello` ferma l'invio finché non si apre.
    *  `esiti[i]` dice come finisce la chiamata i-esima: `lancia` (eccezione), `errore` (prenota, poi esito `errore`, come un Resend che risponde 500),
-   *  `in_corso` o `spenta` (nessun invio, solo lo stato); altrimenti l'invio va a buon fine. */
+   *  `in_corso` o `spenta` (nessun invio, solo lo stato); altrimenti l'invio va a buon fine.
+   *  R4 · `non_configurata`, `migrazione`, `senza_email` = nessun invio, solo lo stato; `errore:http_422` = come `errore` ma col codice HTTP di Resend che la porta vera
+   *  espone in `codice` (`http_<stato>`, `rete`, `resend_eccezione`…). */
   function emailFinta(db, { cancello = null, rompi = false, esiti = [] } = {}) {
     const chiamate = [];
     const inviate = [];
@@ -51,12 +53,13 @@ export async function prove(mod, { c, gruppo, radice }) {
           if (rompi) throw new Error(`invio fallito per ${EMAIL_CLIENTE}`);
           const esito = esiti[chiamate.length - 1];
           if (esito === "lancia") throw new Error(`invio fallito per ${EMAIL_CLIENTE}`);
-          if (esito === "in_corso" || esito === "spenta") return { stato: esito };
+          if (["in_corso", "spenta", "non_configurata", "migrazione", "senza_email"].includes(esito)) return { stato: esito };
           const { data: prenotata } = await db.rpc("shop_email_prenota", { p_ordine: ordineId, p_chiave: chiave });
           if (!prenotata) return { stato: "inviata" };
-          if (esito === "errore") {
-            await db.rpc("shop_email_esito", { p_ordine: ordineId, p_chiave: chiave, p_stato: "errore", p_codice: "http_500" });
-            return { stato: "errore", codice: "http_500" };
+          if (typeof esito === "string" && esito.startsWith("errore")) {
+            const codice = esito.includes(":") ? esito.split(":")[1] : "http_500";
+            await db.rpc("shop_email_esito", { p_ordine: ordineId, p_chiave: chiave, p_stato: "errore", p_codice: codice });
+            return { stato: "errore", codice };
           }
           if (cancello) await cancello;
           inviate.push(chiave);
@@ -425,6 +428,42 @@ export async function prove(mod, { c, gruppo, radice }) {
     const m = await mondo({ emailEsiti: ["spenta"] });
     const r = await m.vai(evSessione("checkout.session.async_payment_failed", { sessione: m.sessioni[0], pagamento: "unpaid" }));
     c("R3b: email spenta dal titolare → 200, nessun avviso, evento chiuso", [200, [], true], [r.stato, m.avvisi(), m.db.tabelle.shop_stripe_eventi[0].elaborato_il != null]);
+  }
+  {
+    // R4 · guasti di configurazione o di dati: non sono scelte del titolare. Niente 500 (ritentare per tre giorni non li aggiusta), ma l'avviso c'è, una volta per evento
+    for (const stato of ["non_configurata", "migrazione", "senza_email"]) {
+      const m = await mondo({ emailEsiti: [stato] });
+      const ev = evSessione("checkout.session.async_payment_failed", { sessione: m.sessioni[0], pagamento: "unpaid" });
+      const r = await m.vai(ev);
+      await m.finisci();
+      c(`R4: email ${stato} → 200, ordine \`fallito\`, evento chiuso e un avviso \`email_non_inviata\` (rif: l'evento)`, [200, "fallito", true, ["email_non_inviata"], "evt_p0001"], [r.stato, m.ordine().stato_pagamento, m.db.tabelle.shop_stripe_eventi[0].elaborato_il != null, m.avvisi(), m.ordine().avvisi[0]?.rif]);
+    }
+    // una sola volta per evento: l'evento non si chiude una volta (500 dopo l'avviso), Stripe ritenta e l'avviso non si raddoppia
+    let volte = 0;
+    const m = await mondo({ emailEsiti: ["non_configurata", "non_configurata"], dbOpzioni: { errori: { "rpc.shop_stripe_evento_chiudi": () => (++volte === 1 ? { error: { code: "XX000", message: "boom" } } : undefined) } } });
+    const ev = evSessione("checkout.session.async_payment_failed", { sessione: m.sessioni[0], pagamento: "unpaid" });
+    const a = await m.vai(ev);
+    const b = await m.vai(ev);
+    c("R4: lo stesso evento ritentato (la prima volta non si chiude) → l'avviso resta uno solo", [500, 200, ["email_non_inviata"]], [a.stato, b.stato, m.avvisi()]);
+  }
+  {
+    // R4 · errore permanente di Resend (4xx diverso da 408 e 429; la porta lo espone in `codice` come `http_<stato>`): 200 con avviso, non 500
+    for (const codice of ["http_400", "http_401", "http_403", "http_404", "http_409", "http_422"]) {
+      const m = await mondo({ emailEsiti: [`errore:${codice}`] });
+      const r = await m.vai(evSessione("checkout.session.async_payment_failed", { sessione: m.sessioni[0], pagamento: "unpaid" }));
+      await m.finisci();
+      c(`R4: Resend ${codice} (permanente) → 200, avviso \`email_non_inviata\`, evento chiuso, ordine \`fallito\``, [200, ["email_non_inviata"], true, "fallito"], [r.stato, m.avvisi(), m.db.tabelle.shop_stripe_eventi[0].elaborato_il != null, m.ordine().stato_pagamento]);
+    }
+    // temporanei: Stripe ritenta, come prima (408 e 429 sono del 4xx ma passano; 5xx, rete, eccezione non sono permanenti)
+    for (const codice of ["http_408", "http_429", "http_500", "http_503", "rete", "resend_eccezione", "sconosciuto", "http_499x"]) {
+      const m = await mondo({ emailEsiti: [`errore:${codice}`] });
+      const r = await m.vai(evSessione("checkout.session.async_payment_failed", { sessione: m.sessioni[0], pagamento: "unpaid" }));
+      c(`R4: Resend ${codice} (temporaneo o non chiaro) → 500 e avviso, Stripe ritenta`, [500, ["email_non_inviata"], false], [r.stato, m.avvisi(), m.db.tabelle.shop_stripe_eventi[0].elaborato_il != null]);
+    }
+    // 4xx permanente: nessuna seconda email (la porta non ha prenotato di nuovo); il tentativo non cambia niente
+    const m = await mondo({ emailEsiti: ["errore:http_422"] });
+    await m.vai(evSessione("checkout.session.async_payment_failed", { sessione: m.sessioni[0], pagamento: "unpaid" }));
+    c("R4: 4xx permanente → una sola chiamata alla porta email, nessun invio", [1, 0], [m.email.chiamate.length, m.email.inviate.length]);
   }
   {
     // R3b · il guasto è DOPO la chiusura dell'ordine: `shop_stripe_evento_chiudi` fallisce una volta → 500; al tentativo `shop_ordine_chiudi` risponde `ignorato`
