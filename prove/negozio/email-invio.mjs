@@ -353,8 +353,10 @@ export async function prove(mod, { c, gruppo, radice }) {
     const pe = { db: annMan.db, email: porteAnn, adesso: () => new Date(INIZIO), log: (x) => log.push(x) };
     const auto = await RS.inviaAutomatica(pe, "conferma_ordine", ID);
     c("invio automatico dal CRM su ordine annullato: stato «saltata», mai un errore, nessun invio", ["saltata", 0], [auto.stato, annMan.resend.length]);
+    c("…e la frase per il titolare dice che l'ordine è annullato (non il generico «Email non inviata.»)", "Email non inviata: l'ordine è annullato.", auto.frase);
     const mano = await RS.eseguiEffetto(pe, { tipo: "email", chiave: "conferma_ordine", manuale: true }, { id: ID }, "titolare");
     c("«Invia ora» dal CRM su ordine annullato: esito «non_riuscito» con una frase e una risposta 4xx, NON un 500; nessun invio", ["non_riuscito", true, true, 0], [mano.esito, typeof mano.frase === "string" && mano.frase.length > 0, mano.http >= 400 && mano.http < 500, annMan.resend.length]);
+    c("…con la stessa frase", "Email non inviata: l'ordine è annullato.", mano.frase);
     c("…nessun errore nel log (non è un guasto)", [], log);
   }
 
