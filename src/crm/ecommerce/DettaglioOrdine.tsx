@@ -643,7 +643,9 @@ export function CorpoStripe({
   const avviaAzione = async (nome: Azione["azione"], fa: () => Promise<RisultatoAzioneR2>) => {
     setEsitoR2(null);
     setDaConfermare(null);
-    setEsitoR2(esitoAzioneR2(await fa(), nome));
+    const e = esitoAzioneR2(await fa(), nome);
+    setEsitoR2(e);
+    return e;
   };
   const fatto = (r: RisultatoAzioneR2, nome: Finestra) => {
     setFinestra(null);
@@ -739,12 +741,11 @@ export function CorpoStripe({
             if (!c) return;
             if (c.tipo === "email")
               void avviaAzione("email_invia", () => d.emailInvia({ chiave: c.chiave }));
-            else {
-              setCorrezione(null);
+            else
+              //  Il modulo si chiude solo se è andata: dopo un errore resta aperto, con il motivo che si era scritto.
               void avviaAzione("correggi_stato", () =>
                 d.correggiStato({ da: c.da, a: c.a, motivo: c.motivo }),
-              );
-            }
+              ).then((e) => e.tono !== "errore" && setCorrezione(null));
           }}
         >
           {conferma?.si}
@@ -864,7 +865,7 @@ export function CorpoStripe({
                 size="sm"
                 variant="outline"
                 className={CLASSE_TASTO}
-                disabled={fermo}
+                disabled={fermo || (rimborsabile && tasto.annullaSpento)}
                 onClick={() => setFinestra("annulla")}
               >
                 Annulla l'ordine…

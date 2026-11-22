@@ -131,7 +131,9 @@ async function fotografia(d: PorteInterruttori, chiavi: string[]) {
 /** `GET ?cassa`: gli interruttori della cassa, le condizioni per accendere `stripe`, e se «pagamento sicuro» si può accendere.
  *  `ambiente` dice solo presente/assente (mai i valori): si copiano i booleani noti, non si spalma ciò che passa la porta. */
 async function leggiCassa(d: PorteInterruttori) {
-  const interruttori = await fotografia(d, CHIAVI_CASSA);
+  //  `catalogo_sito` si legge qui ma NON sta in `CHIAVI_CASSA` (`leggiValore` la usa per dire quale migrazione manca): serve alla scheda
+  //  «Spedizioni», che con la cassa `stripe` e il catalogo `codice` usa in realtà la cassa di prima (`cassaEffettiva`).
+  const interruttori = await fotografia(d, [...CHIAVI_CASSA, "catalogo_sito"]);
   let fatti: FattiEsterni | null = null;
   try {
     fatti = await d.fattiEsterni();

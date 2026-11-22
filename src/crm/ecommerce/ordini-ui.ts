@@ -114,7 +114,7 @@ function passa(o: Ordine, f: Omit<Filtri, "stato">, q: string): boolean {
   if (f.pagato === "no" && eIncassato(o)) return false;
   if (f.canale && (o.canale === "sito") !== (f.canale === "sito")) return false;
   if (f.statoPagamento && lettoPagamento(o, f.adesso) !== f.statoPagamento) return false;
-  if (f.fatturaDaFare === true && !(o.fatturaRichiesta && o.fatturaEmessaIl === null)) return false;
+  if (f.fatturaDaFare === true && !fatturaDaFare(o)) return false;
   if (f.giacenzaDaVerificare === true && !o.giacenzaDaVerificare) return false;
   if (f.mostraProva === false && o.prova) return false;
   return !q || combacia(o, q);
@@ -155,7 +155,11 @@ export function conteggiPerStato(
   return n;
 }
 
-const NON_PAGATI: readonly StatoPagamento[] = ["in_attesa", "scaduto", "fallito"];
+/** Chi non ha (ancora o mai) pagato: i numeri accanto ai filtri e il numeretto del menu non li contano. */
+export const NON_PAGATI: readonly StatoPagamento[] = ["in_attesa", "scaduto", "fallito"];
+/** Fattura da fare: richiesta e non ancora emessa. */
+export const fatturaDaFare = (o: Ordine): boolean =>
+  o.fatturaRichiesta && o.fatturaEmessaIl === null;
 
 /** L'ordine con quell'identificativo (UUID), o `null`. Mai per numero ordine. */
 export const ordineDaId = (ordini: Ordine[], id: string | undefined): Ordine | null =>
@@ -346,7 +350,7 @@ export const fraseErroreOrdine = (codice: unknown): string =>
 /** Le frasi degli avvisi che le funzioni SQL e il webhook scrivono sull'ordine (colonna `avvisi`). */
 export const ETICHETTA_AVVISO: Record<string, string> = {
   giacenza_da_verificare:
-    "La giacenza è da verificare: una riga non si è potuta scalare dal magazzino. Contala e segna «Giacenza verificata».",
+    "La giacenza è da verificare: una riga non si è potuta scalare dal magazzino. Contala e premi «Segna verificata».",
   importo_diverso:
     "Stripe ha incassato un importo diverso dal totale dell'ordine: l'ordine NON è stato segnato come pagato. Controlla su Stripe.",
   valuta_diversa:
@@ -362,7 +366,8 @@ export const ETICHETTA_AVVISO: Record<string, string> = {
   pagato_dopo_scadenza: "Pagato dopo la scadenza della sessione: controlla la giacenza.",
   stripe_errore: "Stripe ha rifiutato la richiesta di pagamento: l'ordine è stato chiuso.",
   email_non_inviata: "L'email non è partita al primo tentativo: controlla se è poi arrivata.",
-  rimborso_transizione_ignorata: "Stripe dice riuscito, il registro no: controlla su Stripe.",
+  rimborso_transizione_ignorata:
+    "Il registro dei rimborsi e Stripe non dicono la stessa cosa: controlla su Stripe.",
   livemode_diverso:
     "Stripe ha mandato un evento reale per un ordine di prova (o il contrario): non ho cambiato niente. Controlla su Stripe.",
   metodo_non_scritto:
@@ -703,17 +708,24 @@ export function tastoRimborso(p: {
   rimborsi: unknown;
   inInvio: boolean;
   blocco: { rimborsi: unknown } | null;
-}): { attivo: boolean; ragione: string | null } {
+}): { attivo: boolean; ragione: string | null; annullaSpento: boolean } {
+  //  `annullaSpento`: «Annulla l'ordine…» può rimborsare, quindi si spegne con «Rimborsa» solo per un rimborso in corso o rimborsi che non si leggono
+  //  (non per «niente da rimborsare»: l'annullo resta possibile, senza la scelta del rimborso).
   if (p.blocco !== null && p.blocco.rimborsi === p.rimborsi)
-    return { attivo: false, ragione: FRASE_RIMBORSO_IN_CORSO };
+    return { attivo: false, ragione: FRASE_RIMBORSO_IN_CORSO, annullaSpento: true };
   if (!rimborsiLeggibili(p.rimborsi))
     return {
       attivo: false,
       ragione: "Non riesco a leggere i rimborsi già fatti su questo ordine: aggiorna e riprova.",
+      annullaSpento: true,
     };
   if (massimoRimborsabileCent(p.ordine, p.rimborsi) <= 0)
-    return { attivo: false, ragione: "Non resta niente da rimborsare su questo ordine." };
-  return { attivo: !p.inInvio, ragione: null };
+    return {
+      attivo: false,
+      ragione: "Non resta niente da rimborsare su questo ordine.",
+      annullaSpento: false,
+    };
+  return { attivo: !p.inInvio, ragione: null, annullaSpento: false };
 }
 
 /** Un rimborso che il server ha chiesto a Stripe e non sa se è partito (anche dentro un annullo): non si ripete. */

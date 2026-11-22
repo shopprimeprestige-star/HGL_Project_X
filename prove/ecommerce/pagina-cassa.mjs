@@ -340,7 +340,8 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("i cinque file del compito esistono", FILE, FILE.filter((f) => testi[f] !== null));
   const nudi = FILE.map((f) => senzaCommenti(testi[f] ?? ""));
   c("la chiave di Stripe non compare in nessun file di UI (nemmeno il nome della variabile, nemmeno un prefisso di chiave)", [false, false, false, false, false], nudi.map((t) => /\b(sk|rk|pk)_(test|live)|whsec_|STRIPE_(SECRET|WEBHOOK)|process\.env|import\.meta\.env/.test(t)));
-  c("«Elimina» non esiste in nessun file del compito (nemmeno come parola di una frase)", [false, false, false, false, false], nudi.map((t) => /elimin|cancell|delete|rimuov/i.test(t.replace(/\/api\/[^"'`\s]*/g, ""))));
+  //  (la frase del collaudo, T68 parte 4, dice «cancella il messaggio dopo l'uso»: è un consiglio sul messaggio col link, non un pulsante)
+  c("«Elimina» non esiste in nessun file del compito (nemmeno come parola di una frase)", [false, false, false, false, false], nudi.map((t) => /elimin|cancell|delete|rimuov/i.test(t.replace(/\/api\/[^"'`\s]*/g, "").replace("cancella il messaggio dopo l'uso", ""))));
   c("nessun log, nessun accesso diretto al database da questi file", [false, false, false, false, false], nudi.map((t) => /console\.|@\/integrations\/supabase|createClient|\.from\(["']/.test(t)));
   const guscio = nudi[0];
   c("nota 1: il pannello dice «sulloStato» solo quando Stripe è stato letto (mai al montaggio con null: il nastro non lampeggia)", [true, false], [

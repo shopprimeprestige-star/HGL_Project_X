@@ -54,7 +54,7 @@ const TESTO_MAX = 8000; // il corpo di una richiesta può avere al massimo 20.00
 const COLONNE =
   "chiave, oggetto, testo, acceso, approvato_da, approvato_il, approvato_hash, aggiornato_il";
 const FRASE_TESTO_CAMBIATO =
-  "Il testo è stato cambiato da un'altra persona nel frattempo: ricarica la pagina, rileggilo e rifai la modifica.";
+  "Il testo è stato cambiato da un'altra persona nel frattempo: qui sotto c'è la versione attuale, controllala prima di cambiarla.";
 
 type Giudizio = { ok: true } | { ok: false; motivo: MotivoNonInviabile; frase: string };
 const giudizio = (m: unknown): Giudizio => {

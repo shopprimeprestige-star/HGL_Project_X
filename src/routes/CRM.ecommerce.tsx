@@ -312,6 +312,7 @@ function PaginaEcommerce() {
             <ElencoOrdini
               lettura={lettura}
               periodo={periodo}
+              adesso={adesso}
               stato={ricerca.stato}
               ordine={ricerca.ordine}
               migrazionePronta={lettura.migrazionePronta}
