@@ -11,10 +11,12 @@
  *   dell'anteprima): mai nel codice. Nei log solo codici. Nessun gestore cancella niente (tranne il legame prodotto-categoria, in `categorie.server.ts`). */
 import { createFileRoute } from "@tanstack/react-router";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { gestisciGET, gestisciPOST, type ClienteDbNegozio, type DipendenzeNegozio } from "@/crm/negozio/smista.server";
+import { gestisciGET, gestisciPOST as smistaPOST, type ClienteDbNegozio, type DipendenzeNegozio } from "@/crm/negozio/smista.server";
 import { fattiDelDatabase } from "@/crm/negozio/fatti.server";
 import type { ClienteDb as ClienteDbFatti } from "@/crm/negozio/comune";
 import { guardiaCRM } from "./api.crm.accesso";
+import { SITO } from "@/lib/sito";
+import { collaudoOSmista } from "@/shop/cms/collaudo";
 
 const dipendenze: DipendenzeNegozio = {
   guardia: async (request) => {
@@ -36,6 +38,16 @@ const dipendenze: DipendenzeNegozio = {
     ...(await fattiDelDatabase(supabaseAdmin as unknown as ClienteDbFatti, process.env, { log: (codice) => console.warn(`[negozio] ${codice}`) })),
   }),
 };
+
+//  Collaudo con chiave (T67, D57): `{azione:"collaudo_chiave"}` dà il link `…/shop/collaudo#k=…`. La guardia «pagamenti» resta la prima cosa
+//  (`collaudoOSmista` la fa prima di leggere il corpo e la passa allo smistamento già fatta). Il segreto è la chiave di servizio, letta qui
+//  dentro a ogni chiamata; l'indirizzo è `SITO`, mai `Host` o `Origin`.
+const gestisciPOST = (request: Request, d: DipendenzeNegozio): Promise<Response> =>
+  collaudoOSmista(
+    request,
+    { guardia: d.guardia, segreto: () => process.env.SUPABASE_SERVICE_ROLE_KEY, sito: SITO, adesso: () => Date.now(), log: d.log },
+    (g) => smistaPOST(request, { ...d, guardia: async () => g }),
+  );
 
 export const Route = createFileRoute("/api/crm/negozio")({
   server: {

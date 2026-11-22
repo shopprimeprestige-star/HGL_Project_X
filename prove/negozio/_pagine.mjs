@@ -45,6 +45,9 @@ export const modalitaCatalogo = async () => { const m = S().modalita; return typ
 export const schedaProdotto = async ({ data }) => (S().scheda ? S().scheda(data) : null);
 export const elencoProdotti = async ({ data }) => (S().elenco ? S().elenco(data) : []);
 export const elencoCategorie = async () => { const c = S().categorie; return typeof c === "function" ? c() : (c ?? []); };
+// R2 · T67: `shop.tsx` chiede al server se il collaudo è attivo (`cassa-sito.functions`): qui mai.
+export const collaudoDellaVisita = async () => false;
+export const cassaDelSito = async () => "vecchia";
 `;
 
 /** @param {string} radice  la radice del progetto
@@ -55,7 +58,7 @@ export async function impacchettaPagina(radice, contenuto, nome) {
     name: "finti",
     setup(b) {
       b.onResolve({ filter: /^@tanstack\/react-router$/ }, () => ({ path: "router", namespace: "finto" }));
-      b.onResolve({ filter: /^@\/shop\/cms\/catalogo\.functions$/ }, () => ({ path: "funzioni", namespace: "finto" }));
+      b.onResolve({ filter: /^@\/shop\/cms\/(catalogo|cassa-sito)\.functions$/ }, () => ({ path: "funzioni", namespace: "finto" }));
       b.onLoad({ filter: /^router$/, namespace: "finto" }, () => ({ contents: ROUTER_FINTO, loader: "js", resolveDir: radice }));
       b.onLoad({ filter: /^funzioni$/, namespace: "finto" }, () => ({ contents: FUNZIONI_FINTE, loader: "js", resolveDir: radice }));
     },

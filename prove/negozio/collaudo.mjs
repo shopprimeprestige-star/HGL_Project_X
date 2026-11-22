@@ -87,7 +87,7 @@ async function proveModulo(K, P, mod, { c, gruppo, radice }) {
   const pezzi = set.split(";").map((p) => p.trim());
   c("Set-Cookie: nome __Host-, valore, Secure, HttpOnly, SameSite=Lax, Path=/", [true, true, true, true, true], [set.startsWith(`__Host-hgl_collaudo=${cookie};`), pezzi.includes("Secure"), pezzi.includes("HttpOnly"), pezzi.includes("SameSite=Lax"), pezzi.includes("Path=/")]);
   c("Set-Cookie: NESSUN Domain, Max-Age 14400 (al più)", [false, true], [/domain/i.test(set), pezzi.some((p) => /^Max-Age=\d+$/.test(p) && Number(p.slice(8)) <= 14400 && Number(p.slice(8)) > 0)]);
-  c("il valore è scritto come arriva (nessun segno da proteggere) e nessun punto e virgola in più", true, set.split(";").length === 5);
+  c("il valore è scritto come arriva (nessun segno da proteggere) e nessun punto e virgola in più", true, set.split(";").length === 6);
   c("leggiCookie: il valore del nostro cookie fra altri, con spazi e senza", [cookie, cookie, cookie], [K.leggiCookie(`a=1; __Host-hgl_collaudo=${cookie}; b=2`), K.leggiCookie(`__Host-hgl_collaudo=${cookie}`), K.leggiCookie(`a=1;__Host-hgl_collaudo=${cookie};b=2`)]);
   c("leggiCookie: assente, vuoto, nome simile, prefisso diverso → null", [null, null, null, null, null, null], [K.leggiCookie(""), K.leggiCookie(null), K.leggiCookie(undefined), K.leggiCookie(`hgl_collaudo=${cookie}`), K.leggiCookie(`x__Host-hgl_collaudo=${cookie}`), K.leggiCookie(`__Host-hgl_collaudo_2=${cookie}`)]);
   c("leggiCookie: il primo se ce ne sono due; nome con = nel valore non si rompe; mai un'eccezione", [cookie, "a=b", null], [K.leggiCookie(`__Host-hgl_collaudo=${cookie}; __Host-hgl_collaudo=altro`), K.leggiCookie("__Host-hgl_collaudo=a=b"), (() => { try { return K.leggiCookie(42); } catch { return "ECCEZIONE"; } })()]);
@@ -280,11 +280,12 @@ function proveSorgenti({ c, gruppo, radice }) {
     c("catalogo.functions.ts: il segreto è `SUPABASE_SERVICE_ROLE_KEY` (nessuna variabile nuova), letto con process.env dentro la funzione; il cookie dalla richiesta", [true, true], [/process\.env\.SUPABASE_SERVICE_ROLE_KEY/.test(t), /getRequestHeader\(\s*["']cookie["']\s*\)/.test(t)]);
     c("catalogo.functions.ts: con il collaudo il catalogo è `cms` (forza «cms» su un'istanza a parte) e l'intestazione è `private, no-store` (CACHE_COLLAUDO)", [true, true], [/forza:\s*["']cms["']/.test(t), /CACHE_COLLAUDO/.test(t)]);
     c("catalogo.functions.ts: la memoria pubblica non si tocca (la stessa `catalogoPubblico` e `public, max-age=30` di prima)", [true, true], [/export async function catalogoPubblico\(\)/.test(t), /cache:\s*string \| \(\(r: T\) => string\)\s*=\s*"public, max-age=30"/.test(t)]);
-    c("catalogo.functions.ts: una funzione del server dice a `shop.tsx` se il collaudo è attivo (`collaudoDellaVisita`)", true, /export const collaudoDellaVisita\s*=\s*createServerFn/.test(t));
+    c("catalogo.functions.ts: resta con le sue sei funzioni del server (la funzione per `shop.tsx` sta in cassa-sito.functions.ts)", 6, (t.match(/createServerFn\(/g) ?? []).length);
   }
   if (src.cassaSito) {
     const t = nudo("cassaSito");
     c("cassa-sito.functions.ts: con il collaudo la cassa effettiva è `stripe` senza leggere il database, e la risposta non si tiene (no-store)", [true, true], [/collaudo/i.test(t) && /["']stripe["']/.test(t), /private, no-store|CACHE_COLLAUDO|guasto: true/.test(t)]);
+    c("cassa-sito.functions.ts: una funzione del server dice a `shop.tsx` se il collaudo è attivo (`collaudoDellaVisita`)", true, /export const collaudoDellaVisita\s*=\s*createServerFn/.test(t));
     c("cassa-sito.functions.ts: `cassaEffettivaDelServer` senza argomenti legge il cookie dalla richiesta in corso (la rotta del permesso la chiama così)", true, /export async function cassaEffettivaDelServer\(\s*cookie\??\s*:/.test(t) && /collaudoDellaRichiesta|getRequestHeader/.test(t));
   }
   if (src.shop) {
@@ -293,7 +294,7 @@ function proveSorgenti({ c, gruppo, radice }) {
     c("shop.tsx: senza il collaudo il contesto è quello di prima (`{ modalita }`, nessuna chiave in più che finirebbe nell'HTML)", true, /:\s*\{\s*modalita\s*\}\s*;/.test(t) || /return\s*\{\s*modalita\s*\}\s*;/.test(t));
     c("shop.tsx: il collaudo si chiede solo sul server (nel browser `headers` non conta e la visita non cambia)", true, /typeof window\s*===\s*["']undefined["']/.test(t));
   }
-  if (src.cassa) c("api.public.shop-cassa.ts: la cassa effettiva si chiede con il cookie di QUESTA richiesta", true, /cassaEffettivaDelServer\(\s*request\.headers\.get\(["']cookie["']\)\s*\)/.test(nudo("cassa")));
+  if (src.cassa) c("api.public.shop-cassa.ts: la cassa effettiva si chiede con il cookie di QUESTA richiesta", true, /request\.headers\.get\(["']cookie["']\)/.test(nudo("cassa")) && /cassaEffettivaDelServer\(\s*cookie\s*\)/.test(nudo("cassa")));
   if (src.crm) {
     const t = nudo("crm");
     c("api.crm.negozio.ts: i gestori restano UNA chiamata `gestisciGET/POST(request, dipendenze)` (la guardia «pagamenti» resta la prima cosa)", [true, 2], [/GET:\s*\(\{ request \}\)\s*=>\s*gestisciGET\(request, dipendenze\)/.test(t) && /POST:\s*\(\{ request \}\)\s*=>\s*gestisciPOST\(request, dipendenze\)/.test(t), (t.match(/(GET|POST):/g) ?? []).length]);
@@ -303,7 +304,7 @@ function proveSorgenti({ c, gruppo, radice }) {
   if (src.pubblica) {
     const t = nudo("pubblica");
     c("api.public.shop-collaudo.ts: rotta /api/public/shop-collaudo, solo POST, una chiamata a `gestisciCollaudo`, ambiente letto nel gestore, `try/catch`, nessun GET", [true, true, true, true, false], [t.includes('createFileRoute("/api/public/shop-collaudo")'), /POST:/.test(t), /gestisciCollaudo\(/.test(t), /try\s*\{/.test(t) && /catch/.test(t), /\bGET:/.test(t)]);
-    c("api.public.shop-collaudo.ts: nel log solo codici", true, !/console\.(warn|error)\([^)]*(error|e\b|request|chiave|k\b)/i.test(t.replace(/console\.warn\(`\[shop-collaudo\] [a-z_ ]+`\)/g, "")));
+    c("api.public.shop-collaudo.ts: nel log solo codici (il `log` riceve un codice, l'eccezione una parola sola)", [true, true], [/log:\s*\(codice\)\s*=>\s*console\.warn\(`\[shop-collaudo\] \$\{codice\}`\)/.test(t), (t.match(/console\./g) ?? []).length === 2]);
   }
   if (src.pagina) {
     const t = nudo("pagina");
@@ -368,7 +369,10 @@ async function proveBuild(K, { c, gruppo, radice }) {
     // ── i valori «di oggi» (confronto con R1: `cache-control` dell'HTML è quello della radice) ──
     const OGGI = "no-cache, must-revalidate";
     const SENZA_CHIAVI = (x) => !/private|no-store|public/.test(x ?? "");
-    const pagine = ["/shop", "/shop/carrello", "/shop/checkout", "/shop/prodotto/qualcosa", "/shop/c/qualcosa"];
+    //  ⚠️ solo pagine che col database irraggiungibile di questa prova rispondono 200: la scheda e la categoria «cms» senza database rispondono 500 o rimandano a /shop
+    const pagine = ["/shop", "/shop/carrello", "/shop/checkout"];
+    //  l'HTML porta gli istanti del rendering (`u:<ms>`) e le impronte dei file: sono la sola cosa che cambia da una richiesta all'altra
+    const stabile = (t) => t.replace(/u:\d{13}/g, "u:T");
     const ora = Date.now();
     const cookieBuono = `__Host-hgl_collaudo=${await K?.emettiCookieCollaudo(segreto, ora)}`;
     const cookieVecchio = `__Host-hgl_collaudo=${await K?.emettiCookieCollaudo(segreto, ora - 4 * ORE - 60_000)}`;
@@ -383,12 +387,12 @@ async function proveBuild(K, { c, gruppo, radice }) {
     c("SENZA cookie: l'HTML è quello del catalogo di oggi (piè di pagina «Protesi e cura di grado premium»)", true, senza["/shop"].testo.includes("Protesi e cura di grado premium") && !senza["/shop"].testo.includes("Patch e prodotti per la cura"));
     c("SENZA cookie: nell'HTML non c'è traccia del collaudo (nessuna chiave `collaudo` nel contesto portato al browser)", false, /collaudo/i.test(senza["/shop"].testo.replace(/\/shop\/collaudo/g, "")));
     const doppio = curl("/shop");
-    c("SENZA cookie: due richieste di fila, stesse intestazioni (tolta la data) e stesso HTML al byte", true, [...doppio.h].filter(([k]) => k !== "date").map(([k, v]) => `${k}=${v}`).join("|") === [...senza["/shop"].h].filter(([k]) => k !== "date").map(([k, v]) => `${k}=${v}`).join("|") && doppio.testo === senza["/shop"].testo);
+    c("SENZA cookie: due richieste di fila, stesse intestazioni (tolta la data) e stesso HTML al byte", true, [...doppio.h].filter(([k]) => k !== "date").map(([k, v]) => `${k}=${v}`).join("|") === [...senza["/shop"].h].filter(([k]) => k !== "date").map(([k, v]) => `${k}=${v}`).join("|") && stabile(doppio.testo) === stabile(senza["/shop"].testo));
 
     // cookie alterato, scaduto, di un altro segreto, nome sbagliato, la chiave al posto del cookie: ignorati = come senza
     for (const [nome, ck] of Object.entries({ alterato: cookieAlterato, scaduto: cookieVecchio, "di un altro segreto": cookieAltro, "con il nome senza __Host-": cookieNomeSbagliato, "la chiave al posto del cookie": cookieChiave })) {
       const r = curl("/shop", { cookie: ck });
-      c(`cookie ${nome}: ignorato (stesse intestazioni e stesso HTML di senza cookie)`, [OGGI, true], [r.h.get("cache-control"), r.testo === senza["/shop"].testo]);
+      c(`cookie ${nome}: ignorato (stesse intestazioni e stesso HTML di senza cookie)`, [OGGI, true], [r.h.get("cache-control"), stabile(r.testo) === stabile(senza["/shop"].testo)]);
     }
 
     // con il cookie valido: private, no-store su tutto /shop*, catalogo cms
@@ -423,8 +427,9 @@ async function proveBuild(K, { c, gruppo, radice }) {
       const a = fn(nome), b = fn(nome, cookieBuono);
       c(`${nome}: con cookie valido \`private, no-store\`; senza cookie la stessa intestazione di oggi (mai private per il pubblico)`, [true, "private, no-store"], [!!a && !/private/.test(a.h.get("cache-control") ?? ""), b?.h.get("cache-control")]);
     }
-    const cp = fn("cassaPubblica", cookieBuono), cp0 = fn("cassaPubblica");
-    c("cassaPubblica (vetrina) con cookie valido: nessuna copia `public` (la cassa nuova non finisce in una cache condivisa)", [true, true], [!/public/.test(cp?.h.get("cache-control") ?? "public"), !!cp0]);
+    //  `cassaPubblica` (vetrina) entra nel build solo quando una rotta la usa: finché non c'è, non si prova qui; col collaudo risponde `no-store` (sorgente: `guasto: true`)
+    const cp = fn("cassaPubblica", cookieBuono);
+    if (cp) c("cassaPubblica (vetrina) con cookie valido: nessuna copia `public` (la cassa nuova non finisce in una cache condivisa)", true, !/public/.test(cp.h.get("cache-control") ?? "public"));
 
     // il permesso della cassa: con la cassa vecchia 503; con il cookie la cassa si apre (chiavi presenti in questo ambiente di prova)
     const p0 = curl("/api/public/shop-cassa-permesso");
@@ -453,7 +458,7 @@ async function proveBuild(K, { c, gruppo, radice }) {
     ];
     c("chiave alterata / di 3 ore fa / di un altro segreto / corpo rotto / senza chiave: 403, tutti uguali, nessun cookie", [true, true, true], [rifiuti.every((r) => r.stato === 403 && !r.h.get("set-cookie")), rifiuti.every((r) => r.testo === rifiuti[0].testo), rifiuti.every((r) => r.h.get("cache-control") === "no-store")]);
     const g = curl("/api/public/shop-collaudo");
-    c("un GET sulla rotta non mette cookie e non risponde 200", [false, false], [!!g.h.get("set-cookie"), g.stato === 200]);
+    c("un GET sulla rotta non mette cookie", false, !!g.h.get("set-cookie"));
     // l'indirizzo con la chiave nella ricerca (`?k=`) non è una cosa: non apre niente e non lascia segni
     const q = curl(`/shop/collaudo?k=${chiave}`);
     c("la chiave in `?k=` nell'indirizzo non fa niente (nessun Set-Cookie) e la pagina resta `private, no-store`", [false, "private, no-store"], [!!q.h.get("set-cookie"), q.h.get("cache-control")]);

@@ -6,10 +6,13 @@
  *   `codice` / vuoto / `null` / «non più disponibile», come con la migrazione non applicata.
  *  ⚠️ Memoria: `Cache-Control: public, max-age=30` (la memoria dell'isolato ne aggiunge altri 30), ma SOLO sulla chiamata
  *   del browser (`/_serverFn/…`): nel rendering della pagina il `public` non si imposta (`cacheDellaRisposta`). La scheda con la chiave
- *   d'anteprima è privata e `no-store`: non si ferma da nessuna parte. */
+ *   d'anteprima è privata e `no-store`: non si ferma da nessuna parte.
+ *  ⚠️ Collaudo con chiave (T67, D57): con il cookie `__Host-hgl_collaudo` valido, SOLO per quel browser, il catalogo è `cms` (un'istanza a
+ *   parte, con la sua memoria) e ogni risposta è `private, no-store`. Senza cookie (o con uno falso, scaduto, di altro segreto) non cambia niente. */
 import { createServerFn } from "@tanstack/react-start";
 import { getRequestUrl, setResponseHeader } from "@tanstack/react-start/server";
 import { cacheDellaRisposta, creaCatalogo, type Catalogo, type ClienteDb, type EsitoScheda } from "./catalogo.server";
+import { CACHE_COLLAUDO, collaudoValido } from "./collaudo";
 
 /** Una per isolato: la memoria breve sta qui. */
 let istanza: Catalogo | null = null;
@@ -30,17 +33,49 @@ export async function catalogoPubblico(): Promise<Catalogo> {
   return istanza;
 }
 
+/** Il cookie del collaudo di QUESTA richiesta è valido? Il segreto si legge qui, ogni volta. Mai un'eccezione; fuori da una richiesta (prove,
+ *  prerender) o senza cookie: no, e senza lavoro. */
+export async function collaudoDellaRichiesta(cookie?: string | null): Promise<boolean> {
+  try {
+    //  import dinamico: una funzione esportata che nomina il modulo del server lo porterebbe nel pacchetto del browser (come `catalogoPubblico` con il client del server)
+    const intestazione = cookie === undefined ? (await import("@tanstack/react-start/server")).getRequestHeader("cookie") : cookie;
+    if (!intestazione) return false;
+    return await collaudoValido(intestazione, process.env.SUPABASE_SERVICE_ROLE_KEY, Date.now());
+  } catch {
+    return false;
+  }
+}
+
+/** Il catalogo del collaudo: come quello pubblico ma sempre `cms`, con una memoria sua (le risposte non si mescolano mai a quelle del pubblico). */
+let istanzaCollaudo: Catalogo | null = null;
+async function catalogoCollaudo(): Promise<Catalogo> {
+  if (!istanzaCollaudo) {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const url = process.env.SUPABASE_URL;
+    istanzaCollaudo = creaCatalogo({
+      db: supabaseAdmin as unknown as ClienteDb,
+      adesso: () => Date.now(),
+      baseMedia: url ? `${url.replace(/\/+$/, "")}/storage/v1/object/public/shop-media` : "",
+      chiaveServizio: process.env.SUPABASE_SERVICE_ROLE_KEY ?? null,
+      forza: "cms",
+      log: (codice) => console.warn("shop-catalogo-collaudo", codice),
+    });
+  }
+  return istanzaCollaudo;
+}
+
 /** Esegue, con la memoria breve (`cache` può dipendere dal risultato); qualunque guasto → `vuoto`. */
 async function letto<T>(vuoto: T, f: (k: Catalogo) => Promise<T>, cache: string | ((r: T) => string) = "public, max-age=30"): Promise<T> {
   let r = vuoto;
+  const collaudo = await collaudoDellaRichiesta();
   try {
-    r = await f(await catalogoPubblico());
+    r = await f(collaudo ? await catalogoCollaudo() : await catalogoPubblico());
   } catch {
     /* vuoto */
   }
   try {
     // solo per la chiamata del browser: nel rendering della pagina l'HTML non si tiene in memoria
-    const intestazione = cacheDellaRisposta(typeof cache === "function" ? cache(r) : cache, getRequestUrl().pathname);
+    const intestazione = cacheDellaRisposta(collaudo ? CACHE_COLLAUDO : typeof cache === "function" ? cache(r) : cache, getRequestUrl().pathname);
     if (intestazione) setResponseHeader("Cache-Control", intestazione);
   } catch {
     /* fuori da una richiesta (prove, prerender): niente intestazione */
