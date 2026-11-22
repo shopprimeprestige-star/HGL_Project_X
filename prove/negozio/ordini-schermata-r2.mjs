@@ -145,6 +145,23 @@ export async function prove(mod, { c, gruppo, radice }) {
     c("lista vuota di ordini nuovi, solo ordini di prima: nessuna parola nuova in pagina", false, /PROVA|In attesa|Scaduto|Fattura da fare ?<|Giacenza da verificare ?<|numeretto/.test(testo(elenco(soloDiPrima).split('data-riga=""').slice(1).join(" "))));
     c("niente «NaN», «undefined», «Infinity» in pagina", false, /NaN|undefined|Infinity|\[object/.test(testo(html)));
 
+    // ── 4b · con un chip di stato scelto (anche dal clic della Panoramica) i non pagati non ci sono (SPEC 8A n. 1) ──
+    const righeDi = (htm) => htm.split('data-riga=""').slice(1);
+    const conStato = elenco(ordini, { stato: "nuovo" });
+    c("chip «Nuovo» scelto: gli ordini in attesa e scaduti non compaiono in lista", [false, false, false], ["HG-A2", "HG-B2", "HG-A3"].map((r) => conStato.includes(`>${r}<`)));
+    c("…le righe sono quante dice il chip (anche gli ordini di prova, che il chip conta)", [8, 8], [righeDi(conStato).length, chip(conStato, "Nuovo")]);
+    c("…gli ordini pagati, di prima e di prova restano", [true, true, true, true], ["HG-A1", "HG-A4", "HG-A8", "HG-AA"].map((r) => conStato.includes(`>${r}<`)));
+    c("con «Tutti» e i filtri vuoti la lista è quella di oggi: ci sono anche gli ordini non pagati (11 righe)", [11, true], [righeDi(html).length, ["HG-A2", "HG-B2", "HG-A3"].every((r) => html.includes(`>${r}<`))]);
+    c("anche gli altri stati escludono i non pagati: nessun ordine in attesa sotto «Annullato»", false, /In attesa|Scaduto/.test(testo(elenco(ordini.map((o) => ({ ...o, stato: "annullato" })), { stato: "annullato" }).split('data-riga=""').slice(1).join(" "))));
+
+    // ── 4c · il bottone di riga dice anche i badge (lettore di schermo) ──
+    const etichetta = (r) => new RegExp(`aria-label="(Apri ordine ${r},[^"]*)"`).exec(html)?.[1] ?? "";
+    c("aria-label della riga: il numero, il nome e il badge di pagamento di sempre", [true, true, true], [/^Apri ordine HG-A8, /.test(etichetta("HG-A8")) && /Non pagato/.test(etichetta("HG-A8")), /Pagato/.test(etichetta("HG-A9")) && !/Non pagato/.test(etichetta("HG-A9")), /Pagato/.test(etichetta("HG-A1"))]);
+    c("aria-label della riga: PROVA, In attesa, Scaduto, Fattura da fare, Giacenza da verificare, Rimborsato in parte", [true, true, true, true, true, true], [
+      /PROVA/.test(etichetta("HG-A4")), /In attesa/.test(etichetta("HG-A2")), /Scaduto/.test(etichetta("HG-A3")), /Fattura da fare/.test(etichetta("HG-A5")), /Giacenza da verificare/.test(etichetta("HG-A7")), /Rimborsato in parte/.test(etichetta("HG-AA")),
+    ]);
+    c("aria-label della riga: nessun badge che la riga non ha", [false, false, false], [/PROVA|Fattura|Giacenza|In attesa/.test(etichetta("HG-A1")), /Fattura/.test(etichetta("HG-A6")), /PROVA|Fattura|Giacenza|In attesa|Scaduto/.test(etichetta("HG-A8"))]);
+
     // ── 5 · la Panoramica ──
     const pano = (o, extra = {}) => renderToStaticMarkup(h(Pn.Panoramica, { lettura: lettura(o), periodo: P, adesso: ADESSO, apriStato: () => {}, ...extra }));
     const hp = pano(ordini);
@@ -152,6 +169,7 @@ export async function prove(mod, { c, gruppo, radice }) {
     c("«N ordini in attesa di pagamento»: i due con la sessione aperta (quello scaduto in lettura no)", true, /2 ordini in attesa di pagamento/.test(tp));
     c("«N ordine di prova non contato» (singolare giusto)", true, /1 ordine di prova non contato/.test(tp));
     c("«Rimborsato» con l'importo (5,00 €) e il numero di ordini", true, /Rimborsato/.test(tp) && /5,00/.test(tp.slice(tp.indexOf("Rimborsato"))));
+    c("la sezione si chiama «Da sapere» (il rimborso è già dentro «Incassato»: «Fuori dalle cifre» sarebbe inesatto)", [true, false], [/Da sapere/.test(tp), /Fuori dalle cifre/.test(hp)]);
     const fine = (t) => t.indexOf("risultati pagati");
     const principali = (htm) => { const t = testo(htm); return t.slice(0, fine(t)); };
     const conExtra = O.normalizzaTutti(righe).ordini;
