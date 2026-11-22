@@ -51,13 +51,15 @@ export type TipoErroreR2 =
 const FRASI: Record<TipoErroreR2, string> = {
   sessione: "La sessione è scaduta: rientra nel CRM.",
   permesso: "Il tuo utente non può gestire i pagamenti: chiedi a un amministratore.",
-  conflitto: "Un'altra persona ha cambiato questo interruttore nel frattempo: ho aggiornato la schermata.",
+  conflitto:
+    "Un'altra persona ha cambiato questo interruttore nel frattempo: ho aggiornato la schermata.",
   rifiutato: "Il server non ha accettato la richiesta: controlla e riprova.",
   valore: "La richiesta non è valida: ricarica la pagina e riprova.",
   server: "Qualcosa non ha funzionato: riprova tra un momento.",
   rete: "Non riesco a collegarmi al server: controlla la connessione e riprova.",
 };
-const FRASE_RETE_INCERTA = "Non so se la modifica sia stata salvata: controlla la connessione, ricarica la scheda e ricontrolla.";
+const FRASE_RETE_INCERTA =
+  "Non so se la modifica sia stata salvata: controlla la connessione, ricarica la scheda e ricontrolla.";
 const MAX_FRASE = 300;
 /** Oltre questo una richiesta senza risposta è «rete». */
 const TETTO_RICHIESTA_MS = 20_000;
@@ -72,17 +74,36 @@ export interface CondizioniCassa {
   righe: RigaCassa[];
   avviso: string | null;
 }
-export type ErroreR2 = { ok: false; tipo: TipoErroreR2; messaggio: string; valore?: unknown; condizioni?: CondizioniCassa };
+export type ErroreR2 = {
+  ok: false;
+  tipo: TipoErroreR2;
+  messaggio: string;
+  valore?: unknown;
+  condizioni?: CondizioniCassa;
+};
 export type EsitoRotta = { ok: true; dati: Record<string, unknown> } | ErroreR2;
 
-const eOggetto = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
-const errore = (tipo: TipoErroreR2, messaggio = FRASI[tipo]): ErroreR2 => ({ ok: false, tipo, messaggio });
+const eOggetto = (v: unknown): v is Record<string, unknown> =>
+  typeof v === "object" && v !== null && !Array.isArray(v);
+const errore = (tipo: TipoErroreR2, messaggio = FRASI[tipo]): ErroreR2 => ({
+  ok: false,
+  tipo,
+  messaggio,
+});
 
 /** Una richiesta: o il corpo di una risposta buona, o l'errore già in frasi. Non lancia mai. `scrive`: se la rete cade non si sa se è stato scritto. */
-export async function chiamaRotta(f: FetchRotta, url: string, init: RequestInit = {}, scrive = false): Promise<EsitoRotta> {
+export async function chiamaRotta(
+  f: FetchRotta,
+  url: string,
+  init: RequestInit = {},
+  scrive = false,
+): Promise<EsitoRotta> {
   let r: Response;
   try {
-    const tetto = typeof AbortSignal.timeout === "function" ? { signal: AbortSignal.timeout(TETTO_RICHIESTA_MS) } : {};
+    const tetto =
+      typeof AbortSignal.timeout === "function"
+        ? { signal: AbortSignal.timeout(TETTO_RICHIESTA_MS) }
+        : {};
     r = await f(url, { ...init, ...tetto });
   } catch {
     return errore("rete", scrive ? FRASE_RETE_INCERTA : FRASI.rete); // mai il testo del browser: può nominare l'indirizzo
@@ -99,10 +120,12 @@ export async function chiamaRotta(f: FetchRotta, url: string, init: RequestInit 
     return { ok: true, dati };
   }
   //  Un 502/503/504 senza `motivo` (timeout dell'hosting) può arrivare DOPO la scrittura: com'è per la rete caduta.
-  if (scrive && [502, 503, 504].includes(r.status) && typeof o?.motivo !== "string") return errore("rete", FRASE_RETE_INCERTA);
+  if (scrive && [502, 503, 504].includes(r.status) && typeof o?.motivo !== "string")
+    return errore("rete", FRASE_RETE_INCERTA);
   if (r.status === 401) return errore("sessione");
   if (r.status === 403) return errore("permesso");
-  const frase = typeof o?.frase === "string" && o.frase.trim() ? o.frase.trim().slice(0, MAX_FRASE) : null;
+  const frase =
+    typeof o?.frase === "string" && o.frase.trim() ? o.frase.trim().slice(0, MAX_FRASE) : null;
   if (r.status === 409 && o?.motivo === "conflitto") {
     const e = errore("conflitto", frase ?? FRASI.conflitto);
     if (o && "valore" in o) e.valore = o.valore;
@@ -129,19 +152,29 @@ export interface StatoStripe {
 /** Si copiano solo i campi noti; `null` se la risposta non dice nemmeno se Stripe è collegato. */
 export function leggiStripe(dati: unknown): StatoStripe | null {
   if (!eOggetto(dati) || typeof dati.collegato !== "boolean") return null;
-  const modalita = dati.collegato && (dati.modalita === "prova" || dati.modalita === "reale") ? dati.modalita : null;
+  const modalita =
+    dati.collegato && (dati.modalita === "prova" || dati.modalita === "reale")
+      ? dati.modalita
+      : null;
   const w = dati.ultimoWebhook;
   const ultimoWebhook =
-    eOggetto(w) && typeof w.tipo === "string" && /^[a-z_.]{1,80}$/.test(w.tipo) && typeof w.ricevutoIl === "string" && Number.isFinite(Date.parse(w.ricevutoIl))
+    eOggetto(w) &&
+    typeof w.tipo === "string" &&
+    /^[a-z_.]{1,80}$/.test(w.tipo) &&
+    typeof w.ricevutoIl === "string" &&
+    Number.isFinite(Date.parse(w.ricevutoIl))
       ? { tipo: w.tipo, ricevutoIl: w.ricevutoIl }
       : null;
   return { collegato: dati.collegato, modalita, ultimoWebhook };
 }
 
 /** Il nastro «PROVA: nessun pagamento è reale» (D58): solo se Stripe è collegato e dice «prova». Nel dubbio (non letto) non si mostra. */
-export const mostraNastro = (stripe: StatoStripe | null | undefined): boolean => stripe?.collegato === true && stripe.modalita === "prova";
+export const mostraNastro = (stripe: StatoStripe | null | undefined): boolean =>
+  stripe?.collegato === true && stripe.modalita === "prova";
 
-export async function caricaStripe(f: FetchRotta): Promise<{ ok: true; stripe: StatoStripe } | ErroreR2> {
+export async function caricaStripe(
+  f: FetchRotta,
+): Promise<{ ok: true; stripe: StatoStripe } | ErroreR2> {
   const r = await chiamaRotta(f, urlStripe);
   if (!r.ok) return r;
   const stripe = leggiStripe(r.dati);
@@ -150,9 +183,16 @@ export async function caricaStripe(f: FetchRotta): Promise<{ ok: true; stripe: S
 
 /** «Prova adesso»: una lettura innocua a Stripe, lato server. Se Stripe non è collegato il server risponde 409 con la sua frase. */
 export async function provaAdesso(f: FetchRotta): Promise<{ ok: true; frase: string } | ErroreR2> {
-  const r = await chiamaRotta(f, urlStripe, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ azione: "prova_adesso" }) });
+  const r = await chiamaRotta(f, urlStripe, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ azione: "prova_adesso" }),
+  });
   if (!r.ok) return r;
-  const frase = typeof r.dati.frase === "string" && r.dati.frase.trim() ? r.dati.frase.trim().slice(0, MAX_FRASE) : "Stripe risponde: il collegamento funziona.";
+  const frase =
+    typeof r.dati.frase === "string" && r.dati.frase.trim()
+      ? r.dati.frase.trim().slice(0, MAX_FRASE)
+      : "Stripe risponde: il collegamento funziona.";
   return { ok: true, frase };
 }
 
@@ -182,16 +222,31 @@ export interface StatoCassa {
 function leggiCondizioni(v: unknown): CondizioniCassa | null {
   if (!eOggetto(v) || !Array.isArray(v.righe)) return null;
   const righe = v.righe.flatMap((x): RigaCassa[] =>
-    eOggetto(x) && typeof x.chiave === "string" && typeof x.ok === "boolean" && typeof x.frase === "string" ? [{ chiave: x.chiave, ok: x.ok, frase: x.frase.slice(0, MAX_FRASE) }] : [],
+    eOggetto(x) &&
+    typeof x.chiave === "string" &&
+    typeof x.ok === "boolean" &&
+    typeof x.frase === "string"
+      ? [{ chiave: x.chiave, ok: x.ok, frase: x.frase.slice(0, MAX_FRASE) }]
+      : [],
   );
-  return { puoAccendere: v.puoAccendere === true && righe.length > 0, righe, avviso: typeof v.avviso === "string" ? v.avviso.slice(0, MAX_FRASE) : null };
+  return {
+    puoAccendere: v.puoAccendere === true && righe.length > 0,
+    righe,
+    avviso: typeof v.avviso === "string" ? v.avviso.slice(0, MAX_FRASE) : null,
+  };
 }
 
 /** Dalla risposta di `GET ?cassa` allo stato della schermata. Solo i campi noti; i valori che non si capiscono valgono «spento». */
 export function leggiCassa(dati: unknown): StatoCassa | null {
   if (!eOggetto(dati) || !eOggetto(dati.interruttori)) return null;
-  const val = (k: string): unknown => (eOggetto(dati.interruttori) && eOggetto(dati.interruttori[k]) ? (dati.interruttori[k] as Record<string, unknown>).valore : null);
-  const valore = val("cassa_sito") === "vecchia" || val("cassa_sito") === "stripe" ? (val("cassa_sito") as "vecchia" | "stripe") : null;
+  const val = (k: string): unknown =>
+    eOggetto(dati.interruttori) && eOggetto(dati.interruttori[k])
+      ? (dati.interruttori[k] as Record<string, unknown>).valore
+      : null;
+  const valore =
+    val("cassa_sito") === "vecchia" || val("cassa_sito") === "stripe"
+      ? (val("cassa_sito") as "vecchia" | "stripe")
+      : null;
   const metodiLetti = val("metodi_pagamento");
   const cond = leggiCondizioni(dati.condizioni) ?? { puoAccendere: false, righe: [], avviso: null };
   return {
@@ -205,7 +260,9 @@ export function leggiCassa(dati: unknown): StatoCassa | null {
   };
 }
 
-export async function caricaCassa(f: FetchRotta): Promise<{ ok: true; cassa: StatoCassa } | ErroreR2> {
+export async function caricaCassa(
+  f: FetchRotta,
+): Promise<{ ok: true; cassa: StatoCassa } | ErroreR2> {
   const r = await chiamaRotta(f, urlCassa);
   if (!r.ok) return r;
   const cassa = leggiCassa(r.dati);
@@ -220,20 +277,38 @@ const VALIDI: Record<string, (v: unknown) => boolean> = {
 };
 
 /** Un cambio di interruttore. `atteso` è quello che la schermata aveva davanti: se il server ne ha un altro risponde «conflitto» col valore vero. */
-export async function impostaCassa(f: FetchRotta, chiave: string, valore: unknown, atteso: unknown): Promise<EsitoRotta> {
+export async function impostaCassa(
+  f: FetchRotta,
+  chiave: string,
+  valore: unknown,
+  atteso: unknown,
+): Promise<EsitoRotta> {
   const valido = VALIDI[chiave];
   if (!valido || !valido(valore) || !valido(atteso)) return errore("valore");
-  return chiamaRotta(f, urlNegozio, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ azione: "interruttore_imposta", chiave, valore, atteso }) }, true);
+  return chiamaRotta(
+    f,
+    urlNegozio,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ azione: "interruttore_imposta", chiave, valore, atteso }),
+    },
+    true,
+  );
 }
 
 /* ══ LE FRASI E GLI ELENCHI FISSI ════════════════════════════════════════════ */
 
 /** I metodi dopo aver acceso o spento `metodo`: sempre nell'ordine fisso e senza doppioni. */
-export const metodiDopoCambio = (metodi: readonly string[], metodo: string, attivo: boolean): string[] =>
-  CHIAVI_METODI.filter((m) => (m === metodo ? attivo : metodi.includes(m)));
+export const metodiDopoCambio = (
+  metodi: readonly string[],
+  metodo: string,
+  attivo: boolean,
+): string[] => CHIAVI_METODI.filter((m) => (m === metodo ? attivo : metodi.includes(m)));
 
 /** L'indirizzo che il titolare incolla in Stripe. Senza dominio (disegno sul server) resta vuoto: non se ne inventa uno. */
-export const indirizzoWebhook = (origine: string): string => (origine.trim() ? `${origine.trim().replace(/\/+$/, "")}/api/public/stripe-webhook` : "");
+export const indirizzoWebhook = (origine: string): string =>
+  origine.trim() ? `${origine.trim().replace(/\/+$/, "")}/api/public/stripe-webhook` : "";
 
 /** Gli eventi che il webhook gestisce (`src/shop/stripe/eventi.ts`): quelli che il titolare spunta nel pannello di Stripe. */
 export const EVENTI_STRIPE = [
@@ -247,13 +322,17 @@ export const EVENTI_STRIPE = [
   "refund.updated",
 ] as const;
 
-export const FRASE_SENZA_SEMI = "Mancano gli aggiornamenti del database dei pagamenti (migrazione S4): chiedi a chi gestisce il database di applicarli.";
-export const FRASE_SICURO = "Si accende solo dopo un pagamento reale che sia stato rimborsato per intero: finché non c'è, il sito non può dirlo.";
+export const FRASE_SENZA_SEMI =
+  "Mancano gli aggiornamenti del database dei pagamenti (migrazione S4): chiedi a chi gestisce il database di applicarli.";
+export const FRASE_SICURO =
+  "Si accende solo dopo un pagamento reale che sia stato rimborsato per intero: finché non c'è, il sito non può dirlo.";
 
 /** Perché l'interruttore «Stripe» è spento: le frasi del server, una per ogni condizione che manca. Vuoto = si può girare. */
 export function motivoStripeSpento(cassa: StatoCassa): string[] {
   if (cassa.valore === null) return [FRASE_SENZA_SEMI];
   if (cassa.valore === "stripe" || cassa.puoAccendere) return [];
   const mancano = cassa.righe.filter((r) => !r.ok).map((r) => r.frase);
-  return mancano.length ? mancano : [cassa.avviso ?? "Non riesco a controllare le condizioni ora: riprova tra un momento."];
+  return mancano.length
+    ? mancano
+    : [cassa.avviso ?? "Non riesco a controllare le condizioni ora: riprova tra un momento."];
 }

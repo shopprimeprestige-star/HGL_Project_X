@@ -72,7 +72,7 @@ export async function prove(mod, { c, gruppo, radice }) {
   const sNo = await fn("caricaStripe")(porta({ "/api/crm/stripe": STRIPE_NO }).f);
   c("«reale» e «non collegato» si leggono", ["reale", null, false, null], [sReale.stripe?.modalita, sReale.stripe?.ultimoWebhook, sNo.stripe?.collegato, sNo.stripe?.modalita]);
   c("una modalità che non è prova né reale vale «null» (nel dubbio nessun nastro e nessuna frase falsa)", [null, null], ["strana", 7].map((m) => fn("leggiStripe")({ collegato: true, modalita: m })?.modalita ?? null));
-  c("non collegato: nessuna modalità anche se il server ne manda una", null, fn("leggiStripe")({ collegato: false, modalita: "prova" })?.modalita ?? "x");
+  c("non collegato: nessuna modalità anche se il server ne manda una", null, fn("leggiStripe")({ collegato: false, modalita: "prova" })?.modalita);
 
   c("il nastro compare solo con «collegato» e «prova»", [true, false, false, false, false], [
     fn("mostraNastro")(s1.stripe), fn("mostraNastro")(sReale.stripe), fn("mostraNastro")(sNo.stripe), fn("mostraNastro")(null), fn("mostraNastro")(undefined),
@@ -216,17 +216,17 @@ export async function prove(mod, { c, gruppo, radice }) {
 
     c("il nastro dice proprio «PROVA: nessun pagamento è reale»", true, typeof Pannello.NastroProva === "function" && testo(renderToStaticMarkup(h(Pannello.NastroProva))).includes("PROVA: nessun pagamento è reale"));
 
-    const vProva = testo(vista());
+    const html = vista();
+    const vProva = testo(html);
     const vReale = testo(vista({ stripe: sReale.stripe }));
     const vNo = testo(vista({ stripe: sNo.stripe }));
     c("stato: «Stripe collegato · PROVA», «· REALE», «non collegato»", [true, true, true], [/Stripe collegato · PROVA/.test(vProva), /Stripe collegato · REALE/.test(vReale), /Stripe non è collegato/i.test(vNo)]);
     c("il pannello non mostra mai la chiave né una variabile", false, /sk_|rk_|whsec_|STRIPE_(SECRET|WEBHOOK)/.test(vista() + vista({ stripe: sReale.stripe }) + vista({ stripe: sNo.stripe })));
-    c("«Prova adesso» c'è, «Copia» c'è, l'indirizzo del webhook è scritto", [true, true, true], [/Prova adesso/.test(vProva), /Copia/.test(vProva), vProva.includes("https://hairgenius.it/api/public/stripe-webhook")]);
+    c("«Prova adesso» c'è, «Copia» c'è, l'indirizzo del webhook è scritto", [true, true, true], [/Prova adesso/.test(vProva), /Copia/.test(vProva), html.includes('value="https://hairgenius.it/api/public/stripe-webhook"')]);
     c("ultimo webhook: il tipo e «nessuno ancora» quando non c'è", [true, true], [vProva.includes("checkout.session.completed"), /Nessun webhook ricevuto/i.test(vReale)]);
     c("tutti gli otto eventi da spuntare sono elencati", true, (R2.EVENTI_STRIPE ?? ["x"]).every((ev) => vProva.includes(ev)));
     c("«Prova adesso» dice il suo esito (frase del server)", true, testo(vista({ provaEsito: { ok: true, frase: "Stripe risponde: la chiave funziona." } })).includes("Stripe risponde: la chiave funziona."));
 
-    const html = vista();
     const swCassa = tag(html, "Usa la cassa Stripe");
     c("cassa «vecchia» con due condizioni mancanti: l'interruttore Stripe è SPENTO", [true, false], [spento(swCassa), acceso(swCassa)]);
     c("…e le due frasi si leggono (chiave e tariffa), quelle a posto restano visibili come «a posto»", [true, true, true], [/Manca la chiave di Stripe/.test(vProva), /Manca una tariffa di spedizione attiva/.test(vProva), /Il segreto del webhook di Stripe è collegato/.test(vProva)]);

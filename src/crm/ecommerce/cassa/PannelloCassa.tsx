@@ -80,10 +80,25 @@ export interface PropsVistaCassa {
 }
 
 const quando = (iso: string) =>
-  new Date(iso).toLocaleString("it-IT", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+  new Date(iso).toLocaleString("it-IT", {
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 
 /** Un riquadro con titolo, come quelli di «Apri lo shop» (stessa pelle, stessi spazi). */
-function Riquadro({ id, titolo, chip, children }: { id: string; titolo: string; chip?: ReactNode; children: ReactNode }) {
+function Riquadro({
+  id,
+  titolo,
+  chip,
+  children,
+}: {
+  id: string;
+  titolo: string;
+  chip?: ReactNode;
+  children: ReactNode;
+}) {
   return (
     <section aria-labelledby={id} className="rounded-xl border border-border bg-card">
       <div className="flex flex-wrap items-center gap-2 px-4 pt-3">
@@ -98,7 +113,11 @@ function Riquadro({ id, titolo, chip, children }: { id: string; titolo: string; 
 }
 
 const Attesa = ({ cosa }: { cosa: string }) => (
-  <div role="status" aria-busy="true" className="h-16 animate-pulse rounded-lg bg-muted/50 motion-reduce:animate-none">
+  <div
+    role="status"
+    aria-busy="true"
+    className="h-16 animate-pulse rounded-lg bg-muted/50 motion-reduce:animate-none"
+  >
     <span className="sr-only">Controllo {cosa}…</span>
   </div>
 );
@@ -111,7 +130,8 @@ export function VistaCassa(p: PropsVistaCassa) {
     </Button>
   );
   const motivi = p.cassa ? motivoStripeSpento(p.cassa) : [];
-  const stripeSpento = !p.cassa || p.cassa.valore === null || (p.cassa.valore === "vecchia" && motivi.length > 0);
+  const stripeSpento =
+    !p.cassa || p.cassa.valore === null || (p.cassa.valore === "vecchia" && motivi.length > 0);
   const sicuroSpento = !p.cassa || (!p.cassa.sicuro && !p.cassa.puoAccendereSicuro);
 
   return (
@@ -122,8 +142,19 @@ export function VistaCassa(p: PropsVistaCassa) {
         titolo="Stripe"
         chip={
           p.stripe && (
-            <Chip tono={p.stripe.modalita === "prova" ? "in_sospeso" : p.stripe.modalita === "reale" ? "vinta" : "neutro"} punto>
-              {p.stripe.collegato ? `Stripe collegato · ${p.stripe.modalita === "prova" ? "PROVA" : p.stripe.modalita === "reale" ? "REALE" : "modalità non letta"}` : "Non collegato"}
+            <Chip
+              tono={
+                p.stripe.modalita === "prova"
+                  ? "in_sospeso"
+                  : p.stripe.modalita === "reale"
+                    ? "vinta"
+                    : "neutro"
+              }
+              punto
+            >
+              {p.stripe.collegato
+                ? `Stripe collegato · ${p.stripe.modalita === "prova" ? "PROVA" : p.stripe.modalita === "reale" ? "REALE" : "modalità non letta"}`
+                : "Non collegato"}
             </Chip>
           )
         }
@@ -146,26 +177,54 @@ export function VistaCassa(p: PropsVistaCassa) {
                     : "Il server non dice se la chiave è di prova o reale: controlla le variabili del sito."}
             </p>
             <div className="flex flex-wrap items-center gap-2">
-              <Button type="button" variant="outline" className="min-h-11 text-[12.5px] sm:min-h-8" disabled={occupato} onClick={p.onProva}>
-                <RefreshCw className={cn("mr-1.5 h-3.5 w-3.5", p.lavoro === "prova" && "animate-spin")} aria-hidden="true" />
+              <Button
+                type="button"
+                variant="outline"
+                className="min-h-11 text-[12.5px] sm:min-h-8"
+                disabled={occupato}
+                onClick={p.onProva}
+              >
+                <RefreshCw
+                  className={cn("mr-1.5 h-3.5 w-3.5", p.lavoro === "prova" && "animate-spin")}
+                  aria-hidden="true"
+                />
                 {p.lavoro === "prova" ? "Provo…" : "Prova adesso"}
               </Button>
-              <span className="text-[12px] text-muted-foreground">Una sola lettura innocua a Stripe: non crea né cambia niente.</span>
+              <span className="text-[12px] text-muted-foreground">
+                Una sola lettura innocua a Stripe: non crea né cambia niente.
+              </span>
             </div>
             {p.provaEsito && (
-              <p role="status" className={cn("flex items-start gap-1.5 text-[12.5px]", p.provaEsito.ok ? "text-emerald-800" : "text-rose-800")}>
-                {p.provaEsito.ok ? <CircleCheck className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" /> : <CircleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />}
+              <p
+                role="status"
+                className={cn(
+                  "flex items-start gap-1.5 text-[12.5px]",
+                  p.provaEsito.ok ? "text-emerald-800" : "text-rose-800",
+                )}
+              >
+                {p.provaEsito.ok ? (
+                  <CircleCheck className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                ) : (
+                  <CircleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                )}
                 {p.provaEsito.frase}
               </p>
             )}
             <p className="text-[12.5px]">
               {p.stripe.ultimoWebhook ? (
                 <>
-                  Ultimo webhook ricevuto: <span className="font-medium">{p.stripe.ultimoWebhook.tipo}</span>
-                  <span className="text-muted-foreground"> · {quando(p.stripe.ultimoWebhook.ricevutoIl)}</span>
+                  Ultimo webhook ricevuto:{" "}
+                  <span className="font-medium">{p.stripe.ultimoWebhook.tipo}</span>
+                  <span className="text-muted-foreground">
+                    {" "}
+                    · {quando(p.stripe.ultimoWebhook.ricevutoIl)}
+                  </span>
                 </>
               ) : (
-                <span className="text-muted-foreground">Nessun webhook ricevuto ancora: se hai già fatto un pagamento di prova, controlla l'indirizzo qui sotto.</span>
+                <span className="text-muted-foreground">
+                  Nessun webhook ricevuto ancora: se hai già fatto un pagamento di prova, controlla
+                  l'indirizzo qui sotto.
+                </span>
               )}
             </p>
           </>
@@ -175,13 +234,30 @@ export function VistaCassa(p: PropsVistaCassa) {
       {/* ── 2 · Il webhook da incollare in Stripe ── */}
       <Riquadro id="cassa-webhook" titolo="Il webhook da collegare in Stripe">
         <p className="text-[12.5px] text-muted-foreground">
-          In Stripe, in «Sviluppatori → Webhook», aggiungi questo indirizzo e spunta gli eventi qui sotto. Il segreto di firma che Stripe ti dà lo mette chi gestisce il sito
-          fra le variabili: non si incolla in questa pagina.
+          In Stripe, in «Sviluppatori → Webhook», aggiungi questo indirizzo e spunta gli eventi qui
+          sotto. Il segreto di firma che Stripe ti dà lo mette chi gestisce il sito fra le
+          variabili: non si incolla in questa pagina.
         </p>
         <div className="flex items-center gap-2">
-          <Input readOnly value={p.indirizzo} aria-label="Indirizzo del webhook" className="h-11 min-w-0 flex-1 font-mono text-[12.5px] md:h-9 md:text-[12.5px]" onFocus={(e) => e.currentTarget.select()} />
-          <Button type="button" variant="outline" className="min-h-11 shrink-0 text-[12.5px] sm:min-h-8" disabled={!p.indirizzo} onClick={p.onCopia}>
-            {p.copiato ? <ClipboardCheck className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" /> : <Clipboard className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />}
+          <Input
+            readOnly
+            value={p.indirizzo}
+            aria-label="Indirizzo del webhook"
+            className="h-11 min-w-0 flex-1 font-mono text-[12.5px] md:h-9 md:text-[12.5px]"
+            onFocus={(e) => e.currentTarget.select()}
+          />
+          <Button
+            type="button"
+            variant="outline"
+            className="min-h-11 shrink-0 text-[12.5px] sm:min-h-8"
+            disabled={!p.indirizzo}
+            onClick={p.onCopia}
+          >
+            {p.copiato ? (
+              <ClipboardCheck className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
+            ) : (
+              <Clipboard className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
+            )}
             {p.copiato ? "Copiato" : "Copia"}
           </Button>
         </div>
@@ -201,7 +277,14 @@ export function VistaCassa(p: PropsVistaCassa) {
       <Riquadro
         id="cassa-sito"
         titolo="Cassa del sito"
-        chip={p.cassa && p.cassa.valore && <Chip tono={p.cassa.valore === "stripe" ? "vinta" : "neutro"} punto>{p.cassa.valore === "stripe" ? "Con Stripe" : "Quella di prima"}</Chip>}
+        chip={
+          p.cassa &&
+          p.cassa.valore && (
+            <Chip tono={p.cassa.valore === "stripe" ? "vinta" : "neutro"} punto>
+              {p.cassa.valore === "stripe" ? "Con Stripe" : "Quella di prima"}
+            </Chip>
+          )
+        }
       >
         {p.erroreCassa && (
           <Avviso errore azione={riprova}>
@@ -213,8 +296,11 @@ export function VistaCassa(p: PropsVistaCassa) {
           <>
             <div className="flex items-start justify-between gap-3">
               <p id="cassa-sito-aiuto" className="min-w-0 text-[12.5px] text-muted-foreground">
-                Con la cassa di prima il sito prende l'ordine senza pagamento. Con Stripe il cliente paga sulla pagina di Stripe e l'ordine risulta pagato solo quando Stripe lo conferma. La cassa nuova
-                lavora solo con lo shop aperto al pubblico (scheda Prodotti): finché è chiuso il sito usa quella di prima. Tornare a quella di prima è sempre un clic.
+                Con la cassa di prima il sito prende l'ordine senza pagamento. Con Stripe il cliente
+                paga sulla pagina di Stripe e l'ordine risulta pagato solo quando Stripe lo
+                conferma. La cassa nuova lavora solo con lo shop aperto al pubblico (scheda
+                Prodotti): finché è chiuso il sito usa quella di prima. Tornare a quella di prima è
+                sempre un clic.
               </p>
               <div className="-my-2 flex min-h-11 shrink-0 items-center">
                 <Switch
@@ -233,14 +319,34 @@ export function VistaCassa(p: PropsVistaCassa) {
                 {motivi[0]}
               </p>
             ) : p.cassa.righe.length === 0 ? (
-              <p className="text-[12.5px] text-muted-foreground">{p.cassa.avviso ?? "Il server non ha mandato le condizioni: la cassa Stripe non si può accendere. Riprova tra un momento."}</p>
+              <p className="text-[12.5px] text-muted-foreground">
+                {p.cassa.avviso ??
+                  "Il server non ha mandato le condizioni: la cassa Stripe non si può accendere. Riprova tra un momento."}
+              </p>
             ) : (
               <ul className="divide-y divide-border">
                 {p.cassa.righe.map((r) => (
                   <li key={r.chiave} className="flex items-start gap-2.5 py-2">
-                    {r.ok ? <CircleCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-700" aria-hidden="true" /> : <CircleAlert className="mt-0.5 h-4 w-4 shrink-0 text-amber-800" aria-hidden="true" />}
+                    {r.ok ? (
+                      <CircleCheck
+                        className="mt-0.5 h-4 w-4 shrink-0 text-emerald-700"
+                        aria-hidden="true"
+                      />
+                    ) : (
+                      <CircleAlert
+                        className="mt-0.5 h-4 w-4 shrink-0 text-amber-800"
+                        aria-hidden="true"
+                      />
+                    )}
                     <p className="min-w-0 flex-1 text-[12.5px] leading-snug">{r.frase}</p>
-                    <span className={cn("shrink-0 text-[11.5px] font-medium", r.ok ? "text-emerald-700" : "text-amber-800")}>{r.ok ? "A posto" : "Da sistemare"}</span>
+                    <span
+                      className={cn(
+                        "shrink-0 text-[11.5px] font-medium",
+                        r.ok ? "text-emerald-700" : "text-amber-800",
+                      )}
+                    >
+                      {r.ok ? "A posto" : "Da sistemare"}
+                    </span>
                   </li>
                 ))}
               </ul>
@@ -256,7 +362,9 @@ export function VistaCassa(p: PropsVistaCassa) {
             <div className="min-w-0">
               <p className="text-[13px] font-medium">Mostra «Pagamento sicuro» sul sito</p>
               <p id="cassa-sicuro-aiuto" className="mt-0.5 text-[12.5px] text-muted-foreground">
-                {sicuroSpento ? FRASE_SICURO : "Sulla cassa del sito compare la dicitura «Pagamento sicuro»."}
+                {sicuroSpento
+                  ? FRASE_SICURO
+                  : "Sulla cassa del sito compare la dicitura «Pagamento sicuro»."}
               </p>
             </div>
             <div className="-my-2 flex min-h-11 shrink-0 items-center">
@@ -273,11 +381,19 @@ export function VistaCassa(p: PropsVistaCassa) {
           <fieldset disabled={occupato} className="border-t border-border pt-3">
             <legend className="sr-only">Metodi attivi sull'account Stripe</legend>
             <p className="text-[12.5px] font-semibold">Metodi attivi sull'account Stripe</p>
-            <p className="mt-0.5 text-[12.5px] text-muted-foreground">Spunta solo quelli che hai già attivato nel pannello di Stripe: sul sito si vedono i loghi di questi, e solo con «Pagamento sicuro» acceso.</p>
+            <p className="mt-0.5 text-[12.5px] text-muted-foreground">
+              Spunta solo quelli che hai già attivato nel pannello di Stripe: sul sito si vedono i
+              loghi di questi, e solo con «Pagamento sicuro» acceso.
+            </p>
             <ul className="mt-2 flex flex-wrap gap-x-5 gap-y-1">
               {METODI_PAGAMENTO.map((m) => (
                 <li key={m.chiave} className="flex min-h-11 items-center gap-2 sm:min-h-8">
-                  <Checkbox id={`metodo-${m.chiave}`} aria-label={m.etichetta} checked={p.cassa?.metodi.includes(m.chiave) ?? false} onCheckedChange={(v) => p.onMetodo(m.chiave, v === true)} />
+                  <Checkbox
+                    id={`metodo-${m.chiave}`}
+                    aria-label={m.etichetta}
+                    checked={p.cassa?.metodi.includes(m.chiave) ?? false}
+                    onCheckedChange={(v) => p.onMetodo(m.chiave, v === true)}
+                  />
                   <label htmlFor={`metodo-${m.chiave}`} className="text-[13px]">
                     {m.etichetta}
                   </label>
@@ -300,7 +416,13 @@ export function VistaCassa(p: PropsVistaCassa) {
 }
 
 /** La scheda vera: lo stato e le chiamate. `sulloStato` dice al guscio com'è Stripe (serve al nastro «PROVA» sulle altre schede). */
-export function PannelloCassa({ fetch, sulloStato }: { fetch: FetchRotta; sulloStato?: (s: StatoStripe | null) => void }) {
+export function PannelloCassa({
+  fetch,
+  sulloStato,
+}: {
+  fetch: FetchRotta;
+  sulloStato?: (s: StatoStripe | null) => void;
+}) {
   const [stripe, setStripe] = useState<StatoStripe | null>(null);
   const [cassa, setCassa] = useState<StatoCassa | null>(null);
   const [erroreStripe, setErroreStripe] = useState<string | null>(null);
@@ -360,7 +482,13 @@ export function PannelloCassa({ fetch, sulloStato }: { fetch: FetchRotta; sulloS
   }
 
   /** Un cambio di interruttore. I rifiuti dicono perché; il conflitto e la rete incerta rileggono. */
-  async function cambia(lavoroInCorso: Lavoro, chiave: string, valore: unknown, atteso: unknown, fatto: string) {
+  async function cambia(
+    lavoroInCorso: Lavoro,
+    chiave: string,
+    valore: unknown,
+    atteso: unknown,
+    fatto: string,
+  ) {
     setLavoro(lavoroInCorso);
     setEsito(null);
     const r = await impostaCassa(fetch, chiave, valore, atteso);
@@ -377,7 +505,8 @@ export function PannelloCassa({ fetch, sulloStato }: { fetch: FetchRotta; sulloS
       setCassa((p) => (p ? { ...p, righe, puoAccendere: false } : p));
     }
     setEsito({ tono: "errore", testo: r.messaggio });
-    if (r.tipo === "conflitto" || r.tipo === "rete") await carica(); // si guarda com'è davvero
+    if (r.tipo === "conflitto" || r.tipo === "rete")
+      await carica(); // si guarda com'è davvero
     else if (negato(r)) {
       setCassa(null);
       setStripe(null);
@@ -390,7 +519,10 @@ export function PannelloCassa({ fetch, sulloStato }: { fetch: FetchRotta; sulloS
       setCopiato(true);
       window.setTimeout(() => vivo.current && setCopiato(false), 2000);
     } catch {
-      setEsito({ tono: "errore", testo: "Non riesco a copiare da qui: selezionalo e copialo a mano." });
+      setEsito({
+        tono: "errore",
+        testo: "Non riesco a copiare da qui: selezionalo e copialo a mano.",
+      });
     }
   }
 
@@ -408,10 +540,34 @@ export function PannelloCassa({ fetch, sulloStato }: { fetch: FetchRotta; sulloS
       onProva={() => void prova()}
       onCassa={(v) =>
         cassa &&
-        void cambia("cassa", "cassa_sito", v ? "stripe" : "vecchia", cassa.valore, v ? "La cassa del sito ora è Stripe." : "La cassa del sito è tornata a quella di prima.")
+        void cambia(
+          "cassa",
+          "cassa_sito",
+          v ? "stripe" : "vecchia",
+          cassa.valore,
+          v ? "La cassa del sito ora è Stripe." : "La cassa del sito è tornata a quella di prima.",
+        )
       }
-      onSicuro={(v) => cassa && void cambia("sicuro", "pagamento_sicuro", v, cassa.sicuro, v ? "«Pagamento sicuro» è acceso sul sito." : "«Pagamento sicuro» è spento.")}
-      onMetodo={(m, attivo) => cassa && void cambia("metodi", "metodi_pagamento", metodiDopoCambio(cassa.metodi, m, attivo), cassa.metodi, "Metodi di pagamento salvati.")}
+      onSicuro={(v) =>
+        cassa &&
+        void cambia(
+          "sicuro",
+          "pagamento_sicuro",
+          v,
+          cassa.sicuro,
+          v ? "«Pagamento sicuro» è acceso sul sito." : "«Pagamento sicuro» è spento.",
+        )
+      }
+      onMetodo={(m, attivo) =>
+        cassa &&
+        void cambia(
+          "metodi",
+          "metodi_pagamento",
+          metodiDopoCambio(cassa.metodi, m, attivo),
+          cassa.metodi,
+          "Metodi di pagamento salvati.",
+        )
+      }
       onCopia={() => void copia()}
       onRiprova={() => void carica()}
     />
