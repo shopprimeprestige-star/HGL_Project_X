@@ -55,6 +55,8 @@ type Lavoro = "prova" | "cassa" | "sicuro" | "metodi";
 interface Esito {
   tono: "ok" | "errore";
   testo: string;
+  /** In quale riquadro si legge: l'esito sta accanto all'interruttore che si è girato, non in fondo alla pagina. */
+  dove: "webhook" | "cassa" | "sicuro";
 }
 interface EsitoProva {
   ok: boolean;
@@ -124,6 +126,21 @@ const Attesa = ({ cosa }: { cosa: string }) => (
 
 export function VistaCassa(p: PropsVistaCassa) {
   const occupato = p.lavoro !== null;
+  /** L'esito dell'ultimo cambio, dentro il riquadro dove si è fatto. Se i dati della cassa non ci sono più (permesso perso) il riquadro dei
+   *  «metodi» non si disegna: l'esito si legge in quello di «Cassa del sito», che c'è sempre. */
+  const esitoIn = (dove: Esito["dove"]) => {
+    const e = p.esito;
+    if (!e || (e.dove !== dove && !(dove === "cassa" && e.dove === "sicuro" && !p.cassa)))
+      return null;
+    return e.tono === "ok" ? (
+      <p role="status" className="flex items-start gap-1.5 text-[12.5px] text-emerald-800">
+        <CircleCheck className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+        {e.testo}
+      </p>
+    ) : (
+      <Avviso errore>{e.testo}</Avviso>
+    );
+  };
   const riprova = (
     <Button size="sm" variant="outline" className="h-11 text-[12px] md:h-8" onClick={p.onRiprova}>
       Riprova
@@ -132,6 +149,20 @@ export function VistaCassa(p: PropsVistaCassa) {
   const motivi = p.cassa ? motivoStripeSpento(p.cassa) : [];
   const stripeSpento =
     !p.cassa || p.cassa.valore === null || (p.cassa.valore === "vecchia" && motivi.length > 0);
+  /** Perché l'interruttore è spento: le frasi (una per condizione che manca) a cui punta `aria-describedby`; con tutto a posto, la spiegazione. */
+  const idRiga = (chiave: string) => `cassa-cond-${chiave.replace(/[^A-Za-z0-9_-]/g, "")}`;
+  const descrizioneCassa = !p.cassa
+    ? "cassa-sito-aiuto"
+    : p.cassa.valore === null
+      ? "cassa-sito-aiuto cassa-sito-semi"
+      : !stripeSpento
+        ? "cassa-sito-aiuto"
+        : p.cassa.righe.some((r) => !r.ok)
+          ? [
+              "cassa-sito-aiuto",
+              ...p.cassa.righe.filter((r) => !r.ok).map((r) => idRiga(r.chiave)),
+            ].join(" ")
+          : "cassa-sito-aiuto cassa-sito-righe";
   const sicuroSpento = !p.cassa || (!p.cassa.sicuro && !p.cassa.puoAccendereSicuro);
 
   return (
@@ -271,6 +302,7 @@ export function VistaCassa(p: PropsVistaCassa) {
             ))}
           </ul>
         </div>
+        {esitoIn("webhook")}
       </Riquadro>
 
       {/* ── 3 · La cassa del sito ── */}
@@ -308,18 +340,21 @@ export function VistaCassa(p: PropsVistaCassa) {
                   checked={p.cassa.valore === "stripe"}
                   onCheckedChange={(v) => p.onCassa(v)}
                   aria-label="Usa la cassa Stripe"
-                  aria-describedby="cassa-sito-aiuto"
+                  aria-describedby={descrizioneCassa}
                   className="h-7 w-12 [&>span]:h-5 [&>span]:w-5 [&>span]:data-[state=checked]:translate-x-5"
                 />
               </div>
             </div>
             {p.cassa.valore === null ? (
-              <p className="flex items-start gap-1.5 text-[12.5px] text-amber-900">
+              <p
+                id="cassa-sito-semi"
+                className="flex items-start gap-1.5 text-[12.5px] text-amber-900"
+              >
                 <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                 {motivi[0]}
               </p>
             ) : p.cassa.righe.length === 0 ? (
-              <p className="text-[12.5px] text-muted-foreground">
+              <p id="cassa-sito-righe" className="text-[12.5px] text-muted-foreground">
                 {p.cassa.avviso ??
                   "Il server non ha mandato le condizioni: la cassa Stripe non si può accendere. Riprova tra un momento."}
               </p>
@@ -338,7 +373,9 @@ export function VistaCassa(p: PropsVistaCassa) {
                         aria-hidden="true"
                       />
                     )}
-                    <p className="min-w-0 flex-1 text-[12.5px] leading-snug">{r.frase}</p>
+                    <p id={idRiga(r.chiave)} className="min-w-0 flex-1 text-[12.5px] leading-snug">
+                      {r.frase}
+                    </p>
                     <span
                       className={cn(
                         "shrink-0 text-[11.5px] font-medium",
@@ -353,6 +390,7 @@ export function VistaCassa(p: PropsVistaCassa) {
             )}
           </>
         )}
+        {esitoIn("cassa")}
       </Riquadro>
 
       {/* ── 4 · «Pagamento sicuro» e i metodi ── */}
@@ -364,7 +402,7 @@ export function VistaCassa(p: PropsVistaCassa) {
               <p id="cassa-sicuro-aiuto" className="mt-0.5 text-[12.5px] text-muted-foreground">
                 {sicuroSpento
                   ? FRASE_SICURO
-                  : "Sulla cassa del sito compare la dicitura «Pagamento sicuro»."}
+                  : "Sulla cassa del sito compare la dicitura «Pagamento sicuro», solo con la cassa Stripe attiva."}
               </p>
             </div>
             <div className="-my-2 flex min-h-11 shrink-0 items-center">
@@ -401,16 +439,9 @@ export function VistaCassa(p: PropsVistaCassa) {
               ))}
             </ul>
           </fieldset>
+          {esitoIn("sicuro")}
         </Riquadro>
       )}
-
-      {p.esito?.tono === "ok" && (
-        <p role="status" className="flex items-start gap-1.5 text-[12.5px] text-emerald-800">
-          <CircleCheck className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-          {p.esito.testo}
-        </p>
-      )}
-      {p.esito?.tono === "errore" && <Avviso errore>{p.esito.testo}</Avviso>}
     </div>
   );
 }
@@ -469,7 +500,7 @@ export function PannelloCassa({
     };
   }, [carica]);
   useEffect(() => {
-    sullo.current?.(stripe);
+    if (stripe) sullo.current?.(stripe); // mai al montaggio con `null`: il nastro già acceso non deve spegnersi e riaccendersi
   }, [stripe]);
 
   async function prova() {
@@ -491,11 +522,12 @@ export function PannelloCassa({
   ) {
     setLavoro(lavoroInCorso);
     setEsito(null);
+    const dove: Esito["dove"] = lavoroInCorso === "cassa" ? "cassa" : "sicuro";
     const r = await impostaCassa(fetch, chiave, valore, atteso);
     if (!vivo.current) return;
     setLavoro(null);
     if (r.ok) {
-      setEsito({ tono: "ok", testo: fatto });
+      setEsito({ tono: "ok", testo: fatto, dove });
       await carica();
       return;
     }
@@ -504,7 +536,7 @@ export function PannelloCassa({
       const righe = r.condizioni.righe;
       setCassa((p) => (p ? { ...p, righe, puoAccendere: false } : p));
     }
-    setEsito({ tono: "errore", testo: r.messaggio });
+    setEsito({ tono: "errore", testo: r.messaggio, dove });
     if (r.tipo === "conflitto" || r.tipo === "rete")
       await carica(); // si guarda com'è davvero
     else if (negato(r)) {
@@ -522,6 +554,7 @@ export function PannelloCassa({
       setEsito({
         tono: "errore",
         testo: "Non riesco a copiare da qui: selezionalo e copialo a mano.",
+        dove: "webhook",
       });
     }
   }

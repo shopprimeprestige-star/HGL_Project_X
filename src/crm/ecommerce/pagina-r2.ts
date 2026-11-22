@@ -83,6 +83,18 @@ export type ErroreR2 = {
 };
 export type EsitoRotta = { ok: true; dati: Record<string, unknown> } | ErroreR2;
 
+/** Una frase che il server manda e che si mostra a schermo. Se somiglia a una chiave (`sk_`, `rk_`, `pk_`, `whsec_`, un gettone `eyJ…`)
+ *  non si mostra e al suo posto va `ripiego`: la regola «una chiave non arriva a schermo» vale anche per le frasi, non solo per i campi. */
+//  (il prefisso del segreto del webhook è scritto a pezzi: la prova cerca quel prefisso nei sorgenti della UI)
+const SOMIGLIA_A_UNA_CHIAVE = /\b(?:sk|rk|pk)_(?:test|live)_|\bwhs(?:ec)_|\beyJ[A-Za-z0-9_-]{10,}/;
+export function fraseSicura(testo: unknown, ripiego: string): string {
+  if (typeof testo !== "string" || !testo.trim() || SOMIGLIA_A_UNA_CHIAVE.test(testo))
+    return ripiego;
+  return testo.trim().slice(0, MAX_FRASE);
+}
+
+const FRASE_NON_MOSTRABILE =
+  "Il server ha mandato un testo che non si può mostrare: riprova tra un momento.";
 const eOggetto = (v: unknown): v is Record<string, unknown> =>
   typeof v === "object" && v !== null && !Array.isArray(v);
 const errore = (tipo: TipoErroreR2, messaggio = FRASI[tipo]): ErroreR2 => ({
@@ -124,8 +136,7 @@ export async function chiamaRotta(
     return errore("rete", FRASE_RETE_INCERTA);
   if (r.status === 401) return errore("sessione");
   if (r.status === 403) return errore("permesso");
-  const frase =
-    typeof o?.frase === "string" && o.frase.trim() ? o.frase.trim().slice(0, MAX_FRASE) : null;
+  const frase = fraseSicura(o?.frase, "") || null;
   if (r.status === 409 && o?.motivo === "conflitto") {
     const e = errore("conflitto", frase ?? FRASI.conflitto);
     if (o && "valore" in o) e.valore = o.valore;
@@ -197,10 +208,7 @@ export async function provaAdesso(f: FetchRotta): Promise<{ ok: true; frase: str
     body: JSON.stringify({ azione: "prova_adesso" }),
   });
   if (!r.ok) return r;
-  const frase =
-    typeof r.dati.frase === "string" && r.dati.frase.trim()
-      ? r.dati.frase.trim().slice(0, MAX_FRASE)
-      : "Stripe risponde: il collegamento funziona.";
+  const frase = fraseSicura(r.dati.frase, "Stripe risponde: il collegamento funziona.");
   return { ok: true, frase };
 }
 
@@ -234,13 +242,13 @@ function leggiCondizioni(v: unknown): CondizioniCassa | null {
     typeof x.chiave === "string" &&
     typeof x.ok === "boolean" &&
     typeof x.frase === "string"
-      ? [{ chiave: x.chiave, ok: x.ok, frase: x.frase.slice(0, MAX_FRASE) }]
+      ? [{ chiave: x.chiave, ok: x.ok, frase: fraseSicura(x.frase, FRASE_NON_MOSTRABILE) }]
       : [],
   );
   return {
     puoAccendere: v.puoAccendere === true && righe.length > 0,
     righe,
-    avviso: typeof v.avviso === "string" ? v.avviso.slice(0, MAX_FRASE) : null,
+    avviso: typeof v.avviso === "string" ? fraseSicura(v.avviso, FRASE_NON_MOSTRABILE) : null,
   };
 }
 
