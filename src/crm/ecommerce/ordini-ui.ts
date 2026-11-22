@@ -361,8 +361,7 @@ export const ETICHETTA_AVVISO: Record<string, string> = {
     "Il cliente ha pagato dopo l'annullo dell'ordine: rimborsalo, oppure riattiva l'ordine.",
   pagato_dopo_scadenza: "Pagato dopo la scadenza della sessione: controlla la giacenza.",
   stripe_errore: "Stripe ha rifiutato la richiesta di pagamento: l'ordine è stato chiuso.",
-  email_non_inviata:
-    "L'email non è partita al primo tentativo: controlla se è poi arrivata.",
+  email_non_inviata: "L'email non è partita al primo tentativo: controlla se è poi arrivata.",
   rimborso_transizione_ignorata: "Stripe dice riuscito, il registro no: controlla su Stripe.",
   livemode_diverso:
     "Stripe ha mandato un evento reale per un ordine di prova (o il contrario): non ho cambiato niente. Controlla su Stripe.",
@@ -861,7 +860,9 @@ export function datiFattura(fattura: unknown): RigaDato[] {
     const grezzo = proprio(fattura, chiave);
     const scritto = typeof grezzo === "string" ? grezzo.trim() : "";
     const valore =
-      chiave === "tipo" ? ({ privato: "Privato", azienda: "Azienda" } as Record<string, string>)[scritto] : scritto;
+      chiave === "tipo"
+        ? ({ privato: "Privato", azienda: "Azienda" } as Record<string, string>)[scritto]
+        : scritto;
     if (valore) righe.push({ etichetta, valore: valore.slice(0, TETTO_VALORE) });
   }
   return righe;
@@ -880,7 +881,8 @@ export function datiConsensi(consensi: unknown): RigaDato[] {
   if (privacy) righe.push({ etichetta: "Privacy letta", valore: privacy });
   if (versione) righe.push({ etichetta: "Versione dei testi", valore: versione });
   if (marketing) righe.push({ etichetta: "Marketing", valore: marketing });
-  if (typeof il === "string" && dataOra(il) !== "—") righe.push({ etichetta: "Data", valore: dataOra(il) });
+  if (typeof il === "string" && dataOra(il) !== "—")
+    righe.push({ etichetta: "Data", valore: dataOra(il) });
   return righe;
 }
 
@@ -936,16 +938,19 @@ export function righeEmail(o: Ordine, email: readonly EmailDettaglio[]): RigaEma
     else if (e?.stato === "errore") stato = "Non riuscita";
     else if (e) stato = "Stato non riconosciuto";
     let blocco: string | null = null;
-    if (!o.email.includes("@")) blocco = "L'ordine non ha un indirizzo email: non c'è a chi mandarla.";
+    if (!o.email.includes("@"))
+      blocco = "L'ordine non ha un indirizzo email: non c'è a chi mandarla.";
     else if (e?.stato === "in_invio") blocco = "È già in invio: aspetta qualche minuto.";
-    else if (e?.stato === "inviata") blocco = "È già partita: la stessa email non si manda due volte.";
+    else if (e?.stato === "inviata")
+      blocco = "È già partita: la stessa email non si manda due volte.";
     else if (chiave === "conferma_ordine" && o.stato === "annullato")
       blocco = "L'ordine è annullato: la conferma non parte più.";
     return {
       chiave,
       titolo,
       stato,
-      dettaglio: e?.stato === "errore" && e.codice && /^[\w.-]{1,40}$/.test(e.codice) ? e.codice : null,
+      dettaglio:
+        e?.stato === "errore" && e.codice && /^[\w.-]{1,40}$/.test(e.codice) ? e.codice : null,
       blocco,
     };
   });

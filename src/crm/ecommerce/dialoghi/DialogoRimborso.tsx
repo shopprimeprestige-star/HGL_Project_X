@@ -18,7 +18,11 @@ import { Finestra, PiedeFinestra } from "./Finestra";
 /** Ciò che serve dal dialogo dell'archivio (T61): la chiave e l'invio. */
 export interface DialogoDiRimborso {
   chiaveRichiesta: string;
-  rimborso: (d: { importoCent: number; motivo: string; conferma: true }) => Promise<RisultatoAzioneR2>;
+  rimborso: (d: {
+    importoCent: number;
+    motivo: string;
+    conferma: true;
+  }) => Promise<RisultatoAzioneR2>;
 }
 
 const virgola = (cent: number): string => (cent / 100).toFixed(2).replace(".", ",");
@@ -49,12 +53,21 @@ export function FormRimborso({
   const invia = async (ev: FormEvent) => {
     ev.preventDefault();
     if (inVolo.current) return;
-    const r = controllaFormRimborso(ordine, { importo, motivo, conferma }, rimborsi, dialogo.chiaveRichiesta);
+    const r = controllaFormRimborso(
+      ordine,
+      { importo, motivo, conferma },
+      rimborsi,
+      dialogo.chiaveRichiesta,
+    );
     if (!r.ok) return setErrore(r.errore);
     setErrore(null);
     inVolo.current = true;
     try {
-      const esito = await dialogo.rimborso({ importoCent: r.importoCent, motivo: r.motivo, conferma: true });
+      const esito = await dialogo.rimborso({
+        importoCent: r.importoCent,
+        motivo: r.motivo,
+        conferma: true,
+      });
       if (esito.ok) onFatto(esito);
       else setErrore(esitoAzioneR2(esito, "rimborso").testo);
     } finally {
@@ -65,7 +78,8 @@ export function FormRimborso({
   return (
     <form onSubmit={(e) => void invia(e)} className="flex flex-col gap-3" noValidate>
       <p className="text-[13px]">
-        Si può rimborsare al massimo <span className="font-semibold tabular-nums">{euro(massimo / 100)}</span>.
+        Si può rimborsare al massimo{" "}
+        <span className="font-semibold tabular-nums">{euro(massimo / 100)}</span>.
       </p>
       <label className="flex flex-col gap-1 text-[12px] font-medium">
         Importo da rimborsare (€)

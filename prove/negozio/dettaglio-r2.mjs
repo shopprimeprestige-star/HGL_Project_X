@@ -230,7 +230,7 @@ export async function prove(mod, { c, gruppo, radice }) {
     const DA = await tsx("src/crm/ecommerce/dialoghi/DialogoAnnulla.tsx", "annulla");
     const DS = await tsx("src/crm/ecommerce/dialoghi/DialogoSpedisci.tsx", "spedisci");
     const testo = (html) => html.replace(/<[^>]+>/g, " ").replace(/&amp;/g, "&").replace(/&#x27;/g, "'").replace(/&quot;/g, '"').replace(/&nbsp;/g, " ").replace(/\s+/g, " ");
-    const bottoni = (html) => html.split("<button").slice(1).map((s) => s.slice(0, s.indexOf("</button>") + 9));
+    const bottoni = (html) => html.split("<button").slice(1).map((s) => "<button" + s.slice(0, s.indexOf("</button>") + 9));
     const spento = (tag) => /\sdisabled=""/.test(tag.slice(0, tag.indexOf(">") + 1));
     const conTesto = (html, re) => bottoni(html).filter((b) => re.test(testo(b)));
     const senzaDati = async () => ({ ok: true, nessunCambio: true });
@@ -359,6 +359,6 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("il pannello usa la frase del server per il rimborso in corso e blocca il tasto con `tastoRimborso`", [true, true], [/tastoRimborso\(/.test(dett), /rimborsoInCorso\(/.test(dett)]);
   c("«Invia ora» mostra `blocco` (la ragione), «Rimborsa» mostra `ragione`", [true, true], [/\.blocco\b/.test(dett), /\.ragione\b/.test(dett)]);
   c("fattura e consensi passano da `datiFattura`/`datiConsensi` (campi noti), «Copia» da `testoPerFattura`", [true, true, true], [/datiFattura\(/.test(dett), /datiConsensi\(/.test(dett), /testoPerFattura\(/.test(dett)]);
-  c("il link di tracciamento si mette solo se comincia per https:// (nessun javascript:)", true, /https:\/\//.test(dett) && /href=\{/.test(dett));
+  c("il link di tracciamento si mette solo se comincia per https:// (nessun javascript:)", true, /https:(\\)?\/(\\)?\//.test(dett) && /href=\{/.test(dett));
   c("i file che non sono di T64 non cambiano: `ElencoOrdini.tsx`, `Panoramica.tsx`, `client.ts`, `CRM.ecommerce.tsx` non importano le finestre nuove", [false, false, false, false], ["src/crm/ecommerce/ElencoOrdini.tsx", "src/crm/ecommerce/Panoramica.tsx", "src/crm/ecommerce/client.ts", "src/routes/CRM.ecommerce.tsx"].map((f) => /dialoghi\//.test(leggi(f))));
 }
