@@ -25,6 +25,7 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Chip } from "@/crm/ui";
 import { Avviso } from "@/crm/ecommerce/Avviso";
+import { Riquadro } from "@/crm/ecommerce/Riquadro";
 import {
   chiamaRotta,
   fraseSicura,
@@ -33,6 +34,7 @@ import {
   type FetchRotta,
 } from "@/crm/ecommerce/pagina-r2";
 import { corriereLink } from "@/shop/cassa/spedizione";
+import { cassaEffettiva } from "@/shop/cms/cassa-sito";
 
 /* ══ I TIPI ══════════════════════════════════════════════════════════════════ */
 
@@ -61,8 +63,11 @@ export interface DatiSpedizioni {
   corrieri: Corriere[];
   /** `null` = il seme dell'interruttore non c'è (S5 non applicata) o non si è riuscito a leggerlo. */
   resi: boolean | null;
-  /** La cassa del sito letta da `?cassa`; `null` = non si è riusciti a leggerla (l'avviso dei 4,90 € resta visibile). */
+  /** La cassa che il sito usa DAVVERO (`cassaEffettiva`: `stripe` solo col catalogo `cms`), letta da `?cassa`; `null` = non si è riusciti a leggerla
+   *  (l'avviso dei 4,90 € resta visibile). */
   cassa: "vecchia" | "stripe" | null;
+  /** Il catalogo del sito letto da `?cassa`: con `codice` il carrello di oggi non legge la tariffa. `null` = non letto. */
+  catalogo: "cms" | "codice" | null;
 }
 
 /* ══ LE FRASI E I LIMITI (gli stessi di T50: il server li rifà tutti) ════════ */
@@ -72,6 +77,8 @@ const urlNegozio = "/api/crm/negozio";
 
 export const FRASE_CASSA_OGGI =
   "Finché la cassa nuova non è accesa, la tariffa vale solo per il carrello: la cassa di oggi usa ancora 4,90 €.";
+const FRASE_CATALOGO_CODICE =
+  "Il catalogo del sito è ancora quello di prima: la tariffa non vale ancora né per il carrello né per la cassa, che usano ancora 4,90 €.";
 const FRASE_CASSA_CHIUSA =
   "Senza una tariffa attiva la cassa Stripe resta chiusa: i clienti vedono «Il negozio sta per aprire» e non possono pagare.";
 const FRASE_COSTO =
@@ -308,12 +315,16 @@ export async function caricaSpedizioni(
       : null;
   const cassa =
     interruttori && eOggetto(interruttori.cassa_sito) ? interruttori.cassa_sito.valore : null;
+  const catalogo =
+    interruttori && eOggetto(interruttori.catalogo_sito) ? interruttori.catalogo_sito.valore : null;
   return {
     ok: true,
     tariffa,
     corrieri,
     resi: typeof resi === "boolean" ? resi : null,
-    cassa: cassa === "vecchia" || cassa === "stripe" ? cassa : null,
+    //  `stripe` scritto ma catalogo `codice` = la cassa di oggi: l'avviso dei 4,90 € deve restare (e `null` se la cassa non si legge)
+    cassa: cassa === "vecchia" || cassa === "stripe" ? cassaEffettiva(catalogo, cassa) : null,
+    catalogo: catalogo === "cms" || catalogo === "codice" ? catalogo : null,
   };
 }
 
@@ -381,6 +392,29 @@ export async function impostaResi(
 /* ══ LA SCHERMATA ════════════════════════════════════════════════════════════ */
 
 type Lavoro = "tariffa" | "conferma" | "corrieri" | "resi";
+/** Quale parte della scheda ha appena salvato: è l'unica che dopo la rilettura prende i valori del server (le altre tengono le modifiche non salvate). */
+export type Parte = "tariffa" | "corrieri" | "resi";
+
+/** Dopo una lettura: i dati nuovi e quali campi si riscrivono. Senza `parte` (prima lettura, «Riprova») tutto; con `parte` solo la tariffa (modulo)
+ *  o i corrieri, che hanno una bozza; i resi e la cassa non ne hanno e si prendono sempre. Dei corrieri non salvati restano anche i dati visti,
+ *  perché sono la versione `atteso` che il server confronta. */
+export function riallinea(
+  prima: DatiSpedizioni | null,
+  nuovo: DatiSpedizioni,
+  parte?: Parte,
+): { dati: DatiSpedizioni; modulo: boolean; corrieri: boolean } {
+  const modulo = !prima || !parte || parte === "tariffa";
+  const corrieri = !prima || !parte || parte === "corrieri";
+  return {
+    dati: {
+      ...nuovo,
+      tariffa: modulo || !prima ? nuovo.tariffa : prima.tariffa,
+      corrieri: corrieri || !prima ? nuovo.corrieri : prima.corrieri,
+    },
+    modulo,
+    corrieri,
+  };
+}
 interface Esito {
   tono: "ok" | "errore";
   testo: string;
@@ -415,31 +449,6 @@ const quando = (iso: string) =>
     minute: "2-digit",
   });
 
-/** Un riquadro con titolo, come quelli della scheda «Cassa» (stessa pelle, stessi spazi). */
-function Riquadro({
-  id,
-  titolo,
-  chip,
-  children,
-}: {
-  id: string;
-  titolo: string;
-  chip?: ReactNode;
-  children: ReactNode;
-}) {
-  return (
-    <section aria-labelledby={id} className="rounded-xl border border-border bg-card">
-      <div className="flex flex-wrap items-center gap-2 px-4 pt-3">
-        <h2 id={id} className="text-[15px] font-semibold tracking-tight">
-          {titolo}
-        </h2>
-        {chip}
-      </div>
-      <div className="flex flex-col gap-3 px-4 pb-4 pt-2">{children}</div>
-    </section>
-  );
-}
-
 /** Un campo con la sua etichetta, l'aiuto e l'errore. */
 function Campo({
   id,
@@ -461,7 +470,11 @@ function Campo({
       </label>
       {children}
       {errore ? (
-        <p id={`${id}-nota`} className="flex items-start gap-1.5 text-[12px] text-rose-800">
+        <p
+          id={`${id}-nota`}
+          role="alert"
+          className="flex items-start gap-1.5 text-[12px] text-rose-800"
+        >
           <CircleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
           {errore}
         </p>
@@ -510,7 +523,9 @@ export function VistaTariffe(p: PropsVistaTariffe) {
   return (
     <div className="flex flex-col gap-4">
       {/* ── 0 · La cassa di oggi: visibile finché la cassa nuova non è accesa (o non si sa) ── */}
-      {p.dati?.cassa !== "stripe" && <Avviso>{FRASE_CASSA_OGGI}</Avviso>}
+      {p.dati?.cassa !== "stripe" && (
+        <Avviso>{p.dati?.catalogo === "codice" ? FRASE_CATALOGO_CODICE : FRASE_CASSA_OGGI}</Avviso>
+      )}
 
       {p.errore && (
         <Avviso errore azione={riprova}>
@@ -648,6 +663,7 @@ export function VistaTariffe(p: PropsVistaTariffe) {
                     </div>
                     <p
                       id="tariffa-giorni-nota"
+                      role={errori.tempi ? "alert" : undefined}
                       className={`text-[12px] ${errori.tempi ? "text-rose-800" : "text-muted-foreground"}`}
                     >
                       {errori.tempi ??
@@ -769,7 +785,7 @@ export function VistaTariffe(p: PropsVistaTariffe) {
               ))}
             </ul>
             {sbagliatoCorrieri && (
-              <p className="flex items-start gap-1.5 text-[12px] text-rose-800">
+              <p role="alert" className="flex items-start gap-1.5 text-[12px] text-rose-800">
                 <CircleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                 {sbagliatoCorrieri}
               </p>
@@ -826,7 +842,9 @@ export function VistaTariffe(p: PropsVistaTariffe) {
                           <span className="break-all font-mono text-[12px]">{x.link}</span>
                         ) : (
                           <span className="text-amber-900">
-                            nessun link: il modello non è valido
+                            {x.nome.trim()
+                              ? "nessun link: il modello non è valido"
+                              : "nessun link: manca il nome del corriere"}
                           </span>
                         )}
                       </li>
@@ -900,20 +918,33 @@ export function ElencoTariffe({ fetch }: { fetch: FetchRotta }) {
   /** A chi non può non si lascia a schermo niente di una lettura precedente. */
   const negato = (e: ErroreR2) => e.tipo === "permesso" || e.tipo === "sessione";
 
-  const carica = useCallback(async () => {
-    const n = ++sequenza.current;
-    const r = await caricaSpedizioni(fetch);
-    if (!vivo.current || n !== sequenza.current) return; // una lettura più vecchia di un'altra non conta
-    if (r.ok) {
-      setDati({ tariffa: r.tariffa, corrieri: r.corrieri, resi: r.resi, cassa: r.cassa });
-      if (r.tariffa) setModulo(moduloDaTariffa(r.tariffa));
-      setCorrieri(r.corrieri);
-      setErroreLettura(null);
-    } else {
-      if (negato(r)) setDati(null);
-      setErroreLettura(r.messaggio);
-    }
-  }, [fetch]);
+  const datiVisti = useRef<DatiSpedizioni | null>(null);
+  datiVisti.current = dati;
+  const carica = useCallback(
+    async (parte?: Parte) => {
+      const n = ++sequenza.current;
+      const r = await caricaSpedizioni(fetch);
+      if (!vivo.current || n !== sequenza.current) return; // una lettura più vecchia di un'altra non conta
+      if (r.ok) {
+        const nuovo: DatiSpedizioni = {
+          tariffa: r.tariffa,
+          corrieri: r.corrieri,
+          resi: r.resi,
+          cassa: r.cassa,
+          catalogo: r.catalogo,
+        };
+        const x = riallinea(datiVisti.current, nuovo, parte);
+        setDati(x.dati);
+        if (x.modulo && r.tariffa) setModulo(moduloDaTariffa(r.tariffa));
+        if (x.corrieri) setCorrieri(r.corrieri);
+        setErroreLettura(null);
+      } else {
+        if (negato(r)) setDati(null);
+        setErroreLettura(r.messaggio);
+      }
+    },
+    [fetch],
+  );
 
   useEffect(() => {
     vivo.current = true;
@@ -930,6 +961,8 @@ export function ElencoTariffe({ fetch }: { fetch: FetchRotta }) {
     azione: () => Promise<EsitoScrittura>,
     fatto: (r: Extract<EsitoScrittura, { ok: true }>) => string,
   ) {
+    //  Dopo il salvataggio si riallinea solo la parte salvata: le modifiche non salvate delle altre restano dove sono.
+    const parte: Parte = dove;
     setLavoro(cosa);
     setEsito(null);
     const r = await azione();
@@ -937,7 +970,7 @@ export function ElencoTariffe({ fetch }: { fetch: FetchRotta }) {
     setLavoro(null);
     if (r.ok) {
       setEsito({ tono: "ok", testo: fatto(r), dove });
-      await carica();
+      await carica(parte);
       return;
     }
     setEsito({
@@ -945,7 +978,7 @@ export function ElencoTariffe({ fetch }: { fetch: FetchRotta }) {
       testo: r.tipo === "conflitto" ? `${r.messaggio} Ho riletto i valori attuali.` : r.messaggio,
       dove,
     });
-    if (r.tipo === "conflitto" || r.tipo === "rete") await carica();
+    if (r.tipo === "conflitto" || r.tipo === "rete") await carica(parte);
     else if (negato(r)) setDati(null);
   }
 

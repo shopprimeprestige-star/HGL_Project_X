@@ -114,6 +114,7 @@ export async function prove(mod, { c, gruppo, radice }) {
       shop_impostazioni: [
         { chiave: "corrieri", valore: structuredClone(CORRIERI_SEME), aggiornato_il: ISTANTE, aggiornato_da: null },
         { chiave: "cassa_sito", valore: "vecchia", aggiornato_il: ISTANTE, aggiornato_da: null },
+        { chiave: "catalogo_sito", valore: "cms", aggiornato_il: ISTANTE, aggiornato_da: null }, // T68: `stripe` vale solo col catalogo `cms` (cassaEffettiva)
         { chiave: "pagamento_sicuro", valore: false, aggiornato_il: ISTANTE, aggiornato_da: null },
         { chiave: "metodi_pagamento", valore: ["carta"], aggiornato_il: ISTANTE, aggiornato_da: null },
         { chiave: "resi_confermati", valore: false, aggiornato_il: ISTANTE, aggiornato_da: null },

@@ -51,7 +51,7 @@ export async function prove(mod, { c, gruppo, radice }) {
   // ══ 1 · LE FRASI DEGLI AVVISI NUOVI ═════════════════════════════════════════════════════════════════════
   const E = U.ETICHETTA_AVVISO ?? {};
   c("avviso email_non_inviata: la frase onesta (non dice «non inviata», dice «non è partita al primo tentativo»)", true, /^L'email non è partita al primo tentativo: controlla se è poi arrivata\.?$/.test(E.email_non_inviata ?? ""));
-  c("avviso rimborso_transizione_ignorata: «Stripe dice riuscito, il registro no: controlla su Stripe»", true, /^Stripe dice riuscito, il registro no: controlla su Stripe\.?$/.test(E.rimborso_transizione_ignorata ?? ""));
+  c("avviso rimborso_transizione_ignorata: frase neutra (T68), non dice chi ha ragione", true, /^Il registro dei rimborsi e Stripe non dicono la stessa cosa: controlla su Stripe\.?$/.test(E.rimborso_transizione_ignorata ?? ""));
   c("avvisi livemode_diverso e metodo_non_scritto: frasi brevi, in italiano, senza il nome del codice", [true, true], ["livemode_diverso", "metodo_non_scritto"].map((k) => typeof E[k] === "string" && E[k].length >= 20 && E[k].length <= 160 && !E[k].includes(k) && !/_/.test(E[k])));
   c("un avviso nuovo non cade più nella frase «non conosce»", false, /non conosce/.test((U.avvisiOrdine?.(stripe({ avvisi: [{ codice: "email_non_inviata", gravita: "giallo", rif: "evt_1", il: "2026-11-21T10:00:00.000Z" }, { codice: "livemode_diverso", gravita: "giallo" }, { codice: "metodo_non_scritto", gravita: "giallo" }, { codice: "rimborso_transizione_ignorata", gravita: "rosso" }] })) ?? ["manca"]).join(" ")));
 

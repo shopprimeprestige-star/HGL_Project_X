@@ -129,7 +129,7 @@ export function FormAnnulla({
           opzioni={[
             {
               valore: "ora",
-              testo: `Rimborsa ora (${euro(massimoRimborsabileCent(ordine, rimborsi) / 100)})`,
+              testo: `Rimborsa ora (${euro(massimoRimborsabileCent(ordine, rimborsi) / 100)}): torna al cliente tramite Stripe e non si può annullare`,
             },
             { valore: "nessuno", testo: "Nessun rimborso dovuto" },
           ]}

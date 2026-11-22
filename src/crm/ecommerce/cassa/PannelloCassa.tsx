@@ -13,7 +13,7 @@
  *  disegna, cioè solo aprendo la linguetta: le altre schede non toccano Stripe.
  *  Chi non ha il permesso, o ha la sessione scaduta, non vede nemmeno i dati di una lettura precedente.
  *  Nessuna parola «Elimina»: qui si accende e si spegne, non si cancella niente. Nessun log. Nessuna chiave. */
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { CircleAlert, CircleCheck, Clipboard, ClipboardCheck, Lock, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -22,6 +22,7 @@ import { Switch } from "@/components/ui/switch";
 import { Chip } from "@/crm/ui";
 import { cn } from "@/lib/utils";
 import { Avviso } from "@/crm/ecommerce/Avviso";
+import { Riquadro } from "@/crm/ecommerce/Riquadro";
 import {
   EVENTI_STRIPE,
   FRASE_SICURO,
@@ -88,31 +89,6 @@ const quando = (iso: string) =>
     hour: "2-digit",
     minute: "2-digit",
   });
-
-/** Un riquadro con titolo, come quelli di «Apri lo shop» (stessa pelle, stessi spazi). */
-function Riquadro({
-  id,
-  titolo,
-  chip,
-  children,
-}: {
-  id: string;
-  titolo: string;
-  chip?: ReactNode;
-  children: ReactNode;
-}) {
-  return (
-    <section aria-labelledby={id} className="rounded-xl border border-border bg-card">
-      <div className="flex flex-wrap items-center gap-2 px-4 pt-3">
-        <h2 id={id} className="text-[15px] font-semibold tracking-tight">
-          {titolo}
-        </h2>
-        {chip}
-      </div>
-      <div className="flex flex-col gap-3 px-4 pb-4 pt-2">{children}</div>
-    </section>
-  );
-}
 
 const Attesa = ({ cosa }: { cosa: string }) => (
   <div

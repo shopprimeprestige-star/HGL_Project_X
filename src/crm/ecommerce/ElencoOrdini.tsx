@@ -44,11 +44,13 @@ import type { RisultatoAzione, RisultatoStorico, StatoOrdini } from "./client";
 import { ETICHETTA_STATO, STATI_ORDINE, nomeCliente } from "./ordine";
 import type { Ordine, StatoOrdine } from "./ordine";
 import {
+  NON_PAGATI,
   PAGINA_RIGHE,
   comandiAttivi,
   conteggiPerStato,
   dataOra,
   esitoAzione,
+  fatturaDaFare,
   filtraOrdini,
   ordineDaId,
   serveConferma,
@@ -126,10 +128,6 @@ const BADGE_PAGAMENTO: Record<StatoPagamento, { testo: string; tono: Tono }> = {
   rimborsato_in_parte: { testo: "Rimborsato in parte", tono: "in_corso" },
   rimborsato: { testo: "Rimborsato", tono: "neutro" },
 };
-/** Chi non ha (ancora o mai) pagato: i numeri accanto ai filtri e il numeretto del menu non li contano. */
-const NON_PAGATI: readonly StatoPagamento[] = ["in_attesa", "scaduto", "fallito"];
-/** Come in `ordini-ui` (filtro «Fattura da fare»): richiesta e non ancora emessa. Qui serve solo al segno sulla riga. */
-const fatturaDaFare = (o: Ordine): boolean => o.fatturaRichiesta && o.fatturaEmessaIl === null;
 
 //  Chip e non menu a tendina: la scheda ha già un menu per ogni riga (lo stato dell'ordine) e così le scelte si vedono tutte insieme.
 const SCELTE_CANALE: { valore: SceltaFiltriR2["canale"]; testo: string }[] = [
