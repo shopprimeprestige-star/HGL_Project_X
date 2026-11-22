@@ -26,11 +26,39 @@ const dipendenze: PorteDb = {
   log: (codice) => console.warn(`[negozio-email] ${codice}`),
 };
 
+const risposta500 = () =>
+  new Response(
+    JSON.stringify({
+      ok: false,
+      motivo: "interno",
+      frase: "Qualcosa non ha funzionato: riprova tra un momento.",
+    }),
+    {
+      status: 500,
+      headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
+    },
+  );
+
 export const Route = createFileRoute("/api/crm/negozio-email")({
   server: {
     handlers: {
-      GET: ({ request }) => gestisciGET(request, dipendenze),
-      POST: ({ request }) => gestisciPOST(request, dipendenze),
+      //  Il modulo ha già il suo `try/catch`; questo è il secondo, di primo livello: un'eccezione non esce mai con i dati di riga.
+      GET: async ({ request }) => {
+        try {
+          return await gestisciGET(request, dipendenze);
+        } catch {
+          console.warn("[negozio-email] eccezione");
+          return risposta500();
+        }
+      },
+      POST: async ({ request }) => {
+        try {
+          return await gestisciPOST(request, dipendenze);
+        } catch {
+          console.warn("[negozio-email] eccezione");
+          return risposta500();
+        }
+      },
     },
   },
 });

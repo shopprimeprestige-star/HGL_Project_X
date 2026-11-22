@@ -31,19 +31,25 @@ import { guardiaCRM } from "./api.crm.accesso";
 //  ⚠️ Solo codici: mai l'oggetto errore, mai id o testi del cliente.
 const log = (codice: string) => console.warn(`[ordini] ${codice}`);
 
-//  Le porte `stripe` ed `email` leggono le chiavi di ADESSO: si costruiscono a ogni richiesta, non quando il modulo si carica.
-const dipendenzeDi = (): DipendenzeOrdini => ({
-  guardia: async (request) => {
-    //  `extra`: la forma che il client si aspetta anche quando la risposta è un «no».
-    const g = await guardiaCRM(request, {}, "pagamenti", { extra: { ordini: [] } });
-    return g.ok ? { ok: true, nome: g.chi.nome } : g;
-  },
-  db: supabaseAdmin as unknown as ClienteDb,
-  adesso: () => new Date(),
-  log,
-  stripe: clienteStripe(),
-  email: creaPorteEmail(porteInvio(supabaseAdmin as unknown as ClienteDbEmail, log)),
-});
+//  Le porte `stripe` ed `email` leggono le chiavi di ADESSO e si costruiscono DOPO la guardia, a ogni richiesta: chi non ha il permesso non
+//  arriva nemmeno a toccare l'ambiente, e un guasto qui cade nel `try/catch` del modulo (risposta generica, nel log solo il nome del tipo).
+//  Il modulo legge `d.stripe` e `d.email` solo dopo la guardia: è lo stesso oggetto.
+const dipendenzeDi = (): DipendenzeOrdini => {
+  const d: DipendenzeOrdini = {
+    guardia: async (request) => {
+      //  `extra`: la forma che il client si aspetta anche quando la risposta è un «no».
+      const g = await guardiaCRM(request, {}, "pagamenti", { extra: { ordini: [] } });
+      if (!g.ok) return g;
+      d.stripe = clienteStripe();
+      d.email = creaPorteEmail(porteInvio(supabaseAdmin as unknown as ClienteDbEmail, log));
+      return { ok: true, nome: g.chi.nome };
+    },
+    db: supabaseAdmin as unknown as ClienteDb,
+    adesso: () => new Date(),
+    log,
+  };
+  return d;
+};
 
 export const Route = createFileRoute("/api/crm/ordini")({
   server: {

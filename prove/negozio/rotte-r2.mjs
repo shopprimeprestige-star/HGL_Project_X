@@ -160,7 +160,7 @@ export async function prove(mod, { c, gruppo, radice }) {
       gs.every((g) => ts.isArrowFunction(g.corpo) && ts.isBlock(g.corpo.body) && g.corpo.body.statements.length === 1 && ts.isTryStatement(g.corpo.body.statements[0]) && !!g.corpo.body.statements[0].catchClause && new RegExp(`gestisci${g.metodo}\\(request, `).test(g.corpo.body.getText())),
     ]);
     c(`${f}: il \`catch\` risponde in modo generico (500 \`interno\`) e scrive nel log solo un testo fisso`, true,
-      gs.every((g) => { const t = g.corpo.getText(); return /catch\s*\{/.test(t) && /status|, 500\)/.test(t) && /console\.warn\("\[negozio-email\] eccezione"\)/.test(t) && !/catch\s*\(/.test(t); }));
+      gs.every((g) => { const t = g.corpo.getText(); return /catch\s*\{/.test(t) && /risposta500\(\)/.test(t) && /status: 500/.test(fonti[f]) && /console\.warn\("\[negozio-email\] eccezione"\)/.test(t) && !/catch\s*\(/.test(t); }));
   }
   if (fonti["api.crm.ordini.ts"]) {
     // T57, nota del revisore (a): le porte `stripe` ed `email` si costruiscono DOPO la guardia, dentro il `try/catch` del modulo: nella funzione `guardia`, non quando si prepara l'oggetto delle dipendenze
@@ -185,7 +185,7 @@ export async function prove(mod, { c, gruppo, radice }) {
   }
   if (fonti["api.crm.ordini.ts"]) {
     const ro = fonti["api.crm.ordini.ts"];
-    c("api.crm.ordini.ts: le porte `stripe` e `email` ci sono (rimborsi, «Controlla con Stripe», email)", [true, true], [/\bstripe\s*:/.test(ro), /\bemail\s*:/.test(ro)]);
+    c("api.crm.ordini.ts: le porte `stripe` e `email` ci sono (rimborsi, «Controlla con Stripe», email)", [true, true], [/\bd\.stripe\s*=\s*clienteStripe\(/.test(ro), /\bd\.email\s*=\s*creaPorteEmail\(/.test(ro)]);
   }
   if (!H) return;
 
