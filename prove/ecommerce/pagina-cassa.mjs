@@ -105,6 +105,25 @@ export async function prove(mod, { c, gruppo, radice }) {
   ];
   c("lettura fallita, permesso mancante, risposta strana, rete caduta: «null», cioè niente nastro e nessun errore (non lancia)", [null, null, null, null, null], guasti);
 
+  // ── nota 2 del revisore: una chiave dentro una FRASE del server non arriva né allo stato né a schermo ──
+  const SK = ["sk", "live", "ABCDEF0123456789"].join("_");
+  const WH = ["whsec", "ABCDEF0123456789"].join("_");
+  const JWT = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.abc";
+  const fs = fn("fraseSicura");
+  c("`fraseSicura`: scarta chi somiglia a una chiave (sk_, rk_, pk_, whsec_, eyJ…) e usa il ripiego; il resto passa uguale", ["ripiego", "ripiego", "ripiego", "ripiego", "ripiego", "Manca la chiave di Stripe: va messa fra le variabili.", "Il risk_live_ non conta"], [
+    fs(`Stripe dice ${SK}`, "ripiego"), fs(`rk_test_ABCDEF0123456789`, "ripiego"), fs(`pk_live_ABCDEF0123456789`, "ripiego"), fs(`segreto ${WH}`, "ripiego"), fs(`token ${JWT}`, "ripiego"),
+    fs("Manca la chiave di Stripe: va messa fra le variabili.", "ripiego"), fs("Il risk_live_ non conta", "ripiego"),
+  ]);
+  const pK = await fn("provaAdesso")(porta({ "POST /api/crm/stripe": { corpo: { ok: true, frase: `Funziona con ${SK}` } } }).f);
+  c("«Prova adesso» con una chiave nella frase: ok, ma la frase è quella di ripiego", [true, false, true], [pK.ok, JSON.stringify(pK).includes("sk_"), typeof pK.frase === "string" && pK.frase.length > 10]);
+  const eK = await fn("provaAdesso")(porta({ "POST /api/crm/stripe": { stato: 409, corpo: { ok: false, motivo: "non_collegato", frase: `Chiave ${WH} non valida` } } }).f);
+  const eK2 = await fn("caricaStripe")(porta({ "/api/crm/stripe": { stato: 500, corpo: { ok: false, frase: `Errore ${SK}` } } }).f);
+  c("errori con una chiave nella frase: ok false e frase di ripiego, mai la chiave", [false, false, false, true, true], [eK.ok, /whsec_/.test(JSON.stringify(eK)), /sk_/.test(JSON.stringify(eK2)), eK.messaggio?.length > 10, eK2.messaggio?.length > 10]);
+  const cK = await fn("caricaCassa")(porta({ "/api/crm/negozio?cassa": { corpo: { ok: true, interruttori: { cassa_sito: { valore: "vecchia" } }, condizioni: { puoAccendere: false, avviso: `Avviso ${WH}`, righe: [{ chiave: "tariffa", ok: false, frase: `Manca ${SK}` }, { chiave: "chiave_stripe", ok: true, frase: "Collegata." }] }, puoAccendereSicuro: false } } }).f);
+  c("righe e avviso della cassa con una chiave: la riga resta (con il ripiego), la frase buona passa, nessuna chiave nello stato", [2, "Collegata.", false], [cK.cassa?.righe?.length, cK.cassa?.righe?.[1]?.frase, /sk_|whsec_/.test(JSON.stringify(cK))]);
+  const rK = await fn("impostaCassa")(porta({ "POST /api/crm/negozio": { stato: 409, corpo: { ok: false, motivo: "cassa", frase: `No ${SK}`, condizioni: { puoAccendere: false, righe: [{ chiave: "tariffa", ok: false, frase: `Manca ${WH}` }] } } } }).f, "cassa_sito", "stripe", "vecchia");
+  c("rifiuto con la chiave nella frase e nelle righe: nessuna chiave nell'errore", false, /sk_|whsec_/.test(JSON.stringify(rK)));
+
   // ── «Prova adesso» ──
   const p = porta({ "POST /api/crm/stripe": { corpo: { ok: true, collegato: true, modalita: "prova", frase: "Stripe risponde: la chiave funziona." } } });
   const pr = await fn("provaAdesso")(p.f);
@@ -263,6 +282,35 @@ export async function prove(mod, { c, gruppo, radice }) {
     const vSicuroAcceso = vista({ cassa: { ...km.cassa, sicuro: true, puoAccendereSicuro: false } });
     c("se è già acceso si può spegnere anche quando il fatto non c'è più", [true, false], [acceso(tag(vSicuroAcceso, "Mostra «Pagamento sicuro» sul sito")), spento(tag(vSicuroAcceso, "Mostra «Pagamento sicuro» sul sito"))]);
 
+    // nota 3: l'esito sta DENTRO il riquadro dell'interruttore che si è girato, non in fondo alla pagina
+    const pos = (t, x) => t.indexOf(x);
+    const T = (extra) => testo(vista(extra));
+    const hWeb = "Il webhook da collegare in Stripe", hCassa = "Cassa del sito", hSicuro = "Pagamento sicuro e metodi";
+    const eC = T({ cassa: k.cassa, esito: { tono: "errore", testo: "ESITO-CASSA", dove: "cassa" } });
+    const eS = T({ cassa: k.cassa, esito: { tono: "ok", testo: "ESITO-SICURO", dove: "sicuro" } });
+    const eW = T({ cassa: k.cassa, esito: { tono: "errore", testo: "ESITO-WEBHOOK", dove: "webhook" } });
+    c("l'esito di «Cassa del sito» sta nel suo riquadro (dopo il titolo, prima di «Pagamento sicuro e metodi»), una volta sola", [true, 1], [pos(eC, hCassa) < pos(eC, "ESITO-CASSA") && pos(eC, "ESITO-CASSA") < pos(eC, hSicuro), eC.split("ESITO-CASSA").length - 1]);
+    c("l'esito di «Pagamento sicuro» e dei metodi sta nel suo riquadro, in fondo a quello (non dopo, fuori)", [true, 1], [pos(eS, hSicuro) < pos(eS, "ESITO-SICURO"), eS.split("ESITO-SICURO").length - 1]);
+    c("l'esito della copia sta nel riquadro del webhook", true, pos(eW, hWeb) < pos(eW, "ESITO-WEBHOOK") && pos(eW, "ESITO-WEBHOOK") < pos(eW, hCassa));
+    c("un esito d'errore si annuncia come avviso (role=alert); uno riuscito come stato", [true, true], [/role="alert"[^>]*>[\s\S]{0,800}ESITO-CASSA/.test(vista({ cassa: k.cassa, esito: { tono: "errore", testo: "ESITO-CASSA", dove: "cassa" } })), /role="status"[^>]*>[\s\S]{0,600}ESITO-SICURO/.test(vista({ cassa: k.cassa, esito: { tono: "ok", testo: "ESITO-SICURO", dove: "sicuro" } }))]);
+
+    // nota 4: l'interruttore spento punta alla frase della condizione che manca
+    const descr = (t) => (t.match(/aria-describedby="([^"]*)"/)?.[1] ?? "").split(/\s+/).filter(Boolean);
+    const testoDi = (h, id) => testo(h.match(new RegExp(`id="${id}"[^>]*>([\\s\\S]*?)</p>`))?.[1] ?? "");
+    const ids = descr(tag(html, "Usa la cassa Stripe"));
+    c("«Cassa del sito» spento: aria-describedby punta alle frasi di chiave e tariffa, che esistono e dicono cosa manca", [true, true, true], [
+      ids.length >= 2 && ids.every((i) => html.includes(`id="${i}"`)),
+      ids.some((i) => /Manca la chiave di Stripe/.test(testoDi(html, i))), ids.some((i) => /Manca una tariffa di spedizione/.test(testoDi(html, i))),
+    ]);
+    const htmlSenzaSemi = vista({ cassa: kSenzaSeme.cassa });
+    const idsS = descr(tag(htmlSenzaSemi, "Usa la cassa Stripe"));
+    c("senza i semi punta alla frase della migrazione", [true, true], [idsS.length >= 1 && idsS.every((i) => htmlSenzaSemi.includes(`id="${i}"`)), idsS.some((i) => /migrazione S4/.test(testoDi(htmlSenzaSemi, i)))]);
+    const idsOk = descr(tag(vTutto, "Usa la cassa Stripe"));
+    c("con tutto a posto punta comunque a un testo che esiste (la spiegazione)", true, idsOk.length >= 1 && idsOk.every((i) => vTutto.includes(`id="${i}"`)));
+
+    // nota 5: la dicitura c'è solo con la cassa Stripe
+    c("«Pagamento sicuro» acceso: la frase dice che compare solo con la cassa Stripe", true, /dicitura[^.]*solo con la cassa Stripe/i.test(testo(vSicuroOk)));
+
     const vMetodi = vista({ cassa: { ...k.cassa, metodi: ["carta", "klarna"] } });
     c("cinque caselle dei metodi: spuntati solo quelli dell'elenco", [["Carta", true], ["Apple Pay", false], ["Google Pay", false], ["PayPal", false], ["Klarna", true]], ["Carta", "Apple Pay", "Google Pay", "PayPal", "Klarna"].map((m) => [m, acceso(tag(vMetodi, m))]));
     c("…le caselle spiegano che sono i metodi già attivi sull'account Stripe", true, /attiv[io] sull'account Stripe/i.test(testo(vMetodi)));
@@ -295,6 +343,9 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("«Elimina» non esiste in nessun file del compito (nemmeno come parola di una frase)", [false, false, false, false, false], nudi.map((t) => /elimin|cancell|delete|rimuov/i.test(t.replace(/\/api\/[^"'`\s]*/g, ""))));
   c("nessun log, nessun accesso diretto al database da questi file", [false, false, false, false, false], nudi.map((t) => /console\.|@\/integrations\/supabase|createClient|\.from\(["']/.test(t)));
   const guscio = nudi[0];
+  c("nota 1: il pannello dice «sulloStato» solo quando Stripe è stato letto (mai al montaggio con null: il nastro non lampeggia)", [true, false], [
+    /useEffect\(\(\) => \{[^}]{0,80}if \(stripe\)[^}]{0,80}sullo\.current\?\.\(stripe\)/.test(nudi[2]), /useEffect\(\(\) => \{\s*sullo\.current\?\.\(stripe\);/.test(nudi[2]),
+  ]);
   c("il guscio non nomina l'indirizzo e non chiama «Prova adesso»; per il nastro fa UNA lettura leggera (`leggiNastro`), da un effetto, che non mostra errori", [false, false, 1, true, true], [
     /api\/crm\/stripe/.test(guscio), /provaAdesso\(/.test(guscio), (guscio.match(/leggiNastro\(/g) || []).length,
     /useEffect\(\(\) => \{[\s\S]{0,300}leggiNastro\(fetchCRM\)/.test(guscio), !/erroreStripe|setErrore|<Avviso[^>]*>[^<]*Stripe/.test(guscio),
