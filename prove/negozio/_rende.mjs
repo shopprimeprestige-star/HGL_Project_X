@@ -26,6 +26,9 @@ const FINTI = {
   "@/shop/cms/catalogo.functions": `const no = async () => { throw new Error("server finto"); };
     export const modalitaCatalogo = no, schedaProdotto = no, righeCarrello = no, elencoProdotti = no, elencoCategorie = no, vociSitemap = no;`,
   "@/shop/cms/modalita-certa.functions": `export const modalitaCertaDelServer = async () => "incerto";`,
+  //  R2 · T58: la cassa nuova (loader di `shop.checkout.tsx`, `CassaStripe.tsx`) importa questi due server: finti, come gli altri.
+  "@/shop/cms/cassa-sito.functions": `export const cassaDelSito = async () => "vecchia";`,
+  "@/shop/cassa/tariffe.functions": `export const tariffaSpedizione = async () => ({ stato: "assente" });`,
   "@/lib/tracciamento/api": `export const emettiEvento = (n, d) => (globalThis.__pagina.eventi.push([n, d]), "id"); export const emettiSoloContatore = () => {};`,
   "@/landing/consulenza/eventi": `export const traccia = () => {};`,
   "@/integrations/supabase/client": `export const supabase = { from: () => ({ insert: async (riga) => (globalThis.__pagina.righe.push(riga), { error: null }) }) };`,
