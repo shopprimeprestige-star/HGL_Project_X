@@ -1,8 +1,8 @@
 /** ── LA SCHEDA «SPEDIZIONI» DEL CRM (ElencoTariffe.tsx) ───────────────────────────────────────
  *  Shop completo R2, T65 (PIANO-R2 D51, D62; SPEC 7.4 n. 7). Sostituisce il segnaposto di T62, con lo stesso nome e le stesse props.
  *  Sta in `/CRM/ecommerce?scheda=spedizioni` (permesso `pagamenti`). Dice, in quest'ordine:
- *   0. un avviso sempre visibile: finché la cassa nuova non è accesa la tariffa vale solo per il carrello, la cassa di oggi usa ancora 4,90 €
- *      (decisione del capo progetto dopo la revisione di T59);
+ *   0. un avviso: finché la cassa nuova non è accesa la tariffa vale solo per il carrello, la cassa di oggi usa ancora 4,90 €
+ *      (decisione del capo progetto dopo la revisione di T59). Sparisce solo se `?cassa` dice `stripe`; se non si legge resta;
  *   1. la tariffa per l'Italia: nome, corriere, costo in EURO, tempi (vuoti = non si mostrano), attiva; «Provvisoria» finché non è
  *      confermata; «Conferma la tariffa»; e, senza una tariffa attiva, che la cassa Stripe resta chiusa;
  *   2. i corrieri, ognuno con il suo modello di link, e la prova «metti un numero e guarda il link»;
@@ -61,6 +61,8 @@ export interface DatiSpedizioni {
   corrieri: Corriere[];
   /** `null` = il seme dell'interruttore non c'è (S5 non applicata) o non si è riuscito a leggerlo. */
   resi: boolean | null;
+  /** La cassa del sito letta da `?cassa`; `null` = non si è riusciti a leggerla (l'avviso dei 4,90 € resta visibile). */
+  cassa: "vecchia" | "stripe" | null;
 }
 
 /* ══ LE FRASI E I LIMITI (gli stessi di T50: il server li rifà tutti) ════════ */
@@ -304,7 +306,15 @@ export async function caricaSpedizioni(
     interruttori && eOggetto(interruttori.resi_confermati)
       ? interruttori.resi_confermati.valore
       : null;
-  return { ok: true, tariffa, corrieri, resi: typeof resi === "boolean" ? resi : null };
+  const cassa =
+    interruttori && eOggetto(interruttori.cassa_sito) ? interruttori.cassa_sito.valore : null;
+  return {
+    ok: true,
+    tariffa,
+    corrieri,
+    resi: typeof resi === "boolean" ? resi : null,
+    cassa: cassa === "vecchia" || cassa === "stripe" ? cassa : null,
+  };
 }
 
 export type EsitoScrittura = { ok: true; cambiato: boolean; avviso: string | null } | ErroreR2;
@@ -499,8 +509,8 @@ export function VistaTariffe(p: PropsVistaTariffe) {
 
   return (
     <div className="flex flex-col gap-4">
-      {/* ── 0 · La cassa di oggi: sempre visibile ── */}
-      <Avviso>{FRASE_CASSA_OGGI}</Avviso>
+      {/* ── 0 · La cassa di oggi: visibile finché la cassa nuova non è accesa (o non si sa) ── */}
+      {p.dati?.cassa !== "stripe" && <Avviso>{FRASE_CASSA_OGGI}</Avviso>}
 
       {p.errore && (
         <Avviso errore azione={riprova}>
@@ -895,7 +905,7 @@ export function ElencoTariffe({ fetch }: { fetch: FetchRotta }) {
     const r = await caricaSpedizioni(fetch);
     if (!vivo.current || n !== sequenza.current) return; // una lettura più vecchia di un'altra non conta
     if (r.ok) {
-      setDati({ tariffa: r.tariffa, corrieri: r.corrieri, resi: r.resi });
+      setDati({ tariffa: r.tariffa, corrieri: r.corrieri, resi: r.resi, cassa: r.cassa });
       if (r.tariffa) setModulo(moduloDaTariffa(r.tariffa));
       setCorrieri(r.corrieri);
       setErroreLettura(null);
