@@ -21,11 +21,13 @@ export const Route = createFileRoute("/api/public/shop-cassa-permesso")({
     handlers: {
       GET: async ({ request }) => {
         try {
+          //  Come la cassa (T67): il cookie di QUESTA richiesta decide se la cassa di prova si apre, senza affidarsi a `getRequestHeader`.
+          const cookie = request.headers.get("cookie");
           const r = await gestisciPermesso(
             porteCassa({
               db: supabaseAdmin as unknown as DbCassaServer,
               richiesta: request,
-              cassa: async () => (await cassaEffettivaDelServer()).cassa,
+              cassa: async () => (await cassaEffettivaDelServer(cookie)).cassa,
               tariffa: async () => ({ stato: "assente" }), // il permesso non calcola niente
               log: (codice) => console.warn(`[shop-cassa-permesso] ${codice}`),
             }),

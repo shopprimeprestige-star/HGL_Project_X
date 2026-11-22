@@ -250,6 +250,7 @@ function proveSorgenti({ c, gruppo, radice }) {
     pagina: "src/routes/shop.collaudo.tsx",
     pubblica: "src/routes/api.public.shop-collaudo.ts",
     cassa: "src/routes/api.public.shop-cassa.ts",
+    permesso: "src/routes/api.public.shop-cassa-permesso.ts",
     crm: "src/routes/api.crm.negozio.ts",
   };
   const src = Object.fromEntries(Object.entries(FILE).map(([k, f]) => [k, leggi(f)]));
@@ -300,6 +301,7 @@ function proveSorgenti({ c, gruppo, radice }) {
     c("shop.tsx: il collaudo si chiede solo sul server (nel browser `headers` non conta e la visita non cambia)", true, /typeof window\s*===\s*["']undefined["']/.test(t));
   }
   if (src.cassa) c("api.public.shop-cassa.ts: la cassa effettiva si chiede con il cookie di QUESTA richiesta", true, /request\.headers\.get\(["']cookie["']\)/.test(nudo("cassa")) && /cassaEffettivaDelServer\(\s*cookie\s*\)/.test(nudo("cassa")));
+  if (src.permesso) c("api.public.shop-cassa-permesso.ts: anche il permesso chiede la cassa effettiva con il cookie di QUESTA richiesta (come la cassa)", true, /request\.headers\.get\(["']cookie["']\)/.test(nudo("permesso")) && /cassaEffettivaDelServer\(\s*cookie\s*\)/.test(nudo("permesso")));
   if (src.crm) {
     const t = nudo("crm");
     c("api.crm.negozio.ts: i gestori restano UNA chiamata `gestisciGET/POST(request, dipendenze)` (la guardia «pagamenti» resta la prima cosa)", [true, 2], [/GET:\s*\(\{ request \}\)\s*=>\s*gestisciGET\(request, dipendenze\)/.test(t) && /POST:\s*\(\{ request \}\)\s*=>\s*gestisciPOST\(request, dipendenze\)/.test(t), (t.match(/(GET|POST):/g) ?? []).length]);

@@ -427,6 +427,20 @@ async function creaSessioneOrdine(
   return ok({ url: s.dati.url });
 }
 
+/** Dopo un guasto di Stripe a metà della riprova: `riapri` ha già messo l'ordine `in_attesa` con `riprova_n` + 1 e una `scade_il` nuova, ma la sessione registrata è
+ *  ancora la vecchia (scaduta) e quella nuova non è mai nata. Se Stripe non l'ha RIFIUTATA (avviso `stripe_errore` con rif `r<riprova_n>`) e restano i 35 minuti
+ *  che Stripe vuole per `expires_at`, la si ripete con lo stesso `r<n>`: la chiave idempotente rende la ripetizione sicura (stessa sessione, mai due pagabili). */
+function daRipetere(p: PorteCassaServer, o: OrdineLetto): boolean {
+  const n = Number(o.riprova_n ?? 0);
+  if (!(n > 0)) return false;
+  const scade = Date.parse(testo(o.scade_il));
+  if (!(scade - p.adesso() >= MARGINE_SCADENZA_MS)) return false;
+  return !(
+    Array.isArray(o.avvisi) &&
+    o.avvisi.some((x) => oggetto(x) && x.codice === "stripe_errore" && x.rif === `r${n}`)
+  );
+}
+
 /** La sessione di un ordine `in_attesa` che non ne ha ancora una: col valore di `scade_il` dell'ordine; se mancano meno di 35 minuti (30 di Stripe + 5)
  *  non si chiama Stripe col vecchio valore. Se `scade_il` è già PASSATO si chiude e si riapre (D66): scadenza nuova e chiave idempotente nuova (`r<n>`); se
  *  nel frattempo l'ha già fatto un altro clic, `riprova_in_corso`. Se è ancora nel futuro (0-35 minuti) nessuno può chiuderlo (T53b): `non_riproponibile`,
@@ -436,6 +450,7 @@ async function apriSessione(
   o: OrdineLetto,
   chiave: string,
 ): Promise<Risposta> {
+  if (o.status === "annullato") return no(409, "non_riproponibile");
   let n = Number(o.riprova_n ?? 0);
   let scadeIl = testo(o.scade_il);
   if (scadeIl === "" || Date.parse(scadeIl) - p.adesso() < MARGINE_SCADENZA_MS) {
@@ -456,11 +471,21 @@ async function apriSessione(
 /** L'ordine di questo tentativo esiste già (doppio clic, o la prima richiesta è caduta a metà). */
 async function riprendi(p: PorteCassaServer, o: OrdineLetto, firma: string): Promise<Risposta> {
   if (o.canale !== "sito" || o.firma_tentativo !== firma) return no(409, "tentativo_diverso");
+  if (o.status === "annullato") return no(409, "non_riproponibile"); // annullato dal CRM: mai una sessione, nemmeno quella già aperta
   if (o.stato_pagamento !== "in_attesa") return no(409, "non_riproponibile"); // scaduto, fallito, pagato…: si passa dalla riprova o da un tentativo nuovo
   if (o.stripe_sessione_id) {
     const s = await p.stripe.leggiSessione(o.stripe_sessione_id);
     if (!s.ok) return erroreStripe(p, s.errore);
-    return s.dati.status === "open" ? urlDi(p, s.dati) : no(409, "non_riproponibile");
+    if (s.dati.status === "open") return urlDi(p, s.dati);
+    if (s.dati.status === "expired" && daRipetere(p, o))
+      return creaSessioneOrdine(
+        p,
+        o,
+        Number(o.riprova_n),
+        testo(o.scade_il),
+        await chiaveOrdine(testo(p.chiaveServizio), o.id),
+      );
+    return no(409, "non_riproponibile");
   }
   return apriSessione(p, o, await chiaveOrdine(testo(p.chiaveServizio), o.id));
 }
@@ -659,7 +684,10 @@ async function riprovaDa(r: RichiestaRiprova, p: PorteCassaServer): Promise<Risp
     if (sessione?.status === "complete") return no(409, "non_riproponibile"); // pagamento ritardato in corso: può ancora riuscire
     // Scaduta (o mai creata) ma la tabella dice ancora «in attesa»: se `scade_il` è nel futuro qualcuno ha appena riaperto l'ordine.
     if (Date.parse(testo(ordine.scade_il)) > p.adesso()) {
-      // Se Stripe ha RIFIUTATO la sessione di questo giro (avviso `stripe_errore` con rif `r<riprova_n>`), nessuno la sta preparando: ripetere non serve.
+      // Riaperto da un giro la cui sessione nuova non è nata (timeout, 5xx): si ripete con lo stesso `r<n>`. Se Stripe l'ha RIFIUTATA (avviso `stripe_errore`
+      // con rif `r<riprova_n>`) nessuno la sta preparando e ripetere non serve.
+      if (daRipetere(p, ordine))
+        return creaSessioneOrdine(p, ordine, Number(ordine.riprova_n), testo(ordine.scade_il), t);
       const rif = `r${Number(ordine.riprova_n ?? 0)}`;
       const rifiutata =
         Array.isArray(ordine.avvisi) &&
