@@ -29,6 +29,7 @@ import {
   eventoSpedizione,
   firmaCassa,
   leggiRisposta,
+  marketingAttivo,
   righeDaCarrello,
   senzaAnnullato,
   rinviaAStripe,
@@ -313,7 +314,7 @@ export function CassaStripe({ annullato = false }: { annullato?: boolean }) {
         righe: righeDaCarrello(esito.righe),
         totaleAttesoCent: totaleAtteso,
         permesso: token,
-        consensoMarketing: leggiConsenso(window.localStorage).marketing,
+        consensoMarketing: marketingAttivo(() => leggiConsenso(window.localStorage)),
         attribuzione,
         versione: VERSIONE_TESTI,
       };
@@ -526,7 +527,6 @@ export function CassaStripe({ annullato = false }: { annullato?: boolean }) {
                 valore={form.provincia}
                 onChange={set("provincia")}
                 errore={errori.provincia}
-                autoComplete="address-level1"
                 figli={
                   <>
                     <option value="">Scegli la sigla</option>

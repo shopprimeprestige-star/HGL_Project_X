@@ -15,7 +15,6 @@ import { uuidNuovo } from "../invio-ordine";
 import type { RigaCarrello } from "../cms/carrello";
 import { datiEventoRighe } from "../cms/cassa";
 import { cassaDa, type Cassa } from "../cms/cassa-sito";
-import { primaVolta } from "../cms/scheda";
 import { validaCap, validaProvincia } from "./fiscale";
 import type { SpedizionePubblica } from "./spedizione";
 
@@ -369,6 +368,24 @@ export function indirizzoCompleto(
   );
 }
 
+const letta = (archivio: Archivio, chiave: string): boolean => {
+  try {
+    return !!archivio?.getItem(chiave);
+  } catch {
+    return false;
+  }
+};
+
+/** Il consenso di marketing dal browser: se la lettura lancia (cookie bloccati: `window.localStorage` stesso lancia) vale «no» e il pagamento parte lo stesso. */
+export function marketingAttivo(leggi: () => unknown): boolean {
+  try {
+    const c = leggi();
+    return typeof c === "object" && c !== null && (c as { marketing?: unknown }).marketing === true;
+  } catch {
+    return false;
+  }
+}
+
 /** `AddShippingInfo`: una volta per carrello (stesse righe e quantità) e sessione, quando l'indirizzo è completo. Vero se è partito. Non lancia mai. */
 export function eventoSpedizione(
   porte: { emetti: Emetti; archivio: Archivio },
@@ -380,8 +397,16 @@ export function eventoSpedizione(
     const dati = datiEventoRighe(righe, () => undefined);
     if (!dati) return false;
     const chiave = `hg_asi_${righe.map((l) => `${l.sku ?? l.key}x${l.qty}`).join("+")}`;
-    if (!primaVolta(porte.archivio, chiave)) return false;
-    return porte.emetti("AddShippingInfo", dati) != null;
+    // la chiave si scrive solo se l'evento è partito DAVVERO: senza consenso (id nullo) dopo la scelta può ancora partire una volta
+    if (letta(porte.archivio, chiave)) return false;
+    const id = porte.emetti("AddShippingInfo", dati);
+    if (id == null) return false;
+    try {
+      porte.archivio?.setItem(chiave, "1");
+    } catch {
+      /* archivio chiuso: meglio un evento in più che nessuno */
+    }
+    return true;
   } catch {
     return false;
   }
