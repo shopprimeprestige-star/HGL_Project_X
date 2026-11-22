@@ -19,6 +19,7 @@
  *    si può sempre. «Approvato» non vuol dire «pronto»: un testo con segnaposto non si approva nemmeno.
  *  · `atteso` si rimanda com'è arrivato (testo): ricostruirlo con `Date` perderebbe i microsecondi e il confronto darebbe 409.
  *  · Tutti i controlli dei valori vengono PRIMA di qualunque chiamata al database. Tabella assente → `migrazione`. Nel log solo codici. */
+import { FRASI_MOTIVO } from "../../shop/email/frasi-motivo";
 import { impronta, messaggioInviabile, variabiliUsate } from "../../shop/email/inviabile";
 import {
   CHIAVI_EMAIL,
@@ -55,22 +56,10 @@ const COLONNE =
 const FRASE_TESTO_CAMBIATO =
   "Il testo è stato cambiato da un'altra persona nel frattempo: ricarica la pagina, rileggilo e rifai la modifica.";
 
-/** Perché un messaggio non si può mandare, nella lingua del titolare. `spento` non dipende dal testo: «Accendi» è proprio quello che si chiede. */
-export const FRASE_NON_INVIABILE: Record<MotivoNonInviabile, string> = {
-  spento: "Il messaggio è spento.",
-  vuoto: "L'oggetto e il testo non possono essere vuoti.",
-  segnaposto:
-    "Il testo ha ancora un segnaposto «{{…}}» (per esempio «{{da confermare}}»): scrivi il testo vero prima di approvarlo e accenderlo.",
-  non_approvato:
-    "Il testo non è approvato, o è stato cambiato dopo l'approvazione: approvalo prima di accendere il messaggio.",
-  variabile_sconosciuta:
-    "Nel testo c'è una parola tra graffe che non è una variabile di questo messaggio, oppure una graffa rimasta sola: usa solo le variabili dell'elenco, ognuna con una graffa per parte, per esempio {nome}.",
-};
-
 type Giudizio = { ok: true } | { ok: false; motivo: MotivoNonInviabile; frase: string };
 const giudizio = (m: unknown): Giudizio => {
   const e = messaggioInviabile(m);
-  return e.ok ? e : { ok: false, motivo: e.motivo, frase: FRASE_NON_INVIABILE[e.motivo] };
+  return e.ok ? e : { ok: false, motivo: e.motivo, frase: FRASI_MOTIVO[e.motivo] };
 };
 
 /** Un modello com'è mostrato nel pannello. `contenuto` = il testo in sé (vuoto, segnaposto, variabili); `inviabile` = anche acceso e approvato. */
@@ -218,7 +207,7 @@ async function accendi(corpo: Record<string, unknown>, chi: string, d: PorteDb) 
     throw rifiuta("valore", 400, "Dì se il messaggio va acceso o spento.");
   const acceso = corpo.acceso;
   const nonInviabile = (motivo: MotivoNonInviabile) =>
-    rifiuta("non_inviabile", 409, FRASE_NON_INVIABILE[motivo], { perche: motivo });
+    rifiuta("non_inviabile", 409, FRASI_MOTIVO[motivo], { perche: motivo });
   if (acceso) {
     // la stessa regola dell'invio: se non si potrebbe mandare, non si accende (e non si chiama nemmeno il database)
     const g = messaggioInviabile({ ...(await leggiUno(d, chiave)), acceso: true });
