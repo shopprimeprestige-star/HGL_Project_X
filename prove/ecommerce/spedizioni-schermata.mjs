@@ -148,6 +148,11 @@ export async function prove(mod, { c, gruppo, radice }) {
     const k = await fn("caricaSpedizioni")(a.f);
     c("leggere la scheda: UNA GET a ?spedizioni e UNA a ?cassa (per `resi_confermati`), niente altro", [2, "GET", "GET", true, true], [a.chiamate.length, a.chiamate[0]?.metodo, a.chiamate[1]?.metodo, a.chiamate.some((x) => x.url === "/api/crm/negozio?spedizioni"), a.chiamate.some((x) => x.url === "/api/crm/negozio?cassa")]);
     c("dal server vero: la tariffa del seme (490, non confermata), i sei corrieri e «resi non confermati»", [true, ID_TARIFFA_SEME, 490, false, ISTANTE, 6, false], [k.ok, k.tariffa?.id, k.tariffa?.costoCent, k.tariffa?.confermata, k.tariffa?.aggiornatoIl, k.corrieri?.length, k.resi]);
+    const stripeAcceso = tabelle().shop_impostazioni.map((r) => (r.chiave === "cassa_sito" ? { ...r, valore: "stripe" } : r));
+    const kStripe = await fn("caricaSpedizioni")(portaServer({ tabelle: tabelle({ shop_impostazioni: stripeAcceso }) }).f);
+    c("la cassa che il sito usa si legge da `?cassa`: «vecchia» col seme, «stripe» se è accesa", ["vecchia", "stripe"], [k.cassa, kStripe.cassa]);
+    const kSenzaCassa = await fn("caricaSpedizioni")(portaServer({ tabelle: tabelle({ shop_impostazioni: tabelle().shop_impostazioni.filter((r) => r.chiave !== "cassa_sito") }) }).f);
+    c("se `cassa_sito` non si legge (seme assente) vale «null»: l'avviso resta visibile", [true, null], [kSenzaCassa.ok, kSenzaCassa.cassa ?? null]);
     c("…la soglia gratuita non arriva alla scheda (nemmeno come campo)", false, /gratis|gratuit|soglia/i.test(JSON.stringify(k)));
     const kSenzaSeme = await fn("caricaSpedizioni")(portaServer({ tabelle: tabelle({ shop_impostazioni: tabelle().shop_impostazioni.filter((r) => r.chiave !== "resi_confermati") }) }).f);
     c("senza il seme dei resi (S5 non applicata del tutto) la scheda arriva lo stesso, con `resi` «null» (l'interruttore non si può girare)", [true, null], [kSenzaSeme.ok, kSenzaSeme.resi ?? null]);
@@ -223,7 +228,7 @@ export async function prove(mod, { c, gruppo, radice }) {
     const tagPer = (html, attr, val) => html.match(new RegExp(`<(?:button|input)[^>]*${attr}="${val}"[^>]*>`))?.[0] ?? "";
     const spento = (t) => /\sdisabled(=|\s|>)/.test(t);
     const acceso = (t) => /aria-checked="true"/.test(t) || /\schecked(=|\s|>)/.test(t);
-    const dati = (extra = {}) => ({ tariffa: tariffaVista(), corrieri: CORRIERI_SEME, resi: false, ...extra });
+    const dati = (extra = {}) => ({ tariffa: tariffaVista(), corrieri: CORRIERI_SEME, resi: false, cassa: "vecchia", ...extra });
     const base = (extra = {}) => ({
       dati: dati(), errore: null, modulo: modulo(), corrieri: CORRIERI_SEME, numeroProva: "", lavoro: null, esito: null,
       onModulo: () => {}, onSalva: () => {}, onConferma: () => {}, onCorrieri: () => {}, onSalvaCorrieri: () => {}, onNumeroProva: () => {}, onResi: () => {}, onRiprova: () => {},
@@ -251,6 +256,9 @@ export async function prove(mod, { c, gruppo, radice }) {
     c("l'avviso della cassa di oggi è sempre visibile, con le parole del capo progetto", true, t0.includes(FRASE_CASSA_OGGI));
     c("…anche mentre i dati arrivano e anche quando la lettura è fallita", [true, true], [T({ dati: null }).includes(FRASE_CASSA_OGGI), T({ dati: null, errore: "Non riesco a collegarmi al server." }).includes(FRASE_CASSA_OGGI)]);
     c("…e anche con la tariffa confermata", true, tConf.includes(FRASE_CASSA_OGGI));
+    c("…e con la cassa letta «vecchia» o non letta (`null`)", [true, true], [T({ dati: dati({ cassa: "vecchia" }) }).includes(FRASE_CASSA_OGGI), T({ dati: dati({ cassa: null }) }).includes(FRASE_CASSA_OGGI)]);
+    c("con la cassa Stripe accesa l'avviso dei 4,90 € NON c'è (la tariffa vale anche per la cassa)", [false, false], [T({ dati: dati({ cassa: "stripe" }) }).includes(FRASE_CASSA_OGGI), /4,90 €/.test(T({ dati: dati({ cassa: "stripe" }), modulo: modulo({ costo: "5,00" }) }))]);
+    c("…ma il resto della scheda c'è lo stesso (tariffa, corrieri, resi)", [true, true, true], ["Tariffa per l'Italia", "Corrieri e link di tracciamento", "Spedizioni e resi sono scritti nelle pagine"].map((x) => T({ dati: dati({ cassa: "stripe" }) }).includes(x)));
     c("…è un avviso (role=status), non un errore", true, /role="status"[^>]*>[\s\S]{0,900}la cassa di oggi usa ancora 4,90/.test(html));
 
     const frCassaChiusa = (t) => /cassa Stripe resta chiusa/i.test(t) && /Il negozio sta per aprire/.test(t);
