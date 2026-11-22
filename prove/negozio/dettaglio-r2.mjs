@@ -35,7 +35,7 @@ export async function prove(mod, { c, gruppo, radice }) {
   const stripe = (extra = {}) =>
     O.normalizzaOrdine(
       rigaOrdineProva({
-        id: ID, order_ref: "HG-T64A", stato_pagamento: "pagato", pagato_il: "2026-11-21T10:00:00.000Z", pagato_importo: 24.9,
+        id: ID, order_ref: "HG-T64A", stato_pagamento: "pagato", pagato_il: "2026-11-21T12:00:00.000Z", pagato_importo: 24.9,
         metodo_pagamento: "stripe", metodo_dettaglio: "card", canale: "sito", totale_cent: 2490, fattura_richiesta: true,
         stripe_sessione_id: "cs_test_SESSIONE_FINTA", stripe_pagamento_id: "pi_test_PAGAMENTO_FINTO", ...extra,
       }),

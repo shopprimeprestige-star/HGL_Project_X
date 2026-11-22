@@ -879,7 +879,7 @@ export function datiConsensi(consensi: unknown): RigaDato[] {
   if (termini) righe.push({ etichetta: "Termini e condizioni accettati", valore: termini });
   if (privacy) righe.push({ etichetta: "Privacy letta", valore: privacy });
   if (versione) righe.push({ etichetta: "Versione dei testi", valore: versione });
-  if (marketing) righe.push({ etichetta: "Marketing (novità e consigli)", valore: marketing });
+  if (marketing) righe.push({ etichetta: "Marketing", valore: marketing });
   if (typeof il === "string" && dataOra(il) !== "—") righe.push({ etichetta: "Data", valore: dataOra(il) });
   return righe;
 }
