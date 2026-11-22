@@ -352,6 +352,64 @@ export async function prove(mod, { c, gruppo, radice }) {
     c("dopo l'azione: il dettaglio ha l'ordine nuovo e viene riletto (rimborsi, email, storico)", [true, "spedito", true], [r.ok, archivio.stato().dettaglio?.ordine?.stato, f.get().length >= 2]);
   });
 
+  // ══ correzioni del revisore (22/11): il dialogo è dell'ordine che c'era all'apertura ═══════════════════════
+  await provaCon("dialogo legato all'ordine", async () => {
+    const f = fetchFinto((url) => risposta(dettaglioOk(/dettaglio=00000000-0000-4000-8000-000000000002/.test(url) ? 2 : 1)));
+    const archivio = K.creaArchivioDettaglio({ fetch: f, permesso: () => true });
+    await archivio.apri(uuid(1));
+    const d = archivio.apriDialogo();
+    await archivio.apri(uuid(2));
+    const prima = f.chiamate.length;
+    const r1 = await d.rimborso({ importoCent: 100, motivo: "Scritto per l'ordine 1", conferma: true });
+    const r2 = await d.annulla({ motivo: "Scritto per l'ordine 1", rimborso: "ora", rimettiInMagazzino: false });
+    c("dialogo: l'ordine è cambiato dopo l'apertura → rifiutato («valore») e nessuna richiesta, né POST né GET", [false, "valore", false, "valore", 0, 0], [r1.ok, r1.errore?.tipo, r2.ok, r2.errore?.tipo, f.chiamate.length - prima, f.post().length]);
+    c("dialogo: il rifiuto non cambia il dettaglio dell'ordine nuovo", [uuid(2), null], [archivio.stato().dettaglio?.ordine?.id, archivio.stato().errore]);
+    // Lo stesso ordine (anche richiuso e riaperto) va bene; un dialogo aperto sul nuovo ordine va bene.
+    const d2 = archivio.apriDialogo();
+    const r3 = await d2.rimborso({ importoCent: 100, motivo: "Per l'ordine 2", conferma: true });
+    c("dialogo: aperto sull'ordine che c'è ora → parte, e sull'ordine giusto", [true, 1, uuid(2)], [r3.ok, f.post().length, corpoDi(f.post()[0]).ordineId]);
+    // Dialogo aperto senza nessun ordine aperto, poi un ordine si apre: non è il suo.
+    const g = fetchFinto(risposta(dettaglioOk()));
+    const a2 = K.creaArchivioDettaglio({ fetch: g, permesso: () => true });
+    const dVuoto = a2.apriDialogo();
+    await a2.apri(ID);
+    const n = g.chiamate.length;
+    const r4 = await dVuoto.rimborso({ importoCent: 100, motivo: "x", conferma: true });
+    c("dialogo: aperto prima di ogni ordine → non parte su un ordine aperto dopo", [false, "valore", 0], [r4.ok, r4.errore?.tipo, g.chiamate.length - n]);
+  });
+
+  // ══ dopo un errore «valore» su rimborso, annulla, riconcilia, email_invia il dettaglio si rilegge (una GET) ═══
+  await provaCon("rilettura dopo «valore»", async () => {
+    const valore = (url, init) => (init?.method === "POST" ? risposta({ ok: false, error: "valore", messaggio: "Stripe ha rifiutato il rimborso." }, 409) : risposta(dettaglioOk()));
+    const prova = async (nome, lancia, riletto) => {
+      const f = fetchFinto(valore);
+      const archivio = K.creaArchivioDettaglio({ fetch: f, permesso: () => true });
+      await archivio.apri(ID);
+      const prima = f.get().length;
+      const r = await lancia(archivio);
+      await sfiata();
+      c(`«valore» su ${nome}: ${riletto ? "il dettaglio si rilegge (una GET in più)" : "nessuna rilettura"}, una POST sola`, [false, "valore", riletto ? 1 : 0, 1], [r.ok, r.errore?.tipo, f.get().length - prima, f.post().length]);
+    };
+    await prova("rimborso", (a) => a.apriDialogo().rimborso({ importoCent: 100, motivo: "x", conferma: true }), true);
+    await prova("annulla", (a) => a.apriDialogo().annulla({ motivo: "x", rimborso: "ora", rimettiInMagazzino: false }), true);
+    await prova("riconcilia", (a) => a.riconcilia(), true);
+    await prova("email_invia", (a) => a.emailInvia({ chiave: "spedito" }), true);
+    await prova("spedisci", (a) => a.spedisci({ corriere: "BRT", senzaTracking: true }), false);
+    await prova("correggi_stato", (a) => a.correggiStato({ da: "spedito", a: "nuovo", motivo: "x" }), false);
+    await prova("fattura_emessa", (a) => a.fatturaEmessa({ nota: "x" }), false);
+    await prova("giacenza_verificata", (a) => a.giacenzaVerificata(), false);
+  });
+
+  await provaCon("frase della guardia", async () => {
+    const f = fetchFinto(risposta(dettaglioOk()), (url, init) => (init?.method === "POST" ? new Promise((ok) => setTimeout(() => ok(risposta(azioneOk())), 5)) : risposta(dettaglioOk())));
+    const archivio = K.creaArchivioDettaglio({ fetch: f, permesso: () => true });
+    await archivio.apri(ID);
+    const prima = archivio.riconcilia();
+    const seconda = await archivio.riconcilia();
+    await prima;
+    c("guardia «una alla volta»: la frase non dice «su questo ordine» (la guardia è dell'archivio)", [true, false], [/attendi/.test(seconda.errore?.messaggio ?? ""), /su questo ordine/.test(seconda.errore?.messaggio ?? "")]);
+  });
+
   // ══ le funzioni di prima non cambiano ═══════════════════════════════════════════════════════════════════
   c("funzioni di prima: ci sono ancora tutte", "tutte", ["urlElenco", "urlConta", "urlStorico", "urlLead", "leggiElenco", "leggiConta", "leggiStorico", "eseguiAzione", "applicaOrdine", "oraHHmm", "creaLettore", "creaArchivioOrdini", "avviaConta", "porteBrowser"].every((n) => typeof K[n] === "function") ? "tutte" : "ne manca una");
   c("funzioni di prima: l'indirizzo dell'elenco, del numeretto e dello storico sono quelli di sempre", ["/api/crm/ordini", "/api/crm/ordini?conta=1", `/api/crm/ordini?storico=${ID}`], [K.urlElenco(), K.urlConta(), K.urlStorico(ID)]);
