@@ -836,17 +836,23 @@ export function creaArchivioDettaglio(opz: {
   /** Lancia UN'azione sull'ordine aperto: una alla volta, mai due insieme. Dopo, rilegge il dettaglio (una GET): mai una seconda POST. */
   async function lancia(
     fa: (ordineId: string) => Promise<RisultatoAzioneR2>,
+    //  `per`: l'ordine che c'era quando si è aperto il dialogo (solo per le azioni dei dialoghi).
+    //  `rileggiSuValore`: il server risponde «valore» anche dopo aver scritto una riga (rimborso rifiutato da Stripe, riconciliazione fallita): si rilegge.
+    opz: { per?: string | null; rileggiSuValore?: boolean } = {},
   ): Promise<RisultatoAzioneR2> {
     if (!permesso()) return { ok: false, errore: negato() };
     const id = stato.ordineId;
     if (!id) return { ok: false, errore: errore("valore", "Nessun ordine aperto.") };
+    //  Un dialogo scritto per l'ordine A non parte sull'ordine B (nemmeno se il pannello è passato da A a B con il dialogo ancora montato).
+    if ("per" in opz && opz.per !== id)
+      return {
+        ok: false,
+        errore: errore("valore", "Il dialogo era di un altro ordine: chiudilo e riaprilo."),
+      };
     if (inInvio)
       return {
         ok: false,
-        errore: errore(
-          "valore",
-          "Un'altra operazione su questo ordine è ancora in corso: attendi che finisca.",
-        ),
+        errore: errore("valore", "Un'altra operazione è ancora in corso: attendi che finisca."),
       };
     inInvio = true;
     imposta({ inInvio: true });
@@ -860,7 +866,7 @@ export function creaArchivioDettaglio(opz: {
     if (r.ok && !r.nessunCambio && stato.ordineId === id && stato.dettaglio)
       imposta({ dettaglio: { ...stato.dettaglio, ordine: r.ordine } });
     if (!r.ok && eAccessoNegato(r.errore)) imposta({ dettaglio: null, errore: r.errore });
-    else if (r.ok || r.errore.tipo !== "valore") void ricarica();
+    else if (r.ok || r.errore.tipo !== "valore" || opz.rileggiSuValore) void ricarica();
     return r;
   }
 
@@ -877,26 +883,34 @@ export function creaArchivioDettaglio(opz: {
     chiudi,
     spedisci: (d: Omit<DatiSpedisci, "ordineId">) =>
       lancia((ordineId) => spedisci(f, { ordineId, ...d })),
-    riconcilia: () => lancia((ordineId) => riconcilia(f, { ordineId })),
+    riconcilia: () => lancia((ordineId) => riconcilia(f, { ordineId }), { rileggiSuValore: true }),
     fatturaEmessa: (d: { nota?: string }) =>
       lancia((ordineId) => fatturaEmessa(f, { ordineId, ...d })),
     emailInvia: (d: { chiave: ChiaveEmailOrdine }) =>
-      lancia((ordineId) => emailInvia(f, { ordineId, ...d })),
+      lancia((ordineId) => emailInvia(f, { ordineId, ...d }), { rileggiSuValore: true }),
     giacenzaVerificata: () => lancia((ordineId) => giacenzaVerificata(f, { ordineId })),
     correggiStato: (d: { da: StatoOrdine; a: StatoOrdine; motivo: string }) =>
       lancia((ordineId) => correggiStato(f, { ordineId, ...d })),
     /** Si chiama UNA volta quando il dialogo si apre. La chiave nasce qui e resta la stessa per tutti gli invii di quel dialogo. */
     apriDialogo() {
       const chiaveRichiesta = genera();
+      const per = stato.ordineId; // l'ordine di questo dialogo: se al momento dell'invio è un altro, non parte
       return {
         chiaveRichiesta,
         rimborso: (d: { importoCent: number; motivo: string; conferma: true }) =>
-          lancia((ordineId) => rimborso(f, { ordineId, chiaveRichiesta, ...d })),
+          lancia((ordineId) => rimborso(f, { ordineId, chiaveRichiesta, ...d }), {
+            per,
+            rileggiSuValore: true,
+          }),
         annulla: (d: {
           motivo: string;
           rimborso: "ora" | "nessuno";
           rimettiInMagazzino: boolean;
-        }) => lancia((ordineId) => annulla(f, { ordineId, chiaveRichiesta, ...d })),
+        }) =>
+          lancia((ordineId) => annulla(f, { ordineId, chiaveRichiesta, ...d }), {
+            per,
+            rileggiSuValore: true,
+          }),
       };
     },
   };
