@@ -329,7 +329,7 @@ export async function prove(mod, { c, gruppo, radice }) {
     const nessuna = porta({});
     const tTar = typeof Tar.ElencoTariffe === "function" ? testo(renderToStaticMarkup(h(Tar.ElencoTariffe, { fetch: nessuna.f }))) : "";
     const tEm = typeof Em.ModelliEmail === "function" ? testo(renderToStaticMarkup(h(Em.ModelliEmail, { fetch: nessuna.f, onNegato: () => {} }))) : "";
-    c("i segnaposto dicono onestamente che arrivano dopo, e non chiamano il server", [true, true, 0], [/tariff/i.test(tTar) && /arriv/i.test(tTar), /email/i.test(tEm) && /arriv/i.test(tEm), nessuna.chiamate.length]);
+    c("i segnaposto dicono onestamente che arrivano dopo (le email: T66 le ha sostituite, qui basta che il nome ci sia), e non chiamano il server", [true, true, 0], [/tariff/i.test(tTar) && /arriv/i.test(tTar), /email/i.test(tEm), nessuna.chiamate.length]);
   } finally {
     rmSync(dove, { recursive: true, force: true });
   }
