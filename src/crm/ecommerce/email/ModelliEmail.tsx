@@ -32,6 +32,7 @@ import {
   type FetchRotta,
 } from "@/crm/ecommerce/pagina-r2";
 import { componi } from "@/shop/email/compone";
+import { FRASI_MOTIVO } from "@/shop/email/frasi-motivo";
 import { impronta, messaggioInviabile } from "@/shop/email/inviabile";
 import {
   CHIAVI_EMAIL,
@@ -65,17 +66,6 @@ const QUANDO: Record<ChiaveEmail, string> = {
   annullato: "Parte quando un ordine già incassato viene annullato.",
 };
 
-/** Perché un testo non si può mandare, nella lingua del titolare (le stesse parole del server, che resta la seconda rete). */
-const FRASI_MOTIVO: Record<MotivoNonInviabile, string> = {
-  spento: "Il messaggio è spento.",
-  vuoto: "L'oggetto e il testo non possono essere vuoti.",
-  segnaposto:
-    "Il testo ha ancora un segnaposto «{{…}}» (per esempio «{{da confermare}}»): scrivi il testo vero prima di approvarlo e accenderlo.",
-  non_approvato:
-    "Il testo non è approvato, o è stato cambiato dopo l'approvazione: approvalo prima di accendere l'email.",
-  variabile_sconosciuta:
-    "Nel testo c'è una parola tra graffe che non è una variabile di questo messaggio, oppure una graffa rimasta sola: usa solo le variabili dell'elenco, ognuna con una graffa per parte, per esempio {nome}.",
-};
 const FRASE_SALVA_PRIMA =
   "Salva prima le modifiche al testo: l'email si accende solo con un testo salvato e approvato.";
 const FRASE_DA_APPROVARE =
@@ -354,18 +344,57 @@ interface Esito {
   testo: string;
 }
 
+/** I testi che si stanno scrivendo e non sono ancora salvati (`bozze`), e il «mio testo» messo da parte quando un salvataggio va in conflitto (`miei`). */
+export interface StatoBozze {
+  bozze: Partial<Record<ChiaveEmail, Bozza>>;
+  miei: Partial<Record<ChiaveEmail, Bozza>>;
+}
+
+/** Cosa succede ai testi dopo una scrittura. La bozza si azzera SOLO dopo un «Salva» riuscito (ciò che era scritto ora è salvato): accendere,
+ *  spegnere e approvare non la toccano. Con un conflitto in «Salva» la bozza lascia il posto al testo riletto dell'altra persona e il mio
+ *  testo resta da parte (`mia`), da rimettere o scartare a mano. Ogni altro errore lascia tutto com'è. */
+export function dopoScrittura(
+  s: StatoBozze,
+  chiave: ChiaveEmail,
+  cosa: Cosa,
+  r: { ok: true } | { ok: false; tipo: string },
+  mia?: Bozza,
+): StatoBozze {
+  if (cosa !== "salva") return s;
+  if (r.ok)
+    return {
+      bozze: { ...s.bozze, [chiave]: undefined },
+      miei: { ...s.miei, [chiave]: undefined },
+    };
+  if (r.tipo === "conflitto" && mia)
+    return { bozze: { ...s.bozze, [chiave]: undefined }, miei: { ...s.miei, [chiave]: mia } };
+  return s;
+}
+export const rimettiMio = (s: StatoBozze, chiave: ChiaveEmail): StatoBozze => ({
+  bozze: { ...s.bozze, [chiave]: s.miei[chiave] },
+  miei: { ...s.miei, [chiave]: undefined },
+});
+export const scartaMio = (s: StatoBozze, chiave: ChiaveEmail): StatoBozze => ({
+  ...s,
+  miei: { ...s.miei, [chiave]: undefined },
+});
+
 export interface PropsVistaModelli {
   /** `null` = non ancora letti. */
   modelli: ModelloVista[] | null;
   variabili: Variabili;
   /** Il testo che si sta scrivendo, per messaggio (se manca c'è quello salvato). */
   bozze: Partial<Record<ChiaveEmail, Bozza>>;
+  /** Il mio testo non salvato dopo un conflitto (vedi `dopoScrittura`). */
+  miei?: Partial<Record<ChiaveEmail, Bozza>>;
   lavoro: { chiave: ChiaveEmail; cosa: Cosa } | null;
   esiti: Partial<Record<ChiaveEmail, Esito>>;
   errore: string | null;
   onBozza: (chiave: ChiaveEmail, campo: keyof Bozza, valore: string) => void;
   onSalva: (chiave: ChiaveEmail) => void;
   onRipristina: (chiave: ChiaveEmail) => void;
+  onRimetti?: (chiave: ChiaveEmail) => void;
+  onScarta?: (chiave: ChiaveEmail) => void;
   onApprova: (chiave: ChiaveEmail) => void;
   onAcceso: (chiave: ChiaveEmail, acceso: boolean) => void;
   onRiprova: () => void;
@@ -388,6 +417,7 @@ function Scheda({
   occupato,
   inCorso,
   esito,
+  mio,
   p,
 }: {
   modello: ModelloVista;
@@ -396,6 +426,7 @@ function Scheda({
   occupato: boolean;
   inCorso: Cosa | null;
   esito: Esito | undefined;
+  mio: Bozza | undefined;
   p: PropsVistaModelli;
 }) {
   const nome = etichettaDi(m.chiave);
@@ -457,7 +488,7 @@ function Scheda({
             maxLength={200}
             disabled={occupato}
             aria-label={`Oggetto: ${nome}`}
-            className="h-11 text-[13px] md:h-9 md:text-[13px]"
+            className="h-11 text-base md:h-9 md:text-[13px]"
             onChange={(e) => p.onBozza(m.chiave, "oggetto", e.target.value)}
           />
           <label htmlFor={`${id}-testo`} className="mt-1 text-[12.5px] font-medium">
@@ -470,7 +501,7 @@ function Scheda({
             maxLength={8000}
             disabled={occupato}
             aria-label={`Testo: ${nome}`}
-            className="min-h-40 text-[13px] leading-relaxed md:text-[13px]"
+            className="min-h-40 text-base leading-relaxed md:text-[13px]"
             onChange={(e) => p.onBozza(m.chiave, "testo", e.target.value)}
           />
           <p className="text-[12px] text-muted-foreground">
@@ -493,6 +524,39 @@ function Scheda({
           </div>
         )}
         {avviso && <Avviso>{avviso}</Avviso>}
+        {mio && (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-amber-900">
+            <h3 className="text-[12.5px] font-semibold">Il tuo testo non salvato</h3>
+            <p className="text-[12px]">
+              Un'altra persona ha cambiato questo messaggio mentre scrivevi: qui sopra c'è il suo
+              testo. Il tuo non è stato salvato.
+            </p>
+            <p className="mt-2 text-[13px] font-medium">{mio.oggetto}</p>
+            <p className="mt-1 whitespace-pre-wrap text-[13px] leading-relaxed">{mio.testo}</p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                className="min-h-11 text-[12.5px] sm:min-h-8"
+                disabled={occupato}
+                aria-label={`Rimetti il mio testo: ${nome}`}
+                onClick={() => p.onRimetti?.(m.chiave)}
+              >
+                Rimetti il mio testo
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="min-h-11 text-[12.5px] sm:min-h-8"
+                disabled={occupato}
+                aria-label={`Scarta il mio testo: ${nome}`}
+                onClick={() => p.onScarta?.(m.chiave)}
+              >
+                Scarta il mio testo
+              </Button>
+            </div>
+          </div>
+        )}
 
         <div className="flex flex-wrap items-center gap-2">
           <Button
@@ -633,6 +697,7 @@ export function VistaModelli(p: PropsVistaModelli) {
           occupato={p.lavoro !== null}
           inCorso={p.lavoro?.chiave === m.chiave ? p.lavoro.cosa : null}
           esito={p.esiti[m.chiave]}
+          mio={p.miei?.[m.chiave]}
           p={p}
         />
       ))}
@@ -652,7 +717,7 @@ export function ModelliEmail({
 }) {
   const [modelli, setModelli] = useState<ModelloVista[] | null>(null);
   const [variabili, setVariabili] = useState<Variabili>(VARIABILI_PER_CHIAVE);
-  const [bozze, setBozze] = useState<Partial<Record<ChiaveEmail, Bozza>>>({});
+  const [testi, setTesti] = useState<StatoBozze>({ bozze: {}, miei: {} });
   const [lavoro, setLavoro] = useState<PropsVistaModelli["lavoro"]>(null);
   const [esiti, setEsiti] = useState<PropsVistaModelli["esiti"]>({});
   const [erroreLettura, setErroreLettura] = useState<string | null>(null);
@@ -694,22 +759,23 @@ export function ModelliEmail({
     cosa: Cosa,
     fatto: string,
     chiamata: () => Promise<EsitoModello>,
+    mia?: Bozza,
   ) {
     setLavoro({ chiave, cosa });
     setEsiti((e) => ({ ...e, [chiave]: undefined }));
     const r = guarda(await chiamata());
     if (!vivo.current) return;
     setLavoro(null);
+    setTesti((t) => dopoScrittura(t, chiave, cosa, r, mia));
     if (r.ok) {
       setEsiti((e) => ({ ...e, [chiave]: { tono: "ok", testo: fatto } }));
-      setBozze((b) => ({ ...b, [chiave]: undefined })); // ciò che era stato scritto ora è salvato
       if (r.modello)
         setModelli((lista) => lista?.map((m) => (m.chiave === chiave ? r.modello! : m)) ?? lista);
       else await carica();
       return;
     }
     setEsiti((e) => ({ ...e, [chiave]: { tono: "errore", testo: r.messaggio } }));
-    //  Conflitto o rete incerta: si guarda com'è davvero (la bozza resta, per non perdere ciò che si è scritto).
+    //  Conflitto o rete incerta: si guarda com'è davvero. Con un conflitto il testo riletto è quello dell'altra persona e il mio resta da parte.
     if (r.tipo === "conflitto" || r.tipo === "rete") await carica();
   }
 
@@ -717,20 +783,21 @@ export function ModelliEmail({
     <VistaModelli
       modelli={modelli}
       variabili={variabili}
-      bozze={bozze}
+      bozze={testi.bozze}
+      miei={testi.miei}
       lavoro={lavoro}
       esiti={esiti}
       errore={erroreLettura}
       onBozza={(chiave, campo, valore) =>
-        setBozze((b) => {
+        setTesti((t) => {
           const m = modelli?.find((x) => x.chiave === chiave);
-          const base = b[chiave] ?? { oggetto: m?.oggetto ?? "", testo: m?.testo ?? "" };
-          return { ...b, [chiave]: { ...base, [campo]: valore } };
+          const base = t.bozze[chiave] ?? { oggetto: m?.oggetto ?? "", testo: m?.testo ?? "" };
+          return { ...t, bozze: { ...t.bozze, [chiave]: { ...base, [campo]: valore } } };
         })
       }
       onSalva={(chiave) => {
         const m = modelli?.find((x) => x.chiave === chiave);
-        const b = bozze[chiave];
+        const b = testi.bozze[chiave];
         if (m && b)
           void scrivi(
             chiave,
@@ -739,9 +806,14 @@ export function ModelliEmail({
               ? "Salvato. L'email è spenta e il testo va approvato di nuovo."
               : "Salvato. Ora va riletto e approvato.",
             () => salvaModello(chiama, m, b),
+            b,
           );
       }}
-      onRipristina={(chiave) => setBozze((b) => ({ ...b, [chiave]: undefined }))}
+      onRipristina={(chiave) =>
+        setTesti((t) => ({ ...t, bozze: { ...t.bozze, [chiave]: undefined } }))
+      }
+      onRimetti={(chiave) => setTesti((t) => rimettiMio(t, chiave))}
+      onScarta={(chiave) => setTesti((t) => scartaMio(t, chiave))}
       onApprova={(chiave) => {
         const m = modelli?.find((x) => x.chiave === chiave);
         if (m) void scrivi(chiave, "approva", "Testo approvato.", () => approvaModello(chiama, m));
