@@ -135,7 +135,7 @@ export async function prove(mod, { c, gruppo, radice }) {
     // ── 2 · la finestra di annullo ──
     const dialogo = { chiaveRichiesta: CHIAVE, annulla: nulla };
     const fa = (rimborsi) => (DA.FormAnnulla ? renderToStaticMarkup(h(DA.FormAnnulla, { ordine: pagato, rimborsi, dialogo, inInvio: false, onFatto: () => {}, onChiudi: () => {} })) : "manca");
-    c("2 · finestra di annullo: accanto a «Rimborsa ora» c'è «non si può annullare»", true, /Rimborsa ora[^<]*non si può annullare/.test(testo(fa([]))));
+    c("2 · finestra di annullo: accanto a «Rimborsa ora» c'è «il rimborso non si può annullare» (non sembra riferito all'ordine)", true, /Rimborsa ora[^<]*: il rimborso non si può annullare/.test(testo(fa([]))));
 
     // ── 4 · ElencoTariffe ──
     const tariffa = { id: "t1", nome: "Tracciata", corriere: null, costoCent: 490, giorniMin: null, giorniMax: null, attiva: true, provvisoria: true, confermata: false, confermataIl: null, aggiornatoIl: ISTANTE };

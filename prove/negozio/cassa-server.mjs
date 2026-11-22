@@ -651,6 +651,76 @@ export async function prove(mod, { c, gruppo, radice }) {
     c("senza permesso o con un permesso troppo recente → 403 `permesso`", [403, 403], [senzaPermesso.stato, presto.stato]);
   }
   {
+    // R5 · nota 1: un guasto di Stripe a metà della riprova non deve lasciare il cliente in attesa senza fine
+    const guasto = async () => {
+      const env = ambiente();
+      const k = await creato(env);
+      await chiudi(env, k.o, "scaduto");
+      env.finto.fallisci("POST /v1/checkout/sessions", { stato: 503, errore: { type: "api_error" } });
+      const r = await riprova(env, k);
+      return { env, k, r };
+    };
+    const { env, k, r } = await guasto();
+    c("il guasto a metà (5xx sulla sessione nuova): ordine riaperto (n=1, `in_attesa`), ancora la sessione vecchia, nessun avviso `stripe_errore`", [500, "guasto", "in_attesa", 1, k.sessione, false], [r.stato, r.corpo.motivo, stato(env, k.id).stato_pagamento, stato(env, k.id).riprova_n, stato(env, k.id).stripe_sessione_id, (stato(env, k.id).avvisi ?? []).some((x) => x.codice === "stripe_errore")]);
+    const ancora = await riprova(env, k);
+    const o = stato(env, k.id);
+    c("…il clic dopo RIPETE la sessione con lo stesso `r1` (non `riprova_in_corso`): ok, una sola sessione nuova, registrata", [true, 2, `sessione-${k.id}-${o.firma_tentativo}-r1`, true], [ancora.corpo.ok, env.finto.sessioni().length, sessioniCreate(env).at(-1).chiaveIdempotenza, o.stripe_sessione_id === sessioneId(ancora.corpo.url ?? "") && o.stripe_sessione_id !== k.sessione]);
+    c("…`scade_il` e `riprova_n` non cambiano (nessuna seconda riapertura)", [1, true], [o.riprova_n, Math.floor(Date.parse(o.scade_il) / 1000) === Number(sessioniCreate(env).at(-1).corpo.expires_at)]);
+    const terzo = await riprova(env, k);
+    c("…e un altro clic trova la sessione aperta: stessa `url`, nessuna sessione in più", [true, ancora.corpo.url, 2], [terzo.corpo.ok, terzo.corpo.url, env.finto.sessioni().length]);
+
+    // due clic insieme dopo il guasto: la chiave idempotente tiene UNA sola sessione pagabile
+    const dopo = await guasto();
+    const permessi = [await permesso(dopo.env), await permesso(dopo.env, 6000)];
+    const doppi = await Promise.all(permessi.map((p) => K.riprovaPagamento({ ref: dopo.k.ref, t: dopo.k.t, permesso: p }, dopo.env.porte)));
+    const urls = new Set(doppi.filter((x) => x.corpo.ok).map((x) => x.corpo.url));
+    c("DUE clic insieme dopo il guasto → una sola sessione nuova pagabile (stessa `url` per chi riesce)", [2, 1, true], [dopo.env.finto.sessioni().length, urls.size, doppi.some((x) => x.corpo.ok)]);
+
+    // meno di 35 minuti alla scadenza: Stripe rifiuterebbe `expires_at`, non si ripete (comportamento di prima)
+    const tardi = await guasto();
+    tardi.env.ora.t += 30 * MIN;
+    const rt = await riprova(tardi.env, tardi.k);
+    c("con meno di 35 minuti alla scadenza non si ripete: `riprova_in_corso`, nessuna sessione, nessun avviso", [409, "riprova_in_corso", 1, false], [rt.stato, rt.corpo.motivo, tardi.env.finto.sessioni().length, (stato(tardi.env, tardi.k.id).avvisi ?? []).some((x) => x.codice === "stripe_errore")]);
+
+    // lo stesso dal ritorno alla cassa (doppio clic su «Paga» con lo stesso tentativo)
+    const cassa = await guasto();
+    const dalCassa = await vai(cassa.env, await corpoOnesto(cassa.env));
+    c("`riprendi` dopo il guasto: stessa ripetizione (ok, sessione nuova, `r1`), mai due sessioni", [true, 2, true], [dalCassa.corpo.ok, cassa.env.finto.sessioni().length, sessioniCreate(cassa.env).at(-1).chiaveIdempotenza.endsWith("-r1")]);
+
+    // un rifiuto vero di Stripe (avviso `stripe_errore` r1) non si ripete
+    const rifiutata = ambiente();
+    const kr = await creato(rifiutata);
+    await chiudi(rifiutata, kr.o, "scaduto");
+    rifiutata.finto.fallisci("POST /v1/checkout/sessions", { stato: 400, errore: { type: "invalid_request_error", code: "parameter_invalid_integer" } });
+    await riprova(rifiutata, kr);
+    const cassaRifiutata = await vai(rifiutata, await corpoOnesto(rifiutata));
+    c("dopo un rifiuto VERO di Stripe nemmeno `riprendi` ripete: `non_riproponibile`, nessuna sessione nuova", [409, "non_riproponibile", 1], [cassaRifiutata.stato, cassaRifiutata.corpo.motivo, rifiutata.finto.sessioni().length]);
+  }
+  {
+    // R5 · nota 2: un ordine annullato non apre mai una sessione
+    const senzaSessione = ambiente();
+    senzaSessione.finto.fallisci("POST /v1/checkout/sessions", { rete: true });
+    const corpo = await corpoOnesto(senzaSessione);
+    await vai(senzaSessione, corpo);
+    ordini(senzaSessione)[0].status = "annullato"; // il CRM lo annulla nella finestra fra la creazione e la sessione
+    const r = await vai(senzaSessione, { ...corpo, permesso: await permesso(senzaSessione) });
+    c("ordine `annullato` senza sessione → `non_riproponibile`, nessuna sessione aperta", [409, "non_riproponibile", 0], [r.stato, r.corpo.motivo, senzaSessione.finto.sessioni().length]);
+    const scaduto = ambiente();
+    scaduto.finto.fallisci("POST /v1/checkout/sessions", { rete: true });
+    const c2 = await corpoOnesto(scaduto);
+    await vai(scaduto, c2);
+    ordini(scaduto)[0].status = "annullato";
+    scaduto.ora.t += 61 * MIN; // anche a scadenza passata (si chiuderebbe e riaprirebbe): niente
+    const r2 = await vai(scaduto, { ...c2, permesso: await permesso(scaduto) });
+    c("…anche a scadenza passata: `non_riproponibile`, ordine non riaperto, nessuna sessione", [409, "non_riproponibile", 0, 0], [r2.stato, r2.corpo.motivo, scaduto.finto.sessioni().length, ordini(scaduto)[0].riprova_n]);
+    const conSessione = ambiente();
+    const k = await creato(conSessione);
+    ordini(conSessione)[0].status = "annullato";
+    const r3 = await vai(conSessione, await corpoOnesto(conSessione));
+    c("ordine `annullato` con la sessione ancora aperta → `non_riproponibile`, non restituisce l'indirizzo di pagamento", [409, "non_riproponibile", undefined], [r3.stato, r3.corpo.motivo, r3.corpo.url]);
+    void k;
+  }
+  {
     // limite delle riprove, separato da quello degli ordini
     const env = ambiente();
     const k = await creato(env);
