@@ -4,6 +4,8 @@ import { ShoppingBag, Menu } from "lucide-react";
 import { CartProvider, useCart } from "@/shop/CartContext";
 import { getProduct } from "@/shop/catalog";
 import { modalitaCatalogo, schedaProdotto } from "@/shop/cms/catalogo.functions";
+import { collaudoDellaVisita } from "@/shop/cms/cassa-sito.functions";
+import { CACHE_COLLAUDO } from "@/shop/cms/collaudo";
 import { nomeProtesiPerBarra } from "@/shop/cms/guscio";
 import { BarraConsulenza } from "@/components/landing/consulenza/BarraConsulenza";
 import { GestisciCookie } from "@/components/tracciamento/GestisciCookie";
@@ -30,8 +32,15 @@ export const Route = createFileRoute("/shop")({
       modalita = "codice";
     }
     if (typeof window !== "undefined") modalitaVisita = modalita;
-    return { modalita };
+    //  Collaudo con chiave (T67): solo sul server (nel browser `headers` non conta). Senza collaudo il contesto è `{ modalita }`, come prima:
+    //  nessuna chiave in più finisce nell'HTML.
+    const collaudo = typeof window === "undefined" ? await collaudoDellaVisita().catch(() => false) : false;
+    return collaudo ? { modalita, collaudo: true as const } : { modalita };
   },
+  //  Con il collaudo l'HTML di TUTTE le pagine /shop* è privato e non si tiene da nessuna parte (una copia `cms` non deve finire in una
+  //  cache condivisa). Senza collaudo non si dichiara niente: resta `no-cache, must-revalidate` della radice.
+  headers: ({ matches }): Record<string, string> =>
+    matches.some((m) => (m.context as { collaudo?: boolean } | undefined)?.collaudo === true) ? { "Cache-Control": CACHE_COLLAUDO } : {},
   //  `head` gira dopo `beforeLoad`: la modalità la trova nel contesto del match. Con il catalogo CMS la descrizione non promette
   //  niente (D38); senza contesto (lettura fallita) resta quella di oggi.
   head: ({ match }) => ({

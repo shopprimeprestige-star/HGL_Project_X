@@ -24,7 +24,9 @@ export const Route = createFileRoute("/api/public/shop-cassa")({
     handlers: {
       POST: async ({ request }) => {
         try {
-          const cassa = async () => (await cassaEffettivaDelServer()).cassa;
+          //  Collaudo con chiave (T67): il cookie di QUESTA richiesta decide se la cassa è `stripe` anche per un solo browser.
+          const cookie = request.headers.get("cookie");
+          const cassa = async () => (await cassaEffettivaDelServer(cookie)).cassa;
           const r = await gestisciCassa(
             request,
             porteCassa({
