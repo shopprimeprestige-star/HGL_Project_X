@@ -13929,7 +13929,7 @@ function proveDelCarattere() {
   for (const p of [
     "/preventivo", "/preventivo?watch=abc", "/meetly", "/meetly/abc-defg-hij", "/videochiamata/abc",
     "/presenta", "/presentatore", "/slide", "/regia/xyz", "/webinar/abc", "/prova-capelli",
-    "/prova-anteprima/a", "/CRM/webinar", "/CRM/webinar/", "/CRM/webinar/abc", "/shop", "/nuova",
+    "/prova-anteprima/a", "/CRM/webinar", "/CRM/webinar/", "/CRM/webinar/abc", "/shop/checkout", "/nuova",
     "/consulente", "/blogger", "/CRMx", "/chatx", "/chat/altro", "/CRM/Webinar", "/crm/webinar", "/CRM/WEBINAR/?x=1",
   ]) {
     c(`Inter NON vale su ${p}`, false, CAR.usaInter(p));
