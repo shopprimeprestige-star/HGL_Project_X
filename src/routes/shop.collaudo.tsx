@@ -63,8 +63,9 @@ function PaginaCollaudo() {
         <>
           <h1 className="text-xl font-semibold text-white">Il link non è più valido</h1>
           <p className="mt-3 text-sm text-white/70">
-            Il link del collaudo dura due ore e vale una visita sola per telefono. Chiedine uno
-            nuovo dal CRM, nella scheda Cassa.
+            Il link del collaudo dura due ore, poi scade: chiedine uno nuovo dal CRM, nella scheda
+            Cassa. Finché dura può usarlo chiunque lo abbia, quindi cancella il messaggio che lo
+            contiene dopo averlo usato.
           </p>
         </>
       )}
