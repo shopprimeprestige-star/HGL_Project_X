@@ -110,4 +110,16 @@ export async function prove(mod, { c, gruppo }) {
     const r = A.scaricaEventi();
     c("scaricaEventi: restituisce una promessa che si risolve anche sul server (senza `window`, senza invii in volo)", [true, "ok"], [typeof r?.then === "function", await Promise.resolve(r).then(() => "ok", () => "no")]);
   }
+
+  // ── AddShippingInfo: la chiave di sessione si scrive solo se l'evento è partito DAVVERO ──
+  {
+    const arc = archivio();
+    const senzaConsenso = nuovo(); senzaConsenso.ritorno = null;
+    c("AddShippingInfo: prima del consenso (emissione null) → non è partito e la chiave di sessione NON si scrive", [false, 0], [K.eventoSpedizione({ emetti: senzaConsenso.emetti, archivio: arc }, modulo(), righe), arc.m.size]);
+    const conConsenso = nuovo();
+    c("AddShippingInfo: dopo il consenso, per lo stesso carrello, PARTE ancora una volta", [true, 1, 1], [K.eventoSpedizione({ emetti: conConsenso.emetti, archivio: arc }, modulo(), righe), conConsenso.emessi.length, arc.m.size]);
+    c("AddShippingInfo: e poi non si rimanda più", [false, 1], [K.eventoSpedizione({ emetti: conConsenso.emetti, archivio: arc }, modulo(), righe), conConsenso.emessi.length]);
+    const chiuso = { getItem: () => null, setItem: () => { throw new Error("archivio chiuso"); } };
+    c("AddShippingInfo: con l'archivio che non scrive l'evento parte lo stesso", true, K.eventoSpedizione({ emetti: nuovo().emetti, archivio: chiuso }, modulo(), righe));
+  }
 }

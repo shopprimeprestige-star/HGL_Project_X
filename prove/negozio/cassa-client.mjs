@@ -134,4 +134,13 @@ export async function prove(mod, { c, gruppo }) {
     c("senzaAnnullato: ricerca vuota → solo il percorso", "/shop/checkout", K.senzaAnnullato("/shop/checkout", "", ""));
     c("senzaAnnullato: `annullato` con qualunque valore si toglie", "/shop/checkout", K.senzaAnnullato("/shop/checkout", "?annullato=si", ""));
   }
+
+  // ── il consenso di marketing: un localStorage bloccato non ferma il pagamento ──
+  c("marketingAttivo esiste", "function", typeof K.marketingAttivo);
+  if (typeof K.marketingAttivo === "function") {
+    c("marketingAttivo: la lettura LANCIA (cookie bloccati, `window.localStorage` che lancia) → false, non lancia", false, (() => { try { return K.marketingAttivo(() => { throw new DOMException("bloccato", "SecurityError"); }); } catch { return "lanciato"; } })());
+    c("marketingAttivo: consenso di marketing dato → true", true, K.marketingAttivo(() => ({ scelto: true, statistiche: true, marketing: true, ts: 0 })));
+    c("marketingAttivo: consenso negato o non scelto → false", [false, false], [K.marketingAttivo(() => ({ scelto: true, statistiche: true, marketing: false, ts: 0 })), K.marketingAttivo(() => ({ scelto: false, statistiche: false, marketing: false, ts: 0 }))]);
+    c("marketingAttivo: una risposta strana (null, «true» come testo) → false", [false, false, false], [K.marketingAttivo(() => null), K.marketingAttivo(() => ({ marketing: "true" })), K.marketingAttivo(() => undefined)]);
+  }
 }

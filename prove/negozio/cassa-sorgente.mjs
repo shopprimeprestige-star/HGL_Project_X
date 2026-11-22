@@ -172,4 +172,8 @@ export async function prove(_mod, { c, gruppo, radice }) {
   c("CassaStripe: il messaggio resta anche dopo che il parametro è sparito (letto una volta nello stato iniziale)", true, /useState\(annullato\)|useState\(\s*annullato\s*\)/.test(nudi));
   c("CassaStripe: `replaceState` conserva lo stato del router (`window.history.state`)", true, /replaceState\(\s*window\.history\.state/.test(nudi));
   c("ammesse.ts non è stato toccato (nessuna chiave `annullato` fra quelle ammesse)", false, /annullato/.test((() => { try { return readFileSync(join(radice, "src/lib/tracciamento/ammesse.ts"), "utf8"); } catch { return ""; } })()));
+
+  // ── consenso letto in sicurezza e provincia senza suggerimento del browser ──
+  c("CassaStripe: il consenso di marketing passa da `marketingAttivo` (il `window.localStorage` si tocca dentro la sua lettura protetta)", [true, false], [/marketingAttivo\(\s*\(\)\s*=>\s*leggiConsenso\(window\.localStorage\)\s*\)/.test(nudi), /consensoMarketing:\s*leggiConsenso\(/.test(nudi)]);
+  c("CassaStripe: la provincia è un elenco di sigle: nessun `autoComplete=\"address-level1\"` (il browser proporrebbe il nome esteso)", false, /address-level1/.test(srcCassa));
 }
