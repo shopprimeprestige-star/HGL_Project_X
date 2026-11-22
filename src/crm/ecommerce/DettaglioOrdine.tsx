@@ -640,7 +640,7 @@ export function CorpoStripe({
   const tasto = tastoRimborso({ ordine: o, rimborsi, inInvio: d.inInvio, blocco });
   const rimborsaSpento = fermo || !tasto.attivo;
 
-  const esegui = async (nome: Azione["azione"], fa: () => Promise<RisultatoAzioneR2>) => {
+  const avviaAzione = async (nome: Azione["azione"], fa: () => Promise<RisultatoAzioneR2>) => {
     setEsitoR2(null);
     setDaConfermare(null);
     setEsitoR2(esitoAzioneR2(await fa(), nome));
@@ -738,10 +738,10 @@ export function CorpoStripe({
             const c = daConfermare;
             if (!c) return;
             if (c.tipo === "email")
-              void esegui("email_invia", () => d.emailInvia({ chiave: c.chiave }));
+              void avviaAzione("email_invia", () => d.emailInvia({ chiave: c.chiave }));
             else {
               setCorrezione(null);
-              void esegui("correggi_stato", () =>
+              void avviaAzione("correggi_stato", () =>
                 d.correggiStato({ da: c.da, a: c.a, motivo: c.motivo }),
               );
             }
@@ -797,7 +797,7 @@ export function CorpoStripe({
                       className={CLASSE_TASTO}
                       disabled={fermo}
                       onClick={() =>
-                        void esegui("giacenza_verificata", () => d.giacenzaVerificata())
+                        void avviaAzione("giacenza_verificata", () => d.giacenzaVerificata())
                       }
                     >
                       Segna verificata
@@ -986,7 +986,7 @@ export function CorpoStripe({
               size="sm"
               className={CLASSE_TASTO}
               disabled={fermo}
-              onClick={() => void esegui("riconcilia", () => d.riconcilia())}
+              onClick={() => void avviaAzione("riconcilia", () => d.riconcilia())}
             >
               Controlla con Stripe
             </Button>
@@ -1097,7 +1097,7 @@ export function CorpoStripe({
                     className={CLASSE_TASTO}
                     disabled={fermo}
                     onClick={() =>
-                      void esegui("fattura_emessa", () =>
+                      void avviaAzione("fattura_emessa", () =>
                         d.fatturaEmessa({ nota: notaFattura.trim() || undefined }),
                       )
                     }
