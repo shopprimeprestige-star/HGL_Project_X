@@ -116,6 +116,7 @@ import { Route as CRMSplatRouteImport } from './routes/CRM.$'
 import { Route as CRMKpiIndexRouteImport } from './routes/CRM.kpi.index'
 import { Route as CRMInstallazioniIndexRouteImport } from './routes/CRM.installazioni.index'
 import { Route as ShopProdottoSlugRouteImport } from './routes/shop.prodotto.$slug'
+import { Route as ShopOrdineRefRouteImport } from './routes/shop.ordine.$ref'
 import { Route as ShopCSlugRouteImport } from './routes/shop.c.$slug'
 import { Route as ApiPublicWhatsappWebhookRouteImport } from './routes/api.public.whatsapp-webhook'
 import { Route as ApiPublicWebinarRouteImport } from './routes/api.public.webinar'
@@ -775,6 +776,11 @@ const CRMInstallazioniIndexRoute = CRMInstallazioniIndexRouteImport.update({
 const ShopProdottoSlugRoute = ShopProdottoSlugRouteImport.update({
   id: '/prodotto/$slug',
   path: '/prodotto/$slug',
+  getParentRoute: () => ShopRoute,
+} as any)
+const ShopOrdineRefRoute = ShopOrdineRefRouteImport.update({
+  id: '/ordine/$ref',
+  path: '/ordine/$ref',
   getParentRoute: () => ShopRoute,
 } as any)
 const ShopCSlugRoute = ShopCSlugRouteImport.update({
@@ -1642,6 +1648,7 @@ export interface FileRoutesByFullPath {
   '/api/public/webinar': typeof ApiPublicWebinarRoute
   '/api/public/whatsapp-webhook': typeof ApiPublicWhatsappWebhookRoute
   '/shop/c/$slug': typeof ShopCSlugRoute
+  '/shop/ordine/$ref': typeof ShopOrdineRefRoute
   '/shop/prodotto/$slug': typeof ShopProdottoSlugRoute
   '/CRM/installazioni/': typeof CRMInstallazioniIndexRoute
   '/CRM/kpi/': typeof CRMKpiIndexRoute
@@ -1870,6 +1877,7 @@ export interface FileRoutesByTo {
   '/api/public/webinar': typeof ApiPublicWebinarRoute
   '/api/public/whatsapp-webhook': typeof ApiPublicWhatsappWebhookRoute
   '/shop/c/$slug': typeof ShopCSlugRoute
+  '/shop/ordine/$ref': typeof ShopOrdineRefRoute
   '/shop/prodotto/$slug': typeof ShopProdottoSlugRoute
   '/CRM/installazioni': typeof CRMInstallazioniIndexRoute
   '/CRM/kpi': typeof CRMKpiIndexRoute
@@ -2104,6 +2112,7 @@ export interface FileRoutesById {
   '/api/public/webinar': typeof ApiPublicWebinarRoute
   '/api/public/whatsapp-webhook': typeof ApiPublicWhatsappWebhookRoute
   '/shop/c/$slug': typeof ShopCSlugRoute
+  '/shop/ordine/$ref': typeof ShopOrdineRefRoute
   '/shop/prodotto/$slug': typeof ShopProdottoSlugRoute
   '/CRM/installazioni/': typeof CRMInstallazioniIndexRoute
   '/CRM/kpi/': typeof CRMKpiIndexRoute
@@ -2339,6 +2348,7 @@ export interface FileRouteTypes {
     | '/api/public/webinar'
     | '/api/public/whatsapp-webhook'
     | '/shop/c/$slug'
+    | '/shop/ordine/$ref'
     | '/shop/prodotto/$slug'
     | '/CRM/installazioni/'
     | '/CRM/kpi/'
@@ -2567,6 +2577,7 @@ export interface FileRouteTypes {
     | '/api/public/webinar'
     | '/api/public/whatsapp-webhook'
     | '/shop/c/$slug'
+    | '/shop/ordine/$ref'
     | '/shop/prodotto/$slug'
     | '/CRM/installazioni'
     | '/CRM/kpi'
@@ -2800,6 +2811,7 @@ export interface FileRouteTypes {
     | '/api/public/webinar'
     | '/api/public/whatsapp-webhook'
     | '/shop/c/$slug'
+    | '/shop/ordine/$ref'
     | '/shop/prodotto/$slug'
     | '/CRM/installazioni/'
     | '/CRM/kpi/'
@@ -3740,6 +3752,13 @@ declare module '@tanstack/react-router' {
       path: '/prodotto/$slug'
       fullPath: '/shop/prodotto/$slug'
       preLoaderRoute: typeof ShopProdottoSlugRouteImport
+      parentRoute: typeof ShopRoute
+    }
+    '/shop/ordine/$ref': {
+      id: '/shop/ordine/$ref'
+      path: '/ordine/$ref'
+      fullPath: '/shop/ordine/$ref'
+      preLoaderRoute: typeof ShopOrdineRefRouteImport
       parentRoute: typeof ShopRoute
     }
     '/shop/c/$slug': {
@@ -4740,6 +4759,7 @@ interface ShopRouteChildren {
   ShopCheckoutRoute: typeof ShopCheckoutRoute
   ShopIndexRoute: typeof ShopIndexRoute
   ShopCSlugRoute: typeof ShopCSlugRoute
+  ShopOrdineRefRoute: typeof ShopOrdineRefRoute
   ShopProdottoSlugRoute: typeof ShopProdottoSlugRoute
 }
 
@@ -4748,6 +4768,7 @@ const ShopRouteChildren: ShopRouteChildren = {
   ShopCheckoutRoute: ShopCheckoutRoute,
   ShopIndexRoute: ShopIndexRoute,
   ShopCSlugRoute: ShopCSlugRoute,
+  ShopOrdineRefRoute: ShopOrdineRefRoute,
   ShopProdottoSlugRoute: ShopProdottoSlugRoute,
 }
 
