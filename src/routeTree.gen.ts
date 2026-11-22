@@ -123,6 +123,9 @@ import { Route as ApiPublicWebinarRouteImport } from './routes/api.public.webina
 import { Route as ApiPublicValidateDiscountRouteImport } from './routes/api.public.validate-discount'
 import { Route as ApiPublicTurnRouteImport } from './routes/api.public.turn'
 import { Route as ApiPublicTrackingConfigRouteImport } from './routes/api.public.tracking-config'
+import { Route as ApiPublicStripeWebhookRouteImport } from './routes/api.public.stripe-webhook'
+import { Route as ApiPublicShopCassaPermessoRouteImport } from './routes/api.public.shop-cassa-permesso'
+import { Route as ApiPublicShopCassaRouteImport } from './routes/api.public.shop-cassa'
 import { Route as ApiPublicSheetsIngressoRouteImport } from './routes/api.public.sheets-ingresso'
 import { Route as ApiPublicSalaAttesaRouteImport } from './routes/api.public.sala-attesa'
 import { Route as ApiPublicRisposteAiRouteImport } from './routes/api.public.risposte-ai'
@@ -194,6 +197,7 @@ import { Route as ApiCrmWebinarRegistrazioniRouteImport } from './routes/api.crm
 import { Route as ApiCrmWebinarRouteImport } from './routes/api.crm.webinar'
 import { Route as ApiCrmTracciamentoRouteImport } from './routes/api.crm.tracciamento'
 import { Route as ApiCrmSumupRouteImport } from './routes/api.crm.sumup'
+import { Route as ApiCrmStripeRouteImport } from './routes/api.crm.stripe'
 import { Route as ApiCrmSorgenteRouteImport } from './routes/api.crm.sorgente'
 import { Route as ApiCrmPushRouteImport } from './routes/api.crm.push'
 import { Route as ApiCrmProvaColoreRouteImport } from './routes/api.crm.prova-colore'
@@ -207,6 +211,7 @@ import { Route as ApiCrmPonteMediaRouteImport } from './routes/api.crm.ponte-med
 import { Route as ApiCrmPonteInvioRouteImport } from './routes/api.crm.ponte-invio'
 import { Route as ApiCrmOrdiniRouteImport } from './routes/api.crm.ordini'
 import { Route as ApiCrmNegozioMediaRouteImport } from './routes/api.crm.negozio-media'
+import { Route as ApiCrmNegozioEmailRouteImport } from './routes/api.crm.negozio-email'
 import { Route as ApiCrmNegozioRouteImport } from './routes/api.crm.negozio'
 import { Route as ApiCrmMessaggiAutomaticiRouteImport } from './routes/api.crm.messaggi-automatici'
 import { Route as ApiCrmMeetingSessionRouteImport } from './routes/api.crm.meeting-session'
@@ -815,6 +820,22 @@ const ApiPublicTrackingConfigRoute = ApiPublicTrackingConfigRouteImport.update({
   path: '/api/public/tracking-config',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicStripeWebhookRoute = ApiPublicStripeWebhookRouteImport.update({
+  id: '/api/public/stripe-webhook',
+  path: '/api/public/stripe-webhook',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicShopCassaPermessoRoute =
+  ApiPublicShopCassaPermessoRouteImport.update({
+    id: '/api/public/shop-cassa-permesso',
+    path: '/api/public/shop-cassa-permesso',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicShopCassaRoute = ApiPublicShopCassaRouteImport.update({
+  id: '/api/public/shop-cassa',
+  path: '/api/public/shop-cassa',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicSheetsIngressoRoute = ApiPublicSheetsIngressoRouteImport.update({
   id: '/api/public/sheets-ingresso',
   path: '/api/public/sheets-ingresso',
@@ -1181,6 +1202,11 @@ const ApiCrmSumupRoute = ApiCrmSumupRouteImport.update({
   path: '/api/crm/sumup',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiCrmStripeRoute = ApiCrmStripeRouteImport.update({
+  id: '/api/crm/stripe',
+  path: '/api/crm/stripe',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiCrmSorgenteRoute = ApiCrmSorgenteRouteImport.update({
   id: '/api/crm/sorgente',
   path: '/api/crm/sorgente',
@@ -1245,6 +1271,11 @@ const ApiCrmOrdiniRoute = ApiCrmOrdiniRouteImport.update({
 const ApiCrmNegozioMediaRoute = ApiCrmNegozioMediaRouteImport.update({
   id: '/api/crm/negozio-media',
   path: '/api/crm/negozio-media',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiCrmNegozioEmailRoute = ApiCrmNegozioEmailRouteImport.update({
+  id: '/api/crm/negozio-email',
+  path: '/api/crm/negozio-email',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiCrmNegozioRoute = ApiCrmNegozioRouteImport.update({
@@ -1558,6 +1589,7 @@ export interface FileRoutesByFullPath {
   '/api/crm/meeting-session': typeof ApiCrmMeetingSessionRoute
   '/api/crm/messaggi-automatici': typeof ApiCrmMessaggiAutomaticiRoute
   '/api/crm/negozio': typeof ApiCrmNegozioRoute
+  '/api/crm/negozio-email': typeof ApiCrmNegozioEmailRoute
   '/api/crm/negozio-media': typeof ApiCrmNegozioMediaRoute
   '/api/crm/ordini': typeof ApiCrmOrdiniRoute
   '/api/crm/ponte-invio': typeof ApiCrmPonteInvioRoute
@@ -1571,6 +1603,7 @@ export interface FileRoutesByFullPath {
   '/api/crm/prova-colore': typeof ApiCrmProvaColoreRoute
   '/api/crm/push': typeof ApiCrmPushRoute
   '/api/crm/sorgente': typeof ApiCrmSorgenteRoute
+  '/api/crm/stripe': typeof ApiCrmStripeRoute
   '/api/crm/sumup': typeof ApiCrmSumupRoute
   '/api/crm/tracciamento': typeof ApiCrmTracciamentoRoute
   '/api/crm/webinar': typeof ApiCrmWebinarRoute
@@ -1642,6 +1675,9 @@ export interface FileRoutesByFullPath {
   '/api/public/risposte-ai': typeof ApiPublicRisposteAiRoute
   '/api/public/sala-attesa': typeof ApiPublicSalaAttesaRoute
   '/api/public/sheets-ingresso': typeof ApiPublicSheetsIngressoRoute
+  '/api/public/shop-cassa': typeof ApiPublicShopCassaRoute
+  '/api/public/shop-cassa-permesso': typeof ApiPublicShopCassaPermessoRoute
+  '/api/public/stripe-webhook': typeof ApiPublicStripeWebhookRoute
   '/api/public/tracking-config': typeof ApiPublicTrackingConfigRoute
   '/api/public/turn': typeof ApiPublicTurnRoute
   '/api/public/validate-discount': typeof ApiPublicValidateDiscountRoute
@@ -1787,6 +1823,7 @@ export interface FileRoutesByTo {
   '/api/crm/meeting-session': typeof ApiCrmMeetingSessionRoute
   '/api/crm/messaggi-automatici': typeof ApiCrmMessaggiAutomaticiRoute
   '/api/crm/negozio': typeof ApiCrmNegozioRoute
+  '/api/crm/negozio-email': typeof ApiCrmNegozioEmailRoute
   '/api/crm/negozio-media': typeof ApiCrmNegozioMediaRoute
   '/api/crm/ordini': typeof ApiCrmOrdiniRoute
   '/api/crm/ponte-invio': typeof ApiCrmPonteInvioRoute
@@ -1800,6 +1837,7 @@ export interface FileRoutesByTo {
   '/api/crm/prova-colore': typeof ApiCrmProvaColoreRoute
   '/api/crm/push': typeof ApiCrmPushRoute
   '/api/crm/sorgente': typeof ApiCrmSorgenteRoute
+  '/api/crm/stripe': typeof ApiCrmStripeRoute
   '/api/crm/sumup': typeof ApiCrmSumupRoute
   '/api/crm/tracciamento': typeof ApiCrmTracciamentoRoute
   '/api/crm/webinar': typeof ApiCrmWebinarRoute
@@ -1871,6 +1909,9 @@ export interface FileRoutesByTo {
   '/api/public/risposte-ai': typeof ApiPublicRisposteAiRoute
   '/api/public/sala-attesa': typeof ApiPublicSalaAttesaRoute
   '/api/public/sheets-ingresso': typeof ApiPublicSheetsIngressoRoute
+  '/api/public/shop-cassa': typeof ApiPublicShopCassaRoute
+  '/api/public/shop-cassa-permesso': typeof ApiPublicShopCassaPermessoRoute
+  '/api/public/stripe-webhook': typeof ApiPublicStripeWebhookRoute
   '/api/public/tracking-config': typeof ApiPublicTrackingConfigRoute
   '/api/public/turn': typeof ApiPublicTurnRoute
   '/api/public/validate-discount': typeof ApiPublicValidateDiscountRoute
@@ -2022,6 +2063,7 @@ export interface FileRoutesById {
   '/api/crm/meeting-session': typeof ApiCrmMeetingSessionRoute
   '/api/crm/messaggi-automatici': typeof ApiCrmMessaggiAutomaticiRoute
   '/api/crm/negozio': typeof ApiCrmNegozioRoute
+  '/api/crm/negozio-email': typeof ApiCrmNegozioEmailRoute
   '/api/crm/negozio-media': typeof ApiCrmNegozioMediaRoute
   '/api/crm/ordini': typeof ApiCrmOrdiniRoute
   '/api/crm/ponte-invio': typeof ApiCrmPonteInvioRoute
@@ -2035,6 +2077,7 @@ export interface FileRoutesById {
   '/api/crm/prova-colore': typeof ApiCrmProvaColoreRoute
   '/api/crm/push': typeof ApiCrmPushRoute
   '/api/crm/sorgente': typeof ApiCrmSorgenteRoute
+  '/api/crm/stripe': typeof ApiCrmStripeRoute
   '/api/crm/sumup': typeof ApiCrmSumupRoute
   '/api/crm/tracciamento': typeof ApiCrmTracciamentoRoute
   '/api/crm/webinar': typeof ApiCrmWebinarRoute
@@ -2106,6 +2149,9 @@ export interface FileRoutesById {
   '/api/public/risposte-ai': typeof ApiPublicRisposteAiRoute
   '/api/public/sala-attesa': typeof ApiPublicSalaAttesaRoute
   '/api/public/sheets-ingresso': typeof ApiPublicSheetsIngressoRoute
+  '/api/public/shop-cassa': typeof ApiPublicShopCassaRoute
+  '/api/public/shop-cassa-permesso': typeof ApiPublicShopCassaPermessoRoute
+  '/api/public/stripe-webhook': typeof ApiPublicStripeWebhookRoute
   '/api/public/tracking-config': typeof ApiPublicTrackingConfigRoute
   '/api/public/turn': typeof ApiPublicTurnRoute
   '/api/public/validate-discount': typeof ApiPublicValidateDiscountRoute
@@ -2258,6 +2304,7 @@ export interface FileRouteTypes {
     | '/api/crm/meeting-session'
     | '/api/crm/messaggi-automatici'
     | '/api/crm/negozio'
+    | '/api/crm/negozio-email'
     | '/api/crm/negozio-media'
     | '/api/crm/ordini'
     | '/api/crm/ponte-invio'
@@ -2271,6 +2318,7 @@ export interface FileRouteTypes {
     | '/api/crm/prova-colore'
     | '/api/crm/push'
     | '/api/crm/sorgente'
+    | '/api/crm/stripe'
     | '/api/crm/sumup'
     | '/api/crm/tracciamento'
     | '/api/crm/webinar'
@@ -2342,6 +2390,9 @@ export interface FileRouteTypes {
     | '/api/public/risposte-ai'
     | '/api/public/sala-attesa'
     | '/api/public/sheets-ingresso'
+    | '/api/public/shop-cassa'
+    | '/api/public/shop-cassa-permesso'
+    | '/api/public/stripe-webhook'
     | '/api/public/tracking-config'
     | '/api/public/turn'
     | '/api/public/validate-discount'
@@ -2487,6 +2538,7 @@ export interface FileRouteTypes {
     | '/api/crm/meeting-session'
     | '/api/crm/messaggi-automatici'
     | '/api/crm/negozio'
+    | '/api/crm/negozio-email'
     | '/api/crm/negozio-media'
     | '/api/crm/ordini'
     | '/api/crm/ponte-invio'
@@ -2500,6 +2552,7 @@ export interface FileRouteTypes {
     | '/api/crm/prova-colore'
     | '/api/crm/push'
     | '/api/crm/sorgente'
+    | '/api/crm/stripe'
     | '/api/crm/sumup'
     | '/api/crm/tracciamento'
     | '/api/crm/webinar'
@@ -2571,6 +2624,9 @@ export interface FileRouteTypes {
     | '/api/public/risposte-ai'
     | '/api/public/sala-attesa'
     | '/api/public/sheets-ingresso'
+    | '/api/public/shop-cassa'
+    | '/api/public/shop-cassa-permesso'
+    | '/api/public/stripe-webhook'
     | '/api/public/tracking-config'
     | '/api/public/turn'
     | '/api/public/validate-discount'
@@ -2721,6 +2777,7 @@ export interface FileRouteTypes {
     | '/api/crm/meeting-session'
     | '/api/crm/messaggi-automatici'
     | '/api/crm/negozio'
+    | '/api/crm/negozio-email'
     | '/api/crm/negozio-media'
     | '/api/crm/ordini'
     | '/api/crm/ponte-invio'
@@ -2734,6 +2791,7 @@ export interface FileRouteTypes {
     | '/api/crm/prova-colore'
     | '/api/crm/push'
     | '/api/crm/sorgente'
+    | '/api/crm/stripe'
     | '/api/crm/sumup'
     | '/api/crm/tracciamento'
     | '/api/crm/webinar'
@@ -2805,6 +2863,9 @@ export interface FileRouteTypes {
     | '/api/public/risposte-ai'
     | '/api/public/sala-attesa'
     | '/api/public/sheets-ingresso'
+    | '/api/public/shop-cassa'
+    | '/api/public/shop-cassa-permesso'
+    | '/api/public/stripe-webhook'
     | '/api/public/tracking-config'
     | '/api/public/turn'
     | '/api/public/validate-discount'
@@ -2912,6 +2973,7 @@ export interface RootRouteChildren {
   ApiCrmMeetingSessionRoute: typeof ApiCrmMeetingSessionRoute
   ApiCrmMessaggiAutomaticiRoute: typeof ApiCrmMessaggiAutomaticiRoute
   ApiCrmNegozioRoute: typeof ApiCrmNegozioRoute
+  ApiCrmNegozioEmailRoute: typeof ApiCrmNegozioEmailRoute
   ApiCrmNegozioMediaRoute: typeof ApiCrmNegozioMediaRoute
   ApiCrmOrdiniRoute: typeof ApiCrmOrdiniRoute
   ApiCrmPonteInvioRoute: typeof ApiCrmPonteInvioRoute
@@ -2925,6 +2987,7 @@ export interface RootRouteChildren {
   ApiCrmProvaColoreRoute: typeof ApiCrmProvaColoreRoute
   ApiCrmPushRoute: typeof ApiCrmPushRoute
   ApiCrmSorgenteRoute: typeof ApiCrmSorgenteRoute
+  ApiCrmStripeRoute: typeof ApiCrmStripeRoute
   ApiCrmSumupRoute: typeof ApiCrmSumupRoute
   ApiCrmTracciamentoRoute: typeof ApiCrmTracciamentoRoute
   ApiCrmWebinarRoute: typeof ApiCrmWebinarRoute
@@ -2996,6 +3059,9 @@ export interface RootRouteChildren {
   ApiPublicRisposteAiRoute: typeof ApiPublicRisposteAiRoute
   ApiPublicSalaAttesaRoute: typeof ApiPublicSalaAttesaRoute
   ApiPublicSheetsIngressoRoute: typeof ApiPublicSheetsIngressoRoute
+  ApiPublicShopCassaRoute: typeof ApiPublicShopCassaRoute
+  ApiPublicShopCassaPermessoRoute: typeof ApiPublicShopCassaPermessoRoute
+  ApiPublicStripeWebhookRoute: typeof ApiPublicStripeWebhookRoute
   ApiPublicTrackingConfigRoute: typeof ApiPublicTrackingConfigRoute
   ApiPublicTurnRoute: typeof ApiPublicTurnRoute
   ApiPublicValidateDiscountRoute: typeof ApiPublicValidateDiscountRoute
@@ -3803,6 +3869,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicTrackingConfigRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/stripe-webhook': {
+      id: '/api/public/stripe-webhook'
+      path: '/api/public/stripe-webhook'
+      fullPath: '/api/public/stripe-webhook'
+      preLoaderRoute: typeof ApiPublicStripeWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/shop-cassa-permesso': {
+      id: '/api/public/shop-cassa-permesso'
+      path: '/api/public/shop-cassa-permesso'
+      fullPath: '/api/public/shop-cassa-permesso'
+      preLoaderRoute: typeof ApiPublicShopCassaPermessoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/shop-cassa': {
+      id: '/api/public/shop-cassa'
+      path: '/api/public/shop-cassa'
+      fullPath: '/api/public/shop-cassa'
+      preLoaderRoute: typeof ApiPublicShopCassaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/sheets-ingresso': {
       id: '/api/public/sheets-ingresso'
       path: '/api/public/sheets-ingresso'
@@ -4300,6 +4387,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiCrmSumupRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/crm/stripe': {
+      id: '/api/crm/stripe'
+      path: '/api/crm/stripe'
+      fullPath: '/api/crm/stripe'
+      preLoaderRoute: typeof ApiCrmStripeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/crm/sorgente': {
       id: '/api/crm/sorgente'
       path: '/api/crm/sorgente'
@@ -4389,6 +4483,13 @@ declare module '@tanstack/react-router' {
       path: '/api/crm/negozio-media'
       fullPath: '/api/crm/negozio-media'
       preLoaderRoute: typeof ApiCrmNegozioMediaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/crm/negozio-email': {
+      id: '/api/crm/negozio-email'
+      path: '/api/crm/negozio-email'
+      fullPath: '/api/crm/negozio-email'
+      preLoaderRoute: typeof ApiCrmNegozioEmailRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/crm/negozio': {
@@ -4880,6 +4981,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiCrmMeetingSessionRoute: ApiCrmMeetingSessionRoute,
   ApiCrmMessaggiAutomaticiRoute: ApiCrmMessaggiAutomaticiRoute,
   ApiCrmNegozioRoute: ApiCrmNegozioRoute,
+  ApiCrmNegozioEmailRoute: ApiCrmNegozioEmailRoute,
   ApiCrmNegozioMediaRoute: ApiCrmNegozioMediaRoute,
   ApiCrmOrdiniRoute: ApiCrmOrdiniRoute,
   ApiCrmPonteInvioRoute: ApiCrmPonteInvioRoute,
@@ -4893,6 +4995,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiCrmProvaColoreRoute: ApiCrmProvaColoreRoute,
   ApiCrmPushRoute: ApiCrmPushRoute,
   ApiCrmSorgenteRoute: ApiCrmSorgenteRoute,
+  ApiCrmStripeRoute: ApiCrmStripeRoute,
   ApiCrmSumupRoute: ApiCrmSumupRoute,
   ApiCrmTracciamentoRoute: ApiCrmTracciamentoRoute,
   ApiCrmWebinarRoute: ApiCrmWebinarRoute,
@@ -4964,6 +5067,9 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicRisposteAiRoute: ApiPublicRisposteAiRoute,
   ApiPublicSalaAttesaRoute: ApiPublicSalaAttesaRoute,
   ApiPublicSheetsIngressoRoute: ApiPublicSheetsIngressoRoute,
+  ApiPublicShopCassaRoute: ApiPublicShopCassaRoute,
+  ApiPublicShopCassaPermessoRoute: ApiPublicShopCassaPermessoRoute,
+  ApiPublicStripeWebhookRoute: ApiPublicStripeWebhookRoute,
   ApiPublicTrackingConfigRoute: ApiPublicTrackingConfigRoute,
   ApiPublicTurnRoute: ApiPublicTurnRoute,
   ApiPublicValidateDiscountRoute: ApiPublicValidateDiscountRoute,
