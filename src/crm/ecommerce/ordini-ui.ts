@@ -11,10 +11,10 @@
  *  ⚠️ Gli ordini si trovano per `id`, mai per numero ordine (`order_ref` non è univoco).
  *  ⚠️ Il periodo è `nelPeriodo` di conti.ts: una cifra della Panoramica e le righe qui sotto contano gli stessi ordini. */
 import { costruisciAzione } from "./azioni";
-import type { Azione } from "./azioni";
+import type { Azione, ChiaveEmailOrdine, ContestoAzione } from "./azioni";
 import { importoFuoriNorma, nelPeriodo } from "./conti";
 import type { Periodo } from "./conti";
-import type { EventoStorico, RisultatoAzione } from "./client";
+import type { EmailDettaglio, EventoStorico, RisultatoAzione, RisultatoAzioneR2 } from "./client";
 import {
   ETICHETTA_METODO,
   ETICHETTA_STATO,
@@ -28,7 +28,14 @@ import {
 } from "./ordine";
 import type { Ordine, StatoOrdine } from "./ordine";
 import { euro } from "./pagina";
-import { statoEffettivo, statoPagamentoDi, type StatoPagamento } from "./pagamento";
+import {
+  PASSAGGI_EVASIONE,
+  puoLavorare,
+  statoEffettivo,
+  statoPagamentoDi,
+  type StatoPagamento,
+} from "./pagamento";
+import { controllaRimborso, massimoRimborsabileCent, rimborsiLeggibili } from "./rimborso";
 
 /** Quante righe si disegnano per volta: con migliaia di ordini nel periodo la pagina non deve disegnarli tutti. */
 export const PAGINA_RIGHE = 100;
@@ -354,25 +361,34 @@ export const ETICHETTA_AVVISO: Record<string, string> = {
     "Il cliente ha pagato dopo l'annullo dell'ordine: rimborsalo, oppure riattiva l'ordine.",
   pagato_dopo_scadenza: "Pagato dopo la scadenza della sessione: controlla la giacenza.",
   stripe_errore: "Stripe ha rifiutato la richiesta di pagamento: l'ordine è stato chiuso.",
+  email_non_inviata:
+    "L'email non è partita al primo tentativo: controlla se è poi arrivata.",
+  rimborso_transizione_ignorata: "Stripe dice riuscito, il registro no: controlla su Stripe.",
+  livemode_diverso:
+    "Stripe ha mandato un evento reale per un ordine di prova (o il contrario): non ho cambiato niente. Controlla su Stripe.",
+  metodo_non_scritto:
+    "Il metodo di pagamento non si è scritto sull'ordine: il pagamento è registrato lo stesso, non serve fare altro.",
 };
+
+/** La frase di un errore della rotta (stessa per le azioni di prima e per quelle nuove). */
+function esitoErrore({ tipo, messaggio }: { tipo: string; messaggio: string }): Esito {
+  if (tipo === "conflitto")
+    return {
+      tono: "errore",
+      testo:
+        "Un collega l'ha appena modificato: ho ricaricato l'ordine. Controlla com'è adesso e riprova.",
+    };
+  if (tipo === "non_trovato")
+    return { tono: "errore", testo: "Non trovo più questo ordine: ho ricaricato l'elenco." };
+  return { tono: "errore", testo: messaggio };
+}
 
 /** Cosa dire dopo un'azione. Ogni risposta della rotta ha una frase: nessuna resta muta. */
 export function esitoAzione(r: RisultatoAzione, a: Azione, ref?: string): Esito {
   //  Col filtro «Nuovo» attivo, cambiare lo stato di una riga la fa sparire: la frase dice di quale ordine parla.
   const dell = (e: Esito): Esito =>
     ref && e.tono !== "errore" ? { ...e, testo: `${ref}: ${e.testo}` } : e;
-  if (!r.ok) {
-    const { tipo, messaggio } = r.errore;
-    if (tipo === "conflitto")
-      return {
-        tono: "errore",
-        testo:
-          "Un collega l'ha appena modificato: ho ricaricato l'ordine. Controlla com'è adesso e riprova.",
-      };
-    if (tipo === "non_trovato")
-      return { tono: "errore", testo: "Non trovo più questo ordine: ho ricaricato l'elenco." };
-    return { tono: "errore", testo: messaggio };
-  }
+  if (!r.ok) return esitoErrore(r.errore);
   if (r.nessunCambio) return dell({ tono: "ok", testo: "Era già così: non ho cambiato niente." });
   if (!r.storico)
     return dell({
@@ -567,4 +583,400 @@ export function ordinaEventi(eventi: EventoStorico[]): EventoStorico[] {
     return Number.isFinite(x) ? x : -Infinity;
   };
   return eventi.slice().sort((a, b) => (t(a) === t(b) ? 0 : t(b) > t(a) ? 1 : -1));
+}
+
+/* ══ RILASCIO 2 (T64): IL DETTAGLIO DELL'ORDINE DELLA CASSA NUOVA E LE FINESTRE DI CONFERMA ═══════════════
+ *  Tutto ciò che sta sotto è nuovo: le funzioni di sopra non cambiano. Regole pure, provate in prove/negozio/dettaglio-r2.mjs.
+ *  I moduli (rimborso, annullo, spedizione, correzione) chiedono a `costruisciAzione`, la stessa funzione del server: la finestra e la
+ *  rotta non possono dire due cose diverse. Il pre-controllo dichiara tutti gli effetti come gestiti: qui conta solo se i dati sono
+ *  validi; gli effetti (rimborso, magazzino, sessione) li esegue il server. */
+
+type EsitoForm<T> = ({ ok: true } & T) | { ok: false; errore: string };
+const noForm = (errore: string): { ok: false; errore: string } => ({ ok: false, errore });
+
+const EFFETTI_TUTTI: NonNullable<ContestoAzione["effettiGestiti"]> = [
+  "rimborso",
+  "giacenza_rimetti",
+  "scadi_sessione",
+  "riconcilia",
+  "email",
+];
+/** Un'istante qualunque: il pre-controllo non legge l'orologio (le azioni di sopra usano `adesso` solo per le date da scrivere). */
+const QUALUNQUE = new Date(0);
+function precontrollo(
+  azione: Azione,
+  o: Ordine,
+  rimborsi?: unknown,
+): { ok: true } | { ok: false; errore: string } {
+  const r = costruisciAzione(azione, o, QUALUNQUE, { rimborsi, effettiGestiti: EFFETTI_TUTTI });
+  return r.ok ? { ok: true } : noForm(r.errore);
+}
+
+const INCASSATI: readonly StatoPagamento[] = ["pagato", "rimborsato_in_parte", "rimborsato"];
+/** L'ordine è della cassa nuova e ha incassato (anche se poi rimborsato): da qui contano rimborso e magazzino. */
+const incassatoStripe = (o: Ordine): boolean =>
+  o.statoPagamento !== null && INCASSATI.includes(statoPagamentoDi(o));
+
+// ── gli avvisi, con i loro tasti ───────────────────────────────────────────
+
+export interface VoceAvviso {
+  testo: string;
+  /** Rosso = da guardare subito. Gli altri sono arancio. */
+  rosso: boolean;
+  /** I tasti che stanno dentro l'avviso. */
+  azioni: ("rimborsa" | "giacenza_verificata")[];
+}
+
+/** Gli avvisi del dettaglio: quelli di `avvisiOrdine` (arancio) più, ognuno una volta sola, la giacenza da verificare e quelli scritti dal server. */
+export function avvisiDettaglio(o: Ordine): VoceAvviso[] {
+  const v: VoceAvviso[] = avvisiOrdine({ ...o, giacenzaDaVerificare: false, avvisi: [] }).map(
+    (testo) => ({ testo, rosso: false, azioni: [] }),
+  );
+  const visti = new Set<string>();
+  const aggiungi = (x: VoceAvviso) => {
+    if (visti.has(x.testo)) return;
+    visti.add(x.testo);
+    v.push(x);
+  };
+  if (o.giacenzaDaVerificare)
+    aggiungi({
+      testo: ETICHETTA_AVVISO.giacenza_da_verificare,
+      rosso: true,
+      azioni: ["rimborsa", "giacenza_verificata"],
+    });
+  for (const a of o.avvisi) {
+    //  Un avviso di giacenza già verificata resta nel registro: non è più da fare niente.
+    if (a.codice === "giacenza_da_verificare" && !o.giacenzaDaVerificare) continue;
+    aggiungi({
+      testo:
+        ETICHETTA_AVVISO[a.codice] ??
+        `Avviso sull'ordine che questa versione non conosce («${a.codice}»): controlla l'ordine.`,
+      rosso: a.gravita === "rosso",
+      azioni: a.codice === "doppio_pagamento" ? ["rimborsa"] : [],
+    });
+  }
+  return v;
+}
+
+// ── il rimborso ────────────────────────────────────────────────────────────
+
+/** Euro scritti a mano → centesimi interi («24,90» e «24.9» → 2490). `null` se non sono soldi: niente «1e3», segni, migliaia, tre decimali. */
+export function centDaTesto(v: unknown): number | null {
+  const t = typeof v === "string" ? v.trim() : "";
+  if (!/^\d+([.,]\d{1,2})?$/.test(t)) return null;
+  const [intero, decimali = ""] = t.replace(",", ".").split(".");
+  const cent = Number(intero) * 100 + Number(decimali.padEnd(2, "0"));
+  return Number.isSafeInteger(cent) ? cent : null;
+}
+
+export interface FormRimborso {
+  /** in euro, come lo scrive chi lavora */
+  importo: string;
+  motivo: string;
+  /** la casella «ho capito: non si può annullare» */
+  conferma: boolean;
+}
+
+/** Il modulo del rimborso → i dati per l'archivio (`importoCent` intero), oppure la frase. `chiave` è quella del dialogo (`apriDialogo`). */
+export function controllaFormRimborso(
+  o: Ordine,
+  f: FormRimborso,
+  rimborsi: unknown,
+  chiave: string,
+): EsitoForm<{ importoCent: number; motivo: string }> {
+  const cent = centDaTesto(f.importo);
+  if (cent === null || cent <= 0) return noForm("Scrivi l'importo in euro, per esempio 12,50.");
+  const r = controllaRimborso(
+    { importoCent: cent, motivo: f.motivo, chiaveRichiesta: chiave, conferma: f.conferma },
+    o,
+    rimborsi,
+  );
+  return r.ok ? { ok: true, importoCent: r.importoCent, motivo: r.motivo } : noForm(r.errore);
+}
+
+const FRASE_RIMBORSO_IN_CORSO =
+  "Un rimborso è in corso: non ripeterlo. Il tasto torna attivo quando l'elenco dei rimborsi è riletto.";
+
+/** «Rimborsa» è acceso? Spento mentre un'azione è in corso, se i rimborsi non si leggono, se non resta niente, e dopo un rimborso «in corso»
+ *  finché l'elenco non è riletto: `blocco.rimborsi` è l'elenco di PRIMA, e finché è lo stesso (non si è riletto) il tasto resta spento. */
+export function tastoRimborso(p: {
+  ordine: Ordine;
+  rimborsi: unknown;
+  inInvio: boolean;
+  blocco: { rimborsi: unknown } | null;
+}): { attivo: boolean; ragione: string | null } {
+  if (p.blocco !== null && p.blocco.rimborsi === p.rimborsi)
+    return { attivo: false, ragione: FRASE_RIMBORSO_IN_CORSO };
+  if (!rimborsiLeggibili(p.rimborsi))
+    return {
+      attivo: false,
+      ragione: "Non riesco a leggere i rimborsi già fatti su questo ordine: aggiorna e riprova.",
+    };
+  if (massimoRimborsabileCent(p.ordine, p.rimborsi) <= 0)
+    return { attivo: false, ragione: "Non resta niente da rimborsare su questo ordine." };
+  return { attivo: !p.inInvio, ragione: null };
+}
+
+/** Un rimborso che il server ha chiesto a Stripe e non sa se è partito (anche dentro un annullo): non si ripete. */
+export const rimborsoInCorso = (r: RisultatoAzioneR2): boolean =>
+  r.ok && !r.nessunCambio && r.effetti.some((e) => e.tipo === "rimborso" && e.esito === "in_corso");
+
+// ── l'annullo ──────────────────────────────────────────────────────────────
+
+/** Quali scelte chiede l'annullo: il rimborso solo se c'è ancora qualcosa da rimborsare, il magazzino se l'ordine ha incassato. */
+export function scelteAnnulla(
+  o: Ordine,
+  rimborsi: unknown,
+): { rimborso: boolean; magazzino: boolean } {
+  if (!incassatoStripe(o)) return { rimborso: false, magazzino: false };
+  return { rimborso: massimoRimborsabileCent(o, rimborsi) > 0, magazzino: true };
+}
+
+export interface FormAnnulla {
+  motivo: string;
+  /** «» = non ancora scelto: nessuna scelta di partenza */
+  rimborso: "" | "ora" | "nessuno";
+  magazzino: "" | "si" | "no";
+}
+
+export function controllaFormAnnulla(
+  o: Ordine,
+  f: FormAnnulla,
+  rimborsi: unknown,
+  chiave: string,
+): EsitoForm<{ motivo: string; rimborso: "ora" | "nessuno"; rimettiInMagazzino: boolean }> {
+  const scelte = scelteAnnulla(o, rimborsi);
+  const r = precontrollo(
+    {
+      azione: "annulla",
+      ordineId: o.id,
+      motivo: f.motivo,
+      rimborso: scelte.rimborso && f.rimborso !== "" ? f.rimborso : undefined,
+      rimettiInMagazzino: scelte.magazzino && f.magazzino !== "" ? f.magazzino === "si" : undefined,
+      chiaveRichiesta: chiave,
+    },
+    o,
+    rimborsi,
+  );
+  if (!r.ok) return r;
+  return {
+    ok: true,
+    motivo: f.motivo.trim(),
+    rimborso: scelte.rimborso && f.rimborso === "ora" ? "ora" : "nessuno",
+    rimettiInMagazzino: scelte.magazzino && f.magazzino === "si",
+  };
+}
+
+// ── la spedizione ──────────────────────────────────────────────────────────
+
+export interface FormSpedisci {
+  corriere: string;
+  numero: string;
+  senzaTracking: boolean;
+}
+
+export function controllaFormSpedisci(
+  o: Ordine,
+  f: FormSpedisci,
+): EsitoForm<{ corriere?: string; numero?: string; senzaTracking: boolean }> {
+  const r = precontrollo(
+    {
+      azione: "spedisci",
+      ordineId: o.id,
+      corriere: f.corriere,
+      numero: f.numero,
+      senzaTracking: f.senzaTracking,
+    },
+    o,
+  );
+  if (!r.ok) return r;
+  return f.senzaTracking
+    ? { ok: true, senzaTracking: true }
+    : { ok: true, corriere: f.corriere, numero: f.numero.trim(), senzaTracking: false };
+}
+
+// ── i passi dell'ordine e la correzione ────────────────────────────────────
+
+/** Cosa si può fare all'ordine della cassa nuova, dalla tabella dei passaggi (`PASSAGGI_EVASIONE`): i passi in avanti senza motivo, spedire, annullare,
+ *  e le correzioni all'indietro (che chiedono il motivo). Senza un pagamento confermato non si prepara né si spedisce. */
+export function comandiEvasione(o: Ordine): {
+  avanti: StatoOrdine[];
+  spedisci: boolean;
+  annulla: boolean;
+  correzioni: StatoOrdine[];
+} {
+  const passi = PASSAGGI_EVASIONE[o.stato];
+  const lavora = puoLavorare(o);
+  return {
+    avanti: lavora ? passi.filter((p) => !p.motivo && p.a !== "spedito").map((p) => p.a) : [],
+    spedisci: lavora && passi.some((p) => p.a === "spedito"),
+    annulla: passi.some((p) => p.a === "annullato"),
+    correzioni: passi.filter((p) => p.motivo && p.a !== "annullato").map((p) => p.a),
+  };
+}
+
+export interface FormCorreggi {
+  a: StatoOrdine | "";
+  motivo: string;
+}
+
+export function controllaFormCorreggi(
+  o: Ordine,
+  f: FormCorreggi,
+  rimborsi: unknown,
+): EsitoForm<{ da: StatoOrdine; a: StatoOrdine; motivo: string }> {
+  if (f.a === "") return noForm("Scegli lo stato a cui tornare.");
+  const r = precontrollo(
+    { azione: "correggi_stato", ordineId: o.id, da: o.stato, a: f.a, motivo: f.motivo },
+    o,
+    rimborsi,
+  );
+  return r.ok ? { ok: true, da: o.stato, a: f.a, motivo: f.motivo.trim() } : r;
+}
+
+// ── fattura e consensi: solo i campi che conosciamo, solo testo ────────────
+
+export interface RigaDato {
+  etichetta: string;
+  valore: string;
+}
+const TETTO_VALORE = 200;
+const proprio = (o: Record<string, unknown>, k: string): unknown =>
+  Object.prototype.hasOwnProperty.call(o, k) ? o[k] : undefined;
+const sino = (v: unknown): string | null => (v === true ? "Sì" : v === false ? "No" : null);
+
+const CAMPI_FATTURA: readonly (readonly [string, string])[] = [
+  ["denominazione", "Intestatario"],
+  ["tipo", "Tipo"],
+  ["cf", "Codice fiscale"],
+  ["piva", "Partita IVA"],
+  ["sdi", "Codice destinatario"],
+  ["pec", "PEC"],
+];
+/** I dati fiscali del cliente (`riservati.fattura`, di forma non garantita): i campi noti, ognuno con la sua etichetta; ciò che non conosciamo non c'è. */
+export function datiFattura(fattura: unknown): RigaDato[] {
+  if (!eOggetto(fattura)) return [];
+  const righe: RigaDato[] = [];
+  for (const [chiave, etichetta] of CAMPI_FATTURA) {
+    const grezzo = proprio(fattura, chiave);
+    const scritto = typeof grezzo === "string" ? grezzo.trim() : "";
+    const valore =
+      chiave === "tipo" ? ({ privato: "Privato", azienda: "Azienda" } as Record<string, string>)[scritto] : scritto;
+    if (valore) righe.push({ etichetta, valore: valore.slice(0, TETTO_VALORE) });
+  }
+  return righe;
+}
+
+/** I consensi dati dal cliente (`riservati.consensi`): termini, privacy, versione dei testi, marketing, data. Mai indirizzo IP né browser. */
+export function datiConsensi(consensi: unknown): RigaDato[] {
+  if (!eOggetto(consensi)) return [];
+  const righe: RigaDato[] = [];
+  const termini = sino(proprio(consensi, "termini"));
+  const privacy = sino(proprio(consensi, "privacy"));
+  const marketing = sino(proprio(consensi, "marketing"));
+  const versione = testoDi(proprio(consensi, "versione"), 40);
+  const il = proprio(consensi, "il");
+  if (termini) righe.push({ etichetta: "Termini e condizioni accettati", valore: termini });
+  if (privacy) righe.push({ etichetta: "Privacy letta", valore: privacy });
+  if (versione) righe.push({ etichetta: "Versione dei testi", valore: versione });
+  if (marketing) righe.push({ etichetta: "Marketing (novità e consigli)", valore: marketing });
+  if (typeof il === "string" && dataOra(il) !== "—") righe.push({ etichetta: "Data", valore: dataOra(il) });
+  return righe;
+}
+
+/** Il testo da copiare per fare la fattura: dati fiscali, indirizzo, righe e totale. Testo semplice, una cosa per riga. */
+export function testoPerFattura(o: Ordine, fattura: unknown): string {
+  const indirizzo = [o.indirizzo, [o.cap, o.citta].filter(Boolean).join(" "), o.provincia]
+    .filter(Boolean)
+    .join(", ");
+  return [
+    `Ordine ${o.ref}`,
+    ...datiFattura(fattura).map((r) => `${r.etichetta}: ${r.valore}`),
+    indirizzo && `Indirizzo: ${indirizzo}`,
+    o.email && `Email: ${o.email}`,
+    "Righe:",
+    ...o.righe.map(
+      (r) =>
+        `- ${r.nome}${r.variante ? ` (${r.variante})` : ""}: ${r.qty} × ${euro(r.prezzo)} = ${euro(r.qty * r.prezzo)}`,
+    ),
+    `Spedizione: ${euro(o.spedizione)}`,
+    `Totale: ${euro(o.totale)}`,
+  ]
+    .filter((x) => typeof x === "string" && x !== "")
+    .join("\n");
+}
+
+// ── le email dell'ordine ───────────────────────────────────────────────────
+
+const MESSAGGI_EMAIL: readonly (readonly [ChiaveEmailOrdine, string])[] = [
+  ["conferma_ordine", "Conferma dell'ordine"],
+  ["spedito", "Ordine spedito"],
+  ["pagamento_non_riuscito", "Pagamento non riuscito"],
+  ["rimborso", "Rimborso"],
+  ["annullato", "Ordine annullato"],
+];
+
+export interface RigaEmail {
+  chiave: ChiaveEmailOrdine;
+  titolo: string;
+  stato: string;
+  /** il codice (breve) dell'ultimo errore, se c'è */
+  dettaglio: string | null;
+  /** perché «Invia ora» non si può premere; `null` = si può */
+  blocco: string | null;
+}
+
+/** Le cinque email dell'ordine: com'è andata ognuna e se «Invia ora» si può premere. Il motivo «spenta» o «testo non approvato» lo dice il server dopo il clic. */
+export function righeEmail(o: Ordine, email: readonly EmailDettaglio[]): RigaEmail[] {
+  return MESSAGGI_EMAIL.map(([chiave, titolo]) => {
+    const e = email.find((x) => x.chiave === chiave) ?? o.emailInviate[chiave];
+    let stato = "Non ancora inviata";
+    if (e?.stato === "inviata") stato = e.il ? `Inviata, ${dataOra(e.il)}` : "Inviata";
+    else if (e?.stato === "in_invio") stato = "In invio";
+    else if (e?.stato === "errore") stato = "Non riuscita";
+    else if (e) stato = "Stato non riconosciuto";
+    let blocco: string | null = null;
+    if (!o.email.includes("@")) blocco = "L'ordine non ha un indirizzo email: non c'è a chi mandarla.";
+    else if (e?.stato === "in_invio") blocco = "È già in invio: aspetta qualche minuto.";
+    else if (e?.stato === "inviata") blocco = "È già partita: la stessa email non si manda due volte.";
+    else if (chiave === "conferma_ordine" && o.stato === "annullato")
+      blocco = "L'ordine è annullato: la conferma non parte più.";
+    return {
+      chiave,
+      titolo,
+      stato,
+      dettaglio: e?.stato === "errore" && e.codice && /^[\w.-]{1,40}$/.test(e.codice) ? e.codice : null,
+      blocco,
+    };
+  });
+}
+
+// ── la frase dopo un'azione nuova ──────────────────────────────────────────
+
+/** Cosa dire dopo una delle azioni nuove, voce per voce: un effetto non riuscito è un errore; uno «in corso» dice di non ripetere; una email non partita è un avviso. */
+export function esitoAzioneR2(r: RisultatoAzioneR2, nome: Azione["azione"]): Esito {
+  if (!r.ok) return esitoErrore(r.errore);
+  if (r.nessunCambio) return { tono: "ok", testo: "Era già così: non ho cambiato niente." };
+  const problemi = r.effetti.filter((e) => e.esito !== "fatto");
+  if (problemi.length) {
+    const testo = problemi.map((e) => e.frase).join(" ");
+    const inCorso = problemi.some((e) => e.esito === "in_corso");
+    return {
+      tono: problemi.some((e) => e.esito === "non_riuscito") ? "errore" : "avviso",
+      testo: inCorso && !/non ripet/i.test(testo) ? `${testo} Non ripetere l'operazione.` : testo,
+    };
+  }
+  if (!r.storico)
+    return {
+      tono: "avviso",
+      testo:
+        "Modifica salvata, ma la riga nello storico non si è scritta: l'ordine è a posto, lo storico no.",
+    };
+  const base = FRASE_OK[nome] ?? "Fatto.";
+  if (r.email)
+    return {
+      tono: r.email.stato === "inviata" || r.email.stato === "saltata" ? "ok" : "avviso",
+      testo: `${base} ${r.email.frase}`,
+    };
+  return { tono: "ok", testo: base };
 }
