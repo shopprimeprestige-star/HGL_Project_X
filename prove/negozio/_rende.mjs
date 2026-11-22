@@ -23,6 +23,7 @@ const FINTI = {
   `,
   "@/shop/CartContext": `export const useCart = () => globalThis.__pagina.carrello;`,
   "@/shop/useRivalidaCarrello": `export const useRivalidaCarrello = () => globalThis.__pagina.rivalida;`,
+  "@/shop/cassa/useTariffa": `export const useTariffa = (attiva) => { (globalThis.__pagina.tariffaChiesta ??= []).push(attiva); return attiva ? (globalThis.__pagina.tariffa ?? { stato: "attesa", costoCent: null, chiusa: false }) : { stato: "attesa", costoCent: null, chiusa: false }; };`,
   "@/shop/cms/catalogo.functions": `const no = async () => { throw new Error("server finto"); };
     export const modalitaCatalogo = no, schedaProdotto = no, righeCarrello = no, elencoProdotti = no, elencoCategorie = no, vociSitemap = no;`,
   "@/shop/cms/modalita-certa.functions": `export const modalitaCertaDelServer = async () => "incerto";`,
