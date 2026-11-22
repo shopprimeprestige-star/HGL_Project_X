@@ -40,10 +40,36 @@ export function leggiChiave(ricerca: string | null | undefined): string | null {
   return t ? t : null;
 }
 
-/** Il carrello si svuota solo quando un pagamento è arrivato: in `verifica`, a pagamento non riuscito o scaduto e ad ordine annullato serve ancora
- *  (per «Riprova il pagamento» e per tornare alla cassa se i prezzi sono cambiati). */
-export function svuotaCarrello(fase: string): boolean {
-  return ["pagato", "in_preparazione", "spedito", "consegnato", "rimborsato"].includes(fase);
+/** Un ordine più vecchio di così non svuota più il carrello: chi riapre dopo giorni il link di un vecchio ordine (la mail «dov'è il mio pacco»)
+ *  non deve perdere il carrello nuovo. */
+const ETA_MASSIMA_ORDINE_MS = 24 * 3_600_000;
+
+/** Il carrello si svuota solo quando un pagamento è arrivato E l'ordine è di meno di 24 ore: in `verifica`, a pagamento non riuscito o scaduto e ad
+ *  ordine annullato serve ancora (per «Riprova il pagamento» e per tornare alla cassa se i prezzi sono cambiati). Una data mancante o illeggibile non svuota. */
+export function svuotaCarrello(
+  fase: string,
+  creatoIl?: string | null,
+  adesso: number = Date.now(),
+): boolean {
+  if (!["pagato", "in_preparazione", "spedito", "consegnato", "rimborsato"].includes(fase))
+    return false;
+  const nato = typeof creatoIl === "string" ? Date.parse(creatoIl) : NaN;
+  return Number.isFinite(nato) && adesso - nato < ETA_MASSIMA_ORDINE_MS;
+}
+
+/** Un solo giro alla volta: finché `fn` non è finita, un altro clic non fa niente. Il riferimento (non lo stato) si legge subito, prima del render
+ *  che spegne il bottone. Si libera sempre, anche se `fn` lancia. */
+export async function conGuardia(
+  flag: { current: boolean },
+  fn: () => Promise<void>,
+): Promise<void> {
+  if (flag.current) return;
+  flag.current = true;
+  try {
+    await fn();
+  } finally {
+    flag.current = false;
+  }
 }
 
 export interface PorteControllo {
@@ -464,6 +490,7 @@ export function PaginaOrdine({ ricevuto }: { ricevuto: string }) {
   const chiave = useRef<string | null>(null);
   const permesso = useRef<{ valore: string; presoA: number } | null>(null);
   const svuotato = useRef(false);
+  const guardiaRiprova = useRef(false);
 
   // l'apertura si conta una volta, solo come numero: nessun evento verso le piattaforme, nessun dato
   useEffect(() => {
@@ -490,9 +517,14 @@ export function PaginaOrdine({ ricevuto }: { ricevuto: string }) {
     return () => c.ferma();
   }, [ricevuto]);
 
-  // il carrello si svuota una volta, alla prima risposta che dice che il pagamento è arrivato
+  // il carrello si svuota una volta, alla prima risposta che dice che il pagamento è arrivato (e solo se l'ordine è di meno di 24 ore)
   useEffect(() => {
-    if (svuotato.current || stato.tipo !== "ordine" || !svuotaCarrello(stato.ordine.fase)) return;
+    if (
+      svuotato.current ||
+      stato.tipo !== "ordine" ||
+      !svuotaCarrello(stato.ordine.fase, stato.ordine.creatoIl)
+    )
+      return;
     svuotato.current = true;
     clear();
   }, [stato, clear]);
@@ -514,7 +546,7 @@ export function PaginaOrdine({ ricevuto }: { ricevuto: string }) {
     if (riprovabile) void prendiPermesso(false).catch(() => null);
   }, [riprovabile, prendiPermesso]);
 
-  const suRiprova = async () => {
+  const eseguiRiprova = async () => {
     const t = chiave.current;
     if (!t) return;
     setRiprova({ tipo: "in_corso" });
@@ -542,6 +574,8 @@ export function PaginaOrdine({ ricevuto }: { ricevuto: string }) {
     }
     setRiprova(esito);
   };
+
+  const suRiprova = () => conGuardia(guardiaRiprova, eseguiRiprova);
 
   const suAggiorna = async () => {
     setInLettura(true);
