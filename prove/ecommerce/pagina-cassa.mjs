@@ -4,8 +4,9 @@
  *  `src/routes/CRM.ecommerce.tsx`. Regole (PIANO-R2 T62, D56, D58, D59, D65, SPEC 7.2 e 7.4 n. 8-9):
  *   · `?scheda=cassa|spedizioni|email` valido; un valore sconosciuto apre le schede di prima (Panoramica); `leggiRicerca` non cambia;
  *   · la chiave di Stripe non compare in nessun file di UI e nessuna risposta del server la porta fino a schermo (solo «prova/reale»);
- *   · Stripe si legge SOLO aprendo «Cassa»: nessuna lettura aprendo la pagina o la scheda Ordini;
- *   · il nastro «PROVA: nessun pagamento è reale» compare solo se Stripe dice «prova»;
+ *   · la pagina fa UNA lettura leggera dello stato (GET, che non chiama Stripe: ricava prova/reale dal prefisso della chiave) per il nastro; «Prova adesso»
+ *     (POST, chiama Stripe) e la lettura della cassa partono SOLO aprendo «Cassa»;
+ *   · il nastro «PROVA: nessun pagamento è reale» sta in cima a ogni scheda, solo se Stripe dice «prova»; se la lettura fallisce niente nastro e nessun errore;
  *   · l'interruttore `stripe` è spento con la frase di ogni condizione mancante; «Pagamento sicuro» spento con la sua frase;
  *   · «Elimina» non esiste; Panoramica e Ordini si comportano come prima (la prova di T11 resta verde).
  *  La rotta di Stripe è di T57 e qui non esiste: si prova con una PORTA FINTA che risponde come dice §3.5; l'accordo con la rotta
@@ -85,6 +86,24 @@ export async function prove(mod, { c, gruppo, radice }) {
   const e500 = await fn("caricaStripe")(porta({ "/api/crm/stripe": { stato: 500, corpo: { ok: false, motivo: "interno", frase: "Il database non ha risposto: riprova tra un momento." } } }).f);
   c("403 → «permesso», 401 → «sessione», rete caduta → «rete», 500 → la frase del server", ["permesso", "sessione", "rete", "server", "Il database non ha risposto: riprova tra un momento."], [e403.tipo, e401.tipo, eRete.tipo, e500.tipo, e500.messaggio]);
   c("ogni errore ha una frase in italiano e non ripete il testo del browser (potrebbe nominare indirizzo o chiave)", [true, false], [[e403, e401, eRete, e500].every((e) => e.ok === false && typeof e.messaggio === "string" && e.messaggio.length > 10), eRete.messaggio?.includes("sk_") || eRete.messaggio?.includes("/api")]);
+
+  // ── il nastro su ogni scheda: UNA lettura leggera all'apertura della pagina (GET: non chiama Stripe) ──
+  const nastro = async (risposta) => {
+    const g = porta({ "/api/crm/stripe": risposta });
+    return { stato: await fn("leggiNastro")(g.f), chiamate: g.chiamate };
+  };
+  const nProva = await nastro(STRIPE_PROVA);
+  c("`leggiNastro`: UNA GET a /api/crm/stripe, mai un POST, e lo stato (il nastro lo accende)", [1, "GET", "prova", true], [nProva.chiamate.length, nProva.chiamate[0]?.metodo, nProva.stato?.modalita, fn("mostraNastro")(nProva.stato)]);
+  const nReale = await nastro(STRIPE_REALE);
+  c("con la chiave reale lo stato arriva, ma il nastro no", [true, false], [nReale.stato?.collegato, fn("mostraNastro")(nReale.stato)]);
+  const guasti = [
+    (await nastro({ stato: 403, corpo: { ok: false } })).stato,
+    (await nastro({ stato: 401, corpo: { ok: false } })).stato,
+    (await nastro({ stato: 500, corpo: { ok: false, frase: "Errore." } })).stato,
+    (await nastro({ corpo: { ok: true, strano: 1 } })).stato,
+    await fn("leggiNastro")(porta({ "/api/crm/stripe": new Error("giù") }).f),
+  ];
+  c("lettura fallita, permesso mancante, risposta strana, rete caduta: «null», cioè niente nastro e nessun errore (non lancia)", [null, null, null, null, null], guasti);
 
   // ── «Prova adesso» ──
   const p = porta({ "POST /api/crm/stripe": { corpo: { ok: true, collegato: true, modalita: "prova", frase: "Stripe risponde: la chiave funziona." } } });
@@ -276,7 +295,11 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("«Elimina» non esiste in nessun file del compito (nemmeno come parola di una frase)", [false, false, false, false, false], nudi.map((t) => /elimin|cancell|delete|rimuov/i.test(t.replace(/\/api\/[^"'`\s]*/g, ""))));
   c("nessun log, nessun accesso diretto al database da questi file", [false, false, false, false, false], nudi.map((t) => /console\.|@\/integrations\/supabase|createClient|\.from\(["']/.test(t)));
   const guscio = nudi[0];
-  c("il guscio non nomina /api/crm/stripe né chiama le letture di Stripe: la lettura sta nel pannello, che si disegna solo con ?scheda=cassa", [false, false, true], [/api\/crm\/stripe/.test(guscio), /caricaStripe\(|provaAdesso\(/.test(guscio), /scheda === "cassa"[\s\S]{0,200}<PannelloCassa/.test(guscio)]);
+  c("il guscio non nomina l'indirizzo e non chiama «Prova adesso»; per il nastro fa UNA lettura leggera (`leggiNastro`), da un effetto, che non mostra errori", [false, false, 1, true, true], [
+    /api\/crm\/stripe/.test(guscio), /provaAdesso\(/.test(guscio), (guscio.match(/leggiNastro\(/g) || []).length,
+    /useEffect\(\(\) => \{[\s\S]{0,300}leggiNastro\(fetchCRM\)/.test(guscio), !/erroreStripe|setErrore|<Avviso[^>]*>[^<]*Stripe/.test(guscio),
+  ]);
+  c("la scheda «Cassa» si disegna solo con ?scheda=cassa", true, /scheda === "cassa"[\s\S]{0,200}<PannelloCassa/.test(guscio));
   c("il pannello legge Stripe e la cassa solo da un effetto (`carica`), mai nel disegno e mai a livello di modulo", [true, true, 1], [
     /useEffect\(\(\) => \{[\s\S]{0,300}void carica\(\)/.test(nudi[2]), /const carica = useCallback\(async \(\) => \{[\s\S]{0,300}caricaStripe\(/.test(nudi[2]), (nudi[2].match(/caricaStripe\(/g) || []).length,
   ]);
