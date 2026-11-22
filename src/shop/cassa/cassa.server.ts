@@ -98,7 +98,7 @@ const ETICHETTA_TENTATIVO = "hgl-tentativo-v1";
 const INDIRIZZO_STRIPE = "https://checkout.stripe.com/";
 const SDI_NESSUNO = "0000000";
 const COLONNE_ORDINE =
-  "id, order_ref, email, items, shipping, scade_il, riprova_n, firma_tentativo, stato_pagamento, status, canale, stripe_sessione_id, chiave_pubblica_hash, totale_cent";
+  "id, order_ref, email, items, shipping, scade_il, riprova_n, firma_tentativo, stato_pagamento, status, canale, stripe_sessione_id, chiave_pubblica_hash, totale_cent, avvisi";
 
 const FRASI = {
   cassa_chiusa: "Il negozio sta per aprire: riprova tra poco.",
@@ -282,6 +282,7 @@ type OrdineLetto = {
   stripe_sessione_id: string | null;
   chiave_pubblica_hash: string | null;
   totale_cent: number | null;
+  avvisi: unknown;
 };
 type Letto = { ok: true; ordine: OrdineLetto | null } | { ok: false; risposta: Risposta };
 
@@ -657,7 +658,14 @@ async function riprovaDa(r: RichiestaRiprova, p: PorteCassaServer): Promise<Risp
     if (sessione?.status === "open") return urlDi(p, sessione); // quella aperta è la sessione: non se ne fa un'altra
     if (sessione?.status === "complete") return no(409, "non_riproponibile"); // pagamento ritardato in corso: può ancora riuscire
     // Scaduta (o mai creata) ma la tabella dice ancora «in attesa»: se `scade_il` è nel futuro qualcuno ha appena riaperto l'ordine.
-    if (Date.parse(testo(ordine.scade_il)) > p.adesso()) return no(409, "riprova_in_corso");
+    if (Date.parse(testo(ordine.scade_il)) > p.adesso()) {
+      // Se Stripe ha RIFIUTATO la sessione di questo giro (avviso `stripe_errore` con rif `r<riprova_n>`), nessuno la sta preparando: ripetere non serve.
+      const rif = `r${Number(ordine.riprova_n ?? 0)}`;
+      const rifiutata =
+        Array.isArray(ordine.avvisi) &&
+        ordine.avvisi.some((x) => oggetto(x) && x.codice === "stripe_errore" && x.rif === rif);
+      return no(409, rifiutata ? "non_riproponibile" : "riprova_in_corso");
+    }
     const chiuso = await chiudiOrdine(p, ordine.id, sessione?.id ?? "");
     if (!chiuso.ok) return erroreDb(p, "chiudi", chiuso.errore);
     if (!chiuso.chiuso) return no(409, "riprova_in_corso"); // l'ha già chiuso o riaperto un altro clic
