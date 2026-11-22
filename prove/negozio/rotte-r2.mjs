@@ -150,6 +150,13 @@ export async function prove(mod, { c, gruppo, radice }) {
   }
   if (fonti["api.public.shop-cassa.ts"]) c("shop-cassa: chiama gestisciCassa con la richiesta intera (il tetto e il corpo sono suoi)", true, chiamate(albero(fonti["api.public.shop-cassa.ts"], "x.ts"), "gestisciCassa").some((x) => x.arguments[0]?.getText() === "request"));
   if (fonti["api.public.shop-cassa-permesso.ts"]) c("shop-cassa-permesso: chiama gestisciPermesso", 1, chiamate(albero(fonti["api.public.shop-cassa-permesso.ts"], "x.ts"), "gestisciPermesso").length);
+  if (fonti["api.crm.stripe.ts"]) {
+    // il contratto fissato dal capo progetto (T62 lo usa già): GET senza Stripe, POST `prova_adesso`
+    const sf = albero(fonti["api.crm.stripe.ts"], "api.crm.stripe.ts");
+    const get = gestori(sf).find((g) => g.metodo === "GET")?.corpo.getText() ?? "";
+    const post = gestori(sf).find((g) => g.metodo === "POST")?.corpo.getText() ?? "";
+    c("api.crm.stripe.ts: il GET non chiama Stripe (nessun provaStripe, nessun fetch); il POST accetta solo l'azione `prova_adesso` e chiama provaStripe", [false, false, true, true], [/provaStripe|fetch\(/.test(get), /"prova"/.test(post), /"prova_adesso"/.test(post), /provaStripe\(/.test(post)]);
+  }
   if (fonti["api.crm.negozio.ts"]) {
     const rn = fonti["api.crm.negozio.ts"].replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");
     c("api.crm.negozio.ts: i fatti vengono dal database (`fattiDelDatabase`) e dall'ambiente, e il banner resta `bannerPresente: true`", [true, true], [/fattiDelDatabase\(/.test(rn), /bannerPresente\s*:\s*true/.test(rn)]);
@@ -178,7 +185,7 @@ export async function prove(mod, { c, gruppo, radice }) {
   const storta = await H.statoStripe({ ambiente: amb({ STRIPE_SECRET_KEY: "una-parola-qualunque" }), db });
   c("stato: chiave di prova → collegato, modalità «prova»", [true, "prova"], [prova.collegato, prova.modalita]);
   c("stato: chiave reale → «reale»; nessuna chiave → non collegato, modalità null; una chiave che non è di Stripe → modalità null", [[true, "reale"], [false, null], [true, null]], [[reale.collegato, reale.modalita], [niente.collegato, niente.modalita], [storta.collegato, storta.modalita]]);
-  c("stato: l'ultimo webhook ricevuto (tipo e istante) è il più recente; senza eventi è null", [{ tipo: "charge.refunded", il: "2026-11-20T11:30:00.000Z" }, null], [prova.ultimoWebhook, (await H.statoStripe({ ambiente: amb(), db: fintoDb({ tabelle: { shop_stripe_eventi: [] } }) })).ultimoWebhook]);
+  c("stato: l'ultimo webhook ricevuto ({tipo, ricevutoIl}) è il più recente; senza eventi è null", [{ tipo: "charge.refunded", ricevutoIl: "2026-11-20T11:30:00.000Z" }, null], [prova.ultimoWebhook, (await H.statoStripe({ ambiente: amb(), db: fintoDb({ tabelle: { shop_stripe_eventi: [] } }) })).ultimoWebhook]);
   c("stato: tabella dei pagamenti assente (S4 non applicata) → ultimoWebhook null, nessuna eccezione", null, (await H.statoStripe({ ambiente: amb(), db: fintoDb({ mancante: true }) })).ultimoWebhook);
   c("stato: nessuna risposta contiene la chiave, il suo prefisso lungo, né il segreto del webhook", false,
     [prova, reale, niente, storta].some((r) => /sk_|rk_|whsec|finta0000|finto0000|una-parola/.test(JSON.stringify(r))));
@@ -186,7 +193,7 @@ export async function prove(mod, { c, gruppo, radice }) {
   // «Prova adesso»: una sola lettura innocua
   const sf = stripeFinto();
   const ok = await H.provaStripe({ ambiente: amb(), chiamata: sf.fetch });
-  c("«Prova adesso» con la chiave giusta → 200, collegato, «prova»; UNA sola chiamata, `GET /v1/checkout/sessions?limit=1`, nessuna scrittura", [200, true, "prova", 1, ["GET /v1/checkout/sessions"]], [ok.stato, ok.corpo.collegato, ok.corpo.modalita, sf.chiamate.length, sf.chiamate.map((x) => `${x.metodo} ${x.percorso}`)]);
+  c("«Prova adesso» con la chiave giusta → 200, ok, una frase; UNA sola chiamata, `GET /v1/checkout/sessions?limit=1`, nessuna scrittura", [200, true, true, 1, ["GET /v1/checkout/sessions"]], [ok.stato, ok.corpo.ok, typeof ok.corpo.frase === "string" && ok.corpo.frase.length > 5, sf.chiamate.length, sf.chiamate.map((x) => `${x.metodo} ${x.percorso}`)]);
   const sr = stripeFinto();
   sr.fallisci("GET /v1/checkout/sessions", { stato: 401, errore: { type: "invalid_request_error" } });
   const rifiutata = await H.provaStripe({ ambiente: amb(), chiamata: sr.fetch });
@@ -197,7 +204,7 @@ export async function prove(mod, { c, gruppo, radice }) {
   const nonCollegato = await H.provaStripe({ ambiente: SENZA, chiamata: sn.fetch });
   c("«Prova adesso» con la chiave rifiutata (401) → ok:false, collegato:false, una frase; con la rete caduta → ok:false, una frase diversa", [false, false, true, false, true, true], [
     rifiutata.corpo.ok, rifiutata.corpo.collegato, typeof rifiutata.corpo.frase === "string" && rifiutata.corpo.frase.length > 5, guasta.corpo.ok, typeof guasta.corpo.frase === "string", guasta.corpo.frase !== rifiutata.corpo.frase]);
-  c("«Prova adesso» senza chiave → «non collegato», nessuna chiamata a Stripe", [false, false, 0], [nonCollegato.corpo.ok, nonCollegato.corpo.collegato, sn.chiamate.length]);
+  c("«Prova adesso» senza chiave → 409 con una frase («non collegato»), nessuna chiamata a Stripe", [409, false, true, 0], [nonCollegato.stato, nonCollegato.corpo.ok, typeof nonCollegato.corpo.frase === "string" && nonCollegato.corpo.frase.length > 5, sn.chiamate.length]);
   c("«Prova adesso»: nessuna risposta contiene la chiave", false, [ok, rifiutata, guasta, nonCollegato].some((r) => /sk_|finta0000/.test(JSON.stringify(r))));
 
   // cassa aperta: chiavi e interruttore

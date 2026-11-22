@@ -47,7 +47,8 @@ export const clienteStripe = (
 
 /** L'indirizzo di chi chiama: quello che mette Cloudflare, poi (per le prove locali) il primo di `x-forwarded-for`. Mai `Host` o `Origin`. */
 const ipDi = (richiesta: Request): string =>
-  richiesta.headers.get("cf-connecting-ip") || (richiesta.headers.get("x-forwarded-for") ?? "").split(",")[0].trim();
+  richiesta.headers.get("cf-connecting-ip") ||
+  (richiesta.headers.get("x-forwarded-for") ?? "").split(",")[0].trim();
 
 /* ══ LA CASSA ═══════════════════════════════════════════════════════════════ */
 
@@ -57,9 +58,12 @@ export async function aperturaCassa(
   cassa: () => Promise<Cassa> | Cassa,
   ambiente: Ambiente = process.env,
 ): Promise<{ aperta: boolean; motivo?: string }> {
-  if (modalitaDellaChiave(chiaveStripe(ambiente)) === null || !segretoWebhook(ambiente)) return { aperta: false, motivo: "chiavi" };
+  if (modalitaDellaChiave(chiaveStripe(ambiente)) === null || !segretoWebhook(ambiente))
+    return { aperta: false, motivo: "chiavi" };
   try {
-    return (await cassa()) === "stripe" ? { aperta: true } : { aperta: false, motivo: "cassa_vecchia" };
+    return (await cassa()) === "stripe"
+      ? { aperta: true }
+      : { aperta: false, motivo: "cassa_vecchia" };
   } catch {
     return { aperta: false, motivo: "cassa_guasta" };
   }
@@ -99,7 +103,11 @@ export function porteCassa(o: OpzioniPorteCassa): PorteCassaServer {
 /* ══ L'EMAIL ════════════════════════════════════════════════════════════════ */
 
 /** Le porte di `inviaEmail` (T54): Resend, il mittente da `SHOP_EMAIL_INDIRIZZO`, la chiave di servizio e `SITO`. Senza chiave l'invio dice `non_configurata`. */
-export const porteInvio = (db: ClienteDb, log: (codice: string) => void, ambiente: Ambiente = process.env): PorteInvio => ({
+export const porteInvio = (
+  db: ClienteDb,
+  log: (codice: string) => void,
+  ambiente: Ambiente = process.env,
+): PorteInvio => ({
   db,
   resend: resendConFetch(valore(ambiente, "RESEND_API_KEY")),
   mittente: () => intestazioneMittente(valore(ambiente, "SHOP_EMAIL_INDIRIZZO")),
@@ -116,9 +124,16 @@ export async function dopoLaRisposta(): Promise<PorteWebhook["dopoRisposta"]> {
   try {
     // shortcut: il nome del modulo è in una variabile perché fuori da Cloudflare (prove, sviluppo locale) non esiste; non verificato su un Worker vero, quando si collauda con Stripe CLI controllare che la conferma parta anche con la risposta già inviata.
     const nome = "cloudflare:workers";
-    const m = (await import(/* @vite-ignore */ nome)) as { waitUntil?: (p: Promise<unknown>) => void };
+    const m = (await import(/* @vite-ignore */ nome)) as {
+      waitUntil?: (p: Promise<unknown>) => void;
+    };
     const attendi = m.waitUntil;
-    if (typeof attendi === "function") return (promessa) => attendi.call(m, promessa.catch(() => undefined));
+    if (typeof attendi === "function")
+      return (promessa) =>
+        attendi.call(
+          m,
+          promessa.catch(() => undefined),
+        );
   } catch {
     /* fuori da Cloudflare */
   }
@@ -153,13 +168,16 @@ export interface StatoStripe {
   /** Dal prefisso della chiave (la chiave non esce): `null` se non c'è o non è una chiave di API. */
   modalita: ModalitaStripe | null;
   /** L'ultimo evento di Stripe registrato dal webhook (solo tipo e istante), `null` se nessuno o se non si può leggere. */
-  ultimoWebhook: { tipo: string; il: string } | null;
+  ultimoWebhook: { tipo: string; ricevutoIl: string } | null;
 }
 
 interface DbEventi {
   from(tabella: string): {
     select(colonne: string): {
-      order(colonna: string, opzioni: { ascending: boolean }): {
+      order(
+        colonna: string,
+        opzioni: { ascending: boolean },
+      ): {
         limit(n: number): PromiseLike<{ data: unknown; error: { code?: unknown } | null }>;
       };
     };
@@ -176,12 +194,19 @@ export async function statoStripe(o: {
   const chiave = chiaveStripe(ambiente);
   let ultimoWebhook: StatoStripe["ultimoWebhook"] = null;
   try {
-    const r = await o.db.from("shop_stripe_eventi").select("tipo, ricevuto_il").order("ricevuto_il", { ascending: false }).limit(1);
+    const r = await o.db
+      .from("shop_stripe_eventi")
+      .select("tipo, ricevuto_il")
+      .order("ricevuto_il", { ascending: false })
+      .limit(1);
     if (r.error) {
       if (!tabellaAssente(r.error)) o.log?.(`ultimo_webhook ${codiceDi(r.error)}`);
     } else {
-      const riga = Array.isArray(r.data) ? (r.data[0] as { tipo?: unknown; ricevuto_il?: unknown } | undefined) : undefined;
-      if (typeof riga?.tipo === "string" && typeof riga.ricevuto_il === "string") ultimoWebhook = { tipo: riga.tipo, il: riga.ricevuto_il };
+      const riga = Array.isArray(r.data)
+        ? (r.data[0] as { tipo?: unknown; ricevuto_il?: unknown } | undefined)
+        : undefined;
+      if (typeof riga?.tipo === "string" && typeof riga.ricevuto_il === "string")
+        ultimoWebhook = { tipo: riga.tipo, ricevutoIl: riga.ricevuto_il };
     }
   } catch {
     o.log?.("ultimo_webhook eccezione");
@@ -190,8 +215,11 @@ export async function statoStripe(o: {
 }
 
 const FRASI_PROVA = {
+  ok_prova: "Stripe risponde: la chiave funziona (modalità di prova, nessun pagamento è reale).",
+  ok_reale: "Stripe risponde: la chiave funziona (modalità REALE).",
   non_collegato: "Stripe non è collegato: manca la chiave fra le variabili del sito.",
-  rifiutata: "Stripe ha rifiutato la chiave: controlla che sia quella giusta e che non sia scaduta.",
+  rifiutata:
+    "Stripe ha rifiutato la chiave: controlla che sia quella giusta e che non sia scaduta.",
   guasto: "Non riesco a parlare con Stripe adesso: riprova tra un momento.",
 } as const;
 
@@ -204,12 +232,55 @@ export async function provaStripe(o: {
   const ambiente = o.ambiente ?? process.env;
   const modalita = modalitaDellaChiave(chiaveStripe(ambiente));
   if (chiaveStripe(ambiente) === undefined)
-    return { stato: 409, corpo: { ok: false, collegato: false, modalita: null, motivo: "non_collegato", frase: FRASI_PROVA.non_collegato } };
+    return {
+      stato: 409,
+      corpo: {
+        ok: false,
+        collegato: false,
+        modalita: null,
+        motivo: "non_collegato",
+        frase: FRASI_PROVA.non_collegato,
+      },
+    };
   const r = await clienteStripe(ambiente, o.chiamata).sonda();
-  if (r.ok) return { stato: 200, corpo: { ok: true, collegato: true, modalita: r.dati.modalita } };
-  o.log?.(`prova stripe ${String(r.errore.codice).replace(/[^A-Za-z0-9_]/g, "").slice(0, 28) || "ignoto"}`);
-  const rifiutata = r.errore.codice === "chiave_rifiutata" || r.errore.stato === 401 || r.errore.stato === 403;
+  if (r.ok)
+    return {
+      stato: 200,
+      corpo: {
+        ok: true,
+        collegato: true,
+        modalita: r.dati.modalita,
+        frase: r.dati.modalita === "reale" ? FRASI_PROVA.ok_reale : FRASI_PROVA.ok_prova,
+      },
+    };
+  o.log?.(
+    `prova stripe ${
+      String(r.errore.codice)
+        .replace(/[^A-Za-z0-9_]/g, "")
+        .slice(0, 28) || "ignoto"
+    }`,
+  );
+  const rifiutata =
+    r.errore.codice === "chiave_rifiutata" || r.errore.stato === 401 || r.errore.stato === 403;
   return rifiutata
-    ? { stato: 409, corpo: { ok: false, collegato: false, modalita, motivo: "rifiutata", frase: FRASI_PROVA.rifiutata } }
-    : { stato: 502, corpo: { ok: false, collegato: true, modalita, motivo: "guasto", frase: FRASI_PROVA.guasto } };
+    ? {
+        stato: 409,
+        corpo: {
+          ok: false,
+          collegato: false,
+          modalita,
+          motivo: "rifiutata",
+          frase: FRASI_PROVA.rifiutata,
+        },
+      }
+    : {
+        stato: 502,
+        corpo: {
+          ok: false,
+          collegato: true,
+          modalita,
+          motivo: "guasto",
+          frase: FRASI_PROVA.guasto,
+        },
+      };
 }

@@ -13,7 +13,10 @@ import { porteWebhook } from "@/shop/cassa/collega.server";
 import { gestisciWebhook, type DbWebhook } from "@/shop/cassa/webhook.server";
 
 const json = (o: unknown, stato: number) =>
-  new Response(JSON.stringify(o), { status: stato, headers: { "Content-Type": "application/json", "Cache-Control": "no-store" } });
+  new Response(JSON.stringify(o), {
+    status: stato,
+    headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
+  });
 
 export const Route = createFileRoute("/api/public/stripe-webhook")({
   server: {

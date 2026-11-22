@@ -11,7 +11,10 @@ import { porteCassa } from "@/shop/cassa/collega.server";
 import { cassaEffettivaDelServer } from "@/shop/cms/cassa-sito.functions";
 
 const json = (o: unknown, stato: number) =>
-  new Response(JSON.stringify(o), { status: stato, headers: { "Content-Type": "application/json", "Cache-Control": "no-store" } });
+  new Response(JSON.stringify(o), {
+    status: stato,
+    headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
+  });
 
 export const Route = createFileRoute("/api/public/shop-cassa-permesso")({
   server: {

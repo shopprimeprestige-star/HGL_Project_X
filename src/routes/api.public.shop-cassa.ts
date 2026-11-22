@@ -14,7 +14,10 @@ import { tariffaSpedizione as leggiTariffa, type DbTariffe } from "@/shop/cassa/
 import { cassaEffettivaDelServer } from "@/shop/cms/cassa-sito.functions";
 
 const json = (o: unknown, stato: number) =>
-  new Response(JSON.stringify(o), { status: stato, headers: { "Content-Type": "application/json", "Cache-Control": "no-store" } });
+  new Response(JSON.stringify(o), {
+    status: stato,
+    headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
+  });
 
 export const Route = createFileRoute("/api/public/shop-cassa")({
   server: {
@@ -41,7 +44,14 @@ export const Route = createFileRoute("/api/public/shop-cassa")({
           return json(r.corpo, r.stato);
         } catch {
           console.warn("[shop-cassa] eccezione");
-          return json({ ok: false, motivo: "guasto", frase: "Non siamo riusciti ad aprire il pagamento: riprova tra poco." }, 500);
+          return json(
+            {
+              ok: false,
+              motivo: "guasto",
+              frase: "Non siamo riusciti ad aprire il pagamento: riprova tra poco.",
+            },
+            500,
+          );
         }
       },
     },
