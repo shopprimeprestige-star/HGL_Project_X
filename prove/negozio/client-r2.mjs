@@ -191,7 +191,7 @@ export async function prove(mod, { c, gruppo, radice }) {
   await provaCon("chiaveRichiesta", async () => {
     let n = 0;
     const f = fetchFinto(risposta(azioneOk()));
-    const archivio = K.creaArchivioDettaglio({ fetch: f, permesso: () => true, porte: porteMute, generaChiave: () => uuid(0x1000 + ++n) });
+    const archivio = K.creaArchivioDettaglio({ fetch: f, permesso: () => true, generaChiave: () => uuid(0x1000 + ++n) });
     await archivio.apri(ID);
     const d1 = archivio.apriDialogo();
     c("chiave: il dialogo ha una chiave UUID subito, prima di ogni invio", true, Z.eUuid(d1.chiaveRichiesta));
@@ -207,7 +207,7 @@ export async function prove(mod, { c, gruppo, radice }) {
     // Anche un invio riuscito non fa girare la chiave: se l'utente preme di nuovo nello stesso dialogo è la STESSA richiesta.
     c("chiave: la chiave del dialogo si legge due volte uguale", true, d1.chiaveRichiesta === d1.chiaveRichiesta && d1.chiaveRichiesta === p[0].chiaveRichiesta);
     // Il generatore vero: UUID diversi uno dall'altro.
-    const v = K.creaArchivioDettaglio({ fetch: fetchFinto(risposta(azioneOk())), permesso: () => true, porte: porteMute });
+    const v = K.creaArchivioDettaglio({ fetch: fetchFinto(risposta(azioneOk())), permesso: () => true });
     const a = v.apriDialogo().chiaveRichiesta;
     const b = v.apriDialogo().chiaveRichiesta;
     c("chiave: il generatore vero dà UUID validi e diversi", [true, true, true], [Z.eUuid(a), Z.eUuid(b), a !== b]);
@@ -216,7 +216,7 @@ export async function prove(mod, { c, gruppo, radice }) {
   // ══ un 409 non genera un secondo invio ══════════════════════════════════════════════════════════════════
   await provaCon("409", async () => {
     const f = fetchFinto((url, init) => (init?.method === "POST" ? risposta({ ok: false, error: "conflitto", messaggio: "L'ordine è stato modificato da qualcun altro nel frattempo: ricarica e riprova." }, 409) : risposta(dettaglioOk())));
-    const archivio = K.creaArchivioDettaglio({ fetch: f, permesso: () => true, porte: porteMute });
+    const archivio = K.creaArchivioDettaglio({ fetch: f, permesso: () => true });
     await archivio.apri(ID);
     const r = await archivio.spedisci({ corriere: "BRT", senzaTracking: true });
     await sfiata();
@@ -232,7 +232,7 @@ export async function prove(mod, { c, gruppo, radice }) {
   // ══ l'archivio del dettaglio: si legge solo quando il pannello è aperto ═════════════════════════════════
   await provaCon("archivio: lettura", async () => {
     const f = fetchFinto(risposta(dettaglioOk()));
-    const archivio = K.creaArchivioDettaglio({ fetch: f, permesso: () => true, porte: porteMute });
+    const archivio = K.creaArchivioDettaglio({ fetch: f, permesso: () => true });
     c("archivio: appena creato non ha letto niente e non ha un ordine", [0, null, null, false], [f.chiamate.length, archivio.stato().ordineId, archivio.stato().dettaglio, archivio.stato().inCaricamento]);
     await archivio.apri(ID);
     const s = archivio.stato();
@@ -263,7 +263,7 @@ export async function prove(mod, { c, gruppo, radice }) {
   await provaCon("archivio: due pannelli di seguito", async () => {
     // La lettura del primo ordine arriva DOPO l'apertura del secondo: non deve prendere il posto.
     const f = fetchSospeso();
-    const archivio = K.creaArchivioDettaglio({ fetch: f, permesso: () => true, porte: porteMute });
+    const archivio = K.creaArchivioDettaglio({ fetch: f, permesso: () => true });
     const A = archivio.apri(uuid(1));
     const B = archivio.apri(uuid(2));
     f.chiamate[1].ok(risposta(dettaglioOk(2)));
@@ -273,7 +273,7 @@ export async function prove(mod, { c, gruppo, radice }) {
     c("archivio: la risposta in ritardo del primo ordine non sostituisce il secondo", [uuid(2), uuid(2)], [archivio.stato().ordineId, archivio.stato().dettaglio?.ordine?.id]);
     archivio.chiudi();
     const g = fetchSospeso();
-    const a2 = K.creaArchivioDettaglio({ fetch: g, permesso: () => true, porte: porteMute });
+    const a2 = K.creaArchivioDettaglio({ fetch: g, permesso: () => true });
     const p = a2.apri(ID);
     a2.chiudi();
     g.chiamate[0].ok(risposta(dettaglioOk(1)));
@@ -283,21 +283,21 @@ export async function prove(mod, { c, gruppo, radice }) {
 
   await provaCon("archivio: errori di lettura", async () => {
     const f = fetchFinto(risposta(dettaglioOk()), risposta({ ok: false, error: "interno", messaggio: "Il database non ha risposto." }, 500));
-    const archivio = K.creaArchivioDettaglio({ fetch: f, permesso: () => true, porte: porteMute });
+    const archivio = K.creaArchivioDettaglio({ fetch: f, permesso: () => true });
     await archivio.apri(ID);
     await archivio.ricarica();
     c("archivio: una lettura che fallisce tiene il dettaglio dell'ultima buona e mostra l'errore", [ID, "server"], [archivio.stato().dettaglio?.ordine?.id, archivio.stato().errore?.tipo]);
     const g = fetchFinto(risposta(dettaglioOk()), risposta({ ok: false }, 403));
-    const a2 = K.creaArchivioDettaglio({ fetch: g, permesso: () => true, porte: porteMute });
+    const a2 = K.creaArchivioDettaglio({ fetch: g, permesso: () => true });
     await a2.apri(ID);
     await a2.ricarica();
     c("archivio: il permesso tolto (403) svuota i dati riservati dallo stato", [null, "permesso"], [a2.stato().dettaglio, a2.stato().errore?.tipo]);
     const h = fetchFinto(risposta({ ok: false, error: "non_trovato", messaggio: "Ordine non trovato." }, 404));
-    const a3 = K.creaArchivioDettaglio({ fetch: h, permesso: () => true, porte: porteMute });
+    const a3 = K.creaArchivioDettaglio({ fetch: h, permesso: () => true });
     await a3.apri(ID);
     c("archivio: ordine non trovato → errore «non_trovato», niente dati", [null, "non_trovato"], [a3.stato().dettaglio, a3.stato().errore?.tipo]);
     const k = fetchFinto(risposta(dettaglioOk()));
-    const a4 = K.creaArchivioDettaglio({ fetch: k, permesso: () => true, porte: porteMute });
+    const a4 = K.creaArchivioDettaglio({ fetch: k, permesso: () => true });
     await a4.apri("non-uuid");
     c("archivio: apri con un id non UUID → errore «valore», nessuna richiesta", [0, "valore"], [k.chiamate.length, a4.stato().errore?.tipo]);
   });
@@ -305,7 +305,7 @@ export async function prove(mod, { c, gruppo, radice }) {
   // ══ il permesso: se la porta dice no, nessuna chiamata ══════════════════════════════════════════════════
   await provaCon("archivio: permesso", async () => {
     const f = fetchFinto(risposta(dettaglioOk()));
-    const archivio = K.creaArchivioDettaglio({ fetch: f, permesso: () => false, porte: porteMute });
+    const archivio = K.creaArchivioDettaglio({ fetch: f, permesso: () => false });
     await archivio.apri(ID);
     c("permesso negato: `apri` non fa nessuna richiesta, errore «permesso», nessun dato", [0, "permesso", null], [f.chiamate.length, archivio.stato().errore?.tipo, archivio.stato().dettaglio]);
     await archivio.ricarica();
@@ -323,7 +323,7 @@ export async function prove(mod, { c, gruppo, radice }) {
     // Il permesso si legge a ogni chiamata (non una volta sola alla creazione): chi lo perde a metà non fa più nulla.
     let consentito = true;
     const g = fetchFinto(risposta(dettaglioOk()), risposta(azioneOk()));
-    const a2 = K.creaArchivioDettaglio({ fetch: g, permesso: () => consentito, porte: porteMute });
+    const a2 = K.creaArchivioDettaglio({ fetch: g, permesso: () => consentito });
     await a2.apri(ID);
     consentito = false;
     const r = await a2.riconcilia();
@@ -332,7 +332,7 @@ export async function prove(mod, { c, gruppo, radice }) {
 
   await provaCon("archivio: un invio alla volta", async () => {
     const f = fetchFinto(risposta(dettaglioOk()), (url, init) => (init?.method === "POST" ? new Promise((ok) => setTimeout(() => ok(risposta(azioneOk())), 5)) : risposta(dettaglioOk())));
-    const archivio = K.creaArchivioDettaglio({ fetch: f, permesso: () => true, porte: porteMute });
+    const archivio = K.creaArchivioDettaglio({ fetch: f, permesso: () => true });
     await archivio.apri(ID);
     const prima = archivio.riconcilia();
     const seconda = await archivio.riconcilia();
@@ -345,7 +345,7 @@ export async function prove(mod, { c, gruppo, radice }) {
   await provaCon("archivio: dopo un'azione riuscita", async () => {
     const nuovo = ordineServer(1, { stato: "spedito", corriere: "BRT" });
     const f = fetchFinto(risposta(dettaglioOk()), (url, init) => (init?.method === "POST" ? risposta({ ok: true, ordine: nuovo, storico: true }) : risposta(dettaglioOk(1, { ordine: nuovo }))));
-    const archivio = K.creaArchivioDettaglio({ fetch: f, permesso: () => true, porte: porteMute });
+    const archivio = K.creaArchivioDettaglio({ fetch: f, permesso: () => true });
     await archivio.apri(ID);
     const r = await archivio.spedisci({ corriere: "BRT", senzaTracking: true });
     await sfiata();
