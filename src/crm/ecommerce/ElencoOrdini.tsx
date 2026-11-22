@@ -56,7 +56,7 @@ import {
   unaPerVolta,
 } from "./ordini-ui";
 import type { Esito, Filtri, FiltroPagato } from "./ordini-ui";
-import { ETICHETTA_PAGAMENTO, STATI_PAGAMENTO, statoEffettivo } from "./pagamento";
+import { statoEffettivo } from "./pagamento";
 import type { StatoPagamento } from "./pagamento";
 import { AVVISO_MIGRAZIONE, euro } from "./pagina";
 import { DettaglioOrdine, MessaggioEsito, classeMenuStato } from "./DettaglioOrdine";
@@ -131,8 +131,22 @@ const NON_PAGATI: readonly StatoPagamento[] = ["in_attesa", "scaduto", "fallito"
 /** Come in `ordini-ui` (filtro «Fattura da fare»): richiesta e non ancora emessa. Qui serve solo al segno sulla riga. */
 const fatturaDaFare = (o: Ordine): boolean => o.fatturaRichiesta && o.fatturaEmessaIl === null;
 
-const CLASSE_MENU_FILTRO =
-  "min-h-11 rounded-lg border border-border bg-card px-2 text-[12px] font-medium text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:min-h-8";
+//  Chip e non menu a tendina: la scheda ha già un menu per ogni riga (lo stato dell'ordine) e così le scelte si vedono tutte insieme.
+const SCELTE_CANALE: { valore: SceltaFiltriR2["canale"]; testo: string }[] = [
+  { valore: undefined, testo: "Tutti" },
+  { valore: "sito", testo: "Cassa nuova" },
+  { valore: "vecchio", testo: "Prima della cassa nuova" },
+];
+const SCELTE_PAGAMENTO: { valore: StatoPagamento | undefined; testo: string }[] = [
+  { valore: undefined, testo: "Tutti" },
+  { valore: "in_attesa", testo: "In attesa" },
+  { valore: "scaduto", testo: "Scaduto" },
+  { valore: "fallito", testo: "Non riuscito" },
+  { valore: "pagato", testo: "Pagato" },
+  { valore: "rimborsato_in_parte", testo: "Rimborsato in parte" },
+  { valore: "rimborsato", testo: "Rimborsato" },
+  { valore: "da_incassare", testo: "Da incassare" },
+];
 
 export function ElencoOrdini({
   lettura,
@@ -315,39 +329,18 @@ export function ElencoOrdini({
           role="group"
           aria-label="Altri filtri"
         >
-          <label className="flex items-center gap-1.5 text-[12px] text-muted-foreground">
-            Canale
-            <select
-              value={scelte.canale ?? ""}
-              onChange={(e) =>
-                scegli({ canale: (e.target.value || undefined) as SceltaFiltriR2["canale"] })
-              }
-              className={CLASSE_MENU_FILTRO}
-            >
-              <option value="">Tutti i canali</option>
-              <option value="sito">Cassa nuova del sito</option>
-              <option value="vecchio">Prima della cassa nuova</option>
-            </select>
-          </label>
-          <label className="flex items-center gap-1.5 text-[12px] text-muted-foreground">
-            Pagamento
-            <select
-              value={scelte.statoPagamento ?? ""}
-              onChange={(e) =>
-                scegli({
-                  statoPagamento: (e.target.value || undefined) as StatoPagamento | undefined,
-                })
-              }
-              className={CLASSE_MENU_FILTRO}
-            >
-              <option value="">Tutti i pagamenti</option>
-              {STATI_PAGAMENTO.map((s) => (
-                <option key={s} value={s}>
-                  {ETICHETTA_PAGAMENTO[s]}
-                </option>
-              ))}
-            </select>
-          </label>
+          <ScelteUna
+            nome="Canale"
+            scelte={SCELTE_CANALE}
+            valore={scelte.canale}
+            onScegli={(canale) => scegli({ canale })}
+          />
+          <ScelteUna
+            nome="Pagamento"
+            scelte={SCELTE_PAGAMENTO}
+            valore={scelte.statoPagamento}
+            onScegli={(statoPagamento) => scegli({ statoPagamento })}
+          />
           <Segmento
             attivo={scelte.fatturaDaFare}
             onClick={() => scegli({ fatturaDaFare: !scelte.fatturaDaFare })}
@@ -545,4 +538,28 @@ export function ElencoOrdini({
 function BadgePagamento({ ordine, adesso }: { ordine: Ordine; adesso: Date }) {
   const b = BADGE_PAGAMENTO[statoEffettivo(ordine, adesso)];
   return <Chip tono={b.tono}>{b.testo}</Chip>;
+}
+
+/** Un gruppo di chip dove se ne sceglie uno solo: il nome del gruppo è scritto (per chi guarda e per il lettore di schermo). */
+function ScelteUna<V extends string | undefined>({
+  nome,
+  scelte,
+  valore,
+  onScegli,
+}: {
+  nome: string;
+  scelte: { valore: V; testo: string }[];
+  valore: V;
+  onScegli: (v: V) => void;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label={nome}>
+      <span className="text-[12px] text-muted-foreground">{nome}</span>
+      {scelte.map((x) => (
+        <Segmento key={x.testo} attivo={valore === x.valore} onClick={() => onScegli(x.valore)}>
+          {x.testo}
+        </Segmento>
+      ))}
+    </div>
+  );
 }
