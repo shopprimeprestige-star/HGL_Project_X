@@ -10,12 +10,21 @@
  *   · `migrazionePronta !== true` = comandi spenti, col motivo.
  *   · Le azioni passano tutte da `esegui` (`useOrdini`) in UN punto solo (`lancia`), una alla volta, e se ne legge l'esito:
  *     conflitto, storico mancato, migrazione, errore. «Annullato» come stato e «Annulla pagamento» chiedono conferma.
- *  ⚠️ Nessun log: gli ordini contengono nome, telefono e indirizzo dei clienti. */
-import { useEffect, useMemo, useRef, useState } from "react";
+ *
+ *  ── RILASCIO 2 (T63, SPEC 8A n. 1 e 7) ────────────────────────────────────────
+ *   · Sulla riga: lo stato di pagamento («In attesa», «Scaduto», «Rimborsato…»), «PROVA», «Fattura da fare», «Giacenza da verificare»,
+ *     e «Cassa nuova» per gli ordini del sito. Gli ordini di prima si leggono come oggi: «Pagato» / «Non pagato» e nient'altro.
+ *   · Filtri nuovi: canale, pagamento, «Fattura da fare», «Giacenza da verificare», «Mostra ordini di prova». Si traducono nei filtri di
+ *     `ordini-ui` con `filtriR2`: con le scelte vuote non aggiungono NIENTE, quindi la lista è quella di oggi (anche gli ordini di prova si vedono).
+ *   · I numeri accanto ai filtri non contano gli ordini in attesa, scaduti o non riusciti (come il numeretto del menu): restano in lista col loro
+ *     badge e la pagina lo dice, invece di far tornare male i conti.
+ *  ⚠️ Nessun log: gli ordini contengono nome, telefono e indirizzo dei clienti. Nella lista nessun dato fiscale: solo il segno «Fattura da fare». */
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { PackageSearch, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -27,11 +36,12 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { BarraAzioni, Chip, Segmento, Vuoto, plurale } from "@/crm/ui";
+import type { Tono } from "@/crm/ui";
 import { importoFuoriNorma } from "./conti";
 import type { Periodo } from "./conti";
 import type { Azione } from "./azioni";
 import type { RisultatoAzione, RisultatoStorico, StatoOrdini } from "./client";
-import { ETICHETTA_STATO, STATI_ORDINE, eIncassato, nomeCliente } from "./ordine";
+import { ETICHETTA_STATO, STATI_ORDINE, nomeCliente } from "./ordine";
 import type { Ordine, StatoOrdine } from "./ordine";
 import {
   PAGINA_RIGHE,
@@ -45,7 +55,9 @@ import {
   testoConferma,
   unaPerVolta,
 } from "./ordini-ui";
-import type { Esito, FiltroPagato } from "./ordini-ui";
+import type { Esito, Filtri, FiltroPagato } from "./ordini-ui";
+import { statoEffettivo } from "./pagamento";
+import type { StatoPagamento } from "./pagamento";
 import { AVVISO_MIGRAZIONE, euro } from "./pagina";
 import { DettaglioOrdine, MessaggioEsito, classeMenuStato } from "./DettaglioOrdine";
 
@@ -63,12 +75,77 @@ export interface PropsElencoOrdini {
   /** Da `useOrdini`: manda un'azione alla rotta. Sostituisce l'ordine nell'elenco e rilegge da solo su conflitto. */
   esegui: (azione: Azione) => Promise<RisultatoAzione>;
   storico: (ordineId: string) => Promise<RisultatoStorico>;
+  /** L'istante di «adesso» (serve a leggere «scaduto», D52). Se manca si prende al momento in cui arrivano gli ordini. */
+  adesso?: Date;
 }
 
 const SCELTE_PAGATO: { valore: FiltroPagato | undefined; testo: string }[] = [
   { valore: undefined, testo: "Tutti" },
   { valore: "si", testo: "Pagati" },
   { valore: "no", testo: "Non pagati" },
+];
+
+// ── i filtri nuovi del Rilascio 2 ──────────────────────────────────────────
+
+/** Le scelte dei filtri nuovi. Vuote = nessun filtro in più. */
+export interface SceltaFiltriR2 {
+  canale?: "sito" | "vecchio";
+  statoPagamento?: StatoPagamento;
+  fatturaDaFare: boolean;
+  giacenzaDaVerificare: boolean;
+  /** Il predefinito è «sì»: gli ordini di prova si vedono (col badge), come ogni altro ordine di oggi. */
+  mostraProva: boolean;
+}
+export const SCELTE_R2_VUOTE: SceltaFiltriR2 = {
+  fatturaDaFare: false,
+  giacenzaDaVerificare: false,
+  mostraProva: true,
+};
+
+/** Le scelte → i filtri di `ordini-ui`. Con le scelte vuote è `{}`: la lista è identica a quella di prima. */
+export function filtriR2(s: SceltaFiltriR2, adesso: Date): Partial<Filtri> {
+  const f: Partial<Filtri> = {};
+  if (s.canale) f.canale = s.canale;
+  if (s.statoPagamento) {
+    f.statoPagamento = s.statoPagamento;
+    f.adesso = adesso;
+  }
+  if (s.fatturaDaFare) f.fatturaDaFare = true;
+  if (s.giacenzaDaVerificare) f.giacenzaDaVerificare = true;
+  if (!s.mostraProva) f.mostraProva = false;
+  return f;
+}
+
+/** Il badge di pagamento sulla riga. Per gli ordini di prima (`pagato` / `da_incassare`) è quello di sempre. */
+const BADGE_PAGAMENTO: Record<StatoPagamento, { testo: string; tono: Tono }> = {
+  pagato: { testo: "Pagato", tono: "vinta" },
+  da_incassare: { testo: "Non pagato", tono: "neutro" },
+  in_attesa: { testo: "In attesa", tono: "da_lavorare" },
+  scaduto: { testo: "Scaduto", tono: "neutro" },
+  fallito: { testo: "Non riuscito", tono: "persa" },
+  rimborsato_in_parte: { testo: "Rimborsato in parte", tono: "in_corso" },
+  rimborsato: { testo: "Rimborsato", tono: "neutro" },
+};
+/** Chi non ha (ancora o mai) pagato: i numeri accanto ai filtri e il numeretto del menu non li contano. */
+const NON_PAGATI: readonly StatoPagamento[] = ["in_attesa", "scaduto", "fallito"];
+/** Come in `ordini-ui` (filtro «Fattura da fare»): richiesta e non ancora emessa. Qui serve solo al segno sulla riga. */
+const fatturaDaFare = (o: Ordine): boolean => o.fatturaRichiesta && o.fatturaEmessaIl === null;
+
+//  Chip e non menu a tendina: la scheda ha già un menu per ogni riga (lo stato dell'ordine) e così le scelte si vedono tutte insieme.
+const SCELTE_CANALE: { valore: SceltaFiltriR2["canale"]; testo: string }[] = [
+  { valore: undefined, testo: "Tutti" },
+  { valore: "sito", testo: "Cassa nuova" },
+  { valore: "vecchio", testo: "Prima della cassa nuova" },
+];
+const SCELTE_PAGAMENTO: { valore: StatoPagamento | undefined; testo: string }[] = [
+  { valore: undefined, testo: "Tutti" },
+  { valore: "in_attesa", testo: "In attesa" },
+  { valore: "scaduto", testo: "Scaduto" },
+  { valore: "fallito", testo: "Non riuscito" },
+  { valore: "pagato", testo: "Pagato" },
+  { valore: "rimborsato_in_parte", testo: "Rimborsato in parte" },
+  { valore: "rimborsato", testo: "Rimborsato" },
+  { valore: "da_incassare", testo: "Da incassare" },
 ];
 
 export function ElencoOrdini({
@@ -80,9 +157,12 @@ export function ElencoOrdini({
   imposta,
   esegui,
   storico,
+  adesso,
 }: PropsElencoOrdini) {
   const [ricerca, setRicerca] = useState("");
   const [pagato, setPagato] = useState<FiltroPagato | undefined>(undefined);
+  const [scelte, setScelte] = useState<SceltaFiltriR2>(SCELTE_R2_VUOTE);
+  const idProva = useId();
   const [visibili, setVisibili] = useState(PAGINA_RIGHE);
   const [occupato, setOccupato] = useState(false);
   const [esito, setEsito] = useState<Esito | null>(null);
@@ -90,13 +170,21 @@ export function ElencoOrdini({
   const ultimaRiga = useRef<HTMLElement | null>(null);
   const comandi = comandiAttivi(migrazionePronta);
 
-  const righe = useMemo(
-    () => filtraOrdini(lettura.ordini, { periodo, stato, pagato, ricerca }),
-    [lettura.ordini, periodo, stato, pagato, ricerca],
-  );
+  //  «Adesso» cambia quando arrivano ordini nuovi, non a ogni disegno: serve solo a leggere «scaduto».
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- l'istante si rinnova con la lettura degli ordini
+  const ora = useMemo(() => adesso ?? new Date(), [adesso, lettura.ordini]);
+  const nuovi = useMemo(() => filtriR2(scelte, ora), [scelte, ora]);
+  //  Con uno stato scelto («Nuovo», anche dal clic della Panoramica) restano fuori gli ordini in attesa, scaduti e non riusciti: non sono
+  //  «da preparare» (SPEC 8A n. 1) e le righe tornano col numero del chip. Con «Tutti» o scegliendo un pagamento, la lista è quella di oggi.
+  const righe = useMemo(() => {
+    const tutte = filtraOrdini(lettura.ordini, { periodo, stato, pagato, ricerca, ...nuovi });
+    return stato && !scelte.statoPagamento
+      ? tutte.filter((o) => !NON_PAGATI.includes(statoEffettivo(o, ora)))
+      : tutte;
+  }, [lettura.ordini, periodo, stato, pagato, ricerca, nuovi, scelte.statoPagamento, ora]);
   const conteggi = useMemo(
-    () => conteggiPerStato(lettura.ordini, { periodo, pagato, ricerca }),
-    [lettura.ordini, periodo, pagato, ricerca],
+    () => conteggiPerStato(lettura.ordini, { periodo, pagato, ricerca, ...nuovi }),
+    [lettura.ordini, periodo, pagato, ricerca, nuovi],
   );
   const aperto = ordineDaId(lettura.ordini, ordine);
 
@@ -149,9 +237,14 @@ export function ElencoOrdini({
     setVisibili(PAGINA_RIGHE);
     imposta?.({ stato: s });
   };
+  const scegli = (p: Partial<SceltaFiltriR2>) => {
+    setScelte((s) => ({ ...s, ...p }));
+    setVisibili(PAGINA_RIGHE);
+  };
   const togliFiltri = () => {
     setRicerca("");
     setPagato(undefined);
+    setScelte(SCELTE_R2_VUOTE);
     scegliStato(undefined);
   };
   const apri = (o: Ordine, el: HTMLElement) => {
@@ -166,7 +259,11 @@ export function ElencoOrdini({
 
   const testoConf = conferma ? testoConferma(conferma.azione, conferma.ordine) : null;
   const mostrate = righe.slice(0, visibili);
-  const filtrato = !!(stato || pagato || ricerca.trim());
+  const filtrato = !!(stato || pagato || ricerca.trim() || Object.keys(nuovi).length > 0);
+  //  Righe che si vedono ma non sono nei numeri accanto ai filtri: se si sceglie un pagamento, i numeri le contano e la nota non serve.
+  const nonPagati = scelte.statoPagamento
+    ? 0
+    : righe.filter((o) => NON_PAGATI.includes(statoEffettivo(o, ora))).length;
 
   return (
     <div className="flex flex-col gap-3">
@@ -231,6 +328,47 @@ export function ElencoOrdini({
             </Segmento>
           ))}
         </div>
+        <div
+          className="flex flex-wrap items-center gap-x-3 gap-y-2"
+          role="group"
+          aria-label="Altri filtri"
+        >
+          <ScelteUna
+            nome="Canale"
+            scelte={SCELTE_CANALE}
+            valore={scelte.canale}
+            onScegli={(canale) => scegli({ canale })}
+          />
+          <ScelteUna
+            nome="Pagamento"
+            scelte={SCELTE_PAGAMENTO}
+            valore={scelte.statoPagamento}
+            onScegli={(statoPagamento) => scegli({ statoPagamento })}
+          />
+          <Segmento
+            attivo={scelte.fatturaDaFare}
+            onClick={() => scegli({ fatturaDaFare: !scelte.fatturaDaFare })}
+          >
+            Fattura da fare
+          </Segmento>
+          <Segmento
+            attivo={scelte.giacenzaDaVerificare}
+            onClick={() => scegli({ giacenzaDaVerificare: !scelte.giacenzaDaVerificare })}
+          >
+            Giacenza da verificare
+          </Segmento>
+          <label
+            htmlFor={idProva}
+            className="flex items-center gap-2 text-[12px] text-muted-foreground"
+          >
+            <Switch
+              id={idProva}
+              checked={scelte.mostraProva}
+              onCheckedChange={(v) => scegli({ mostraProva: v })}
+            />
+            Mostra ordini di prova
+          </label>
+        </div>
       </BarraAzioni>
 
       {!comandi && (
@@ -274,9 +412,17 @@ export function ElencoOrdini({
             {plurale(righe.length, "ordine", "ordini")}
             {righe.length > mostrate.length ? ` · se ne vedono ${mostrate.length}` : ""}
           </p>
+          {nonPagati > 0 && (
+            <p className="-mt-2 text-[11.5px] leading-snug text-muted-foreground">
+              {nonPagati === 1 ? "1 ordine non è" : `${nonPagati} ordini non sono`} ancora pagati
+              (in attesa, scaduti o non riusciti): non sono nei numeri accanto ai filtri né nel
+              numeretto del menu.
+            </p>
+          )}
           <ul className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card">
             {mostrate.map((o) => {
               const fuori = importoFuoriNorma(o);
+              const badge = badgeRiga(o, ora);
               return (
                 <li
                   key={o.id}
@@ -285,7 +431,7 @@ export function ElencoOrdini({
                 >
                   <button
                     type="button"
-                    aria-label={`Apri ordine ${o.ref}, ${nomeCliente(o)}`}
+                    aria-label={`Apri ordine ${o.ref}, ${nomeCliente(o)}, ${badge.map((b) => b.testo).join(", ")}`}
                     onClick={(e) => apri(o, e.currentTarget)}
                     className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-3 gap-y-0.5 rounded-md text-left text-[13px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
@@ -305,9 +451,16 @@ export function ElencoOrdini({
                     >
                       {fuori ? "importo fuori norma" : euro(o.totale)}
                     </span>
-                    <Chip tono={eIncassato(o) ? "vinta" : "neutro"}>
-                      {eIncassato(o) ? "Pagato" : "Non pagato"}
-                    </Chip>
+                    <span className="flex flex-wrap items-center gap-1">
+                      {badge.map((b) => (
+                        <Chip key={b.testo} tono={b.tono} title={b.titolo}>
+                          {b.testo}
+                        </Chip>
+                      ))}
+                      {o.canale === "sito" && (
+                        <span className="text-[11.5px] text-muted-foreground">Cassa nuova</span>
+                      )}
+                    </span>
                   </button>
                   <select
                     aria-label={`Stato ordine ${o.ref}`}
@@ -380,6 +533,45 @@ export function ElencoOrdini({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+    </div>
+  );
+}
+
+/** I badge della riga, nell'ordine in cui si vedono: pagamento, PROVA, fattura, giacenza. Gli stessi testi vanno nell'etichetta del bottone (lettore di schermo). */
+function badgeRiga(o: Ordine, adesso: Date): { testo: string; tono: Tono; titolo?: string }[] {
+  const b = BADGE_PAGAMENTO[statoEffettivo(o, adesso)];
+  const r: { testo: string; tono: Tono; titolo?: string }[] = [{ testo: b.testo, tono: b.tono }];
+  if (o.prova)
+    r.push({
+      testo: "PROVA",
+      tono: "in_sospeso",
+      titolo: "Ordine di prova: non conta nelle cifre",
+    });
+  if (fatturaDaFare(o)) r.push({ testo: "Fattura da fare", tono: "in_corso" });
+  if (o.giacenzaDaVerificare) r.push({ testo: "Giacenza da verificare", tono: "persa" });
+  return r;
+}
+
+/** Un gruppo di chip dove se ne sceglie uno solo: il nome del gruppo è scritto (per chi guarda e per il lettore di schermo). */
+function ScelteUna<V extends string | undefined>({
+  nome,
+  scelte,
+  valore,
+  onScegli,
+}: {
+  nome: string;
+  scelte: { valore: V; testo: string }[];
+  valore: V;
+  onScegli: (v: V) => void;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label={nome}>
+      <span className="text-[12px] text-muted-foreground">{nome}</span>
+      {scelte.map((x) => (
+        <Segmento key={x.testo} attivo={valore === x.valore} onClick={() => onScegli(x.valore)}>
+          {x.testo}
+        </Segmento>
+      ))}
     </div>
   );
 }
