@@ -182,7 +182,7 @@ export async function prove(mod, { c, gruppo, radice }) {
     let numero = 0;
     const m = { letture: [], stati: [], programmati: 0 };
     const prossima = () => {
-      const r = Array.isArray(risposte) ? risposte[Math.min(m.letture.length, risposte.length - 1)] : risposte;
+      const r = Array.isArray(risposte) ? risposte[Math.min(m.letture.length - 1, risposte.length - 1)] : risposte;
       return typeof r === "function" ? r() : r;
     };
     const controllo = P.creaControllo({
