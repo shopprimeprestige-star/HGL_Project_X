@@ -277,8 +277,8 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("nessun log, nessun accesso diretto al database da questi file", [false, false, false, false, false], nudi.map((t) => /console\.|@\/integrations\/supabase|createClient|\.from\(["']/.test(t)));
   const guscio = nudi[0];
   c("il guscio non nomina /api/crm/stripe né chiama le letture di Stripe: la lettura sta nel pannello, che si disegna solo con ?scheda=cassa", [false, false, true], [/api\/crm\/stripe/.test(guscio), /caricaStripe\(|provaAdesso\(/.test(guscio), /scheda === "cassa"[\s\S]{0,200}<PannelloCassa/.test(guscio)]);
-  c("il pannello legge Stripe e la cassa dentro un effetto, mai nel disegno e mai a livello di modulo", [true, true], [
-    /useEffect\(\(\) => \{[\s\S]{0,400}caricaStripe\(/.test(nudi[2]), !/^(const|let)\s.*caricaStripe\(/m.test(nudi[2]),
+  c("il pannello legge Stripe e la cassa solo da un effetto (`carica`), mai nel disegno e mai a livello di modulo", [true, true, 1], [
+    /useEffect\(\(\) => \{[\s\S]{0,300}void carica\(\)/.test(nudi[2]), /const carica = useCallback\(async \(\) => \{[\s\S]{0,300}caricaStripe\(/.test(nudi[2]), (nudi[2].match(/caricaStripe\(/g) || []).length,
   ]);
   c("il guscio mostra il nastro con `mostraNastro` (solo se Stripe dice prova) e tiene lo stato fra una scheda e l'altra", true, /mostraNastro\(/.test(guscio) && /<NastroProva/.test(guscio));
   c("le sei linguette: Panoramica, Ordini, Prodotti, Cassa, Spedizioni, Email", [true, true, true], [/titolo: "Cassa"/.test(guscio), /titolo: "Spedizioni"/.test(guscio), /titolo: "Email"/.test(guscio)]);

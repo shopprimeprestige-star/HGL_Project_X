@@ -21,24 +21,34 @@
  *  `?scheda=prodotti` è l'elenco del catalogo, `?scheda=prodotti&id=<id>` la scheda di un prodotto (T15). Il catalogo si legge
  *  SOLO lì: `useNegozio()` sta in `LinguettaProdotti`, che si disegna solo con quella scheda e dopo il «return» di chi non ha il
  *  permesso. Panoramica e Ordini non fanno nessuna lettura del CMS. Il periodo e «Aggiorna» della pagina sono degli ordini: nella
- *  linguetta dei prodotti non compaiono. Il permesso è quello della pagina (`pagamenti`, permessi.ts); il rifiuto vero lo dà la rotta. */
+ *  linguetta dei prodotti non compaiono. Il permesso è quello della pagina (`pagamenti`, permessi.ts); il rifiuto vero lo dà la rotta.
+ *
+ *  ── LE LINGUETTE DEL RILASCIO 2 (Shop completo, T62) ───────────────────────────
+ *  `?scheda=cassa` (D59: Stripe, cassa del sito, «Pagamento sicuro»), `?scheda=spedizioni` (T65) e `?scheda=email` (T66; gli ultimi
+ *  due sono segnaposto finché non arrivano). Come per «Prodotti», ciascuna legge SOLO quando si apre: la lettura di Stripe sta in
+ *  `PannelloCassa`, che si disegna solo con `?scheda=cassa`; aprendo Panoramica o Ordini non si chiama nessuna rotta di Stripe.
+ *  Il nastro «PROVA: nessun pagamento è reale» (D58) sta in cima a tutte le schede, ma si accende appena la scheda «Cassa» ha letto
+ *  Stripe e lo dice «prova»: il guscio ne tiene lo stato e passa da una scheda all'altra senza perderlo. Il periodo e «Aggiorna»
+ *  sono degli ordini: le schede nuove non li mostrano. Il permesso di «Email» (`impostazioni`) lo decide il server: se rifiuta,
+ *  la linguetta sparisce (`onNegato`). */
 import { useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowLeft, Lock, RefreshCw, ShoppingBag } from "lucide-react";
+import { ArrowLeft, Lock, Mail, RefreshCw, ShoppingBag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { BarraAzioni, Pagina, Titolo, Vuoto, dataBreve } from "@/crm/ui";
+import { fetchCRM } from "@/crm/AuthContext";
 import { DateRangeFilter, type DateRange } from "@/crm/DateRangeFilter";
 import { useOrdini } from "@/crm/ecommerce/useOrdini";
 import { oraHHmm } from "@/crm/ecommerce/client";
 import {
   AVVISO_MIGRAZIONE,
   RANGE_TUTTO,
-  leggiRicerca,
   periodoDaRange,
   rangeDiPartenza,
   type RicercaEcommerce,
 } from "@/crm/ecommerce/pagina";
+import { leggiRicercaEstesa, mostraNastro, type SchedaR2, type StatoStripe } from "@/crm/ecommerce/pagina-r2";
 import { MAX_ORDINI_LETTI } from "@/crm/ecommerce/ordine";
 import { Avviso } from "@/crm/ecommerce/Avviso";
 import { Panoramica } from "@/crm/ecommerce/Panoramica";
@@ -49,13 +59,16 @@ import { ElencoProdotti } from "@/crm/ecommerce/prodotti/ElencoProdotti";
 import { SchedaProdotto } from "@/crm/ecommerce/prodotti/SchedaProdotto";
 import { Categorie } from "@/crm/ecommerce/prodotti/Categorie";
 import { ApriShop } from "@/crm/ecommerce/prodotti/ApriShop";
+import { NastroProva, PannelloCassa } from "@/crm/ecommerce/cassa/PannelloCassa";
+import { ElencoTariffe } from "@/crm/ecommerce/spedizioni/ElencoTariffe";
+import { ModelliEmail } from "@/crm/ecommerce/email/ModelliEmail";
 
-/** L'indirizzo della pagina: quello di T11 (Panoramica e Ordini) più `?scheda=prodotti` con l'`id` del prodotto aperto. */
-type RicercaPagina = Omit<RicercaEcommerce, "scheda"> & { scheda?: "ordini" | "prodotti"; id?: string };
+/** L'indirizzo della pagina: quello di T11 (Panoramica e Ordini), `?scheda=prodotti` con l'`id` del prodotto aperto, e dal R2 `?scheda=cassa|spedizioni|email`. */
+type RicercaPagina = Omit<RicercaEcommerce, "scheda"> & { scheda?: "ordini" | "prodotti" | SchedaR2; id?: string };
 /** Come l'id valido per il server: lettere, numeri e trattini. Chi scrive a mano un id storto trova l'elenco. */
 const ID_PRODOTTO = /^[A-Za-z0-9-]{1,64}$/;
 function leggiRicercaPagina(raw: Record<string, unknown>): RicercaPagina {
-  if (raw.scheda !== "prodotti") return leggiRicerca(raw);
+  if (raw.scheda !== "prodotti") return leggiRicercaEstesa(raw);
   return typeof raw.id === "string" && ID_PRODOTTO.test(raw.id) ? { scheda: "prodotti", id: raw.id } : { scheda: "prodotti" };
 }
 
@@ -70,7 +83,18 @@ const LINGUETTE = [
   { scheda: undefined, titolo: "Panoramica", domanda: "Come sta andando lo shop" },
   { scheda: "ordini", titolo: "Ordini", domanda: "Stato, pagamenti, spedizioni" },
   { scheda: "prodotti", titolo: "Prodotti", domanda: "Catalogo, giacenze, pubblicazione" },
+  { scheda: "cassa", titolo: "Cassa", domanda: "Stripe, cassa del sito, metodi" },
+  { scheda: "spedizioni", titolo: "Spedizioni", domanda: "Tariffe e corrieri" },
+  { scheda: "email", titolo: "Email", domanda: "I testi per i clienti" },
 ] as const;
+
+/** La riga sotto il titolo, per le schede che non sono degli ordini. */
+const NOTA_SCHEDA: Partial<Record<string, string>> = {
+  prodotti: "I prodotti dello shop",
+  cassa: "Pagamenti e cassa del sito",
+  spedizioni: "Tariffe e corrieri",
+  email: "Le email ai clienti",
+};
 
 /** «dal 20 ott al 18 nov», «solo il 5 nov», con «Tutto lo storico» davanti se non c'è nessuna data. */
 function descriviPeriodo(range: DateRange, da: string, a: string): string {
@@ -83,6 +107,10 @@ function PaginaEcommerce() {
   const ricerca = Route.useSearch();
   const navigate = Route.useNavigate();
   const lettura = useOrdini();
+  //  Com'è Stripe, saputo dalla scheda «Cassa» (R2): serve al nastro «PROVA» su tutte le schede. `null` = non ancora letto.
+  const [stripe, setStripe] = useState<StatoStripe | null>(null);
+  //  Il server ha rifiutato «Email» (permesso `impostazioni`): la linguetta sparisce.
+  const [emailNegata, setEmailNegata] = useState(false);
   const [range, setRange] = useState<DateRange>(() => rangeDiPartenza(new Date()));
   //  «Adesso» cambia a ogni lettura, non a ogni disegno: i conti restano fermi finché non arrivano dati nuovi.
   const adesso = useMemo(() => new Date(), [lettura.ultimoAggiornamento]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -92,6 +120,8 @@ function PaginaEcommerce() {
   );
 
   const scheda = ricerca.scheda ?? "panoramica";
+  //  Il periodo e «Aggiorna» sono degli ordini: Panoramica e Ordini, nessun'altra scheda.
+  const schedaOrdini = scheda === "panoramica" || scheda === "ordini";
   const bloccato = lettura.errore?.tipo === "permesso" || lettura.errore?.tipo === "sessione";
   const aggiorna = () => void lettura.aggiorna();
   //  Dagli «ordini fermi» (di sempre) si apre l'elenco su «Tutto»: con i 30 giorni di partenza la cifra e le righe non coinciderebbero.
@@ -150,15 +180,16 @@ function PaginaEcommerce() {
 
   return (
     <Pagina larga>
+      {mostraNastro(stripe) && <NastroProva />}
       <Titolo
         testo="E-commerce"
         icona={ShoppingBag}
-        nota={scheda === "prodotti" ? "I prodotti dello shop" : "Gli ordini dello shop"}
-        azioni={scheda === "prodotti" ? undefined : azioni}
+        nota={NOTA_SCHEDA[scheda] ?? "Gli ordini dello shop"}
+        azioni={schedaOrdini ? azioni : undefined}
       />
 
-      <nav aria-label="Sezioni dell'e-commerce" className="grid grid-cols-3 gap-1.5 md:max-w-2xl">
-        {LINGUETTE.map((l) => {
+      <nav aria-label="Sezioni dell'e-commerce" className="grid grid-cols-2 gap-1.5 sm:grid-cols-3 lg:max-w-5xl lg:grid-cols-6">
+        {LINGUETTE.filter((l) => !(l.scheda === "email" && emailNegata)).map((l) => {
           const attiva = (l.scheda ?? "panoramica") === scheda;
           return (
             <Link
@@ -198,6 +229,17 @@ function PaginaEcommerce() {
           id={ricerca.id}
           apri={(id) => void navigate({ search: id ? { scheda: "prodotti", id } : { scheda: "prodotti" } })}
         />
+      ) : scheda === "cassa" ? (
+        //  Stripe e la cassa si leggono qui e solo qui: il pannello legge appena si disegna.
+        <PannelloCassa fetch={fetchCRM} sulloStato={setStripe} />
+      ) : scheda === "spedizioni" ? (
+        <ElencoTariffe fetch={fetchCRM} />
+      ) : scheda === "email" ? (
+        emailNegata ? (
+          <Vuoto icona={Mail} titolo="Le email non sono per te" testo="Il tuo utente non può gestire i testi delle email: chiedi a un amministratore." />
+        ) : (
+          <ModelliEmail fetch={fetchCRM} onNegato={() => setEmailNegata(true)} />
+        )
       ) : (
         <>
       {/*  Il periodo vale per tutte le schede. Non è appiccicato in alto: sul telefono il filtro occupa più righe e coprirebbe la pagina. */}
