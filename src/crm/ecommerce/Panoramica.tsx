@@ -2,6 +2,11 @@
  *  Commessa 2026-11-17-crm-ecommerce, T11 (SPEC §3.2). Qui NON si calcola niente: ogni cifra viene da `conti.ts` (T4), sullo
  *  STESSO elenco di ordini che leggerà la scheda «Ordini» (`useOrdini`, una lettura sola nel guscio). Si disegna soltanto.
  *
+ *  ── RILASCIO 2 (T63, SPEC 8A n. 7; SPEC 7.4 n. 4) ──────────────────────────────
+ *   Le quattro cifre principali sono quelle di sempre e NON leggono né gli ordini in attesa né quelli di prova né i rimborsi. Sotto, in una riga
+ *   a parte, si dice quanti sono: «N ordini in attesa di pagamento», «N ordini di prova non contati», «Rimborsato» (già tolto da «Incassato»).
+ *   La riga compare solo se c'è qualcosa da dire: con i soli ordini di prima la pagina è identica a prima.
+ *
  *  ── LE ETICHETTE DICONO QUELLO CHE I CONTI FANNO ──────────────────────────────
  *   · «Incassato» = gli ordini FATTI nel periodo che risultano pagati, non i soldi entrati nel periodo: un ordine del 30/11
  *     pagato il 2/12 sta a novembre. Include gli annullati già pagati («di cui N annullati»), così la cifra coincide con le
@@ -63,7 +68,8 @@ export function Panoramica({ lettura, periodo, adesso, apriStato }: PropsPanoram
   const t = adesso.getTime();
   const dati = useMemo(
     () => ({
-      p: panoramica(ordini, periodo),
+      // `adesso` serve solo a leggere «scaduto» un ordine in attesa la cui sessione è finita: le cifre principali non lo usano.
+      p: panoramica(ordini, periodo, new Date(t)),
       fermi: ordiniFermi(ordini, new Date(t)),
       giorni: andamento(ordini, periodo),
       venduti: piuVenduti(ordini, periodo),
@@ -127,6 +133,31 @@ export function Panoramica({ lettura, periodo, adesso, apriStato }: PropsPanoram
         «Incassato» = ordini del periodo risultati pagati, anche se il pagamento è arrivato dopo.
         Gli ordini fermi sono di sempre: non seguono il periodo.
       </p>
+
+      {(p.inAttesa > 0 || p.prova > 0 || p.rimborsato.n > 0) && (
+        <section aria-label="Fuori dalle cifre" className="-mt-1 flex flex-col gap-1">
+          <h2 className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+            Fuori dalle cifre
+          </h2>
+          <ul className="flex flex-col gap-0.5 text-[12.5px]">
+            {p.inAttesa > 0 && (
+              <li>{plurale(p.inAttesa, "ordine", "ordini")} in attesa di pagamento</li>
+            )}
+            {p.prova > 0 && (
+              <li>
+                {plurale(p.prova, "ordine di prova non contato", "ordini di prova non contati")}
+              </li>
+            )}
+            {p.rimborsato.n > 0 && (
+              <li>
+                Rimborsato: {euro(p.rimborsato.importo)} su{" "}
+                {plurale(p.rimborsato.n, "ordine", "ordini")}{" "}
+                <span className="text-muted-foreground">(già tolto da «Incassato»)</span>
+              </li>
+            )}
+          </ul>
+        </section>
+      )}
 
       {p.importiAnomali > 0 && (
         <Avviso>
