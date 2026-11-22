@@ -186,3 +186,6 @@ export function emettiEvento(nome: NomeEvento, dati?: DatiEvento): string | null
 export function emettiSoloContatore(nome: string, payload?: Record<string, unknown>): void {
   api()?.emettiSoloContatore(nome, payload);
 }
+
+/** Aspetta gli invii al server in corso (la cassa lo chiede prima di portare il cliente a Stripe: la navigazione li ucciderebbe). Sul server, o senza invii, risolve subito. */
+export const scaricaEventi = () => api()?.scarica() ?? Promise.resolve();

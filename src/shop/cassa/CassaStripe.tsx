@@ -17,7 +17,7 @@ import type { SpedizionePubblica } from "@/shop/cassa/spedizione";
 import { PROVINCE_IT } from "@/shop/cassa/fiscale";
 import { leggiConsenso } from "@/lib/consenso";
 import { queryPulita } from "@/lib/tracciamento/ammesse";
-import * as tracciamento from "@/lib/tracciamento/api";
+import { emettiEvento, scaricaEventi } from "@/lib/tracciamento/api";
 import {
   FRASE_CHIUSA,
   FRASE_RETE,
@@ -30,6 +30,7 @@ import {
   firmaCassa,
   leggiRisposta,
   righeDaCarrello,
+  senzaAnnullato,
   rinviaAStripe,
   separaCampi,
   tentativoCassa,
@@ -41,8 +42,6 @@ import {
 /** shortcut: la versione dei testi legali che il cliente accetta non esiste ancora (i Termini non hanno una data di versione): si usa la data
  *  di questa consegna; quando i Termini avranno una versione si legge da lì, in un posto solo. */
 const VERSIONE_TESTI = "2026-11-22";
-/** Il nome sta in una costante perché `api.ts` (R1) non esporta ancora `scaricaEventi`: se un giorno lo esporta, il rinvio lo aspetta da solo. */
-const NOME_SCARICA = "scaricaEventi";
 
 type Tariffa = SpedizionePubblica | "guasto" | null;
 
@@ -156,6 +155,8 @@ function CasellaLegge({
 export function CassaStripe({ annullato = false }: { annullato?: boolean }) {
   const { lines, count } = useCart();
   const { stato, avviso, controlla } = useRivalidaCarrello("cms");
+  // `?annullato=1` si legge una volta sola: il parametro poi esce dall'indirizzo, il messaggio resta
+  const [tornatoSenzaPagare] = useState(annullato);
   const [form, setForm] = useState<ModuloCassa>(MODULO_VUOTO);
   const [tariffa, setTariffa] = useState<Tariffa>(null);
   const [occupato, setOccupato] = useState(false);
@@ -220,23 +221,26 @@ export function CassaStripe({ annullato = false }: { annullato?: boolean }) {
     return () => window.removeEventListener("pageshow", torna);
   }, []);
 
+  /* ── `?annullato=1` fuori dall'indirizzo, PRIMA degli eventi della pagina: con quel parametro la pagina non è fra quelle ammesse al tracciamento ── */
+  useEffect(() => {
+    const l = window.location;
+    const pulito = senzaAnnullato(l.pathname, l.search, l.hash);
+    if (pulito !== l.pathname + l.search + l.hash)
+      window.history.replaceState(window.history.state, "", pulito);
+  }, []);
+
   /* ── eventi: InitiateCheckout (come la cassa di oggi) e AddShippingInfo (una volta per carrello e sessione, a indirizzo completo) ── */
   useEffect(() => {
     if (stato !== "ok" || lines.length === 0) return;
     const dati = datiEventoRighe(lines, () => undefined);
     const chiave = `hg_ic_${lines.map((l) => `${l.key}x${l.qty}`).join("+")}`;
-    if (dati && primaVolta(window.sessionStorage, chiave))
-      tracciamento.emettiEvento("InitiateCheckout", dati);
+    if (dati && primaVolta(window.sessionStorage, chiave)) emettiEvento("InitiateCheckout", dati);
   }, [stato, lines]);
   useEffect(() => {
     if (stato !== "ok" || lines.length === 0) return;
     // un attimo dopo l'ultimo tasto: non a metà dell'ultimo campo
     const t = setTimeout(() => {
-      eventoSpedizione(
-        { emetti: tracciamento.emettiEvento, archivio: window.sessionStorage },
-        form,
-        lines,
-      );
+      eventoSpedizione({ emetti: emettiEvento, archivio: window.sessionStorage }, form, lines);
     }, 800);
     return () => clearTimeout(t);
   }, [stato, lines, form]);
@@ -275,7 +279,7 @@ export function CassaStripe({ annullato = false }: { annullato?: boolean }) {
     let rinviato = false;
     try {
       // AddPaymentInfo alla pressione, prima di tutto il resto (il consenso lo guarda `emettiEvento`)
-      eventoPagamento({ emetti: tracciamento.emettiEvento }, lines);
+      eventoPagamento({ emetti: emettiEvento }, lines);
       // i prezzi si ricalcolano dal SERVER, adesso; se qualcosa è cambiato il cliente rilegge il riepilogo e conferma di nuovo
       const esito = await controlla();
       if (esito.stato !== "ok") {
@@ -333,12 +337,8 @@ export function CassaStripe({ annullato = false }: { annullato?: boolean }) {
       switch (r.tipo) {
         case "vai": {
           rinviato = true;
-          const scarica = (tracciamento as unknown as Record<string, unknown>)[NOME_SCARICA];
           await rinviaAStripe(r.url, {
-            scarica:
-              typeof scarica === "function"
-                ? () => (scarica as () => Promise<unknown>)()
-                : undefined,
+            scarica: scaricaEventi,
             attendi: (ms) => new Promise((ok) => setTimeout(ok, ms)),
             naviga: (u) => window.location.assign(u),
           });
@@ -407,7 +407,7 @@ export function CassaStripe({ annullato = false }: { annullato?: boolean }) {
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">Checkout</h1>
-      {annullato && (
+      {tornatoSenzaPagare && (
         <p
           role="status"
           className="rounded-lg border border-amber-400/40 bg-amber-400/10 px-4 py-3 text-sm text-amber-100"

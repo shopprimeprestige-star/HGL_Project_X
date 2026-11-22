@@ -203,6 +203,15 @@ export function attesaPermesso(emessoIl: number | null, adesso: number): number 
   return eta < 3500 ? 3500 - eta : 0;
 }
 
+/** L'indirizzo della cassa senza `annullato` (il ritorno da Stripe senza pagare): con quella chiave la pagina non è ammessa al tracciamento
+ *  (`ammesse.ts`), quindi si toglie dopo averla letta. Le altre chiavi e il `#…` restano com'erano. */
+export function senzaAnnullato(percorso: string, ricerca: string, hash: string): string {
+  const q = new URLSearchParams(ricerca.replace(/^\?/, ""));
+  q.delete("annullato");
+  const resto = q.toString();
+  return `${percorso}${resto ? `?${resto}` : ""}${hash}`;
+}
+
 /* ══ I TOTALI ═══════════════════════════════════════════════════════════════ */
 
 const interoNonNegativo = (n: unknown): n is number =>
