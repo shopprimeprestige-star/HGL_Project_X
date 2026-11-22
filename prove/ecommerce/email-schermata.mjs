@@ -298,6 +298,56 @@ export async function prove(mod, { c, gruppo, radice }) {
     ]);
     c("«Elimina», «Cancella», «Rimuovi» non esistono nella schermata", false, /elimin|cancell|rimuov|delete/i.test(t + tMod));
     c("la schermata non mostra mai una chiave né una variabile d'ambiente", false, /sk_|rk_|whsec_|RESEND|STRIPE_|SERVICE_ROLE/i.test(html + vVero));
+
+    // ── rifacimento (revisore, 22/11): la bozza si azzera solo dopo «Salva» ──
+    const dopo = fn("dopoScrittura");
+    const mia = { oggetto: OGGETTO, testo: `${TESTO}\nUna riga mia.` };
+    const parte = { bozze: { annullato: mia }, miei: {} };
+    const ok1 = { ok: true };
+    c("l'email è accesa, il testo è modificato e poi la si SPEGNE (o la si accende, o si approva): la bozza resta", [mia, mia, mia], ["acceso", "approva", "acceso"].map((cosa) => dopo(parte, "annullato", cosa, ok1)?.bozze?.annullato));
+    c("dopo «Salva» riuscito la bozza si azzera (ciò che era scritto ora è salvato) e non resta nessun «mio testo»", [undefined, undefined], [dopo({ bozze: { annullato: mia }, miei: { annullato: mia } }, "annullato", "salva", ok1)?.bozze?.annullato, dopo({ bozze: { annullato: mia }, miei: { annullato: mia } }, "annullato", "salva", ok1)?.miei?.annullato]);
+    c("una bozza di un ALTRO messaggio non si tocca mai", [mia], [dopo({ bozze: { annullato: mia, spedito: mia }, miei: {} }, "spedito", "salva", ok1)?.bozze?.annullato]);
+    c("un errore (anche di rete) non azzera la bozza", [mia, mia], [dopo(parte, "annullato", "salva", { ok: false, tipo: "rete" }, mia)?.bozze?.annullato, dopo(parte, "annullato", "acceso", { ok: false, tipo: "rifiutato" })?.bozze?.annullato]);
+    c("`scrivi` passa dalla funzione pura (non azzera la bozza da sé)", [true, false], [/dopoScrittura\(/.test(nudo0()), /setBozze\(\(b\) => \(\{ \.\.\.b, \[chiave\]: undefined \}\)\);\s*\/\/ ciò che era/.test(nudo0())]);
+    function nudo0() { return senzaCommenti(sorgente); }
+
+    // ── conflitto in salvataggio: si rilegge e si vede il testo dell'altra persona; il mio resta da parte ──
+    const dbK = database(conTestoVero());
+    const kk = collega({ db: dbK });
+    const vecchioK = (await afn("caricaModelli")(kk.f)).modelli.find((m) => m.chiave === "annullato");
+    await afn("salvaModello")(kk.f, vecchioK, { oggetto: OGGETTO, testo: "Testo dell'altra persona {nome}" });
+    const mioK = { oggetto: OGGETTO, testo: "Il mio testo {nome}" };
+    const rK = await afn("salvaModello")(kk.f, vecchioK, mioK);
+    const riletti = await afn("caricaModelli")(kk.f);
+    const dopoK = dopo({ bozze: { annullato: mioK }, miei: {} }, "annullato", "salva", rK, mioK);
+    c("conflitto: l'esito è «conflitto», il testo vero è quello dell'altra persona, la bozza lascia il posto al testo riletto e il mio testo resta da parte", ["conflitto", "Testo dell'altra persona {nome}", undefined, mioK], [rK.tipo, riletti.modelli?.find((m) => m.chiave === "annullato")?.testo, dopoK?.bozze?.annullato, dopoK?.miei?.annullato]);
+    const vK = vista({ modelli: riletti.modelli, bozze: dopoK?.bozze ?? {}, miei: dopoK?.miei ?? {} });
+    const tK = testo(vK);
+    c("la schermata mostra il testo dell'altra persona nel campo, e il mio testo non salvato accanto, con il modo di rimetterlo o scartarlo", [true, true, true, true], [vK.includes("Testo dell&#x27;altra persona {nome}") || vK.includes("Testo dell'altra persona {nome}"), /Il tuo testo non salvato/.test(tK), tK.includes("Il mio testo {nome}"), tag(vK, `Rimetti il mio testo: ${nome("annullato")}`) !== "" && tag(vK, `Scarta il mio testo: ${nome("annullato")}`) !== ""]);
+    c("senza conflitto non compare nessun «testo non salvato»", false, /Il tuo testo non salvato/.test(testo(vista({ modelli: lVero.modelli }))));
+    c("«Rimetti il mio testo» rimette la bozza e toglie il riquadro; «Scarta» lo toglie e basta", [mioK, undefined, undefined, undefined], [fn("rimettiMio")({ bozze: {}, miei: { annullato: mioK } }, "annullato")?.bozze?.annullato, fn("rimettiMio")({ bozze: {}, miei: { annullato: mioK } }, "annullato")?.miei?.annullato, fn("scartaMio")({ bozze: {}, miei: { annullato: mioK } }, "annullato")?.miei?.annullato, fn("scartaMio")({ bozze: {}, miei: { annullato: mioK } }, "annullato")?.bozze?.annullato]);
+
+    // ── le frasi dei motivi: UNA costante sola, per il server e per la scheda ──
+    const FR = mod["shop/email/frasi-motivo"]?.FRASI_MOTIVO;
+    const MOTIVI5 = ["spento", "vuoto", "segnaposto", "non_approvato", "variabile_sconosciuta"];
+    c("`src/shop/email/frasi-motivo.ts` ha una frase per ciascuno dei cinque motivi", [[...MOTIVI5].sort(), true], [Object.keys(FR ?? {}).sort(), MOTIVI5.every((m) => typeof FR?.[m] === "string" && FR[m].length > 10)]);
+    const semeK = (await afn("caricaModelli")(collega().f)).modelli?.[0];
+    const conMotivo = (motivo) => fn("puoAccendere")({ ...semeK, contenuto: { ok: false, motivo } }, false).frase;
+    c("la scheda dà proprio quelle frasi (segnaposto, variabile sconosciuta, vuoto)", [FR?.segnaposto, FR?.variabile_sconosciuta, FR?.vuoto], [conMotivo("segnaposto"), conMotivo("variabile_sconosciuta"), conMotivo("vuoto")]);
+    const server = collega({ db: database(conTestoVero()) });
+    const nonAppSrv = await (await server.f(URL_ACC(), post_({ azione: "modello_acceso", chiave: "annullato", acceso: true }))).json();
+    const sgSrv = await (await collega().f(URL_ACC(), post_({ azione: "modello_acceso", chiave: "annullato", acceso: true }))).json();
+    c("il server, accendendo, dà proprio quelle frasi (non approvato, segnaposto)", [FR?.non_approvato, FR?.segnaposto], [nonAppSrv.frase, sgSrv.frase]);
+    const antSrv = await (await collega().f(URL_ACC(), post_({ azione: "anteprima", chiave: "annullato", oggetto: "a", testo: "{{x}}" }))).json();
+    c("…e anche l'anteprima del server", FR?.segnaposto, antSrv.contenuto?.frase);
+    function URL_ACC() { return "/api/crm/negozio-email"; }
+    function post_(corpo) { return { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(corpo) }; }
+    const srvSrc = senzaCommenti(readFileSync(join(radice, "src/crm/negozio/email.server.ts"), "utf8"));
+    c("né il server né la scheda scrivono più le frasi da sé: le importano dal modulo puro", [true, true, false, false], [/shop\/email\/frasi-motivo/.test(srvSrc), /shop\/email\/frasi-motivo/.test(nudo0()), /Il messaggio è spento|ha ancora un segnaposto/.test(srvSrc), /Il messaggio è spento|ha ancora un segnaposto/.test(nudo0())]);
+
+    // ── su iPhone un campo sotto i 16 px fa lo zoom: sul telefono 16 px (text-base), dal computer 13 px ──
+    const campi = [tag(html, `Oggetto: ${nome("annullato")}`), tag(html, `Testo: ${nome("annullato")}`)];
+    c("oggetto e testo: «text-base» sul telefono e 13 px solo da `md:` in su (mai 13 px nudo)", [true, true, false, false], [...campi.map((x) => /class="[^"]*\btext-base\b/.test(x)), ...campi.map((x) => /class="[^"]*(?<![:\w-])text-\[13px\]/.test(x))]);
   } catch (e) {
     //  Una funzione che manca fa rosso la prova, non la fa crollare: le prove dopo questa devono girare.
     c("la prova della scheda gira fino in fondo", "nessuna eccezione", String(e?.stack ?? e).split("\n").slice(0, 3).join(" | "));
