@@ -181,6 +181,14 @@ export async function caricaStripe(
   return stripe ? { ok: true, stripe } : errore("server");
 }
 
+/** Lo stato di Stripe per il nastro, letto all'apertura della pagina: UNA GET, che non chiama Stripe (il server ricava prova/reale dal
+ *  prefisso della chiave). In silenzio: se la lettura fallisce, manca il permesso o la risposta non si capisce vale `null`, cioè
+ *  nessun nastro e nessun errore a schermo (gli errori li mostra la scheda «Cassa», che rilegge). Non lancia mai. */
+export async function leggiNastro(f: FetchRotta): Promise<StatoStripe | null> {
+  const r = await caricaStripe(f);
+  return r.ok ? r.stripe : null;
+}
+
 /** «Prova adesso»: una lettura innocua a Stripe, lato server. Se Stripe non è collegato il server risponde 409 con la sua frase. */
 export async function provaAdesso(f: FetchRotta): Promise<{ ok: true; frase: string } | ErroreR2> {
   const r = await chiamaRotta(f, urlStripe, {

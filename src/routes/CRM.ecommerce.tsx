@@ -26,12 +26,13 @@
  *  ── LE LINGUETTE DEL RILASCIO 2 (Shop completo, T62) ───────────────────────────
  *  `?scheda=cassa` (D59: Stripe, cassa del sito, «Pagamento sicuro»), `?scheda=spedizioni` (T65) e `?scheda=email` (T66; gli ultimi
  *  due sono segnaposto finché non arrivano). Come per «Prodotti», ciascuna legge SOLO quando si apre: la lettura di Stripe sta in
- *  `PannelloCassa`, che si disegna solo con `?scheda=cassa`; aprendo Panoramica o Ordini non si chiama nessuna rotta di Stripe.
- *  Il nastro «PROVA: nessun pagamento è reale» (D58) sta in cima a tutte le schede, ma si accende appena la scheda «Cassa» ha letto
- *  Stripe e lo dice «prova»: il guscio ne tiene lo stato e passa da una scheda all'altra senza perderlo. Il periodo e «Aggiorna»
+ *  `PannelloCassa`, che si disegna solo con `?scheda=cassa`; aprendo Panoramica o Ordini non si chiama «Prova adesso» né si legge la cassa.
+ *  Il nastro «PROVA: nessun pagamento è reale» (D58) sta in cima a OGNI scheda, anche aprendo direttamente Ordini: il guscio fa UNA
+ *  lettura leggera dello stato all'apertura (`GET /api/crm/stripe`, che non chiama Stripe), e se la lettura fallisce o manca il permesso
+ *  non mostra né nastro né errore. La scheda «Cassa» rilegge e tiene lo stato aggiornato. Il periodo e «Aggiorna»
  *  sono degli ordini: le schede nuove non li mostrano. Il permesso di «Email» (`impostazioni`) lo decide il server: se rifiuta,
  *  la linguetta sparisce (`onNegato`). */
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowLeft, Lock, Mail, RefreshCw, ShoppingBag } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -48,7 +49,7 @@ import {
   rangeDiPartenza,
   type RicercaEcommerce,
 } from "@/crm/ecommerce/pagina";
-import { leggiRicercaEstesa, mostraNastro, type SchedaR2, type StatoStripe } from "@/crm/ecommerce/pagina-r2";
+import { leggiNastro, leggiRicercaEstesa, mostraNastro, type SchedaR2, type StatoStripe } from "@/crm/ecommerce/pagina-r2";
 import { MAX_ORDINI_LETTI } from "@/crm/ecommerce/ordine";
 import { Avviso } from "@/crm/ecommerce/Avviso";
 import { Panoramica } from "@/crm/ecommerce/Panoramica";
@@ -107,8 +108,19 @@ function PaginaEcommerce() {
   const ricerca = Route.useSearch();
   const navigate = Route.useNavigate();
   const lettura = useOrdini();
-  //  Com'è Stripe, saputo dalla scheda «Cassa» (R2): serve al nastro «PROVA» su tutte le schede. `null` = non ancora letto.
+  //  Com'è Stripe: serve al nastro «PROVA» su tutte le schede. `null` = non letto (o lettura fallita: allora niente nastro e niente errore).
   const [stripe, setStripe] = useState<StatoStripe | null>(null);
+  //  UNA lettura leggera all'apertura della pagina: è la GET dello stato, che non chiama Stripe (il server guarda il prefisso della chiave).
+  //  «Prova adesso» e la lettura della cassa restano della scheda «Cassa». La scheda, quando si apre, rilegge e tiene il nastro aggiornato.
+  useEffect(() => {
+    let vivo = true;
+    void leggiNastro(fetchCRM).then((s) => {
+      if (vivo && s) setStripe(s);
+    });
+    return () => {
+      vivo = false;
+    };
+  }, []);
   //  Il server ha rifiutato «Email» (permesso `impostazioni`): la linguetta sparisce.
   const [emailNegata, setEmailNegata] = useState(false);
   const [range, setRange] = useState<DateRange>(() => rangeDiPartenza(new Date()));
