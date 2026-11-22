@@ -1,5 +1,5 @@
 /** ── NEGOZIO · T59 · IL CARRELLO MOSTRA LA TARIFFA DEL SERVER ───────────────
- *  `src/shop/cassa/useTariffa.ts` (il lettore e il gancio) e la modifica minima di `src/routes/shop.carrello.tsx`
+ *  `src/shop/cassa/tariffa-carrello.ts` (il lettore puro), `src/shop/useTariffa.ts` (il gancio, accanto a `useRivalidaCarrello`) e la modifica minima di `src/routes/shop.carrello.tsx`
  *  (PIANO-R2 T59, D51). Cosa deve valere:
  *   · solo con il catalogo `cms` spedizione e totale vengono da `tariffaSpedizione` del server; con `codice` il ramo è quello di oggi
  *     (la prova «identico a oggi» di shop-carrello.mjs resta verde) e il gancio non legge niente;
@@ -20,8 +20,10 @@ const assente = { stato: "assente" };
 
 export async function prove(mod, { c, gruppo, radice }) {
   gruppo("NEGOZIO · IL CARRELLO MOSTRA LA TARIFFA DEL SERVER (21/11/2026, T59)");
-  const H = mod["shop/cassa/useTariffa"];
-  c("il modulo src/shop/cassa/useTariffa.ts esiste", true, !!H);
+  //  Il lettore è puro e sta in `src/shop/cassa/` (le prove impacchettano ogni `.ts` di quella cartella: lì dentro non può importare il server);
+  //  il gancio che lo collega a `tariffaSpedizione` sta in `src/shop/`, come `useRivalidaCarrello`.
+  const H = mod["shop/cassa/tariffa-carrello"];
+  c("il modulo src/shop/cassa/tariffa-carrello.ts esiste", true, !!H);
   if (!H) return;
   const T = mod["shop/cassa/tariffe.server"];
   const CALCOLO = mod["shop/cassa/calcolo"];
@@ -90,15 +92,16 @@ export async function prove(mod, { c, gruppo, radice }) {
   }
 
   // ── il sorgente del gancio ──
-  const gancio = nudo(readFileSync(join(radice, "src/shop/cassa/useTariffa.ts"), "utf8"));
-  c("il gancio legge `tariffaSpedizione` di `tariffe.functions` (la funzione che legge anche la cassa)", true, /import \{[^}]*\btariffaSpedizione\b[^}]*\} from "\.\/tariffe\.functions"/.test(gancio));
+  const gancio = nudo(readFileSync(join(radice, "src/shop/useTariffa.ts"), "utf8"));
+  const lettore = nudo(readFileSync(join(radice, "src/shop/cassa/tariffa-carrello.ts"), "utf8"));
+  c("il gancio legge `tariffaSpedizione` di `tariffe.functions` (la funzione che legge anche la cassa) e la cassa da `cassaDelSito`", [true, true], [/import \{[^}]*\btariffaSpedizione\b[^}]*\} from "@\/shop\/cassa\/tariffe\.functions"/.test(gancio), /import \{[^}]*\bcassaDelSito\b[^}]*\} from "@\/shop\/cms\/cassa-sito\.functions"/.test(gancio)]);
   c("…con `attiva` falsa non legge niente (il catalogo `codice` non chiama il server)", true, /if \(!attiva\) return/.test(gancio));
-  c("…nessuna costante di spedizione nel gancio (né 490, né `SPEDIZIONE_CMS_CENT`, né la soglia dei 59 €)", false, /\b490\b|SPEDIZIONE_CMS_CENT|SHIPPING_|\b59\b/.test(gancio));
+  c("…il lettore non importa il server (resta impacchettabile dalle prove) e nessuna costante di spedizione né nel lettore né nel gancio (né 490, né `SPEDIZIONE_CMS_CENT`, né la soglia dei 59 €)", [false, false], [/\.functions"/.test(lettore), /\b490\b|SPEDIZIONE_CMS_CENT|SHIPPING_|\b59\b/.test(gancio + lettore)]);
 
   // ── il sorgente del carrello ──
   const FILE = "src/routes/shop.carrello.tsx";
   const carr = nudo(readFileSync(join(radice, FILE), "utf8"));
-  c("carrello: importa `useTariffa` e non importa più `SPEDIZIONE_CMS_CENT`", [true, false], [/import \{ useTariffa \} from "@\/shop\/cassa\/useTariffa"/.test(carr), /SPEDIZIONE_CMS_CENT/.test(carr)]);
+  c("carrello: importa `useTariffa` e non importa più `SPEDIZIONE_CMS_CENT`", [true, false], [/import \{ useTariffa \} from "@\/shop\/useTariffa"/.test(carr), /SPEDIZIONE_CMS_CENT/.test(carr)]);
   c("carrello: il gancio si chiama sempre (regola degli hook) e legge solo con `cms`", true, /const tariffa = useTariffa\(cms\)/.test(carr));
   const ramoCms = /const shipping = cms \? ([^:]+) : /.exec(carr)?.[1] ?? "";
   c("carrello: nel ramo `cms` la spedizione è la cifra del server, senza `SPEDIZIONE_CMS_CENT`, `SHIPPING_COST` né `SHIPPING_THRESHOLD`", [true, false], [ramoCms.includes("tariffa.costoCent"), /SPEDIZIONE_CMS_CENT|SHIPPING_COST|SHIPPING_THRESHOLD/.test(ramoCms)]);
