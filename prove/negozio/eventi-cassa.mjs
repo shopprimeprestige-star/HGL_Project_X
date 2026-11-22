@@ -102,4 +102,12 @@ export async function prove(mod, { c, gruppo }) {
     await K.rinviaAStripe("https://sito-falso.test/", { attendi: () => Promise.resolve(), naviga: (u) => vai.push(u) });
     c("rinvio: un indirizzo che non è di Stripe non si segue (seconda difesa)", 0, vai.length);
   }
+
+  // ── `scaricaEventi` (api.ts): la porta vera di `scarica()` ──
+  const A = mod["lib/tracciamento/api"];
+  c("api.ts esporta `scaricaEventi`", "function", typeof A?.scaricaEventi);
+  if (typeof A?.scaricaEventi === "function") {
+    const r = A.scaricaEventi();
+    c("scaricaEventi: restituisce una promessa che si risolve anche sul server (senza `window`, senza invii in volo)", [true, "ok"], [typeof r?.then === "function", await Promise.resolve(r).then(() => "ok", () => "no")]);
+  }
 }

@@ -124,4 +124,14 @@ export async function prove(mod, { c, gruppo }) {
   c("loader: il tetto è di pochi secondi", true, K.TETTO_CASSA_MS >= 1000 && K.TETTO_CASSA_MS <= 5000);
   c("loader: una risposta strana (non «stripe» esatto) → cassa vecchia", ["vecchia", "vecchia", "vecchia"], [await K.cassaPerLoader("cms", async () => "Stripe"), await K.cassaPerLoader("cms", async () => ({})), await K.cassaPerLoader("cms", async () => null)]);
   c("loader: il tetto passa ad `attendi` in millisecondi", K.TETTO_CASSA_MS, await (async () => { let visto = 0; await K.cassaPerLoader("cms", mai, (ms) => ((visto = ms), Promise.resolve("tempo"))); return visto; })());
+
+  // ── `?annullato=1`: si legge, si mostra il messaggio e si toglie dall'indirizzo (ammesse.ts non si tocca) ──
+  c("senzaAnnullato esiste", "function", typeof K.senzaAnnullato);
+  if (typeof K.senzaAnnullato === "function") {
+    c("senzaAnnullato: toglie solo `annullato`", "/shop/checkout", K.senzaAnnullato("/shop/checkout", "?annullato=1", ""));
+    c("senzaAnnullato: le altre chiavi (utm, click id) restano, nello stesso ordine", "/shop/checkout?utm_source=prova&fbclid=1", K.senzaAnnullato("/shop/checkout", "?utm_source=prova&annullato=1&fbclid=1", ""));
+    c("senzaAnnullato: senza `annullato` l'indirizzo non cambia (nemmeno il `#…`)", "/shop/checkout?utm_source=prova#in-fondo", K.senzaAnnullato("/shop/checkout", "?utm_source=prova", "#in-fondo"));
+    c("senzaAnnullato: ricerca vuota → solo il percorso", "/shop/checkout", K.senzaAnnullato("/shop/checkout", "", ""));
+    c("senzaAnnullato: `annullato` con qualunque valore si toglie", "/shop/checkout", K.senzaAnnullato("/shop/checkout", "?annullato=si", ""));
+  }
 }

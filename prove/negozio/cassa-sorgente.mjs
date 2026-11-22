@@ -33,7 +33,7 @@ const FINTI = {
     export const modalitaCatalogo = () => globalThis.__p.modalita(), schedaProdotto = no, righeCarrello = no;`,
   "@/shop/cms/cassa-sito.functions": `export const cassaDelSito = () => (globalThis.__p.chiamateCassa++, globalThis.__p.cassa());`,
   "@/shop/cassa/tariffe.functions": `export const tariffaSpedizione = async () => ({ stato: "assente" });`,
-  "@/lib/tracciamento/api": `export const emettiEvento = () => null; export const emettiSoloContatore = () => {};`,
+  "@/lib/tracciamento/api": `export const emettiEvento = () => null; export const emettiSoloContatore = () => {}; export const scaricaEventi = async () => {};`,
   "@/integrations/supabase/client": `export const supabase = { from: () => ({ insert: async () => ({ error: null }) }) };`,
 };
 
@@ -157,4 +157,19 @@ export async function prove(_mod, { c, gruppo, radice }) {
   c("CassaStripe.tsx: nessun logo di metodi di pagamento (Visa, Mastercard, PayPal, Klarna, Apple Pay)", false, /visa|mastercard|paypal|klarna|apple pay|google pay/i.test(srcCassa));
   c("CassaStripe.tsx: parla con la rotta della cassa e con quella del permesso", [true, true], [nudi.includes("/api/public/shop-cassa-permesso"), /\/api\/public\/shop-cassa["'`]/.test(nudi)]);
   c("CassaStripe.tsx: il pulsante non si ripreme mentre si lavora (`disabled`, `aria-busy`)", [true, true], [/disabled=/.test(nudi), /aria-busy/.test(nudi)]);
+
+  // ── scarica(): la porta vera, importata in modo normale (D60) ──
+  c("CassaStripe: `scaricaEventi` importato da `@/lib/tracciamento/api` e passato a `rinviaAStripe` come `scarica`", [true, true], [/import\s*\{[^}]*\bscaricaEventi\b[^}]*\}\s*from\s*"@\/lib\/tracciamento\/api"/.test(nudi), /scarica:\s*scaricaEventi/.test(nudi)]);
+  c("CassaStripe: niente più «se esiste» (nessuna ricerca per nome nel modulo)", [false, false], [/NOME_SCARICA/.test(nudi), /as unknown as Record<string, unknown>/.test(nudi)]);
+  const apiSrc = (() => { try { return readFileSync(join(radice, "src/lib/tracciamento/api.ts"), "utf8"); } catch { return ""; } })();
+  c("api.ts: la riga `export const scaricaEventi` c'è e aspetta gli invii di `api()`", true, /export const scaricaEventi\s*=\s*\(\)\s*=>\s*api\(\)\?\.scarica\(\)\s*\?\?\s*Promise\.resolve\(\)/.test(apiSrc));
+
+  // ── ?annullato=1: letto, mostrato, tolto dall'indirizzo PRIMA degli eventi della pagina ──
+  const iToglie = nudi.search(/replaceState/);
+  const iEventi = nudi.search(/emettiEvento\("InitiateCheckout"/);
+  c("CassaStripe: toglie `annullato` dall'indirizzo con `history.replaceState` e `senzaAnnullato`", [true, true], [iToglie >= 0, /senzaAnnullato\(/.test(nudi)]);
+  c("CassaStripe: l'effetto che toglie `annullato` sta PRIMA di quello di InitiateCheckout", true, iToglie >= 0 && iEventi >= 0 && iToglie < iEventi);
+  c("CassaStripe: il messaggio resta anche dopo che il parametro è sparito (letto una volta nello stato iniziale)", true, /useState\(annullato\)|useState\(\s*annullato\s*\)/.test(nudi));
+  c("CassaStripe: `replaceState` conserva lo stato del router (`window.history.state`)", true, /replaceState\(\s*window\.history\.state/.test(nudi));
+  c("ammesse.ts non è stato toccato (nessuna chiave `annullato` fra quelle ammesse)", false, /annullato/.test((() => { try { return readFileSync(join(radice, "src/lib/tracciamento/ammesse.ts"), "utf8"); } catch { return ""; } })()));
 }
