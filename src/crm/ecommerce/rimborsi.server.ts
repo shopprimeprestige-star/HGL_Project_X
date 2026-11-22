@@ -337,6 +337,7 @@ const FRASE_EMAIL: Record<string, string> = {
   non_configurata: "Email non inviata: manca il mittente o la chiave del servizio di posta.",
   senza_email: "Email non inviata: l'ordine non ha un indirizzo email.",
   migrazione: "Email non inviata: manca l'aggiornamento del database delle email.",
+  saltata: "Email non inviata: l'ordine è annullato.",
   errore: "Email non riuscita: riprova con «Invia ora».",
 };
 const frasePerEmail = (stato: string): string => (Object.prototype.hasOwnProperty.call(FRASE_EMAIL, stato) ? FRASE_EMAIL[stato] : "Email non inviata.");

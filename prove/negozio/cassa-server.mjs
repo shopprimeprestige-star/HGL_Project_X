@@ -291,7 +291,7 @@ export async function prove(mod, { c, gruppo, radice }) {
     const t0 = ordini(env)[0].id;
     const chiaveT = await CO.chiaveOrdine(SERVIZIO, t0);
     const ricarica = await K.riprovaPagamento({ ref: o.order_ref, t: chiaveT, permesso: await permesso(env) }, env.porte);
-    c("la riprova prima della scadenza → `riprova_in_corso` (nessuno può chiudere l'ordine prima di `scade_il`), nessuna sessione", [409, "riprova_in_corso", 0], [ricarica.stato, ricarica.corpo.motivo, env.finto.sessioni().length]);
+    c("la riprova prima della scadenza dopo un rifiuto vero di Stripe (avviso `stripe_errore` r0) → `non_riproponibile`, non `riprova_in_corso` (nessuno sta preparando niente); nessuna sessione", [409, "non_riproponibile", 0], [ricarica.stato, ricarica.corpo.motivo, env.finto.sessioni().length]);
     env.ora.t += 61 * MIN;
     const dopo = await K.riprovaPagamento({ ref: o.order_ref, t: chiaveT, permesso: await permesso(env) }, env.porte);
     c("…dopo `scade_il` si chiude e si riapre (n=1): sessione nuova, ordine `in_attesa`", [true, 1, "in_attesa", 1], [dopo.corpo.ok, ordini(env)[0].riprova_n, ordini(env)[0].stato_pagamento, env.finto.sessioni().length]);
@@ -642,7 +642,7 @@ export async function prove(mod, { c, gruppo, radice }) {
     const r2 = await riprova(env, k);
     c("se Stripe RIFIUTA la sessione nuova: ordine riaperto (n=1) e ancora `in_attesa`, avviso `stripe_errore` (r1), `guasto`", ["in_attesa", 1, true, "guasto"], [stato(env, k.id).stato_pagamento, stato(env, k.id).riprova_n, (stato(env, k.id).avvisi ?? []).some((x) => x.codice === "stripe_errore" && x.rif === "r1"), r2.corpo.motivo]);
     const subito = await riprova(env, k);
-    c("…una riprova subito dopo trova l'ordine in attesa senza sessione e con `scade_il` nel futuro: `riprova_in_corso`", [409, "riprova_in_corso"], [subito.stato, subito.corpo.motivo]);
+    c("…una riprova subito dopo trova l'ordine in attesa senza sessione, con `scade_il` nel futuro e l'avviso `stripe_errore` r1 (= `riprova_n`): `non_riproponibile`, non `riprova_in_corso`", [409, "non_riproponibile"], [subito.stato, subito.corpo.motivo]);
     env.ora.t += 61 * MIN;
     const r3 = await riprova(env, k);
     c("…passata la scadenza si può riprovare ancora (n=2): nuova sessione e `in_attesa`", [true, 2, "in_attesa"], [r3.corpo.ok, stato(env, k.id).riprova_n, stato(env, k.id).stato_pagamento]);
