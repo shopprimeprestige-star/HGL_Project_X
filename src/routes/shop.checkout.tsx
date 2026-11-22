@@ -5,6 +5,9 @@ import { PRODUCTS, formatPrice } from "@/shop/catalog";
 import { ShopVisual } from "@/shop/ShopVisual";
 import { useCart } from "@/shop/CartContext";
 import { modalitaCatalogo } from "@/shop/cms/catalogo.functions";
+import { cassaDelSito } from "@/shop/cms/cassa-sito.functions";
+import { CassaStripe } from "@/shop/cassa/CassaStripe";
+import { cassaPerLoader } from "@/shop/cassa/cassa-client";
 import { MSG_NON_VERIFICABILE, SPEDIZIONE_CMS_CENT, datiEventoRighe, itemsOrdine } from "@/shop/cms/cassa";
 import { primaVolta } from "@/shop/cms/scheda";
 import { useRivalidaCarrello } from "@/shop/useRivalidaCarrello";
@@ -14,9 +17,21 @@ import { MESSAGGIO_ERRORE_ORDINE, firmaOrdine, inviaOrdine, rigaOrdine, tentativ
 
 export const Route = createFileRoute("/shop/checkout")({
   //  Il catalogo del sito: se non risponde si pensa `codice`, cioè la cassa di oggi.
-  loader: async () => ({ modo: await modalitaCatalogo().catch(() => "codice" as const) }),
+  //  La cassa nuova (Stripe) si chiede solo con il catalogo `cms`; un rifiuto o un timeout → la cassa di oggi (`cassaPerLoader`).
+  loader: async () => {
+    const modo = await modalitaCatalogo().catch(() => "codice" as const);
+    return { modo, cassa: await cassaPerLoader(modo, () => cassaDelSito()) };
+  },
+  //  `?annullato=1`: il cliente è tornato da Stripe senza pagare.
+  validateSearch: (s: Record<string, unknown>): { annullato?: 1 } => (s.annullato === "1" || s.annullato === 1 ? { annullato: 1 } : {}),
   component: CheckoutPage,
 });
+
+function CheckoutPage() {
+  const { cassa } = Route.useLoaderData();
+  const { annullato } = Route.useSearch();
+  return cassa === "stripe" ? <CassaStripe annullato={annullato === 1} /> : <CassaVecchia />;
+}
 
 const prezzoCodice = (id: string) => PRODUCTS.find((pr) => pr.id === id)?.price;
 
@@ -55,7 +70,7 @@ function Field({
   );
 }
 
-function CheckoutPage() {
+function CassaVecchia() {
   const { lines, subtotal, count, clear } = useCart();
   const { modo } = Route.useLoaderData();
   const { stato, avviso, controlla } = useRivalidaCarrello(modo);
