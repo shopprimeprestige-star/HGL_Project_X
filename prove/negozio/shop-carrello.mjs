@@ -219,7 +219,8 @@ export async function prove(mod, { c, gruppo, radice }) {
   const una = riga("PROVA-001-A", "prodotto-di-prova", 2890, 1);
   const tre = riga("PROVA-001-A", "prodotto-di-prova", 2890, 3); // 86,70 €: sopra i 59 €
   for (const [nome, lines, sub, tot] of [["sotto i 59 € (28,90)", [una], 28.9, 33.8], ["sopra i 59 € (86,70)", [tre], 86.7, 91.6]]) {
-    const car = await rendi(radice, FILE_CARR, { loaderData: { modo: "cms" }, carrello: carrelloFinto(lines, sub), rivalida: rivFinto() });
+    //  T59: nel carrello CMS la cifra viene dal server (`useTariffa`); qui il server finto dice 4,90 €
+    const car = await rendi(radice, FILE_CARR, { loaderData: { modo: "cms" }, carrello: carrelloFinto(lines, sub), rivalida: rivFinto(), tariffa: { stato: "ok", costoCent: 490, chiusa: false } });
     const [o] = await invia({ modo: "cms" }, lines, sub, () => K.rivalida(porte(catalogoDi()), lines));
     c(`D37 CMS, ${nome}: CARRELLO con spedizione 4,90 € (mai «Gratuita», mai «Aggiungi … per la spedizione»), totale ${String(tot).replace(".", ",")}0 €; CASSA con shipping 4.9 e total ${tot}`, [true, false, false, 4.9, tot], [
       /Spedizione<\/span><span[^>]*>4,90\s€/.test(car.html) && new RegExp(`${String(tot).replace(".", ",")}0\\s€`).test(car.html), /gratuit/i.test(car.html), /per la spedizione/.test(car.html), o?.shipping, o?.total]);
@@ -229,8 +230,8 @@ export async function prove(mod, { c, gruppo, radice }) {
   // la spedizione MOSTRATA (riepilogo di carrello e di cassa) parte dal ramo CMS: con `cms` mai la soglia dei 59 €, mai «Gratuita» per soglia
   const carrSrc = nudo(readFileSync(join(radice, FILE_CARR), "utf8"));
   const cassaSrc = nudo(cassa);
-  c("D37 sorgente: la spedizione mostrata nel carrello e nella cassa è `cms ? SPEDIZIONE_CMS_CENT / 100 : …`, e «Aggiungi … per la spedizione gratuita» sta solo fuori da `cms`", [true, true, true], [
-    /const shipping = cms \? SPEDIZIONE_CMS_CENT \/ 100 :/.test(carrSrc), /const shipping = cms \? SPEDIZIONE_CMS_CENT \/ 100 :/.test(cassaSrc), /shipping > 0 && !cms && \(\s*<p[^>]*>\s*Aggiungi/.test(carrSrc)]);
+  c("D37 sorgente: la spedizione mostrata nel carrello (T59: dal server, `tariffa.costoCent`) e nella cassa (`SPEDIZIONE_CMS_CENT / 100`) è del ramo `cms`, e «Aggiungi … per la spedizione gratuita» sta solo fuori da `cms`", [true, true, true], [
+    /const shipping = cms \? \(tariffa\.costoCent \?\? 0\) \/ 100 :/.test(carrSrc), /const shipping = cms \? SPEDIZIONE_CMS_CENT \/ 100 :/.test(cassaSrc), /shipping > 0 && !cms && \(\s*<p[^>]*>\s*Aggiungi/.test(carrSrc)]);
   // con `codice` non cambia niente: sotto soglia 4,90, da 59 in su gratis (la cassa vera)
   const catalogoCodice = readFileSync(join(radice, "src/shop/catalog.ts"), "utf8");
   const prezziCodice = [...catalogoCodice.matchAll(/\bid: "(\w+)",[\s\S]*?\bprice: (\d+(?:\.\d+)?)/g)].map((m) => [m[1], Number(m[2])]);
