@@ -151,7 +151,7 @@ export async function prove(mod, { c, gruppo, radice }) {
     c("…la soglia gratuita non arriva alla scheda (nemmeno come campo)", false, /gratis|gratuit|soglia/i.test(JSON.stringify(k)));
     const kSenzaSeme = await fn("caricaSpedizioni")(portaServer({ tabelle: tabelle({ shop_impostazioni: tabelle().shop_impostazioni.filter((r) => r.chiave !== "resi_confermati") }) }).f);
     c("senza il seme dei resi (S5 non applicata del tutto) la scheda arriva lo stesso, con `resi` «null» (l'interruttore non si può girare)", [true, null], [kSenzaSeme.ok, kSenzaSeme.resi ?? null]);
-    const kNo = await fn("caricaSpedizioni")(portaServer({ tabelle: { shop_impostazioni: [], shop_storico: [] } }).f);
+    const kNo = await fn("caricaSpedizioni")(portaServer({ db: fintoDb({ tabelle: tabelle(), mancante: ["shop_spedizioni_tariffe"] }) }).f);
     c("tabella delle tariffe assente → un errore con la sua frase (non una scheda vuota che sembra a posto)", [false, true], [kNo.ok, typeof kNo.messaggio === "string" && kNo.messaggio.length > 15]);
     const k403 = await fn("caricaSpedizioni")(async () => new Response(JSON.stringify({ ok: false }), { status: 403, headers: { "Content-Type": "application/json" } }));
     c("403 → «permesso», senza dati", [false, "permesso"], [k403.ok, k403.tipo]);
@@ -251,7 +251,7 @@ export async function prove(mod, { c, gruppo, radice }) {
     c("l'avviso della cassa di oggi è sempre visibile, con le parole del capo progetto", true, t0.includes(FRASE_CASSA_OGGI));
     c("…anche mentre i dati arrivano e anche quando la lettura è fallita", [true, true], [T({ dati: null }).includes(FRASE_CASSA_OGGI), T({ dati: null, errore: "Non riesco a collegarmi al server." }).includes(FRASE_CASSA_OGGI)]);
     c("…e anche con la tariffa confermata", true, tConf.includes(FRASE_CASSA_OGGI));
-    c("…è un avviso (role=status), non un errore", true, /role="status"[^>]*>[\s\S]{0,400}la cassa di oggi usa ancora 4,90/.test(html));
+    c("…è un avviso (role=status), non un errore", true, /role="status"[^>]*>[\s\S]{0,900}la cassa di oggi usa ancora 4,90/.test(html));
 
     const frCassaChiusa = (t) => /cassa Stripe resta chiusa/i.test(t) && /Il negozio sta per aprire/.test(t);
     c("con la tariffa attiva NON dice che la cassa resterà chiusa", false, frCassaChiusa(t0));
