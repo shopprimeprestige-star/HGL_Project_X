@@ -94,7 +94,7 @@ export async function prove(mod, { c, gruppo, radice }) {
         gestori(sf).length === 2 && gestori(sf).every((g) => { const fn = ts.isArrowFunction(g.corpo) ? g.corpo : null; return !!fn && /^guardiaCRM\(|^guardia\(/.test(primoAwait(fn) ?? ""); }));
     }
     // le rotte sottili: ogni gestore passa DIRETTAMENTE a `gestisciGET`/`gestisciPOST` del modulo, che apre con la guardia
-    for (const file of ["api.crm.ordini.ts", "api.crm.negozio.ts", "api.crm.negozio-email.ts"]) {
+    for (const file of ["api.crm.ordini.ts", "api.crm.negozio.ts"]) {
       if (!fonti[file]) continue;
       const sf = albero(fonti[file], file);
       c(`${file}: ogni gestore è una sola chiamata a gestisciGET/gestisciPOST (la guardia è la prima cosa che il modulo fa), senza leggere il corpo`, true,
@@ -150,6 +150,28 @@ export async function prove(mod, { c, gruppo, radice }) {
   }
   if (fonti["api.public.shop-cassa.ts"]) c("shop-cassa: chiama gestisciCassa con la richiesta intera (il tetto e il corpo sono suoi)", true, chiamate(albero(fonti["api.public.shop-cassa.ts"], "x.ts"), "gestisciCassa").some((x) => x.arguments[0]?.getText() === "request"));
   if (fonti["api.public.shop-cassa-permesso.ts"]) c("shop-cassa-permesso: chiama gestisciPermesso", 1, chiamate(albero(fonti["api.public.shop-cassa-permesso.ts"], "x.ts"), "gestisciPermesso").length);
+  if (fonti["api.crm.negozio-email.ts"]) {
+    // T57, nota del revisore (b): come le altre rotte nuove, ogni gestore è un blocco con un `try/catch` di primo livello (risposta generica, nel log solo il codice)
+    const f = "api.crm.negozio-email.ts";
+    const sf = albero(fonti[f], f);
+    const gs = gestori(sf);
+    c(`${f}: ogni gestore è un blocco con un solo \`try\` di primo livello e un \`catch\`, e passa a gestisciGET/gestisciPOST`, [2, true], [
+      gs.length,
+      gs.every((g) => ts.isArrowFunction(g.corpo) && ts.isBlock(g.corpo.body) && g.corpo.body.statements.length === 1 && ts.isTryStatement(g.corpo.body.statements[0]) && !!g.corpo.body.statements[0].catchClause && new RegExp(`gestisci${g.metodo}\\(request, `).test(g.corpo.body.getText())),
+    ]);
+    c(`${f}: il \`catch\` risponde in modo generico (500 \`interno\`) e scrive nel log solo un testo fisso`, true,
+      gs.every((g) => { const t = g.corpo.getText(); return /catch\s*\{/.test(t) && /status|, 500\)/.test(t) && /console\.warn\("\[negozio-email\] eccezione"\)/.test(t) && !/catch\s*\(/.test(t); }));
+  }
+  if (fonti["api.crm.ordini.ts"]) {
+    // T57, nota del revisore (a): le porte `stripe` ed `email` si costruiscono DOPO la guardia, dentro il `try/catch` del modulo: nella funzione `guardia`, non quando si prepara l'oggetto delle dipendenze
+    const f = "api.crm.ordini.ts";
+    const sf = albero(fonti[f], f);
+    const dentroGuardia = (nome) => {
+      const ch = chiamate(sf, nome);
+      return ch.length > 0 && ch.every((n) => { for (let p = n.parent; p; p = p.parent) if (ts.isPropertyAssignment(p) && p.name.getText() === "guardia") return true; return false; });
+    };
+    c(`${f}: clienteStripe(), porteInvio() e creaPorteEmail() sono chiamate solo dentro la funzione \`guardia\` (dopo che il permesso è dato)`, [true, true, true], [dentroGuardia("clienteStripe"), dentroGuardia("porteInvio"), dentroGuardia("creaPorteEmail")]);
+  }
   if (fonti["api.crm.stripe.ts"]) {
     // il contratto fissato dal capo progetto (T62 lo usa già): GET senza Stripe, POST `prova_adesso`
     const sf = albero(fonti["api.crm.stripe.ts"], "api.crm.stripe.ts");
