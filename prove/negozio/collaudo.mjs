@@ -245,6 +245,7 @@ function proveSorgenti({ c, gruppo, radice }) {
     modulo: "src/shop/cms/collaudo.ts",
     catalogo: "src/shop/cms/catalogo.functions.ts",
     cassaSito: "src/shop/cms/cassa-sito.functions.ts",
+    tariffe: "src/shop/cassa/tariffe.functions.ts",
     shop: "src/routes/shop.tsx",
     pagina: "src/routes/shop.collaudo.tsx",
     pubblica: "src/routes/api.public.shop-collaudo.ts",
@@ -288,6 +289,10 @@ function proveSorgenti({ c, gruppo, radice }) {
     c("cassa-sito.functions.ts: una funzione del server dice a `shop.tsx` se il collaudo è attivo (`collaudoDellaVisita`)", true, /export const collaudoDellaVisita\s*=\s*createServerFn/.test(t));
     c("cassa-sito.functions.ts: `cassaEffettivaDelServer` senza argomenti legge il cookie dalla richiesta in corso (la rotta del permesso la chiama così)", true, /export async function cassaEffettivaDelServer\(\s*cookie\??\s*:/.test(t) && /collaudoDellaRichiesta|getRequestHeader/.test(t));
   }
+  if (src.tariffe) {
+    const t = nudo("tariffe");
+    c("tariffe.functions.ts (T50): col collaudo la risposta è `private, no-store` (CACHE_COLLAUDO), senza `public, max-age=30` come oggi; il cookie si legge una volta e si passa alla cassa", [true, true, true], [/collaudoDellaRichiesta\(/.test(t) && /CACHE_COLLAUDO/.test(t), /public, max-age=30/.test(t), /cassaEffettivaDelServer\(\s*\w+/.test(t)]);
+  }
   if (src.shop) {
     const t = nudo("shop");
     c("shop.tsx: `headers` mette `private, no-store` solo quando il collaudo c'è (e non dichiara altro)", [true, true], [/headers:\s*\(/.test(t) && /CACHE_COLLAUDO/.test(t), !/["']Cache-Control["']\s*:\s*["']public/.test(t)]);
@@ -312,6 +317,7 @@ function proveSorgenti({ c, gruppo, radice }) {
     c("shop.collaudo.tsx: toglie il frammento dalla cronologia e poi RICARICA la pagina del negozio (così il server vede il cookie e la visita riparte da zero)", [true, true], [/history\.replaceState/.test(t), /location\.assign\(\s*["']\/shop["']\s*\)/.test(t)]);
     c("shop.collaudo.tsx: nessuno script di terzi né pixel (non importa niente del tracciamento), non si indicizza, mai in cache", [false, true, true], [/tracciamento|fbq|gtag|ttq|googletagmanager/i.test(t), /noindex/.test(t), /CACHE_COLLAUDO/.test(t)]);
     c("shop.collaudo.tsx: un errore ha una frase in italiano e dice come uscirne (nessun testo tecnico, nessuna chiave)", true, /Il link non è più valido|non è più valido/.test(t) && /CRM/.test(t));
+    c("shop.collaudo.tsx: la frase è esatta: «due ore», nessuna promessa di «una visita sola» (la chiave non è monouso), e dice di cancellare il messaggio col link dopo l'uso", [true, false, true], [/due ore/.test(t), /una visita sola|monouso|un solo uso/i.test(t), /cancell\w+ il messaggio/i.test(t)]);
   }
 }
 
@@ -428,6 +434,9 @@ async function proveBuild(K, { c, gruppo, radice }) {
       c(`${nome}: con cookie valido \`private, no-store\`; senza cookie la stessa intestazione di oggi (mai private per il pubblico)`, [true, "private, no-store"], [!!a && !/private/.test(a.h.get("cache-control") ?? ""), b?.h.get("cache-control")]);
     }
     //  `cassaPubblica` (vetrina) entra nel build solo quando una rotta la usa: finché non c'è, non si prova qui; col collaudo risponde `no-store` (sorgente: `guasto: true`)
+    const t0 = fn("tariffaSpedizione"), t1 = fn("tariffaSpedizione", cookieBuono), tX = fn("tariffaSpedizione", cookieAlterato);
+    c("tariffaSpedizione senza cookie e con cookie alterato: come oggi (`public, max-age=30`)", ["public, max-age=30", "public, max-age=30"], [t0?.h.get("cache-control"), tX?.h.get("cache-control")]);
+    c("tariffaSpedizione con cookie valido: `private, no-store`, mai `public` (con S5 assente cambierebbe contenuto)", ["private, no-store", false], [t1?.h.get("cache-control"), /public/.test(t1?.h.get("cache-control") ?? "")]);
     const cp = fn("cassaPubblica", cookieBuono);
     if (cp) c("cassaPubblica (vetrina) con cookie valido: nessuna copia `public` (la cassa nuova non finisce in una cache condivisa)", true, !/public/.test(cp.h.get("cache-control") ?? "public"));
 

@@ -45,7 +45,7 @@ export const modalitaCatalogo = async () => { const m = S().modalita; return typ
 export const schedaProdotto = async ({ data }) => (S().scheda ? S().scheda(data) : null);
 export const elencoProdotti = async ({ data }) => (S().elenco ? S().elenco(data) : []);
 export const elencoCategorie = async () => { const c = S().categorie; return typeof c === "function" ? c() : (c ?? []); };
-// R2 · T67: `shop.tsx` chiede al server se il collaudo è attivo (`cassa-sito.functions`): qui mai.
+// R2 · T67: shop.tsx chiede al server se il collaudo è attivo (cassa-sito.functions): qui mai. Niente apici inversi: siamo dentro una stringa.
 export const collaudoDellaVisita = async () => false;
 export const cassaDelSito = async () => "vecchia";
 `;
