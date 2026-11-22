@@ -171,8 +171,37 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("leggiChiave: il valore resta TESTO (una chiave di sole cifre non diventa un numero) e si tiene com'è", ["0012345678", "a+b c"], [P.leggiChiave("?t=0012345678"), P.leggiChiave("?t=a%2Bb+c")]);
 
   // ── quando si svuota il carrello ──
-  const svuota = Object.fromEntries(["verifica", "pagato", "in_preparazione", "spedito", "consegnato", "rimborsato", "annullato", "non_riuscito", "scaduto"].map((x) => [x, P.svuotaCarrello(x)]));
+  // R4 · solo un ordine di meno di 24 ore: chi riapre dopo giorni il link di un vecchio ordine pagato (la mail «dov'è il mio pacco») non perde il carrello nuovo
+  const ORA = Date.parse("2026-11-21T12:00:00.000Z");
+  const fa = (ms) => new Date(ORA - ms).toISOString();
+  const ORE = 3_600_000;
+  const svuota = Object.fromEntries(["verifica", "pagato", "in_preparazione", "spedito", "consegnato", "rimborsato", "annullato", "non_riuscito", "scaduto"].map((x) => [x, P.svuotaCarrello(x, fa(ORE), ORA)]));
   c("il carrello si svuota solo dopo un pagamento arrivato (pagato…consegnato, rimborsato); mai in verifica, annullato, non riuscito, scaduto", { verifica: false, pagato: true, in_preparazione: true, spedito: true, consegnato: true, rimborsato: true, annullato: false, non_riuscito: false, scaduto: false }, svuota);
+  c("R4: l'ordine ha meno di 24 ore (1 minuto, 23 ore e 59 minuti) → si svuota", [true, true], [P.svuotaCarrello("pagato", fa(60_000), ORA), P.svuotaCarrello("pagato", fa(24 * ORE - 60_000), ORA)]);
+  c("R4: l'ordine ha 24 ore o più (24 ore, 25 ore, 3 giorni) → il carrello resta, qualunque sia la fase pagata", [false, false, false, false, false], [P.svuotaCarrello("pagato", fa(24 * ORE), ORA), P.svuotaCarrello("pagato", fa(25 * ORE), ORA), P.svuotaCarrello("spedito", fa(72 * ORE), ORA), P.svuotaCarrello("consegnato", fa(72 * ORE), ORA), P.svuotaCarrello("rimborsato", fa(72 * ORE), ORA)]);
+  c("R4: una data mancante o illeggibile non svuota (nel dubbio il carrello del cliente resta)", [false, false, false, false], [P.svuotaCarrello("pagato", undefined, ORA), P.svuotaCarrello("pagato", null, ORA), P.svuotaCarrello("pagato", "ieri", ORA), P.svuotaCarrello("pagato", "", ORA)]);
+  c("R4: le fasi in cui il carrello serve restano senza svuotare anche con un ordine di un minuto fa", [false, false, false, false], ["verifica", "annullato", "non_riuscito", "scaduto"].map((x) => P.svuotaCarrello(x, fa(60_000), ORA)));
+  c("R4: la pagina passa la data dell'ordine (`creatoIl`) a `svuotaCarrello`", true, /svuotaCarrello\(\s*stato\.ordine\.fase\s*,\s*stato\.ordine\.creatoIl/.test(pagina));
+
+  // ── R4 · una sola riprova alla volta ──
+  c("R4: `conGuardia` è esportata", true, f("conGuardia"));
+  if (f("conGuardia")) {
+    const flag = { current: false };
+    let sblocca;
+    let partiti = 0;
+    const lenta = () => new Promise((ok) => { partiti++; sblocca = ok; });
+    const a = P.conGuardia(flag, lenta);
+    const b = P.conGuardia(flag, lenta); // il secondo clic nello stesso istante
+    const d = P.conGuardia(flag, lenta);
+    c("R4: tre clic insieme → un solo invio parte, gli altri non fanno niente", [1, true], [partiti, flag.current]);
+    sblocca();
+    await Promise.all([a, b, d]);
+    c("R4: finito l'invio la guardia si libera e un nuovo clic parte", [false, 2], [flag.current, await (async () => { const p = P.conGuardia(flag, lenta); const n = partiti; sblocca(); await p; return n; })()]);
+    const guasta = P.conGuardia(flag, async () => { throw new Error("rete"); });
+    const esito = await guasta.then(() => "ok", () => "lancia");
+    c("R4: se l'invio lancia la guardia si libera comunque (il bottone non resta bloccato per sempre)", ["lancia", false], [esito, flag.current]);
+  }
+  c("R4: `suRiprova` passa dalla guardia e legge un riferimento (non lo stato, che si aggiorna dopo il render)", [true, true], [/conGuardia\(\s*guardiaRiprova/.test(pagina), /guardiaRiprova\s*=\s*useRef\(\s*false\s*\)/.test(pagina)]);
 
   // ═══ IL CONTROLLO NEL TEMPO ═════════════════════════════════════════════════════════════════════════
   /** Orologio finto: i giri si programmano con `programma`, e `avanza(ms)` fa scattare quelli dovuti, aspettando che ogni giro finisca. */
