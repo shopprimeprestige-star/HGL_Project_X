@@ -135,9 +135,9 @@ export function Panoramica({ lettura, periodo, adesso, apriStato }: PropsPanoram
       </p>
 
       {(p.inAttesa > 0 || p.prova > 0 || p.rimborsato.n > 0) && (
-        <section aria-label="Fuori dalle cifre" className="-mt-1 flex flex-col gap-1">
+        <section aria-label="Da sapere" className="-mt-1 flex flex-col gap-1">
           <h2 className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-            Fuori dalle cifre
+            Da sapere
           </h2>
           <ul className="flex flex-col gap-0.5 text-[12.5px]">
             {p.inAttesa > 0 && (

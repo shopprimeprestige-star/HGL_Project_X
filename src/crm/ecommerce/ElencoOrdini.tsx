@@ -174,10 +174,14 @@ export function ElencoOrdini({
   // eslint-disable-next-line react-hooks/exhaustive-deps -- l'istante si rinnova con la lettura degli ordini
   const ora = useMemo(() => adesso ?? new Date(), [adesso, lettura.ordini]);
   const nuovi = useMemo(() => filtriR2(scelte, ora), [scelte, ora]);
-  const righe = useMemo(
-    () => filtraOrdini(lettura.ordini, { periodo, stato, pagato, ricerca, ...nuovi }),
-    [lettura.ordini, periodo, stato, pagato, ricerca, nuovi],
-  );
+  //  Con uno stato scelto («Nuovo», anche dal clic della Panoramica) restano fuori gli ordini in attesa, scaduti e non riusciti: non sono
+  //  «da preparare» (SPEC 8A n. 1) e le righe tornano col numero del chip. Con «Tutti» o scegliendo un pagamento, la lista è quella di oggi.
+  const righe = useMemo(() => {
+    const tutte = filtraOrdini(lettura.ordini, { periodo, stato, pagato, ricerca, ...nuovi });
+    return stato && !scelte.statoPagamento
+      ? tutte.filter((o) => !NON_PAGATI.includes(statoEffettivo(o, ora)))
+      : tutte;
+  }, [lettura.ordini, periodo, stato, pagato, ricerca, nuovi, scelte.statoPagamento, ora]);
   const conteggi = useMemo(
     () => conteggiPerStato(lettura.ordini, { periodo, pagato, ricerca, ...nuovi }),
     [lettura.ordini, periodo, pagato, ricerca, nuovi],
@@ -418,6 +422,7 @@ export function ElencoOrdini({
           <ul className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card">
             {mostrate.map((o) => {
               const fuori = importoFuoriNorma(o);
+              const badge = badgeRiga(o, ora);
               return (
                 <li
                   key={o.id}
@@ -426,7 +431,7 @@ export function ElencoOrdini({
                 >
                   <button
                     type="button"
-                    aria-label={`Apri ordine ${o.ref}, ${nomeCliente(o)}`}
+                    aria-label={`Apri ordine ${o.ref}, ${nomeCliente(o)}, ${badge.map((b) => b.testo).join(", ")}`}
                     onClick={(e) => apri(o, e.currentTarget)}
                     className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-3 gap-y-0.5 rounded-md text-left text-[13px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
@@ -447,14 +452,11 @@ export function ElencoOrdini({
                       {fuori ? "importo fuori norma" : euro(o.totale)}
                     </span>
                     <span className="flex flex-wrap items-center gap-1">
-                      <BadgePagamento ordine={o} adesso={ora} />
-                      {o.prova && (
-                        <Chip tono="in_sospeso" title="Ordine di prova: non conta nelle cifre">
-                          PROVA
+                      {badge.map((b) => (
+                        <Chip key={b.testo} tono={b.tono} title={b.titolo}>
+                          {b.testo}
                         </Chip>
-                      )}
-                      {fatturaDaFare(o) && <Chip tono="in_corso">Fattura da fare</Chip>}
-                      {o.giacenzaDaVerificare && <Chip tono="persa">Giacenza da verificare</Chip>}
+                      ))}
                       {o.canale === "sito" && (
                         <span className="text-[11.5px] text-muted-foreground">Cassa nuova</span>
                       )}
@@ -535,9 +537,19 @@ export function ElencoOrdini({
   );
 }
 
-function BadgePagamento({ ordine, adesso }: { ordine: Ordine; adesso: Date }) {
-  const b = BADGE_PAGAMENTO[statoEffettivo(ordine, adesso)];
-  return <Chip tono={b.tono}>{b.testo}</Chip>;
+/** I badge della riga, nell'ordine in cui si vedono: pagamento, PROVA, fattura, giacenza. Gli stessi testi vanno nell'etichetta del bottone (lettore di schermo). */
+function badgeRiga(o: Ordine, adesso: Date): { testo: string; tono: Tono; titolo?: string }[] {
+  const b = BADGE_PAGAMENTO[statoEffettivo(o, adesso)];
+  const r: { testo: string; tono: Tono; titolo?: string }[] = [{ testo: b.testo, tono: b.tono }];
+  if (o.prova)
+    r.push({
+      testo: "PROVA",
+      tono: "in_sospeso",
+      titolo: "Ordine di prova: non conta nelle cifre",
+    });
+  if (fatturaDaFare(o)) r.push({ testo: "Fattura da fare", tono: "in_corso" });
+  if (o.giacenzaDaVerificare) r.push({ testo: "Giacenza da verificare", tono: "persa" });
+  return r;
 }
 
 /** Un gruppo di chip dove se ne sceglie uno solo: il nome del gruppo è scritto (per chi guarda e per il lettore di schermo). */
