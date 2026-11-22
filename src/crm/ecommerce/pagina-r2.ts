@@ -212,6 +212,51 @@ export async function provaAdesso(f: FetchRotta): Promise<{ ok: true; frase: str
   return { ok: true, frase };
 }
 
+/* ══ COLLAUDO CON CHIAVE (T67, D57) ══════════════════════════════════════════ */
+
+export const FRASE_COLLAUDO =
+  "Il link dura 2 ore. Finché dura, lo può usare chiunque lo abbia: mandalo solo a te stesso e cancella il messaggio dopo l'uso.";
+const FRASE_LINK_STRANO = "Il link non è arrivato come previsto: riprova tra un momento.";
+/** Il link vero è sempre `https://…/shop/collaudo#k=<chiave>`: la chiave sta nel frammento, mai dopo un «?». Altro non si mostra. */
+const LINK_COLLAUDO = /^https:\/\/[^\s#?]+\/shop\/collaudo#k=[^\s#?]+$/;
+
+/** Chiede il link a `collaudo_chiave` (permesso «pagamenti»). Gli errori tornano già in frasi (`chiamaRotta`): mai codici, mai la chiave. */
+export async function creaLinkCollaudo(
+  f: FetchRotta,
+): Promise<{ ok: true; link: string } | ErroreR2> {
+  const r = await chiamaRotta(f, "/api/crm/negozio", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ azione: "collaudo_chiave" }),
+  });
+  if (!r.ok) return r;
+  const link = r.dati.link;
+  if (typeof link !== "string" || !LINK_COLLAUDO.test(link))
+    return { ok: false, tipo: "server", messaggio: FRASE_LINK_STRANO };
+  return { ok: true, link };
+}
+
+export interface EsitoCopia {
+  ok: boolean;
+  testo: string;
+}
+
+/** «Copia»: la frase che risponde non ripete mai il link e non riporta il testo del browser. */
+export async function copiaLink(
+  link: string,
+  appunti: { writeText: (testo: string) => Promise<void> } | undefined = typeof navigator ===
+  "undefined"
+    ? undefined
+    : navigator.clipboard,
+): Promise<EsitoCopia> {
+  try {
+    await appunti!.writeText(link);
+    return { ok: true, testo: "Link copiato." };
+  } catch {
+    return { ok: false, testo: "Non riesco a copiare da qui: selezionalo e copialo a mano." };
+  }
+}
+
 /* ══ LA CASSA: INTERRUTTORI E CONDIZIONI (T56) ═══════════════════════════════ */
 
 export const METODI_PAGAMENTO = [

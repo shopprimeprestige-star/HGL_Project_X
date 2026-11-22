@@ -5,7 +5,9 @@
  *      «Prova adesso» e l'ultimo webhook ricevuto;
  *   2. il webhook da incollare in Stripe: l'indirizzo con «Copia» e gli eventi da spuntare;
  *   3. «Cassa del sito»: l'interruttore `vecchia`/`Stripe`, con le condizioni e una frase per ciascuna che manca;
- *   4. «Pagamento sicuro» (spento con la sua frase finché non c'è un pagamento reale rimborsato) e i metodi attivi sull'account.
+ *   4. «Pagamento sicuro» (spento con la sua frase finché non c'è un pagamento reale rimborsato) e i metodi attivi sull'account;
+ *   5. «Collaudo con chiave» (T67, D57): il pulsante che chiede il link `…/shop/collaudo#k=…` a `collaudo_chiave`, con «Copia».
+ *      Il link vive solo nello stato del riquadro: mai in `localStorage`, nella cronologia o in un log.
  *
  *  ── COME È FATTA ─────────────────────────────────────────────────────────────
  *  `VistaCassa` disegna e basta (riceve dati e funzioni: si prova con `react-dom/server`). `PannelloCassa` tiene lo stato e parla
@@ -13,7 +15,7 @@
  *  disegna, cioè solo aprendo la linguetta: le altre schede non toccano Stripe.
  *  Chi non ha il permesso, o ha la sessione scaduta, non vede nemmeno i dati di una lettura precedente.
  *  Nessuna parola «Elimina»: qui si accende e si spegne, non si cancella niente. Nessun log. Nessuna chiave. */
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { CircleAlert, CircleCheck, Clipboard, ClipboardCheck, Lock, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -25,15 +27,19 @@ import { Avviso } from "@/crm/ecommerce/Avviso";
 import { Riquadro } from "@/crm/ecommerce/Riquadro";
 import {
   EVENTI_STRIPE,
+  FRASE_COLLAUDO,
   FRASE_SICURO,
   METODI_PAGAMENTO,
   caricaCassa,
   caricaStripe,
+  copiaLink,
+  creaLinkCollaudo,
   impostaCassa,
   indirizzoWebhook,
   metodiDopoCambio,
   motivoStripeSpento,
   provaAdesso,
+  type EsitoCopia,
   type ErroreR2,
   type FetchRotta,
   type StatoCassa,
@@ -80,6 +86,8 @@ export interface PropsVistaCassa {
   onMetodo: (metodo: string, attivo: boolean) => void;
   onCopia: () => void;
   onRiprova: () => void;
+  /** Il riquadro «Collaudo con chiave» (`RiquadroCollaudo` nella scheda vera), in fondo. */
+  collaudo?: ReactNode;
 }
 
 const quando = (iso: string) =>
@@ -418,7 +426,132 @@ export function VistaCassa(p: PropsVistaCassa) {
           {esitoIn("sicuro")}
         </Riquadro>
       )}
+      {p.collaudo}
     </div>
+  );
+}
+
+/* ══ COLLAUDO CON CHIAVE (T67, D57) ══════════════════════════════════════════ */
+
+export interface PropsVistaCollaudo {
+  link: string | null;
+  errore: string | null;
+  inCorso: boolean;
+  copia: EsitoCopia | null;
+  onCrea: () => void;
+  onCopia: () => void;
+}
+
+export function VistaCollaudo(p: PropsVistaCollaudo) {
+  return (
+    <Riquadro id="cassa-collaudo" titolo="Collaudo con chiave">
+      <p className="text-base text-muted-foreground md:text-[12.5px]">
+        Serve a provare la cassa nuova dal tuo telefono, sul sito vero: per tutti gli altri non
+        cambia niente.
+      </p>
+      <p id="cassa-collaudo-avviso" className="text-base font-medium md:text-[12.5px]">
+        {FRASE_COLLAUDO}
+      </p>
+      <div>
+        <Button
+          type="button"
+          variant="outline"
+          className="min-h-11 text-base sm:min-h-8 sm:text-[12.5px]"
+          disabled={p.inCorso}
+          onClick={p.onCrea}
+        >
+          {p.inCorso ? "Creo il link…" : "Crea il link di collaudo"}
+        </Button>
+      </div>
+      {p.errore && (
+        <div
+          role="alert"
+          className="flex items-start gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-base leading-snug text-rose-900 md:text-[12.5px]"
+        >
+          <CircleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          <p className="min-w-0 flex-1">{p.errore}</p>
+        </div>
+      )}
+      {p.link && (
+        <div className="flex items-center gap-2">
+          <Input
+            readOnly
+            value={p.link}
+            aria-label="Link di collaudo"
+            aria-describedby="cassa-collaudo-avviso"
+            className="h-11 min-w-0 flex-1 font-mono text-base md:h-9 md:text-[12.5px]"
+            onFocus={(e) => e.currentTarget.select()}
+          />
+          <Button
+            type="button"
+            variant="outline"
+            className="min-h-11 shrink-0 text-base sm:min-h-8 sm:text-[12.5px]"
+            onClick={p.onCopia}
+          >
+            <Clipboard className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
+            Copia
+          </Button>
+        </div>
+      )}
+      {p.copia && (
+        <p
+          role="status"
+          className={cn(
+            "text-base md:text-[12.5px]",
+            p.copia.ok ? "text-emerald-800" : "text-rose-800",
+          )}
+        >
+          {p.copia.testo}
+        </p>
+      )}
+    </Riquadro>
+  );
+}
+
+/** Lo stato del riquadro: il link resta qui, in memoria, e sparisce con la scheda. */
+export function RiquadroCollaudo({ fetch }: { fetch: FetchRotta }) {
+  const [link, setLink] = useState<string | null>(null);
+  const [errore, setErrore] = useState<string | null>(null);
+  const [inCorso, setInCorso] = useState(false);
+  const [copia, setCopia] = useState<EsitoCopia | null>(null);
+  const vivo = useRef(true);
+  const via = useRef(false);
+  useEffect(() => {
+    vivo.current = true;
+    return () => {
+      vivo.current = false;
+    };
+  }, []);
+
+  async function crea() {
+    if (via.current) return; // un secondo clic prima che il pulsante si spenga
+    via.current = true;
+    setInCorso(true);
+    setLink(null);
+    setErrore(null);
+    setCopia(null);
+    const r = await creaLinkCollaudo(fetch);
+    via.current = false;
+    if (!vivo.current) return;
+    setInCorso(false);
+    if (r.ok) setLink(r.link);
+    else setErrore(r.messaggio);
+  }
+
+  return (
+    <VistaCollaudo
+      link={link}
+      errore={errore}
+      inCorso={inCorso}
+      copia={copia}
+      onCrea={() => void crea()}
+      onCopia={() =>
+        link &&
+        void copiaLink(link).then((e) => {
+          if (vivo.current) setCopia(e);
+        })
+      }
+    />
   );
 }
 
@@ -579,6 +712,7 @@ export function PannelloCassa({
       }
       onCopia={() => void copia()}
       onRiprova={() => void carica()}
+      collaudo={<RiquadroCollaudo fetch={fetch} />}
     />
   );
 }
