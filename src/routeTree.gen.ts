@@ -40,6 +40,7 @@ import { Route as BlogIndexRouteImport } from './routes/blog.index'
 import { Route as CRMIndexRouteImport } from './routes/CRM.index'
 import { Route as WebinarCodeRouteImport } from './routes/webinar_.$code'
 import { Route as VideochiamataCodeRouteImport } from './routes/videochiamata_.$code'
+import { Route as ShopCollaudoRouteImport } from './routes/shop.collaudo'
 import { Route as ShopCheckoutRouteImport } from './routes/shop.checkout'
 import { Route as ShopCarrelloRouteImport } from './routes/shop.carrello'
 import { Route as RegiaCodiceRouteImport } from './routes/regia_.$codice'
@@ -124,6 +125,7 @@ import { Route as ApiPublicValidateDiscountRouteImport } from './routes/api.publ
 import { Route as ApiPublicTurnRouteImport } from './routes/api.public.turn'
 import { Route as ApiPublicTrackingConfigRouteImport } from './routes/api.public.tracking-config'
 import { Route as ApiPublicStripeWebhookRouteImport } from './routes/api.public.stripe-webhook'
+import { Route as ApiPublicShopCollaudoRouteImport } from './routes/api.public.shop-collaudo'
 import { Route as ApiPublicShopCassaPermessoRouteImport } from './routes/api.public.shop-cassa-permesso'
 import { Route as ApiPublicShopCassaRouteImport } from './routes/api.public.shop-cassa'
 import { Route as ApiPublicSheetsIngressoRouteImport } from './routes/api.public.sheets-ingresso'
@@ -401,6 +403,11 @@ const VideochiamataCodeRoute = VideochiamataCodeRouteImport.update({
   id: '/videochiamata_/$code',
   path: '/videochiamata/$code',
   getParentRoute: () => rootRouteImport,
+} as any)
+const ShopCollaudoRoute = ShopCollaudoRouteImport.update({
+  id: '/collaudo',
+  path: '/collaudo',
+  getParentRoute: () => ShopRoute,
 } as any)
 const ShopCheckoutRoute = ShopCheckoutRouteImport.update({
   id: '/checkout',
@@ -823,6 +830,11 @@ const ApiPublicTrackingConfigRoute = ApiPublicTrackingConfigRouteImport.update({
 const ApiPublicStripeWebhookRoute = ApiPublicStripeWebhookRouteImport.update({
   id: '/api/public/stripe-webhook',
   path: '/api/public/stripe-webhook',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicShopCollaudoRoute = ApiPublicShopCollaudoRouteImport.update({
+  id: '/api/public/shop-collaudo',
+  path: '/api/public/shop-collaudo',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiPublicShopCassaPermessoRoute =
@@ -1550,6 +1562,7 @@ export interface FileRoutesByFullPath {
   '/regia/$codice': typeof RegiaCodiceRoute
   '/shop/carrello': typeof ShopCarrelloRoute
   '/shop/checkout': typeof ShopCheckoutRoute
+  '/shop/collaudo': typeof ShopCollaudoRoute
   '/videochiamata/$code': typeof VideochiamataCodeRoute
   '/webinar/$code': typeof WebinarCodeRoute
   '/CRM/': typeof CRMIndexRoute
@@ -1677,6 +1690,7 @@ export interface FileRoutesByFullPath {
   '/api/public/sheets-ingresso': typeof ApiPublicSheetsIngressoRoute
   '/api/public/shop-cassa': typeof ApiPublicShopCassaRoute
   '/api/public/shop-cassa-permesso': typeof ApiPublicShopCassaPermessoRoute
+  '/api/public/shop-collaudo': typeof ApiPublicShopCollaudoRoute
   '/api/public/stripe-webhook': typeof ApiPublicStripeWebhookRoute
   '/api/public/tracking-config': typeof ApiPublicTrackingConfigRoute
   '/api/public/turn': typeof ApiPublicTurnRoute
@@ -1784,6 +1798,7 @@ export interface FileRoutesByTo {
   '/regia/$codice': typeof RegiaCodiceRoute
   '/shop/carrello': typeof ShopCarrelloRoute
   '/shop/checkout': typeof ShopCheckoutRoute
+  '/shop/collaudo': typeof ShopCollaudoRoute
   '/videochiamata/$code': typeof VideochiamataCodeRoute
   '/webinar/$code': typeof WebinarCodeRoute
   '/CRM': typeof CRMIndexRoute
@@ -1911,6 +1926,7 @@ export interface FileRoutesByTo {
   '/api/public/sheets-ingresso': typeof ApiPublicSheetsIngressoRoute
   '/api/public/shop-cassa': typeof ApiPublicShopCassaRoute
   '/api/public/shop-cassa-permesso': typeof ApiPublicShopCassaPermessoRoute
+  '/api/public/shop-collaudo': typeof ApiPublicShopCollaudoRoute
   '/api/public/stripe-webhook': typeof ApiPublicStripeWebhookRoute
   '/api/public/tracking-config': typeof ApiPublicTrackingConfigRoute
   '/api/public/turn': typeof ApiPublicTurnRoute
@@ -2024,6 +2040,7 @@ export interface FileRoutesById {
   '/regia_/$codice': typeof RegiaCodiceRoute
   '/shop/carrello': typeof ShopCarrelloRoute
   '/shop/checkout': typeof ShopCheckoutRoute
+  '/shop/collaudo': typeof ShopCollaudoRoute
   '/videochiamata_/$code': typeof VideochiamataCodeRoute
   '/webinar_/$code': typeof WebinarCodeRoute
   '/CRM/': typeof CRMIndexRoute
@@ -2151,6 +2168,7 @@ export interface FileRoutesById {
   '/api/public/sheets-ingresso': typeof ApiPublicSheetsIngressoRoute
   '/api/public/shop-cassa': typeof ApiPublicShopCassaRoute
   '/api/public/shop-cassa-permesso': typeof ApiPublicShopCassaPermessoRoute
+  '/api/public/shop-collaudo': typeof ApiPublicShopCollaudoRoute
   '/api/public/stripe-webhook': typeof ApiPublicStripeWebhookRoute
   '/api/public/tracking-config': typeof ApiPublicTrackingConfigRoute
   '/api/public/turn': typeof ApiPublicTurnRoute
@@ -2265,6 +2283,7 @@ export interface FileRouteTypes {
     | '/regia/$codice'
     | '/shop/carrello'
     | '/shop/checkout'
+    | '/shop/collaudo'
     | '/videochiamata/$code'
     | '/webinar/$code'
     | '/CRM/'
@@ -2392,6 +2411,7 @@ export interface FileRouteTypes {
     | '/api/public/sheets-ingresso'
     | '/api/public/shop-cassa'
     | '/api/public/shop-cassa-permesso'
+    | '/api/public/shop-collaudo'
     | '/api/public/stripe-webhook'
     | '/api/public/tracking-config'
     | '/api/public/turn'
@@ -2499,6 +2519,7 @@ export interface FileRouteTypes {
     | '/regia/$codice'
     | '/shop/carrello'
     | '/shop/checkout'
+    | '/shop/collaudo'
     | '/videochiamata/$code'
     | '/webinar/$code'
     | '/CRM'
@@ -2626,6 +2647,7 @@ export interface FileRouteTypes {
     | '/api/public/sheets-ingresso'
     | '/api/public/shop-cassa'
     | '/api/public/shop-cassa-permesso'
+    | '/api/public/shop-collaudo'
     | '/api/public/stripe-webhook'
     | '/api/public/tracking-config'
     | '/api/public/turn'
@@ -2738,6 +2760,7 @@ export interface FileRouteTypes {
     | '/regia_/$codice'
     | '/shop/carrello'
     | '/shop/checkout'
+    | '/shop/collaudo'
     | '/videochiamata_/$code'
     | '/webinar_/$code'
     | '/CRM/'
@@ -2865,6 +2888,7 @@ export interface FileRouteTypes {
     | '/api/public/sheets-ingresso'
     | '/api/public/shop-cassa'
     | '/api/public/shop-cassa-permesso'
+    | '/api/public/shop-collaudo'
     | '/api/public/stripe-webhook'
     | '/api/public/tracking-config'
     | '/api/public/turn'
@@ -3061,6 +3085,7 @@ export interface RootRouteChildren {
   ApiPublicSheetsIngressoRoute: typeof ApiPublicSheetsIngressoRoute
   ApiPublicShopCassaRoute: typeof ApiPublicShopCassaRoute
   ApiPublicShopCassaPermessoRoute: typeof ApiPublicShopCassaPermessoRoute
+  ApiPublicShopCollaudoRoute: typeof ApiPublicShopCollaudoRoute
   ApiPublicStripeWebhookRoute: typeof ApiPublicStripeWebhookRoute
   ApiPublicTrackingConfigRoute: typeof ApiPublicTrackingConfigRoute
   ApiPublicTurnRoute: typeof ApiPublicTurnRoute
@@ -3287,6 +3312,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/videochiamata/$code'
       preLoaderRoute: typeof VideochiamataCodeRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/shop/collaudo': {
+      id: '/shop/collaudo'
+      path: '/collaudo'
+      fullPath: '/shop/collaudo'
+      preLoaderRoute: typeof ShopCollaudoRouteImport
+      parentRoute: typeof ShopRoute
     }
     '/shop/checkout': {
       id: '/shop/checkout'
@@ -3874,6 +3906,13 @@ declare module '@tanstack/react-router' {
       path: '/api/public/stripe-webhook'
       fullPath: '/api/public/stripe-webhook'
       preLoaderRoute: typeof ApiPublicStripeWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/shop-collaudo': {
+      id: '/api/public/shop-collaudo'
+      path: '/api/public/shop-collaudo'
+      fullPath: '/api/public/shop-collaudo'
+      preLoaderRoute: typeof ApiPublicShopCollaudoRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/shop-cassa-permesso': {
@@ -4858,6 +4897,7 @@ const ConsulenteRouteWithChildren = ConsulenteRoute._addFileChildren(
 interface ShopRouteChildren {
   ShopCarrelloRoute: typeof ShopCarrelloRoute
   ShopCheckoutRoute: typeof ShopCheckoutRoute
+  ShopCollaudoRoute: typeof ShopCollaudoRoute
   ShopIndexRoute: typeof ShopIndexRoute
   ShopCSlugRoute: typeof ShopCSlugRoute
   ShopOrdineRefRoute: typeof ShopOrdineRefRoute
@@ -4867,6 +4907,7 @@ interface ShopRouteChildren {
 const ShopRouteChildren: ShopRouteChildren = {
   ShopCarrelloRoute: ShopCarrelloRoute,
   ShopCheckoutRoute: ShopCheckoutRoute,
+  ShopCollaudoRoute: ShopCollaudoRoute,
   ShopIndexRoute: ShopIndexRoute,
   ShopCSlugRoute: ShopCSlugRoute,
   ShopOrdineRefRoute: ShopOrdineRefRoute,
@@ -5069,6 +5110,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicSheetsIngressoRoute: ApiPublicSheetsIngressoRoute,
   ApiPublicShopCassaRoute: ApiPublicShopCassaRoute,
   ApiPublicShopCassaPermessoRoute: ApiPublicShopCassaPermessoRoute,
+  ApiPublicShopCollaudoRoute: ApiPublicShopCollaudoRoute,
   ApiPublicStripeWebhookRoute: ApiPublicStripeWebhookRoute,
   ApiPublicTrackingConfigRoute: ApiPublicTrackingConfigRoute,
   ApiPublicTurnRoute: ApiPublicTurnRoute,
