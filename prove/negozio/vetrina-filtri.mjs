@@ -169,6 +169,14 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("togliere tutti i chip uno a uno riporta a nessun filtro (e a un indirizzo vuoto)", "", F.scriviFiltri(chip.reduce((st, x) => F.togliFiltro(st, x), s3)));
   c("togliere un chip non cambia lo stato di partenza", { valori: { colore: ["castano", "nero"], misura: ["piccola"] }, disponibile: true }, s3);
 
+  // ── un'opzione chiamata come una proprietà degli oggetti («constructor») non rompe chip e «togli» ──
+  const ggC = F.gruppiDaProdotti([conVarianti("c", [[{ Constructor: "A", Colore: "Nero" }], [{ Constructor: "B", Colore: "Biondo" }, false]])]);
+  c("«Constructor» è un gruppo come gli altri (chiave minuscola)", ["colore", "constructor", "disp"], chiavi(ggC));
+  c("chip con uno stato che NON ha quel gruppo: nessun errore, solo i chip che ci sono", ["nero"], F.chipAttivi(ggC, stato({ colore: ["nero"] })).map((x) => x.valore));
+  c("chip e filtro con il gruppo «constructor» scelto", [["colore", "nero"], ["constructor", "a"]], F.chipAttivi(ggC, leggi("constructor=a&colore=nero", ggC)).map((x) => [x.gruppo, x.valore]));
+  c("«togli» un chip di un gruppo che lo stato non ha: nessun errore, stato com'era", stato({ colore: ["nero"] }), F.togliFiltro(stato({ colore: ["nero"] }), { gruppo: "constructor", valore: "a", etichetta: "A" }));
+  c("«togli» il chip «constructor» quando c'è", { valori: { colore: ["nero"] }, disponibile: false }, F.togliFiltro(leggi("constructor=a&colore=nero", ggC), { gruppo: "constructor", valore: "a", etichetta: "A" }));
+
   // ── il sorgente: niente rete, niente schermo, niente orologio ──
   const sorgente = readFileSync(join(radice, "src/shop/cms/vetrina-filtri.ts"), "utf8");
   const senzaCommenti = sorgente.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");

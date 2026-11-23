@@ -46,6 +46,16 @@ export async function prove(mod, { c, gruppo, radice }) {
   const otto = [...m6, m1, m2];
   c("sei del documento e due fuori documento: otto meta tutti diversi", [true, true], [tuttiDiversi(otto.map((m) => m.titolo)), tuttiDiversi(otto.map((m) => m.descrizione))]);
 
+  // ── mai uguali, anche quando il CMS ripete lo stesso testo (D97) ──
+  const uguale = { titolo: "Lo stesso titolo", descrizione: "La stessa descrizione." };
+  const dueUguali = S.metaCategorie([cat(SEI[0].slug, SEI[0].nome, uguale), cat(SEI[1].slug, SEI[1].nome, uguale)]);
+  c("METACATEGORIE: due categorie con lo stesso testo SEO nel CMS → la prima lo tiene, la seconda torna alla riga del documento", [uguale, { titolo: SEI[1].metaTitolo, descrizione: SEI[1].metaDescrizione }], dueUguali);
+  c("senza conflitti dà gli stessi meta di `metaCategoria`, nello stesso ordine", m6, S.metaCategorie(nude));
+  const conflitti = S.metaCategorie([cat("a1", "Trecce", uguale), cat("a2", "Trecce", uguale), cat("a3", "Trecce", uguale), cat("a4", "Trecce", uguale), cat(SEI[2].slug, SEI[2].nome, { titolo: SEI[0].metaTitolo, descrizione: null }), cat(SEI[0].slug, SEI[0].nome)]);
+  c("anche a catena (stesso nome, stesso testo, un testo del CMS uguale alla riga di un'altra): tutti diversi, nessuna parola vietata", [true, true, []],
+    [tuttiDiversi(conflitti.map((m) => m.titolo)), tuttiDiversi(conflitti.map((m) => m.descrizione)), conflitti.flatMap((m) => trovaParoleVietate(`${m.titolo} ${m.descrizione}`))]);
+  c("elenco vuoto → niente; l'elenco congelato in ingresso non fa lanciare", [[], 3], [S.metaCategorie([]), S.metaCategorie(CATEGORIE).length]);
+
   // ── le categorie dei dati inventati ──
   const dati = CATEGORIE.map((x) => S.metaCategoria(x));
   c("le tre categorie di prova (con il loro testo SEO) → diverse fra loro e uguali al testo scritto", [true, true, true], [tuttiDiversi(dati.map((m) => m.titolo)), tuttiDiversi(dati.map((m) => m.descrizione)), dati.every((m, i) => m.titolo === CATEGORIE[i].seo.titolo && m.descrizione === CATEGORIE[i].seo.descrizione)]);

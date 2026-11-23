@@ -4,7 +4,7 @@
  *  Dati inventati (`_dati-vetrina.mjs`, `dati.mjs`). Criterio: V1-C4 (nome e SKU, 4 prodotti senza risultati), V1-C3 (bozza mai in ricerca). */
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { CATALOGO, SCENARIO_50 } from "./_dati-vetrina.mjs";
+import { CATALOGO, CATALOGO_SENZA_FOTO, SCENARIO_50 } from "./_dati-vetrina.mjs";
 import { tabelleProva } from "./dati.mjs";
 
 export async function prove(mod, { c, gruppo, radice }) {
@@ -76,6 +76,13 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("nessuna patch → niente (la pagina mostra solo il messaggio)", [[], []], [R.quattroDallaVetrina(CATALOGO.filter((p) => p.tipo !== "patch")), R.quattroDallaVetrina([])]);
   const idPatch = { ...structuredClone(CATALOGO.find((p) => p.slug === "invisible-derm-prova")), tipo: "patch" };
   c("un prodotto non acquistabile (Invisible Derm) non entra nemmeno se è di tipo patch", false, slugsDi(R.quattroDallaVetrina([idPatch, ...CATALOGO])).includes("invisible-derm-prova"));
+  const alfaP = CATALOGO.find((p) => p.slug === "patch-prova-alfa");
+  c("NON ACQUISTABILE ma con una variante disponibile → fuori (il flag conta da solo)", [], slugsDi(R.quattroDallaVetrina([{ ...alfaP, acquistabile: false }])));
+  c("senza foto principale → fuori (come la vetrina della home)", [[], []], [slugsDi(R.quattroDallaVetrina(CATALOGO_SENZA_FOTO)), slugsDi(R.quattroDallaVetrina([{ ...alfaP, media: alfaP.media.filter((m) => m.slot !== "principale") }]))]);
+  c("una foto principale senza le misure (src nullo) non vale", [], slugsDi(R.quattroDallaVetrina([{ ...alfaP, media: alfaP.media.map((m) => ({ ...m, src: null })) }])));
+  const nomi = (...n) => n.map((nome, i) => ({ ...alfaP, nome, slug: `p-${n.length - i}` }));
+  c("STESSO ORDINE DELLA HOME: i numeri come numeri («Patch 2» prima di «Patch 10»), maiuscole e accenti non contano", ["Patch 2", "Patch 10", "Zeta"], R.quattroDallaVetrina(nomi("Zeta", "Patch 10", "Patch 2")).map((p) => p.nome));
+  c("a parità di nome decide lo slug", ["p-1", "p-2", "p-3"], R.quattroDallaVetrina(nomi("Uguale", "Uguale", "Uguale")).map((p) => p.slug));
   c("restituisce i prodotti dell'elenco, non copie", true, R.quattroDallaVetrina(CATALOGO)[0] === CATALOGO.find((p) => p.slug === "patch-prova-alfa"));
   c("il numero è 4", 4, R.QUANTI_NELLO_STATO_VUOTO);
 

@@ -43,6 +43,25 @@ export function metaCategoria(cat: CategoriaPerMeta): MetaPagina {
   };
 }
 
+/** I meta di tutte le categorie, uno per categoria nello stesso ordine, MAI uguali fra loro (D97): se un testo scritto nel CMS coincide con
+ *  uno già dato a una categoria precedente, la seconda torna alla riga del documento, poi al modello con il nome, poi al modello con lo slug. */
+export function metaCategorie(elenco: readonly CategoriaPerMeta[]): MetaPagina[] {
+  const usati = { titolo: new Set<string>(), descrizione: new Set<string>() };
+  const scegli = (campo: keyof MetaPagina, candidati: (string | null | undefined)[]): string => {
+    const buoni = candidati.filter((t): t is string => !!t);
+    const t = buoni.find((x) => !usati[campo].has(x)) ?? buoni[buoni.length - 1];
+    usati[campo].add(t);
+    return t;
+  };
+  return elenco.map((cat) => {
+    const riga = TESTI_SHOP.categorie.find((x) => x.slug === cat.slug);
+    return {
+      titolo: scegli("titolo", [scritto(cat.seo?.titolo), riga?.metaTitolo, MODELLO.titolo(cat.nome), MODELLO.titolo(`${cat.nome} (${cat.slug})`)]),
+      descrizione: scegli("descrizione", [scritto(cat.seo?.descrizione), riga?.metaDescrizione, MODELLO.descrizione(cat.nome), MODELLO.descrizione(`${cat.nome} (${cat.slug})`)]),
+    };
+  });
+}
+
 /** Titolo e descrizione della home dello shop (documento §3.14). */
 export function metaHome(): MetaPagina {
   const { titolo, descrizione } = TESTI_SHOP.meta.home;

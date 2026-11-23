@@ -183,12 +183,15 @@ export const conteggio = (prodotti: readonly Filtrabile[], stato: StatoFiltri): 
 
 // ── i chip ───────────────────────────────────────────────────────────────
 
+/** I valori scelti di un gruppo: solo se lo stato li ha davvero (un'opzione chiamata «constructor» non pesca nulla dall'oggetto). */
+const sceltiDi = (valori: Record<string, string[]>, chiave: string): string[] => (Object.hasOwn(valori, chiave) ? valori[chiave] : []);
+
 /** I filtri scelti, uno per valore, nell'ordine dei gruppi (e dei valori nel gruppo), «Disponibile» ultimo: i chip rimovibili del computer. */
 export function chipAttivi(gruppi: readonly GruppoFiltro[], stato: StatoFiltri): ChipFiltro[] {
   const { valori, disponibile } = canonico(stato);
   return gruppi.flatMap((g): ChipFiltro[] => {
     if (g.tipo === "interruttore") return disponibile ? [{ gruppo: g.chiave, valore: null, etichetta: g.nome }] : [];
-    const scelti = new Set(valori[g.chiave] ?? []);
+    const scelti = new Set(sceltiDi(valori, g.chiave));
     return g.valori.filter((v) => scelti.has(v.chiave)).map((v) => ({ gruppo: g.chiave, valore: v.chiave, etichetta: v.valore }));
   });
 }
@@ -203,5 +206,5 @@ export function filtriAttivi(stato: StatoFiltri): number {
 export function togliFiltro(stato: StatoFiltri, chip: ChipFiltro): StatoFiltri {
   const s = canonico(stato);
   if (chip.valore === null) return { ...s, disponibile: false };
-  return canonico({ ...s, valori: { ...s.valori, [chip.gruppo]: (s.valori[chip.gruppo] ?? []).filter((k) => k !== chip.valore) } });
+  return canonico({ ...s, valori: { ...s.valori, [chip.gruppo]: sceltiDi(s.valori, chip.gruppo).filter((k) => k !== chip.valore) } });
 }
