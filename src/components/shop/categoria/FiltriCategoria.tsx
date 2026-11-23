@@ -52,6 +52,7 @@ function Campione({ v, premuto }: { v: ValoreFiltro; premuto: boolean }) {
   return (
     <span
       aria-hidden="true"
+      data-campione
       className={`flex size-6 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#0A1430] text-xs font-semibold text-white ring-1 ${premuto ? "ring-white/70" : "ring-ink/20"}`}
     >
       {v.campione ? (
@@ -131,7 +132,8 @@ export interface FiltriCategoriaProps<P extends Filtrabile> {
   prodotti: readonly P[];
   /** La ricerca dell'indirizzo come la dà il router (`useSearch`): qualunque cosa, i valori che non conosciamo si ignorano. */
   search: unknown;
-  /** Disegna i prodotti che passano i filtri (di norma `GrigliaCard`). Non si chiama senza prodotti: si vede lo stato vuoto. */
+  /** Disegna i prodotti che passano i filtri (di norma `GrigliaCard`). Si chiama solo con almeno un prodotto visibile, salvo quando la
+   *  categoria non ha filtri veri: allora si chiama sempre, anche con `[]` (la pagina decide cosa fare senza prodotti). Con filtri e nessun risultato si vede lo stato vuoto. */
   children: (visibili: P[]) => ReactNode;
 }
 
@@ -151,47 +153,50 @@ export function FiltriCategoria<P extends Filtrabile>({
   const inAttesa = useRouterState({ select: (s) => s.isLoading });
 
   // ── l'indirizzo: ogni scelta lo riscrive, gli altri parametri restano ──
-  const vai = (nuovo: StatoFiltri) => {
-    const filtri = Object.fromEntries(new URLSearchParams(scriviFiltri(nuovo)));
+  /** `cambia` riceve lo stato letto dall'indirizzo CORRENTE (`prima`), non quello già disegnato: due tocchi veloci non si sovrascrivono. */
+  const vai = (cambia: (corrente: StatoFiltri) => StatoFiltri) => {
     const miei = new Set(gruppi.map((g) => g.chiave));
     void navigate({
       search: (prima: Record<string, unknown>) => ({
         ...Object.fromEntries(Object.entries(prima).filter(([k]) => !miei.has(k))),
-        ...filtri,
+        ...Object.fromEntries(
+          new URLSearchParams(scriviFiltri(cambia(leggiFiltri(prima, gruppi)))),
+        ),
       }),
       replace: true,
       resetScroll: false,
     } as Parameters<typeof navigate>[0]);
   };
-  const alterna = (g: GruppoFiltro, valore: string) => {
-    if (g.tipo === "interruttore") return vai({ ...stato, disponibile: !stato.disponibile });
-    const gia = sceltiDi(stato, g.chiave);
-    vai({
-      ...stato,
-      valori: {
-        ...stato.valori,
-        [g.chiave]: gia.includes(valore) ? gia.filter((k) => k !== valore) : [...gia, valore],
-      },
+  const alterna = (g: GruppoFiltro, valore: string) =>
+    vai((s) => {
+      if (g.tipo === "interruttore") return { ...s, disponibile: !s.disponibile };
+      const gia = sceltiDi(s, g.chiave);
+      return {
+        ...s,
+        valori: {
+          ...s.valori,
+          [g.chiave]: gia.includes(valore) ? gia.filter((k) => k !== valore) : [...gia, valore],
+        },
+      };
     });
-  };
-  const azzera = () => vai(FILTRI_VUOTI);
+  const azzera = () => vai(() => FILTRI_VUOTI);
 
   // ── il foglio del telefono: in ritardo, fuoco restituito al bottone ──
   const [montato, setMontato] = useState(false);
-  const [aperto, setAperto] = useState<StatoFoglio>(FOGLIO_CHIUSO);
+  const [statoFoglio, setStatoFoglio] = useState<StatoFoglio>(FOGLIO_CHIUSO);
   const tasto = useRef<HTMLButtonElement | null>(null);
   /** A chi restituire il fuoco appena il foglio si è chiuso (lo dice il riduttore); `null` = a nessuno. Si legge una volta sola, dal gestore. */
   const fuocoA = useRef<string | null>(null);
   const apri = () => {
     setMontato(true);
-    setAperto((s) => foglio(s, { tipo: "apri", da: ID_TASTO }));
+    setStatoFoglio((s) => foglio(s, { tipo: "apri", da: ID_TASTO }));
   };
   /** Chiusura con la X, Esc, tocco fuori o «Mostra»: il fuoco torna al bottone. */
-  const chiudi = (voluto: boolean) => {
-    if (voluto) return;
-    const dopo = foglio(aperto, { tipo: "chiudi" });
+  const chiudi = (aperto: boolean) => {
+    if (aperto) return;
+    const dopo = foglio(statoFoglio, { tipo: "chiudi" });
     fuocoA.current = dopo.fuocoA;
-    setAperto(dopo);
+    setStatoFoglio(dopo);
   };
   const rendiFuoco = () => {
     if (fuocoA.current === ID_TASTO) tasto.current?.focus();
@@ -236,7 +241,7 @@ export function FiltriCategoria<P extends Filtrabile>({
           type="button"
           data-fuoco={ID_TASTO}
           aria-haspopup="dialog"
-          aria-expanded={aperto.aperto}
+          aria-expanded={statoFoglio.aperto}
           onClick={apri}
           className="shop-anello inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md border border-[#0A1430]/30 bg-white px-4 text-sm font-semibold text-[#0A1430] hover:border-[#0A1430]"
         >
@@ -281,7 +286,7 @@ export function FiltriCategoria<P extends Filtrabile>({
                       type="button"
                       data-chip
                       aria-label={riempi(TESTI.togli, { nome: c.etichetta })}
-                      onClick={() => vai(togliFiltro(stato, c))}
+                      onClick={() => vai((s) => togliFiltro(s, c))}
                       className="shop-anello inline-flex min-h-11 items-center gap-2 rounded-full bg-ink/10 pl-4 pr-3 text-sm font-medium text-ink hover:bg-ink/15"
                     >
                       {c.etichetta}
@@ -318,7 +323,7 @@ export function FiltriCategoria<P extends Filtrabile>({
       {montato && (
         <Suspense fallback={null}>
           <FoglioFiltri
-            aperto={aperto.aperto}
+            aperto={statoFoglio.aperto}
             onApertoChange={chiudi}
             titolo={TESTI.titolo}
             chiudi={TESTI.chiudi}

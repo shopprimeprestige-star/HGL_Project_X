@@ -377,6 +377,7 @@ export async function prove(mod, { c, gruppo, radice }) {
     const filtro = (app, g, v, da) => bottone(app, (n) => n.props["data-filtro"] === `${g}:${v}`, da);
     const nav = () => globalThis.__prova.navigazioni;
 
+    const interr = gruppi.find((g) => g.tipo === "interruttore");
     // ── apre, chiude, restituisce il fuoco ──
     const app = nuovo({ [primo.chiave]: v1.chiave });
     c("all'inizio il foglio non c'è (nessun `Root` di Radix disegnato) e la barra dice «chiuso»", [undefined, false], [globalThis.__prova.radix.Root, sulBarra(app).props["aria-expanded"]]);
@@ -416,21 +417,41 @@ export async function prove(mod, { c, gruppo, radice }) {
     c("scegliere un valore nel foglio naviga UNA volta, senza riempire la cronologia (`replace`) e senza saltare in alto (`resetScroll: false`)", [1, true, false], [nav().length, nav()[0]?.replace, nav()[0]?.resetScroll]);
     c("…con l'indirizzo di `scriviFiltri` e senza toccare gli altri parametri (utm, ecc.)", { utm: "x", [primo.chiave]: v1.chiave }, nav()[0].search({ utm: "x" }));
     c("…e togliendo i filtri vecchi dall'indirizzo (non restano parametri di filtri che non ci sono più)", { utm: "x", [primo.chiave]: v1.chiave }, nav()[0].search({ utm: "x", [primo.chiave]: "vecchio", ...Object.fromEntries(conValori.map((g) => [g.chiave, "vecchio"])) }));
-    c("un valore premuto di nuovo si toglie: l'indirizzo non ha più il parametro", { utm: "x" }, (() => { const s = nuovo({ [primo.chiave]: v1.chiave }); s.esegui(() => sulBarra(s).props.onClick({})); s.esegui(() => filtro(s, primo.chiave, v1.chiave, foglioNodo(s)).props.onClick({})); const r = nav().at(-1).search({ utm: "x" }); s.smonta(); return r; })());
+    c("un valore premuto di nuovo si toglie: l'indirizzo non ha più il parametro", { utm: "x" }, (() => { const s = nuovo({ [primo.chiave]: v1.chiave }); s.esegui(() => sulBarra(s).props.onClick({})); s.esegui(() => filtro(s, primo.chiave, v1.chiave, foglioNodo(s)).props.onClick({})); const r = nav().at(-1).search({ utm: "x", [primo.chiave]: v1.chiave }); s.smonta(); return r; })());
     base.smonta();
     if (nom !== v1) {
       const due = nuovo({ [primo.chiave]: v1.chiave });
       due.esegui(() => sulBarra(due).props.onClick({}));
       due.esegui(() => filtro(due, primo.chiave, nom.chiave, foglioNodo(due)).props.onClick({}));
-      c("due valori dello stesso gruppo si sommano (dentro un gruppo vale «o»), in ordine alfabetico come scrive T77", F.scriviFiltri({ valori: { [primo.chiave]: [v1.chiave, nom.chiave] }, disponibile: false }), new URLSearchParams(Object.entries(nav().at(-1).search({}))).toString().replace(/%2C/g, ","));
+      c("due valori dello stesso gruppo si sommano (dentro un gruppo vale «o»), in ordine alfabetico come scrive T77", F.scriviFiltri({ valori: { [primo.chiave]: [v1.chiave, nom.chiave] }, disponibile: false }), new URLSearchParams(Object.entries(nav().at(-1).search({ [primo.chiave]: v1.chiave }))).toString().replace(/%2C/g, ","));
       due.smonta();
     }
-    const interr = gruppi.find((g) => g.tipo === "interruttore");
     const dis = nuovo({});
     dis.esegui(() => sulBarra(dis).props.onClick({}));
     dis.esegui(() => bottone(dis, (n) => n.props.role === "switch", foglioNodo(dis)).props.onClick({}));
     c("«Disponibile» è un interruttore (`role=switch`) che scrive `disp=1`", [true, { disp: "1" }], [interr !== undefined, nav().at(-1).search({})]);
+    const swDis = () => bottone(dis, (n) => n.props.role === "switch", foglioNodo(dis));
+    c("«Disponibile» spento a vista (`aria-checked=false`) quando non c'è `disp` nell'indirizzo", false, swDis().props["aria-checked"]);
     dis.smonta();
+    const disAcceso = nuovo({ disp: "1" });
+    disAcceso.esegui(() => sulBarra(disAcceso).props.onClick({}));
+    const swAcceso = bottone(disAcceso, (n) => n.props.role === "switch", foglioNodo(disAcceso));
+    c("con `?disp=1` l'interruttore è acceso (`aria-checked=true`) e premuto di nuovo SPEGNE: l'indirizzo non ha più `disp`", [true, { utm: "x" }], (() => { disAcceso.esegui(() => swAcceso.props.onClick({})); return [swAcceso.props["aria-checked"], nav().at(-1).search({ utm: "x", disp: "1" })]; })());
+    disAcceso.smonta();
+
+    // ── due tocchi prima del ridisegno: ognuno parte dall'indirizzo corrente, non dal disegnato ──
+    if (nom !== v1) {
+      const veloce = nuovo({});
+      veloce.esegui(() => sulBarra(veloce).props.onClick({}));
+      const dentroV = foglioNodo(veloce);
+      veloce.esegui(() => {
+        filtro(veloce, primo.chiave, v1.chiave, dentroV).props.onClick({});
+        filtro(veloce, primo.chiave, nom.chiave, dentroV).props.onClick({});
+      });
+      const [uno, due] = nav().slice(-2);
+      c("due tocchi veloci si sommano: il secondo parte dall'indirizzo che ha scritto il primo (non si sovrascrivono)", [F.scriviFiltri({ valori: { [primo.chiave]: [v1.chiave, nom.chiave] }, disponibile: false })], [new URLSearchParams(Object.entries(due.search(uno.search({})))).toString().replace(/%2C/g, ",")]);
+      veloce.smonta();
+    }
 
     // ── ricaricare dà la stessa pagina; il conteggio del foglio segue lo stato ──
     const dopo = nuovo(nav().length ? { [primo.chiave]: v1.chiave } : {});
@@ -438,6 +459,25 @@ export async function prove(mod, { c, gruppo, radice }) {
     c("dall'indirizzo risale lo stato: «Mostra {n} prodotti» ha il numero giusto e il valore risulta premuto", [mostra(n1), true], [testoDi(bottone(dopo, (n) => n.props["data-aspetto"] === "pieno", foglioNodo(dopo))), filtro(dopo, primo.chiave, v1.chiave, foglioNodo(dopo)).props["aria-pressed"] === true]);
     c("«Azzera filtri» nel foglio naviga all'indirizzo senza filtri (e senza toccare utm)", { utm: "x" }, (() => { dopo.esegui(() => bottone(dopo, (n) => testoDi(n) === TC.filtri.azzera, foglioNodo(dopo)).props.onClick({})); return nav().at(-1).search({ utm: "x", [primo.chiave]: v1.chiave }); })());
     dopo.smonta();
+
+    // ── un solo prodotto visibile: il singolare ──
+    const scelte = [...conValori.flatMap((g) => g.valori.map((v) => ({ [g.chiave]: v.chiave }))), ...(interr ? [{ disp: "1" }] : [])];
+    const una = scelte.find((sc) => F.applicaFiltri(PATCH, F.leggiFiltri(sc, gruppi)).length === 1);
+    c("(i dati di prova hanno una scelta che lascia UN solo prodotto)", true, una !== undefined);
+    if (una) {
+      const solo = nuovo(una);
+      solo.esegui(() => sulBarra(solo).props.onClick({}));
+      const fg = foglioNodo(solo);
+      const stati = solo.tutti((n) => n.props?.role === "status");
+      c("con un solo prodotto: «Mostra 1 prodotto» nel foglio e «1 prodotto» detto a voce (fuori e dentro il foglio)", [TF.mostraUno, [TF.unProdotto, TF.unProdotto]], [testoDi(bottone(solo, (n) => n.props["data-aspetto"] === "pieno", fg)), stati.map(testoDi)]);
+      solo.smonta();
+    }
+    // ── il foglio e la colonna dicono quanti, con parole vere ──
+    const molti = nuovo({});
+    molti.esegui(() => sulBarra(molti).props.onClick({}));
+    c("l'annuncio del foglio dice quanti prodotti passano (`filtri.numero`) e il nome della colonna è `filtri.titolo`", [TF.numero.replace("{n}", PATCH.length), TF.titolo], [testoDi(molti.trova((n) => n.props?.role === "status", foglioNodo(molti))), molti.trova((n) => n.tag === "aside").props["aria-label"]]);
+    c("le pillole dicono se sono scelte (`aria-pressed`) e il colore ha i suoi campioni (uno per valore, in colonna)", [true, conValori.filter((g) => g.tipo === "campioni").reduce((n, g) => n + g.valori.length, 0)], [molti.tutti((n) => n.tag === "button" && n.props["aria-pressed"] === false, molti.trova((n) => n.tag === "aside")).length === nValori, molti.tutti((n) => n.props?.["data-campione"] !== undefined, molti.trova((n) => n.tag === "aside")).length]);
+    molti.smonta();
 
     // ── chip rimovibili ──
     const ch = nuovo({ [primo.chiave]: v1.chiave });
