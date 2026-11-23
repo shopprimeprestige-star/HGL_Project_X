@@ -1,21 +1,35 @@
 /** ── LA CATEGORIA DELLO SHOP (`/shop/c/<slug>`) ─────────────────────────────
- *  Commessa 2026-11-20-shop-completo (T19). Esiste solo con il catalogo CMS: mostra i prodotti PUBBLICATI della categoria.
+ *  Commessa 2026-11-20-shop-completo (T19; V1 · T95). Esiste solo con il catalogo CMS: mostra i prodotti PUBBLICATI della categoria.
  *  Una categoria che non c'è, non è visibile o non ha prodotti pubblicati non esiste: l'indirizzo rimanda a `/shop`
  *  (Design §4.14 n. 11). Con il catalogo del codice la pagina non c'è (404, come oggi). Il testo dei prodotti si legge già
- *  nell'HTML del server (`loader`): è ciò che vede chi arriva da una ricerca. */
-import { createFileRoute, Link, notFound, redirect } from "@tanstack/react-router";
-import { ChevronRight } from "lucide-react";
+ *  nell'HTML del server (`loader`): è ciò che vede chi arriva da una ricerca.
+ *  ⚠️ I filtri stanno nell'indirizzo (`?colore=…&disp=1`) ma si applicano nel browser sui prodotti già caricati: `validateSearch` lascia passare
+ *   ogni parametro (i filtri li legge T90, gli altri, come gli utm, restano) e NON c'è `loaderDeps`: un filtro non rifà il loader (T90, punto 2).
+ *  ⚠️ Il disegno è di `PaginaCategoria` (T95); il guscio (header, piè di pagina, barre) è di `shop.tsx` (T93). */
+import { createFileRoute, notFound, redirect } from "@tanstack/react-router";
+import { leggeroDaPubblico, PaginaCategoria } from "@/components/shop/pagine/PaginaCategoria";
+import { TESTI_SHOP, riempi } from "@/landing/testi-shop";
+import { SITO } from "@/seo/regole";
+import type { SpedizionePubblica } from "@/shop/cassa/spedizione";
+import { tariffaSpedizione } from "@/shop/cassa/tariffe.functions";
 import { elencoCategorie, elencoProdotti } from "@/shop/cms/catalogo.functions";
-import { ChipCategorie, GrigliaProdotti, useListaVista } from "@/shop/cms/GrigliaProdotti";
-import { etichettaArticoli, vociDaPubblici } from "@/shop/cms/elenco";
+import { contenutoShop } from "@/shop/cms/contenuto-shop.functions";
 import { datiStrutturatiLista, serializzaJsonLd } from "@/shop/cms/json-ld";
-import { MARCHIO, SITO } from "@/seo/regole";
+import type { ProdottoPubblico } from "@/shop/cms/modello";
+import { contenutoVuoto, mediaDi } from "@/shop/cms/vetrina-contenuto";
+import { canonical, immagineCondivisione, metaCategorie } from "@/shop/cms/vetrina-seo";
+
+const TARIFFA_ASSENTE: SpedizionePubblica = { stato: "assente" };
 
 export const Route = createFileRoute("/shop/c/$slug")({
+  validateSearch: (search: Record<string, unknown>): Record<string, unknown> => search,
   loader: async ({ params, context }) => {
     if (context.modalita !== "cms") throw notFound();
     let prodotti: Awaited<ReturnType<typeof elencoProdotti>> = [];
     let categorie: Awaited<ReturnType<typeof elencoCategorie>> = [];
+    //  un guasto non è un errore al pubblico: contenuto di partenza e tariffa assente (la fascia di fiducia mostra le sole voci vere)
+    const contenuto = contenutoShop().catch(contenutoVuoto);
+    const tariffa = tariffaSpedizione().catch((): SpedizionePubblica => TARIFFA_ASSENTE);
     try {
       [prodotti, categorie] = await Promise.all([elencoProdotti({ data: { categoria: params.slug } }), elencoCategorie()]);
     } catch {
@@ -23,53 +37,38 @@ export const Route = createFileRoute("/shop/c/$slug")({
     }
     const categoria = categorie.find((c) => c.slug === params.slug);
     if (!categoria || prodotti.length === 0) throw redirect({ to: "/shop" });
-    return { categoria, categorie, prodotti };
+    //  i meta di tutte le categorie insieme: mai due uguali (D97, V1-C3), anche se il CMS scrive lo stesso testo due volte
+    const meta = metaCategorie(categorie)[categorie.indexOf(categoria)];
+    return { categoria, meta, prodotti: prodotti.map(leggeroDaPubblico), contenuto: await contenuto, tariffa: await tariffa };
   },
   head: ({ loaderData, params }) => {
     if (!loaderData) return { meta: [] };
-    const { categoria, prodotti } = loaderData;
-    const titolo = categoria.seo.titolo ?? categoria.nome;
-    const descrizione = categoria.seo.descrizione ?? categoria.frase;
-    const url = `${SITO}/shop/c/${params.slug}`;
+    const { meta: { titolo, descrizione }, prodotti, contenuto } = loaderData;
+    const url = canonical(`/shop/c/${params.slug}`, SITO);
+    const media = mediaDi(contenuto);
+    const immagine = immagineCondivisione({ condivisione: media["shop.condivisione"], heroFoto: media["shop.heroFoto"] });
+    //  shortcut: `datiStrutturatiLista` legge solo slug e nome; si passa l'elenco leggero con un cast invece di cambiare `json-ld.ts` (non è di T95). Cambiarla quando si tocca quel file.
+    const lista = prodotti.map((p) => ({ slug: p.card.slug, nome: p.card.nome })) as unknown as ProdottoPubblico[];
     return {
       meta: [
-        { title: `${titolo} | ${MARCHIO}` },
-        ...(descrizione ? [{ name: "description", content: descrizione }, { property: "og:description", content: descrizione }] : []),
+        //  stesso suffisso di scheda, carrello e cerca («… | Hair Genius Shop»); se il CMS lo ha già scritto non si raddoppia
+        { title: titolo.includes("Hair Genius") ? titolo : riempi(TESTI_SHOP.meta.scheda.titolo, { nome: titolo }) },
+        { name: "description", content: descrizione },
+        { property: "og:description", content: descrizione },
         { property: "og:type", content: "website" },
         { property: "og:title", content: titolo },
         { property: "og:url", content: url },
+        ...(immagine ? [{ property: "og:image", content: immagine }] : []),
       ],
       links: [{ rel: "canonical", href: url }],
-      scripts: [{ type: "application/ld+json", children: serializzaJsonLd(datiStrutturatiLista(prodotti, SITO)) }],
+      scripts: [{ type: "application/ld+json", children: serializzaJsonLd(datiStrutturatiLista(lista, SITO)) }],
     };
   },
   component: CategoriaShop,
 });
 
 function CategoriaShop() {
-  const { categoria, categorie, prodotti } = Route.useLoaderData();
-  const voci = vociDaPubblici(prodotti);
-  useListaVista(`c:${categoria.slug}`, voci, categoria.nome);
-  return (
-    <div className="space-y-8">
-      <header className="space-y-3">
-        <nav aria-label="Percorso" className="flex items-center gap-1.5 text-xs text-white/45">
-          <Link to="/shop" className="hover:text-white">Shop</Link>
-          <ChevronRight className="h-3 w-3" />
-          <span className="text-white/70">{categoria.nome}</span>
-        </nav>
-        <h1 className="text-3xl font-bold leading-tight tracking-tight sm:text-4xl">{categoria.nome}</h1>
-        {categoria.frase && <p className="max-w-2xl text-white/60">{categoria.frase}</p>}
-      </header>
-
-      <ChipCategorie categorie={categorie} attiva={categoria.slug} />
-
-      <section>
-        <div className="mb-4 flex items-baseline justify-end">
-          <span className="text-sm text-white/40">{etichettaArticoli(voci.length)}</span>
-        </div>
-        <GrigliaProdotti voci={voci} />
-      </section>
-    </div>
-  );
+  const dati = Route.useLoaderData();
+  //  `key`: passando da una categoria all'altra la pagina riparte da zero (consulenza chiusa, filtri e fuoco nuovi)
+  return <PaginaCategoria key={dati.categoria.slug} dati={dati} search={Route.useSearch()} />;
 }

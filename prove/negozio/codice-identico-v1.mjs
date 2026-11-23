@@ -14,6 +14,7 @@
  *   (d) l'ELENCO ESATTO delle chiamate al server (nome, ordine e argomenti) di ogni funzione e di ogni scenario. «Zero chiamate» non è la
  *       regola: l'oro registra quello che il codice di oggi fa davvero (es. `modalitaCatalogo` e `collaudoDellaVisita` da `beforeLoad`).
  *  Una funzione che la rotta non ha (es. `head` della home) vale `«undefined»`: aggiungerne una che restituisce `{}` è una differenza.
+ *  Eccezione dichiarata (`AMMESSE`, sotto): `validateSearch` di `shop.c.$slug` (T95) restituisce la ricerca com'è invece di non esserci; il controllo dedicato lo prova su tre ricerche.
  *
  *  ── come si lancia da sola ──
  *      SUPABASE_URL=http://127.0.0.1:9 VITE_SUPABASE_URL=http://127.0.0.1:9 node prove/negozio/codice-identico-v1.mjs [--verifica]
@@ -65,6 +66,19 @@ const CARRELLO_2_RIGHE = D.carrelloFinto(RIGHE_CARRELLO, { subtotal: 337, count:
 const PRODOTTO_CMS_FINTO = { slug: "prodotto-solo-cms", nome: "Prodotto di prova solo CMS" };
 const lungo = (n) => "a".repeat(n);
 const RETE = () => { throw new Error("rete"); };
+/** Una riga del loader della categoria nella forma di V1 (T95): card leggera, SKU, varianti e opzioni. Serve solo ad avere un disegno: con `codice` la rotta non si disegna mai. */
+const rigaLeggera = (p) => ({
+  sku: p.sku,
+  card: { slug: p.slug, nome: p.nome, riga: null, prezzoCent: null, prezziDiversi: false, foto: null, fotoAlt: null, nColori: 0, conVarianti: false, aggiungibile: false, disponibile: false, senzaPrezzo: true, skuVarianti: [] },
+  varianti: [],
+  opzioni: [],
+});
+/** Le differenze AMMESSE rispetto all'oro (T95): chiave `<rotta> · <funzione> · <scenario>` → per quello scenario il controllo «valore» non confronta con l'oro ma prova la differenza dichiarata. L'oro (`_oro-codice-v1.json`) non si tocca.
+ *  · `shop.c.$slug` ha ora `validateSearch` (T95: i filtri stanno nell'indirizzo e la pagina li legge). Restituisce la ricerca COM'È (identità; provato sul router vero dal revisore:
+ *    stesso indirizzo e stessa ricerca del match con e senza), quindi per chi visita il negozio di oggi non cambia niente: con `codice` il `loader` lancia `notFound` alla prima riga. */
+const AMMESSE = { "shop.c.$slug · validateSearch · come oggi": true };
+/** La ricerca che `validateSearch` della categoria deve restituire identica. */
+const RICERCHE_IDENTICHE = [{}, { utm_source: "ads" }, { colore: "nero", misura: 40, disp: 1, utm_medium: "x" }];
 
 /** I disegni (HTML): nome → [file, stato]. Ogni stato dichiara il server vuoto: ogni chiamata al server lancia. */
 const DISEGNI = {
@@ -131,7 +145,7 @@ const ROTTE = {
   "shop.c.$slug": {
     file: R("shop.c.$slug"),
     //  il disegno serve solo ad avere la rotta (`rendi` disegna sempre): con `codice` la rotta non si disegna mai, il suo `loader` lancia
-    stato: { loaderData: { categoria: D.CATEGORIE[0], categorie: D.CATEGORIE, prodotti: D.CATALOGO.slice(0, 3) } },
+    stato: { loaderData: { categoria: D.CATEGORIE[0], meta: { titolo: "Titolo di prova", descrizione: "Descrizione di prova." }, prodotti: D.CATALOGO.slice(0, 3).map(rigaLeggera), contenuto: { testi: {}, media: {} }, tariffa: D.TARIFFA_ASSENTE } },
     beforeLoad: [come()],
     loader: [
       ["codice: notFound", { params: { slug: "patch-pronte" }, context: CTX }, {}, {}],
@@ -270,6 +284,7 @@ export async function fotografa(radice) {
     for (const [nome, def] of Object.entries(ROTTE)) {
       const { route, pagina } = await rendi(radice, def.file, { server: {}, pathname: "/shop", context: CTX, ...def.stato });
       rotte[nome] = {};
+      Object.defineProperty(rotte[nome], "identita", { value: (r) => route.validateSearch?.(r), enumerable: false });
       for (const f of FUNZIONI) {
         rotte[nome][f] = {};
         for (const [scenario, arg, server, extra] of def[f] ?? [come()]) rotte[nome][f][scenario] = await esegui(pagina, route, f, arg, server, extra);
@@ -310,7 +325,9 @@ export async function prove(mod, { c, gruppo, radice }) {
       for (const scenario of scenariOro) {
         const a = funzioni[f][scenario], b = ora.rotte[nome]?.[f]?.[scenario];
         // il valore (o l'errore) e, a parte, l'elenco delle chiamate al server: nome, ordine e argomenti, per uguaglianza
-        c(`${nome} · ${f} · ${scenario}: valore`, canon({ valore: a.valore, lancia: a.lancia, redirect: a.redirect }), canon({ valore: b?.valore, lancia: b?.lancia, redirect: b?.redirect }));
+        //  la differenza ammessa: invece di «non c'è» (oro), `validateSearch` deve restituire la ricerca com'è, su tre ricerche (stesso controllo, stesso nome)
+        const ammessa = AMMESSE[`${nome} · ${f} · ${scenario}`];
+        c(`${nome} · ${f} · ${scenario}: valore`, ammessa ? canon(RICERCHE_IDENTICHE) : canon({ valore: a.valore, lancia: a.lancia, redirect: a.redirect }), ammessa ? canon(RICERCHE_IDENTICHE.map((r) => ora.rotte[nome].identita(r))) : canon({ valore: b?.valore, lancia: b?.lancia, redirect: b?.redirect }));
         c(`${nome} · ${f} · ${scenario}: chiamate al server`, canon({ chiamate: a.chiamate, argomenti: a.argomenti }), canon({ chiamate: b?.chiamate, argomenti: b?.argomenti }));
       }
     }
