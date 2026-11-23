@@ -32,7 +32,7 @@
  *  Tutto puro: niente React, niente Supabase. Provato in prove/idee/filtri-chat.mjs.
  *  ───────────────────────────────────────────────────────────────────────── */
 import { LEAD_STATUS_LABEL, type Lead, type LeadStatus } from "@/crm/types";
-import { eConversione } from "@/crm/kpi-calcoli";
+import { eClienteNostro, eConversione } from "@/crm/kpi-calcoli";
 import { passaFiltro } from "./cercaChat";
 import {
   eFiltroAMessaggio,
@@ -255,7 +255,7 @@ export const GRUPPI_FILTRI: readonly GruppoFiltri[] = [
         valore: "cliente",
         nome: "Clienti",
         spiega:
-          "Hanno comprato: acconto incassato, oppure posa nel nostro centro, a domicilio o da spedire.",
+          "Hanno comprato: acconto incassato, posa nel nostro centro, a domicilio o da spedire. Più chi è segnato «Già cliente nostro».",
       },
     ],
   },
@@ -284,7 +284,7 @@ export const VOCE_CLIENTI: VoceFiltro = {
   valore: "cliente",
   nome: "Clienti",
   spiega:
-    "Hanno comprato: acconto incassato, oppure posa nel nostro centro, a domicilio o da spedire.",
+    "Hanno comprato: acconto incassato, posa nel nostro centro, a domicilio o da spedire. Più chi è segnato «Già cliente nostro».",
 };
 
 /** La voce di uno stato scelto da «Altri stati»: nome del CRM, nessuna spiegazione. */
@@ -412,9 +412,9 @@ export function passaFiltri(
     return false;
   if (f.acconto && !passaFiltro(c, "acconto")) return false;
   if (f.tipo === "cliente") {
-    //  Cliente = la definizione del CRM (`eConversione`, kpi-calcoli): acconto incassato (importo),
-    //  una chiusura vinta o il vecchio «venduto». Nessuna regola nuova. Senza scheda non lo è.
-    if (!c.lead || !eConversione(c.lead as Pick<Lead, "data">)) return false;
+    //  Cliente = `eClienteNostro` (kpi-calcoli): ha comprato (`eConversione`: acconto incassato,
+    //  una chiusura vinta o il vecchio «venduto») oppure è «Già cliente nostro». Senza scheda non lo è.
+    if (!c.lead || !eClienteNostro(c.lead as Pick<Lead, "data">)) return false;
   } else if (f.tipo && !passaFiltro(c, f.tipo === "con-scheda" ? "with-lead" : "unknown"))
     return false;
   //  «Ricontatti»: solo i MIEI, per tutti e senza eccezioni (anche l'admin). Il menu del consulente

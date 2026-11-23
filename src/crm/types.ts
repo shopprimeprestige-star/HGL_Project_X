@@ -36,6 +36,12 @@ export type LeadStatus =
   //  automatico e nessuna regola lo sposta da sola: si risente solo alla data
   //  `dataRicontatto`, se c'è (compare in «Da fare oggi»).
   | "per_ora_no"
+  //  Richiesta del titolare (23/11/2026): chi ha già comprato da noi e riscrive (es. su
+  //  WhatsApp) rientra come lead nuovo. Si segna a mano e la scheda esce dalla coda del
+  //  setter, dai messaggi automatici e dai numeri. ⚠️ NON È UNA VENDITA: non sta in
+  //  `STATI_VINTI` né in `STATI_CONVERSIONE` (fatturato, conversioni, notifiche).
+  //  Vedi `STATI_GIA_CLIENTE` e `eClienteNostro` (kpi-calcoli).
+  | "gia_cliente"
   | "appuntamento_fissato"
   //  ── L'APPUNTAMENTO DI CHI ERA GIÀ PASSATO DI QUI ───────────────────────
   //   Un contatto che risulta già in archivio e che si riporta a un
@@ -188,6 +194,7 @@ export const LEAD_STATUS_LABEL: Record<LeadStatus, string> = {
   annullato: "Non interessato",
   //  Corta di proposito: «più avanti» sta nella descrizione (`LEAD_STATUS_NOTA`).
   per_ora_no: "Per ora no",
+  gia_cliente: "Già cliente nostro",
   ripensamento: "Ripensamento",
   appuntamento_fissato: "Appuntamento fissato",
   //  Si legge "ri-fissato" ma si scrive unito: è la forma corretta in italiano
@@ -347,6 +354,9 @@ export const LEAD_STATUS_PHASE: Record<LeadStatus, LeadPhase> = {
   //  Persa per ora: stessa famiglia rossa di «Non interessato», tinta più chiara
   //  (vedi `LEAD_STATUS_COLOR`). Nei conteggi per fase vale come perso.
   per_ora_no: "persa",
+  //  Chiusa, né vinta né persa: ha già comprato in passato, ma questa scheda non è una vendita
+  //  (verde = incasso, e la fase «vinta» la farebbe contare come tale: aios-feed e altri).
+  gia_cliente: "chiusa",
   //  Persa, non in sospeso: chi ci ha ripensato ha detto di no, e tenerlo fra
   //  le pratiche aperte gonfierebbe le code di lavoro con gente che non aspetta
   //  più niente. Che sia una perdita RECUPERABILE è un'altra domanda, e si fa
@@ -435,6 +445,20 @@ export function eChiusuraVinta(stato?: LeadStatus | string | null): boolean {
   return (STATI_VINTI as string[]).includes(String(stato ?? ""));
 }
 
+/** ── «GIÀ CLIENTE NOSTRO» (23/11/2026) ─────────────────────────────────────
+ *  Elenco A PARTE, apposta: `STATI_VINTI` e `STATI_CONVERSIONE` muovono
+ *  fatturato, conversioni, `applyAutoStatus`, installazioni e notifiche, e
+ *  un «già cliente» che ci finisse dentro conterebbe come una vendita nuova.
+ *  Chi serve la domanda «è un cliente nostro?» (filtro «Clienti» della chat)
+ *  usa `eClienteNostro` (kpi-calcoli): una conversione OPPURE uno di questi. */
+export const STATI_GIA_CLIENTE: LeadStatus[] = ["gia_cliente"];
+
+/** Vero se la scheda è stata segnata «Già cliente nostro». Accetta stringhe
+ *  grezze come le sorelle: lo stato arriva dal database. */
+export function eGiaCliente(stato?: LeadStatus | string | null): boolean {
+  return (STATI_GIA_CLIENTE as string[]).includes(String(stato ?? ""));
+}
+
 // ── «L'IMPIANTO È ADDOSSO AL CLIENTE?» ─────────────────────────────────────
 //  Una domanda sola, una risposta sola, e NON è lo stato del lead.
 //  Sta qui e non nel modulo installazioni — dove la regola viveva prima, come
@@ -492,6 +516,9 @@ export const MODO_CONSEGNA_DA_STATO: Partial<
 export const TINTA_PER_ORA_NO = "bg-rose-300/20 text-rose-600 border-rose-300/50";
 /** Pallino/barretta della stessa tinta, per il selettore a griglia. */
 export const PUNTO_PER_ORA_NO = "bg-rose-300";
+/** «Già cliente nostro»: verde-acqua, per non confonderlo con «Chiuso/archiviato» (grigio) né con l'incasso (verde). */
+export const TINTA_GIA_CLIENTE = "bg-teal-500/10 text-teal-700 border-teal-500/30";
+export const PUNTO_GIA_CLIENTE = "bg-teal-500";
 
 export const LEAD_STATUS_COLOR: Record<LeadStatus, string> = {
   ...(Object.fromEntries(
@@ -501,6 +528,7 @@ export const LEAD_STATUS_COLOR: Record<LeadStatus, string> = {
     ]),
   ) as Record<LeadStatus, string>),
   per_ora_no: TINTA_PER_ORA_NO,
+  gia_cliente: TINTA_GIA_CLIENTE,
 };
 
 /** Descrizione/tooltip per gli stati che hanno bisogno di una riga in più. */
@@ -2312,6 +2340,7 @@ export const STATI_PRIMO_CONTATTO: LeadStatus[] = [
   "ci_ricontatta_lui",
   "annullato",
   "per_ora_no",
+  "gia_cliente",
   "appuntamento_fissato",
   //  Lavorando una lista importata capita di riconoscere qualcuno che era già
   //  in archivio: l'esito di quella telefonata è un appuntamento di ritorno, e
@@ -2356,6 +2385,7 @@ export const STATI_TRATTATIVA: LeadStatus[] = [
   "no_show",
   "annullato",
   "per_ora_no",
+  "gia_cliente",
   //  ── L'USCITA NEGATIVA DI «ATTESA ACCONTO» ────────────────────────────
   //   Sta qui e NON fra gli esiti di primo contatto: presuppone che ci sia
   //   stata una trattativa e un sì. Su una lista da chiamare non può capitare,
@@ -2414,6 +2444,7 @@ export const SELECTABLE_LEAD_STATUSES: LeadStatus[] = [
   "no_show",
   "annullato",
   "per_ora_no",
+  "gia_cliente",
   //  ── L'USCITA NEGATIVA DI «ATTESA ACCONTO» ────────────────────────────
   //   Sta qui e NON fra gli esiti di primo contatto: presuppone che ci sia
   //   stata una trattativa e un sì. Su una lista da chiamare non può capitare,
@@ -2445,6 +2476,7 @@ export const ALL_LEAD_STATUSES: LeadStatus[] = [
   "richiamo",
   "annullato",
   "per_ora_no",
+  "gia_cliente",
   "ripensamento",
   "appuntamento_fissato",
   "appuntamento_rifissato",

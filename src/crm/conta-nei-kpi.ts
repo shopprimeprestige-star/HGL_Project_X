@@ -18,11 +18,12 @@
  *  importano questo file, e questa è la garanzia che lo slot resta occupato.
  *  Non tocca i dati: il campo vive in `lead.data` (JSON), niente migrazioni, e
  *  i lead di prima non lo hanno, quindi continuano a contare come oggi. */
+import { eGiaCliente } from "./types";
 
 /** Qualunque cosa abbia un `data` come i lead; ammette anche `null`/mancante
  *  perché l'archivio importato a volte porta righe senza `data`. */
 export interface ConSoloBlocco {
-  data?: { soloBlocco?: unknown } | null;
+  data?: { soloBlocco?: unknown; stato?: unknown } | null;
 }
 
 /** Vero se il lead è un semplice blocco dell'orario. Solo `true` vale: una
@@ -31,9 +32,13 @@ export function eSoloBlocco(lead: ConSoloBlocco | null | undefined): boolean {
   return lead?.data?.soloBlocco === true;
 }
 
-/** LA domanda dei KPI: questo lead entra nei numeri? */
+/** LA domanda dei KPI: questo lead entra nei numeri?
+ *  Non entra un blocco orario, e non entra chi è «Già cliente nostro» (23/11/2026): ha già
+ *  comprato, riscrive e rientra come lead nuovo, ma non è un lead nuovo né una vendita nuova.
+ *  Stessa regola dei blocchi: fuori INTERO, né al numeratore né al denominatore. Tornerebbe a
+ *  contare scegliendo una chiusura vinta (lo stato non è più `gia_cliente`). */
 export function contaNeiKpi(lead: ConSoloBlocco | null | undefined): boolean {
-  return !eSoloBlocco(lead);
+  return !eSoloBlocco(lead) && !eGiaCliente(lead?.data?.stato as string | undefined);
 }
 
 /** L'elenco da dare ai calcoli: senza i blocchi. Se non ce ne sono restituisce

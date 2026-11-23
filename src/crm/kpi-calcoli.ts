@@ -16,7 +16,7 @@
 import { totaleCostiPratica } from "@/crm/costi-pratica";
 import { soloNeiKpi } from "@/crm/conta-nei-kpi";
 import type { AdSpending, Consultant, Lead } from "@/crm/types";
-import { eAppuntamento, STATI_CHIUSURA_VINTA } from "@/crm/types";
+import { eAppuntamento, eGiaCliente, STATI_CHIUSURA_VINTA } from "@/crm/types";
 
 // ── I DUE ELENCHI DI STATI CHE DECIDONO TUTTO ───────────────────────────────
 //  "Consulenza fatta" = la persona si è presentata e ha parlato con qualcuno,
@@ -147,6 +147,15 @@ export function eConversione(lead: Pick<Lead, "data">): boolean {
       ⚠️ Si guarda l'IMPORTO e non la spunta: la spunta dice «me lo ha
        promesso», l'importo dice che è arrivato. */
   return (Number(lead.data.payment?.accontoPagato) || 0) > 0;
+}
+
+/** ── «È UN CLIENTE NOSTRO?» (23/11/2026) ───────────────────────────────────
+ *  Ha comprato adesso (`eConversione`) OPPURE è stato segnato «Già cliente
+ *  nostro» (ha comprato in passato, riscrive). Serve a chi vuole ELENCARE i
+ *  clienti (filtro «Clienti» della chat), mai a chi CONTA le vendite: quelle
+ *  restano `eConversione`, e un «già cliente» non è una vendita nuova. */
+export function eClienteNostro(lead: Pick<Lead, "data">): boolean {
+  return eConversione(lead) || eGiaCliente(lead.data.stato);
 }
 
 /** ── FATTURATO LORDO DI UNA SCHEDA ─────────────────────────────────────────
