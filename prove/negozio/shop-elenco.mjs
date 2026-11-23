@@ -11,7 +11,7 @@
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { impacchettaPagina, impostaPagina, testoVisibile } from "./_pagine.mjs";
+import { impostaPagina, testoVisibile } from "./_pagine.mjs";
 import { categoriaProva, mediaProva, prodottoProva, uuid, varianteProva } from "./dati.mjs";
 
 /** L'impronta (sha256) del markup di `/shop` con il catalogo del codice PRIMA di T19 (commit 69a7c4d), con le immagini
@@ -46,6 +46,21 @@ const categorieProva = [
   { slug: "shampoo-e-balsami", nome: "Shampoo e balsami", tipo: "categoria", frase: null, foto: null, seo: { titolo: null, descrizione: null }, ordine: 2, quanti: 2 },
   { slug: "colle-e-remover", nome: "Colle e remover", tipo: "categoria", frase: "Per fissare e togliere.", foto: null, seo: { titolo: null, descrizione: null }, ordine: 3, quanti: 1 },
 ];
+
+/** `_pagine.mjs` finge solo `catalogo` e `cassa-sito`; la home nuova (T94) importa anche `contenuto-shop.functions` e `tariffe.functions`, che portano dentro il
+ *  server vero e non si impacchettano. Qui lo si carica dal suo testo con i due finti in più (e `esbuild` cercato dalla radice): nessun file di altri toccato.
+ *  shortcut: un ritocco al testo di un aiuto di altri; si toglie quando `_pagine.mjs` conoscerà i due server (e la categoria nuova di T95 non lo importerà più). */
+async function pagineConFintiDellaHome(radice) {
+  const filtro = "/^@\\/shop\\/cms\\/(catalogo|cassa-sito)\\.functions$/";
+  const aggiunte = 'export const cassaDelSito = async () => "vecchia";';
+  const sorgente = readFileSync(join(radice, "prove/negozio/_pagine.mjs"), "utf8");
+  for (const pezzo of [filtro, aggiunte, "createRequire(import.meta.url)"]) if (!sorgente.includes(pezzo)) throw new Error(`_pagine.mjs è cambiato: manca «${pezzo}»`);
+  const nuovo = sorgente
+    .replace(filtro, "/^@\\/shop\\/(cms\\/(catalogo|cassa-sito|contenuto-shop)|cassa\\/tariffe)\\.functions$/")
+    .replace(aggiunte, `${aggiunte}\nexport const contenutoShop = async () => ({ testi: {}, media: {} });\nexport const tariffaSpedizione = async () => ({ stato: "assente" });`)
+    .replace("createRequire(import.meta.url)", `createRequire(${JSON.stringify(join(radice, "package.json"))})`);
+  return import(`data:text/javascript;base64,${Buffer.from(nuovo).toString("base64")}`);
+}
 
 export async function prove(mod, { c, gruppo, radice }) {
   gruppo("SHOP R1 · T19 · ELENCO, CATEGORIA E RICERCA DELLO SHOP (20/11/2026)");
@@ -158,6 +173,8 @@ export async function prove(mod, { c, gruppo, radice }) {
   /* ───────────────── 3 · IL MARKUP: CODICE E CMS ───────────────── */
   let M = null;
   try {
+    //  `_pagine.mjs` (aiuto che nessuno edita) conosce solo due server finti; la home nuova (T94) ne importa altri due (contenuto e tariffa).
+    const { impacchettaPagina } = await pagineConFintiDellaHome(radice);
     M = await impacchettaPagina(
       radice,
       `import { renderToStaticMarkup } from "react-dom/server";
@@ -187,11 +204,17 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("codice: le stelle e «N recensioni» ci sono su ogni scheda (33), come oggi", [33, true], [(hCodice.match(/ recensioni</g) ?? []).length, /4\.8\/5 · 1\.500\+ clienti/.test(testoVisibile(hCodice).replace(/&gt;/g, ">"))]);
   c("codice: la riga «Spedizione gratis > €59» del titolo c'è, come oggi", true, /Spedizione gratis > €59/.test(testoVisibile(hCodice)));
 
-  /* ── cms ── */
+  /* ── cms: la GRIGLIA dell'elenco ──
+   *  T94 (passo 1): con `cms` `/shop` non è più questa pagina (la home nuova la prova `shop-home-v1.mjs`); la griglia di questo elenco (`GrigliaProdotti`,
+   *  `ChipCategorie`) vive ancora nella pagina della categoria, e i controlli sul suo markup passano di lì (stessa forza). Sono rimasti fuori quelli
+   *  che parlavano dell'hero e del titolo della vecchia home cms (D38: titolo, sottotitolo): li sostituisce `shop-home-blocchi.mjs` (H1, sottotitolo, parole vietate). */
   const PUBBLICI = catalogoProva(PUB);
   c("(prova stessa) il catalogo inventato dà 5 prodotti pubblici", 5, PUBBLICI.length);
-  impostaPagina({ pathname: "/shop", searchStr: "", context: { modalita: "cms" }, loaderData: { prodotti: PUBBLICI, categorie: categorieProva } });
-  const hCms = norm(M.disegna(M.Indice.options.component));
+  const disegnaCms = (extra = {}) => {
+    impostaPagina({ pathname: "/shop/c/patch-pronte", searchStr: "", params: { slug: "patch-pronte" }, context: { modalita: "cms" }, loaderData: { categoria: categorieProva[0], categorie: categorieProva, prodotti: PUBBLICI, ...extra } });
+    return norm(M.disegna(M.Categoria.options.component));
+  };
+  const hCms = disegnaCms();
   const tCms = testoVisibile(hCms);
   const cardCms = schede(hCms);
   c("cms: 5 schede, una per prodotto pubblico, nell'ordine ricevuto", [5, ["Shampoo di prova", "Patch di prova", "Colla di prova", "Invisible Derm Protocol®", "Kit di prova"]],
@@ -203,25 +226,20 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("cms: niente soglia di spedizione gratuita (la cifra non è più vera) né il «Remy» non provato", [false, false], [/59|Spedizione gratis/i.test(tCms), /Remy/.test(tCms)]);
   c("cms: nessun indirizzo dello studio", false, /Scipioni|Via degli/i.test(tCms));
   const prezzo = (h) => (testoVisibile(h).match(/€\s?[\d.]+,\d{2}|[\d.]+,\d{2}\s?€/g) ?? []);
-  //  D38: con il catalogo CMS il titolo e il sottotitolo non promettono niente; le parole vietate non ci sono
+  //  D38: le parole vietate non ci sono
   const PAROLE_VIETATE = /premium|indistinguibil|\bRemy\b|grado/i;
-  c("cms: il titolo è «Patch e prodotti per la cura, scelti in studio» (D38), un solo h1", [1, "Patch e prodotti per la cura, scelti in studio"], [(hCms.match(/<h1\b/g) ?? []).length, testoVisibile(hCms.match(/<h1[\s\S]*?<\/h1>/)?.[0] ?? "").replace(/\s+,/g, ",")]);
   c("cms: nel titolo, nel sottotitolo e in tutta la pagina niente «premium», «indistinguibil…», «Remy», «grado»", false, PAROLE_VIETATE.test(tCms));
-  c("cms: il sottotitolo c'è ancora (non vuoto) e nomina i prodotti", true, /<h1[\s\S]*?<\/h1><p class="mx-auto max-w-xl text-white\/60">[^<]{30,}</.test(hCms));
   c("codice: il titolo e il sottotitolo di oggi restano (premium, indistinguibili): l'impronta lo prova, qui il testo", [true, true], [/Toupee\s*indistinguibili\s*e tutto per curarli/.test(testoVisibile(hCodice)), /grado premium/.test(testoVisibile(hCodice))]);
   c("cms: «1 articolo» al singolare, mai «1 articoli»", [false], [/\b1 articoli\b/.test(tCms)]);
   //  Note 5: una categoria senza prodotti (`quanti: 0`) non è un chip (il suo indirizzo rimanda a /shop)
   const categorieConVuota = [...categorieProva, { slug: "vuota", nome: "Categoria senza prodotti", tipo: "categoria", frase: null, foto: null, seo: { titolo: null, descrizione: null }, ordine: 9, quanti: 0 }];
-  impostaPagina({ pathname: "/shop", searchStr: "", context: { modalita: "cms" }, loaderData: { prodotti: PUBBLICI, categorie: categorieConVuota } });
-  const hVuota = norm(M.disegna(M.Indice.options.component));
+  const hVuota = disegnaCms({ categorie: categorieConVuota });
   c("cms: la categoria con 0 prodotti non è un chip; le altre tre sì", [false, false, 3], [/href="\/shop\/c\/vuota"/.test(hVuota), /Categoria senza prodotti/.test(hVuota), (hVuota.match(/href="\/shop\/c\//g) ?? []).length]);
-  impostaPagina({ pathname: "/shop", searchStr: "", context: { modalita: "cms" }, loaderData: { prodotti: PUBBLICI, categorie: [categorieConVuota.at(-1)] } });
-  c("cms: tutte le categorie a 0 → nessuna riga di chip (non un «Tutti» da solo)", [false, false], (() => { const h = norm(M.disegna(M.Indice.options.component)); return [/>Tutti</.test(h), /href="\/shop\/c\//.test(h)]; })());
+  c("cms: tutte le categorie a 0 → nessuna riga di chip (non un «Tutti» da solo)", [false, false], (() => { const h = disegnaCms({ categorie: [categorieConVuota.at(-1)] }); return [/>Tutti</.test(h), /href="\/shop\/c\/(?!patch-pronte)/.test(h)]; })());
   //  D39: il server dà Invisible Derm con `prezzoCent` e `prezzoDaCent` nulli; un prodotto qualunque senza prezzo non si compra
   const senzaPrezzi = PUBBLICI.map((p) => (/Invisible Derm/.test(p.nome) ? { ...p, prezzoDaCent: null, varianti: p.varianti.map((v) => ({ ...v, prezzoCent: null })) } : p));
   const stranoSenzaPrezzo = { ...PUBBLICI[0], sku: "PROVA-SP", slug: "senza-prezzo", nome: "Un prodotto senza prezzo", prezzoDaCent: null, varianti: PUBBLICI[0].varianti.map((v) => ({ ...v, prezzoCent: null })) };
-  impostaPagina({ pathname: "/shop", searchStr: "", context: { modalita: "cms" }, loaderData: { prodotti: [...senzaPrezzi, stranoSenzaPrezzo], categorie: categorieProva } });
-  const hNull = (() => { try { return norm(M.disegna(M.Indice.options.component)); } catch (e) { return `LANCIA ${String(e).slice(0, 80)}`; } })();
+  const hNull = (() => { try { return disegnaCms({ prodotti: [...senzaPrezzi, stranoSenzaPrezzo] }); } catch (e) { return `LANCIA ${String(e).slice(0, 80)}`; } })();
   const cNull = schede(hNull);
   c("D39: con i prezzi nulli la pagina si disegna (6 schede) e non lancia", [6, false], [cNull.length, /^LANCIA/.test(hNull)]);
   c("D39: Invisible Derm senza prezzo dal server: nessuna cifra, nessun «NaN», nessun «Aggiungi», frase e link alla scheda", [[], false, false, true, true],
@@ -238,26 +256,14 @@ export async function prove(mod, { c, gruppo, radice }) {
     [/<button[^>]*>[\s\S]*?Aggiungi/.test(cShampoo) && !/Scegli/.test(cShampoo), /Scegli/.test(cPatch) && !/<button/.test(cPatch), /Esaurito/.test(cColla) && !/<button/.test(cColla) && !/Aggiungi/.test(cColla), /Esaurito/.test(cKit)]);
   c("cms: le foto sono quelle del server (misura 960) con il testo alternativo", [true, true], [/src="https:\/\/media\.prova\.test\/shop\/prova\/p0-960\.webp"/.test(cShampoo), /alt="Shampoo di prova"/.test(cShampoo)]);
   c("cms: i nomi delle categorie sono link a /shop/c/<slug> (non pulsanti che cambiano lo stato)", [true, true, true], ["patch-pronte", "shampoo-e-balsami", "colle-e-remover"].map((s) => new RegExp(`<a [^>]*href="/shop/c/${s}"`).test(hCms)));
-  c("cms: «Tutti» è la voce attiva e le altre no (come i pulsanti di oggi)", true, /bg-brand text-white[^>]*>\s*Tutti|>Tutti<\/a>/.test(hCms) && /Patch pronte/.test(tCms));
+  c("cms: «Tutti» è un link a /shop e la categoria aperta è quella evidenziata (aria-current)", true, /<a [^>]*href="\/shop"[^>]*>Tutti<\/a>/.test(hCms) && /<a [^>]*aria-current="page"[^>]*>Patch pronte<\/a>/.test(hCms));
   c("cms: il conteggio dice quanti articoli (5)", true, /5 articoli/.test(tCms));
-  c("cms: vetrina vuota (guasto o niente da mostrare) → una frase onesta, non una pagina rotta", [true, false], (() => {
-    impostaPagina({ pathname: "/shop", searchStr: "", context: { modalita: "cms" }, loaderData: { prodotti: [], categorie: [] } });
-    const t = testoVisibile(M.disegna(M.Indice.options.component));
-    return [/Nessun prodotto disponibile/.test(t), /undefined|NaN|\[object/.test(t)];
-  })());
-  c("cms: loaderData assente (non è mai atteso) non rompe la pagina", "ok", (() => { try { impostaPagina({ pathname: "/shop", searchStr: "", context: { modalita: "cms" }, loaderData: undefined }); M.disegna(M.Indice.options.component); return "ok"; } catch (e) { return String(e).slice(0, 80); } })());
 
-  /* ── il caricamento dell'elenco ── */
+  /* ── il caricamento dell'elenco ──
+   *  T94 (passo 1): il `loader` di `/shop` con `cms` dà ora i dati leggeri della home (contenuto, tariffa, categorie piene, vetrina) e il suo guasto è una home valida:
+   *  lo prova `shop-home-v1.mjs` (chiamate registrate, dati leggeri, guasti). Qui resta il `codice`: nessuna chiamata, come oggi. */
   const caric = M.Indice.options.loader;
-  c("l'elenco ha un `loader` (il testo dei prodotti si legge già nell'HTML del server)", "function", typeof caric);
-  if (typeof caric === "function") {
-    impostaPagina({ server: { elenco: () => PUBBLICI, categorie: categorieProva } });
-    const dalCodice = await caric({ context: { modalita: "codice" } });
-    const dalCms = await caric({ context: { modalita: "cms" } });
-    c("loader: con il codice non chiede niente al server (null); con il CMS dà prodotti e categorie", [null, 5, 3], [dalCodice, dalCms?.prodotti?.length, dalCms?.categorie?.length]);
-    impostaPagina({ server: { elenco: () => { throw new Error("giù"); }, categorie: [] } });
-    c("loader: se il server non risponde l'elenco è vuoto, mai un errore", [0, 0], await caric({ context: { modalita: "cms" } }).then((r) => [r.prodotti.length, r.categorie.length]).catch(() => ["lancia", "lancia"]));
-  }
+  c("l'elenco ha un `loader`: con il codice non chiede niente al server (null)", ["function", null], [typeof caric, typeof caric === "function" ? await (async () => { impostaPagina({ server: { elenco: () => { throw new Error("no"); }, categorie: () => { throw new Error("no"); } } }); return caric({ context: { modalita: "codice" } }); })() : "assente"]);
 
   /* ───────────────── 4 · LA CATEGORIA ───────────────── */
   const K = M.Categoria;

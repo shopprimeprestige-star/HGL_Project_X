@@ -8,21 +8,62 @@ import { ChipCategorie, GrigliaProdotti, useListaVista } from "@/shop/cms/Grigli
 import { creaEmettitoreRicerca, etichettaArticoli, filtraVoci, frasaSenzaRisultati, vociDaCodice, vociDaPubblici } from "@/shop/cms/elenco";
 import { emettiEvento } from "@/lib/tracciamento/api";
 import { NOME_PRODOTTO } from "@/landing/testi-sito";
+import { PaginaHome, datiHome, type DatiHome } from "@/components/shop/pagine/PaginaHome";
+import { SITO } from "@/lib/sito";
+import { tariffaSpedizione } from "@/shop/cassa/tariffe.functions";
+import { contenutoShop } from "@/shop/cms/contenuto-shop.functions";
+import { contenutoVuoto, mediaDi } from "@/shop/cms/vetrina-contenuto";
+import { canonical, immagineCondivisione, metaHome } from "@/shop/cms/vetrina-seo";
+
+/** I dati del loader. `prodotti` e `categorie` non ci sono mai: li leggeva il vecchio `Storefront` (`codice`), che con `cms` non si raggiunge più;
+ *  restano nel tipo (come «niente») perché il suo corpo, identico a quello del base, li nomina ancora. */
+type DatiLoader = (DatiHome & { prodotti?: undefined; categorie?: undefined }) | null;
 
 export const Route = createFileRoute("/shop/")({
-  //  Con il catalogo CMS il testo dei prodotti si legge già nell'HTML del server; con quello del codice non si chiede niente.
-  //  Un guasto non è un errore al pubblico: elenco vuoto.
-  loader: async ({ context }) => {
+  //  Solo con il catalogo CMS si chiede qualcosa al server; con `codice` si esce subito, come oggi. Ogni lettura per conto suo: un guasto di una
+  //  non toglie le altre, e non è mai un errore al pubblico (hero con i testi di partenza, niente bottoni né vetrina).
+  //  I prodotti si schiacciano QUI in card leggere: nel browser non arriva altro (V1-T14).
+  loader: async ({ context }): Promise<DatiLoader> => {
     if (context.modalita !== "cms") return null;
-    try {
-      const [prodotti, categorie] = await Promise.all([elencoProdotti({ data: {} }), elencoCategorie()]);
-      return { prodotti, categorie };
-    } catch {
-      return { prodotti: [], categorie: [] };
-    }
+    const [contenuto, tariffa, prodotti, categorie] = await Promise.all([
+      contenutoShop().catch(() => contenutoVuoto()),
+      tariffaSpedizione().catch(() => null),
+      elencoProdotti({ data: {} }).catch(() => []),
+      elencoCategorie().catch(() => []),
+    ]);
+    return datiHome({ contenuto, tariffa, prodotti, categorie });
   },
-  component: Storefront,
+  //  Meta e immagine di condivisione della home nuova. Con `codice` la home non ha `head` (come oggi: l'oro dice «undefined»).
+  //  shortcut: il tipo di `head` non ammette `undefined`, il router sì (`headFnContent?.meta`); si toglie se la home di `codice` avrà un suo `head`.
+  head: ({ loaderData }) => {
+    if (!loaderData) return undefined as never;
+    const { titolo, descrizione } = metaHome();
+    const media = mediaDi(loaderData.contenuto);
+    const immagine = immagineCondivisione({ condivisione: media["shop.condivisione"], heroFoto: media["shop.heroFoto"] });
+    const indirizzo = canonical("/shop", SITO);
+    return {
+      meta: [
+        { title: titolo },
+        { name: "description", content: descrizione },
+        { property: "og:title", content: titolo },
+        { property: "og:description", content: descrizione },
+        { property: "og:type", content: "website" },
+        { property: "og:url", content: indirizzo },
+        ...(immagine ? [{ property: "og:image", content: immagine }] : []),
+        { name: "twitter:card", content: immagine ? "summary_large_image" : "summary" },
+      ],
+      links: [{ rel: "canonical", href: indirizzo }],
+    };
+  },
+  component: Home,
 });
+
+/** Lo smistatore: con il catalogo CMS la home nuova, altrimenti `Storefront` com'è. */
+function Home() {
+  const { modalita } = Route.useRouteContext();
+  const dati = Route.useLoaderData();
+  return modalita === "cms" && dati ? <PaginaHome dati={dati} /> : <Storefront />;
+}
 
 type IconType = React.ComponentType<{ className?: string; strokeWidth?: number }>;
 function icon(name: string): IconType {
