@@ -2,8 +2,7 @@
  *  Parte 2: i quattro componenti DISEGNATI davvero (esbuild + react-dom/server, aiuti di `_rende.mjs`) con i dati inventati: foto 1:1 con
  *  `FotoShop`, badge solo se vero, nome 2 righe, prezzo sotto il nome, bottone di contorno da 44 px, un solo punto di tabulazione, nessuna
  *  stella/barrato/ombra, Invisible Derm senza cifra, «Aggiunto» con `statoAggiunta`, fiducia (`montaBlocco`/`montaFascia`), «Ti serve anche».
- *  ⚠️ `_rende.mjs` non definisce `import.meta.env.PROD` (esbuild in cjs lo lascia vuoto): `FotoShop` vero lo leggerebbe e lancerebbe. Qui si disegna
- *  il SORGENTE VERO di `FotoShop.tsx` con quell'unica lettura scritta `false` (come «sviluppo»); la prova controlla che la sostituzione ci sia stata.
+ *  `FotoShop` è quello VERO (T70c: `_rende.mjs` definisce `import.meta.env`, di base produzione).
  *  Parte 1 (commit a parte): `SnapRiga.foto` accetta le misure della card (480 e 960, senza 1600): la card mette nel carrello una riga la
  *  cui foto non ha la 1600, e le righe già salvate (con la 1600) devono restare valide (nota del revisore di T76, osservazione 1).
  *  Dati inventati di `_dati-vetrina.mjs`, nessuna rete. */
@@ -60,11 +59,8 @@ async function componenti(mod, { c, gruppo, radice }) {
   const KF = mod["shop/cms/vetrina-fiducia"];
   const KS = mod["shop/cms/vetrina-scheda"];
   const dir = (f) => join(radice, "src/components/shop", f);
-  const fotoShop = readFileSync(dir("FotoShop.tsx"), "utf8");
-  c("FotoShop vero legge `import.meta.env.PROD` una volta sola (la prova la scrive `false`)", 1, conta(fotoShop, /import\.meta\.env\.PROD/g));
-  const finti = { "@/components/shop/FotoShop": fotoShop.replaceAll("import.meta.env.PROD", "false") };
   const registro = () => { const aggiunte = []; return { aggiunte, carrello: carrelloFinto([], { add: (...a) => aggiunte.push(a) }) }; };
-  const disegna = (file, nome, props, extra = {}) => rendiComponente(radice, dir(file), nome, props, { finti, ...extra });
+  const disegna = (file, nome, props, extra = {}) => rendiComponente(radice, dir(file), nome, props, extra);
   const card = (slug, catalogo = CATALOGO) => KC.cardDaPubblico(per(slug, catalogo));
   const disegnaCard = async (cardo, props = {}, extra = {}) => (await disegna("CardProdotto.tsx", "CardProdotto", { card: cardo, ...props }, extra)).html;
 
