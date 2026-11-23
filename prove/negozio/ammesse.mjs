@@ -133,7 +133,7 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("il frammento (#…) non conta", true, ok("/shop#t=1", "", false));
   c("valori non testo: no, nessuna eccezione", [false, false, false, false], [ok(null, "", false), ok(undefined, "", false), ok(42, "", false), ok({}, "", false)]);
   c("ricerca non testo: si ignora, il percorso decide", [true, true], [ok("/shop", null, false), ok("/shop", undefined, false)]);
-  c("elenchi esportati: 10 chiavi vietate note, le ammesse comprendono fbclid, gclid, ttclid, ad_id, gad_source", [10, true], [A.CHIAVI_QUERY_VIETATE.length, ["fbclid", "gclid", "ttclid", "ad_id", "campaign_id", "gad_source"].every((k) => A.CHIAVI_QUERY_AMMESSE.includes(k))]);
+  c("elenchi esportati: 11 chiavi vietate note (con ref_code, T109c), le ammesse comprendono fbclid, gclid, ttclid, ad_id, gad_source", [11, true, true], [A.CHIAVI_QUERY_VIETATE.length, A.CHIAVI_QUERY_VIETATE.includes("ref_code"), ["fbclid", "gclid", "ttclid", "ad_id", "campaign_id", "gad_source"].every((k) => A.CHIAVI_QUERY_AMMESSE.includes(k))]);
   c("lista bianca: ogni chiave ammessa dà una pagina ammessa, ogni chiave inventata no (anche vicina a una ammessa)", [[], []],
     [A.CHIAVI_QUERY_AMMESSE.filter((k) => !ok("/shop", `?${k}=1`, false)), ["utm", "fbclid2", "xgclid", "gclid_", "fb", "ttclid ", "_utm_source", "ref", "code2", "id", "email", "telefono", "nome", "utm"].filter((k) => ok("/shop", `?${k}=1`, false))]);
   c("nessuna chiave è insieme vietata e ammessa", [], A.CHIAVI_QUERY_VIETATE.filter((k) => A.CHIAVI_QUERY_AMMESSE.includes(k)));

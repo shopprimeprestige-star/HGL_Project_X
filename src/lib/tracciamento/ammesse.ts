@@ -6,13 +6,16 @@
        codici nell'indirizzo (`?t=`, `?anteprima=`, `?watch=`, `?ref_code=`…): non devono arrivare a Meta, TikTok e
        Google, e il banner non deve comparirci (sala d'attesa del cliente, anteprima del CMS dentro il CRM).
        Una pagina è ammessa SOLO se OGNI chiave della sua query è `utm_*` o fra `CHIAVI_QUERY_AMMESSE`: qualunque chiave
-       sconosciuta la rende non ammessa (lista bianca, non lista nera).
+       sconosciuta la rende non ammessa (lista bianca, non lista nera). Vale per pixel, eventi, server e referrer.
+       Unica eccezione, SOLO per mostrare il banner: `bannerAmmesso` (T109c) su `/shop/cerca` e `/shop/c/<slug>` usa la
+       lista nera `CHIAVI_QUERY_VIETATE`, perché lì le chiavi dei filtri non si possono elencare; su quelle pagine non
+       parte comunque nessun pixel né evento (decide sempre `percorsoAmmesso`).
     ⚠️ L'indirizzo che esce verso le piattaforme si RICOSTRUISCE (`urlPulito`: origine + percorso + sole chiavi
        ammesse); il referrer si riduce all'origine (`referrerPulito`). Mai copiati da `location`. */
 
-/** I casi noti di codici privati. ⚠️ Non decidono più niente: vale la lista BIANCA qui sotto (ogni chiave non ammessa
- *  esclude la pagina, queste comprese). Restano come elenco documentato e per le prove. */
-export const CHIAVI_QUERY_VIETATE = ["anteprima", "t", "watch", "modifica", "sess", "code", "codice", "token", "key", "embed"] as const;
+/** I casi noti di codici privati. Per pixel, eventi e server non decidono niente (vale la lista BIANCA qui sotto); decidono
+ *  invece se il banner compare su ricerca e categorie con filtri (`bannerAmmesso`, T109c). */
+export const CHIAVI_QUERY_VIETATE = ["anteprima", "t", "watch", "modifica", "sess", "code", "codice", "token", "key", "embed", "ref_code"] as const;
 /** Le sole chiavi di query che una pagina ammessa può avere, e che possono uscire (più tutte quelle che cominciano per `utm_`).
  *  Click id e campagne delle piattaforme; `gad_source`, `gad_campaignid` e `gclsrc` li aggiunge Google Ads insieme a `gclid`. */
 export const CHIAVI_QUERY_AMMESSE = ["fbclid", "gclid", "gbraid", "wbraid", "ttclid", "gad_source", "gad_campaignid", "gclsrc", "ad_id", "adset_id", "campaign_id", "ad_name", "creative", "creative_name"] as const;
