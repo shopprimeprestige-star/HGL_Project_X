@@ -1,21 +1,21 @@
 /** ── SezioniScheda2 · VETRINA V1 · T88b ───────────────────────────────────────
- *  Le sezioni in fondo alla scheda: domande frequenti, box «Non è il prodotto giusto per te?», «Ti serve anche» e, sul kit, «Cosa contiene».
+ *  Le sezioni in fondo alla scheda: domande frequenti, box «Non è il prodotto giusto per te?», «Ti serve anche».
  *  Cosa disegnare e in che ordine lo decide `bloccheScheda` (T78): qui si riceve l'elenco dei blocchi e si disegnano SOLO i propri
- *  (`faq`, `box`, `tiServeAnche`, `confezione` con titolo «cosaContiene»); galleria, acquisto, colore, «Nella confezione», come si usa,
+ *  (`faq`, `box`, `tiServeAnche`); galleria, acquisto, colore, «Nella confezione», come si usa,
  *  scheda tecnica e avvertenze sono di altri componenti e qui si saltano. Un elenco assente o sbagliato non disegna niente, senza lanciare.
  *  · FAQ: `FaqAccordion` con `voci` (righe da 56 px). Una domanda senza testo, o non ancora pronta (segnaposto, testo provvisorio del CRM), non si mostra; se non ne
  *    resta nessuna non c'è nemmeno il titolo.
  *  · Box: quello della landing con `variante="chiara"` (card chiara, bottone di contorno); il blocco `box` c'è solo su una patch in vendita.
  *  · «Ti serve anche»: `TiServeAnche` (T85) con la card fatta da `correlato`, che porta lo SKU e «si compra con un clic» (T88b, `pubblico.ts`).
  *    L'evento di aggiunta e il carrello sono della card: qui non si emette né si tocca niente.
- *  · Kit: «Cosa contiene» è un elenco di testo, non mini-card con link (D81: il contratto non porta i prodotti contenuti).
+ *  · «Cosa contiene» del kit (blocco `confezione`) è di `SezioniScheda1` (T88a): qui il blocco `confezione` non produce niente.
  *  · Sotto la piega (FAQ, box, «Ti serve anche»): `content-visibility:auto`, così il browser non disegna ciò che non si vede ancora.
  *  Nessuna sezione recensioni (non esistono in questa commessa). Le parole stanno in `testi-shop.ts`. */
 import { useId } from "react";
 import { FaqAccordion } from "@/components/landing/FaqAccordion";
 import { BoxProdottoGiusto } from "@/components/landing/consulenza/BoxProdottoGiusto";
 import { TiServeAnche, type Correlato } from "@/components/shop/TiServeAnche";
-import { TESTI_PROVVISORI, TESTI_SHOP } from "@/landing/testi-shop";
+import { TESTI_SHOP } from "@/landing/testi-shop";
 import type { ProdottoPubblico } from "@/shop/cms/modello";
 import { eInvisibleDerm } from "@/shop/cms/pubblico";
 import type { Blocco } from "@/shop/cms/vetrina-scheda";
@@ -65,30 +65,10 @@ function Faq({ faq }: { faq: ProdottoPubblico["faq"] }) {
         {TESTI_SHOP.scheda.faq}
       </h2>
       {/* `FaqAccordion` si centra da solo (`mx-auto`): qui sta sotto il titolo, a sinistra. Su fondo chiaro il blu del marchio scende di un gradino
-          (come in `.bg-light-panel`), così il numero della domanda resta leggibile. */}
-      <div className="[--brand:var(--brand-su-chiaro)] [&>div]:mx-0">
+          (come in `.bg-light-panel`), così il numero resta leggibile; l'anello del fuoco è quello dello shop (2 px, scarto 2, azzurro) senza toccare `FaqAccordion`. */}
+      <div className="[--brand:var(--brand-su-chiaro)] [&>div]:mx-0 [&_button:focus-visible]:outline-2 [&_button:focus-visible]:outline-offset-2 [&_button:focus-visible]:outline-[#006CC4]">
         <FaqAccordion voci={voci} />
       </div>
-    </section>
-  );
-}
-
-function CosaContiene({ voci }: { voci: readonly string[] }) {
-  const id = useId();
-  const righe = (Array.isArray(voci) ? voci : []).filter(testoVero);
-  if (righe.length === 0) return null;
-  return (
-    <section aria-labelledby={id} className="flex flex-col gap-2">
-      <h2 id={id} className={CLASSI_TITOLO}>
-        {TESTI_PROVVISORI.scheda.cosaContiene}
-      </h2>
-      <ul className="divide-y divide-ink/10 border-y border-ink/10">
-        {righe.map((voce, i) => (
-          <li key={i} className="max-w-prose py-3 text-[15px] leading-snug text-[#0A1430]">
-            {voce}
-          </li>
-        ))}
-      </ul>
     </section>
   );
 }
@@ -103,8 +83,6 @@ export function SezioniScheda2({
   const elenco = Array.isArray(blocchi) ? blocchi : [];
   const sezioni = elenco.flatMap((b, i) => {
     switch (b?.id) {
-      case "confezione":
-        return b.titolo === "cosaContiene" ? [<CosaContiene key={i} voci={b.voci} />] : [];
       case "faq":
         return [<Faq key={i} faq={prodotto.faq} />];
       case "box":

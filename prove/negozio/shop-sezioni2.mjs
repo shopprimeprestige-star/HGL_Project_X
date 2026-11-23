@@ -6,7 +6,7 @@
  *      `cardDaPubblico` del prodotto collegato (la regola è UNA sola, non copiata), le quattro chiavi di prima invariate, nessun ciclo che rompa
  *      i due moduli (si impacchettano in tutti e due gli ordini).
  *   2. il componente, disegnato davvero con `rendiComponente` (aiuti di `_rende.mjs`): ordine, FAQ, box dopo le FAQ, una sola card con «Aggiungi»
- *      che sa lo SKU, kit come elenco di testo, `content-visibility`, nessun testo scritto a mano, nessuna recensione.
+ *      che sa lo SKU, `content-visibility`, nessun testo scritto a mano, nessuna recensione.
  *  Dati inventati (`dati.mjs`, `_dati-vetrina.mjs`), nessuna rete, nessun database. */
 import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -192,24 +192,24 @@ async function componente(mod, { c, gruppo, radice }) {
   c("Invisible Derm come collegato (anche a forza, con prezzo e SKU): nessuna card, nessun titolo", "", hDerm.trim());
   c("senza il blocco `tiServeAnche` (nessun collegato, o senza prezzo): niente titolo", [false, false], [/Ti serve anche/.test((await disegna(alfa({ correlato: null }))).html), /Ti serve anche/.test((await disegna(alfa({ correlato: { ...corr, prezzoDaCent: null } }))).html)]);
 
-  // ── kit: «Cosa contiene» = elenco di testo (D81) ──
-  const kit = scheda("kit-prova", { confezione: ["Una patch", "Un flacone di colla", `Un foglio di istruzioni ${SEGNAPOSTO}`, `Un pettine ${IN_ATTESA}`, "  "] });
+  // ── kit: «Cosa contiene» è di T88a (blocco `confezione`): qui il blocco `confezione` non produce niente ──
+  const kit = scheda("kit-prova");
   const hKit = (await disegna(kit)).html;
-  c("kit: «Cosa contiene» è un H2 sopra un elenco (<ul>) di testo: le voci vere, nell'ordine", [1, true, true, 2], [conta(hKit, /<h2\b[^>]*>Cosa contiene</g), hKit.indexOf("Una patch") < hKit.indexOf("Un flacone di colla"), /<ul\b/.test(hKit), conta(hKit, /<li\b/g)]);
-  c("kit: nessun link, nessuna foto, nessun bottone (niente mini-card: D81)", [0, 0, 0], [conta(hKit, /<a\b/g), conta(hKit, /<img\b/g), conta(hKit, /<button\b/g) - conta(hKit, /<button\b[^>]*aria-expanded/g)]);
-  c("kit: le voci con segnaposto, in attesa del titolare o vuote non si disegnano", false, NON_PRONTO.test(hKit) || /Pettine|<li\b[^>]*>\s*<\/li>/.test(hKit));
-  c("kit: il blocco `confezione` normale («Nella confezione») NON è di questo componente (lo disegna T88a)", false, /Nella confezione|Cosa contiene/.test((await disegna(alfa())).html));
-  c("kit: senza voci vere non c'è nemmeno il titolo", false, /Cosa contiene/.test((await disegna({ prodotto: kit.prodotto, blocchi: [{ id: "confezione", titolo: "cosaContiene", voci: [SEGNAPOSTO, ""] }] })).html));
-  c("kit: né box né FAQ sbagliati: ha le sue FAQ e basta (nessun box consulenza sul kit)", [true, false], [/Domande frequenti/.test(hKit), /\[box/.test(hKit)]);
+  c("kit: il blocco `confezione` (del kit o normale) non disegna niente qui (lo disegna T88a: mai due volte); il kit ha le sue FAQ e nessun box", [true, true, false, false, false], [kit.blocchi.some((b) => b.id === "confezione" && b.titolo === "cosaContiene"), /Domande frequenti/.test(hKit), /Cosa contiene|Nella confezione/.test(hKit), /\[box/.test(hKit), (await disegna({ prodotto: kit.prodotto, blocchi: [{ id: "confezione", titolo: "cosaContiene", voci: ['Una patch'] }, { id: "confezione", titolo: "confezione", voci: ['Un vasetto'] }] })).html.trim() !== ""]);
 
   // ── i blocchi che non sono di questo componente si ignorano; poca cosa = niente ──
   const hAltri = (await disegna({ prodotto: alfa().prodotto, blocchi: [{ id: "galleria" }, { id: "colore" }, { id: "comeSiUsa" }, { id: "schedaTecnica", righe: [] }, { id: "avvertenze", voci: ["x"] }] })).html;
   c("galleria, colore, come si usa, scheda tecnica, avvertenze: non sono qui (nessun marchio)", "", hAltri.trim());
   c("nessun blocco, o un valore sbagliato al posto dell'elenco: niente, senza lanciare", ["", "", ""], [(await disegna({ prodotto: alfa().prodotto, blocchi: [] })).html.trim(), (await disegna({ prodotto: alfa().prodotto, blocchi: null })).html.trim(), (await disegna({ prodotto: alfa().prodotto, blocchi: [null, {}, { id: 5 }] })).html.trim()]);
 
-  // ── sotto la piega: `content-visibility:auto` su FAQ, box, «Ti serve anche»; mai sul kit ──
+  // ── sotto la piega: `content-visibility:auto` su FAQ, box, «Ti serve anche» ──
   c("FAQ, box e «Ti serve anche» stanno ognuno in un contenitore con `content-visibility:auto`, una misura di riserva e 4 px di respiro per l'anello del fuoco", [3, 3], [conta(h, /\[content-visibility:auto\][^"]*\[contain-intrinsic-size:auto_\d+px\]/g), conta(h, /class="[^"]*-m-1 p-1 \[content-visibility:auto\]/g)]);
-  c("il kit (in alto, vicino all'acquisto) non porta `content-visibility`", false, /content-visibility/.test((await disegna({ prodotto: kit.prodotto, blocchi: [{ id: "confezione", titolo: "cosaContiene", voci: ["Una patch"] }] })).html));
+
+  // ── ogni `aria-labelledby` punta a un `id` che esiste nel disegno ──
+  const senzaBersaglio = (html) => [...html.matchAll(/aria-labelledby="([^"]+)"/g)].map((m) => m[1]).filter((id) => !html.includes(`id="${id}"`));
+  const hVuote = [h, hKit, hShampoo, hBoxVero];
+  c("ogni `aria-labelledby` ha il suo `id` (FAQ, box, «Ti serve anche»), e ce n'è almeno uno per sezione", [[], [], [], [], true], [...hVuote.map(senzaBersaglio), conta(hBoxVero, /aria-labelledby=/g) === 3]);
+  c("fuoco da tastiera sui bottoni delle FAQ: anello azzurro 2 px con scarto 2 (come `shop-anello`), senza toccare `FaqAccordion`", true, /\[&amp;_button:focus-visible\]:outline-2/.test(h) && /outline-offset-2/.test(h) && /outline-\[#006CC4\]/.test(h));
 
   // ── nessuna recensione, nessuna stella, niente di vietato ──
   const tutto = h + hKit + hShampoo + hBoxVero;
