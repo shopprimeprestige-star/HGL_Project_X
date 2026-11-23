@@ -239,7 +239,7 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("il componente non è montato in nessuna route (lo monta T97b)", [], await montato(radice));
 }
 
-/** I file di `src/routes` e `src/components` che importano `SezioniScheda1` (salvo il file stesso). */
+/** I file di `src/routes` e `src/components` che importano `SezioniScheda1` (riga `from …/SezioniScheda1`: una citazione in un commento non conta) (salvo il file stesso). */
 async function montato(radice) {
   const { readdirSync, statSync } = await import("node:fs");
   const trovati = [];
@@ -247,7 +247,7 @@ async function montato(radice) {
     for (const f of readdirSync(dir)) {
       const p = join(dir, f);
       if (statSync(p).isDirectory()) giro(p);
-      else if (/\.(tsx?|jsx?)$/.test(f) && !p.endsWith("SezioniScheda1.tsx") && /SezioniScheda1/.test(readFileSync(p, "utf8"))) trovati.push(p.replace(radice, ""));
+      else if (/\.(tsx?|jsx?)$/.test(f) && !p.endsWith("SezioniScheda1.tsx") && /from\s+["'][^"']*\/SezioniScheda1["']/.test(readFileSync(p, "utf8"))) trovati.push(p.replace(radice, ""));
     }
   };
   for (const d of ["src/routes", "src/components", "src/shop"]) giro(join(radice, d));
