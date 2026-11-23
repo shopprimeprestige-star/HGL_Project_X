@@ -200,7 +200,9 @@ export interface ProdottoPubblico {
   acquistabile: boolean;
   reso: { consentito: boolean | null; giorni: number | null };
   boxConsulenza: boolean;
-  correlato: { slug: string; nome: string; prezzoDaCent: number | null; foto: SrcFoto | null } | null;
+  /** «Ti serve anche». `sku`, `prezziDiversi` e `aggiungibile` sono quelli della card del collegato (`cardDaPubblico`): `aggiungibile` = si compra con
+   *  un clic, e solo allora `sku` è lo SKU dell'unica variante (altrimenti `null`). */
+  correlato: { slug: string; nome: string; prezzoDaCent: number | null; foto: SrcFoto | null; sku: string | null; prezziDiversi: boolean; aggiungibile: boolean } | null;
   seo: { titolo: string | null; descrizione: string | null; immagine: string | null };
   gtin: string | null;
   aggiornatoIl: string;
