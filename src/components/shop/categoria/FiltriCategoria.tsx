@@ -149,8 +149,11 @@ export function FiltriCategoria<P extends Filtrabile>({
   const attivi = filtriAttivi(stato);
 
   const navigate = useNavigate();
-  /** Il router sta caricando (dopo una scelta): le card restano, e `Scheletro` conta i 300 ms. */
-  const inAttesa = useRouterState({ select: (s) => s.isLoading });
+  /** Il router sta caricando (dopo una scelta): le card restano, e `Scheletro` conta i 300 ms. Solo se la rotta è la stessa (cambiano i filtri):
+   *  verso un'altra rotta (la scheda di una card) `location` è già quella nuova e la griglia resta com'è. */
+  const inAttesa = useRouterState({
+    select: (s) => s.isLoading && s.location.pathname === s.resolvedLocation?.pathname,
+  });
 
   // ── l'indirizzo: ogni scelta lo riscrive, gli altri parametri restano ──
   /** `cambia` riceve lo stato letto dall'indirizzo CORRENTE (`prima`), non quello già disegnato: due tocchi veloci non si sovrascrivono. */

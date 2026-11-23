@@ -178,7 +178,8 @@ async function impacchetta(radice) {
     "@tanstack/react-router": jsx(
       "export const Link = ({ to, children, ...resto }) => jsx('a', { href: String(to), ...resto, children });",
       "export const useNavigate = () => (o) => { globalThis.__prova.navigazioni.push(o); };",
-      "export const useRouterState = (o) => { const s = { isLoading: globalThis.__prova.inAttesa === true }; return o && o.select ? o.select(s) : s; };",
+      // `location` è l'indirizzo verso cui il router sta andando, `resolvedLocation` quello già caricato: coincidono se cambiano solo i filtri (`__prova.verso` = un'altra rotta)
+      "export const useRouterState = (o) => { const p = globalThis.__prova; const s = { isLoading: p.inAttesa === true, location: { pathname: p.verso ?? '/shop/c/patch' }, resolvedLocation: { pathname: '/shop/c/patch' } }; return o && o.select ? o.select(s) : s; };",
     ),
     "lucide-react": jsx(["SlidersHorizontal", "Check", "X", "Inbox", "ChevronDown"].map(icona).join(" ")),
     "@radix-ui/react-dialog": jsx(
@@ -517,6 +518,15 @@ export async function prove(mod, { c, gruppo, radice }) {
       orologio.avanza(500);
       return [at.tutti((n) => n.props?.["data-scheletro-card"] !== undefined).length, vecchie()];
     })());
+    // ── T109b-5 · si va verso un'altra rotta (la scheda): la griglia della categoria resta com'è, niente scheletri né timer ──
+    globalThis.__prova.verso = "/shop/prodotto/patch-prova-uno";
+    globalThis.__prova.inAttesa = true;
+    at.ridisegna();
+    orologio.avanza(600);
+    c("T109b-5: cliccando una card (il router carica la scheda) la griglia NON diventa scheletri, nemmeno dopo 600 ms: card vere, `aria-busy=false`, nessun timer", [true, 0, false, 0], [vecchie(), at.tutti((n) => n.props?.["data-scheletro-card"] !== undefined).length, busy(), orologio.pendenti()]);
+    globalThis.__prova.inAttesa = false;
+    delete globalThis.__prova.verso;
+    at.ridisegna();
     at.smonta();
     esito = true;
   } finally {
