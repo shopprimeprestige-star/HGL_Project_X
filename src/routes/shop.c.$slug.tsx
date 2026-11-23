@@ -6,7 +6,7 @@
  *  ⚠️ I filtri stanno nell'indirizzo (`?colore=…&disp=1`) ma si applicano nel browser sui prodotti già caricati: `validateSearch` lascia passare
  *   ogni parametro (i filtri li legge T90, gli altri, come gli utm, restano) e NON c'è `loaderDeps`: un filtro non rifà il loader (T90, punto 2).
  *  ⚠️ Il disegno è di `PaginaCategoria` (T95); il guscio (header, piè di pagina, barre) è di `shop.tsx` (T93). */
-import { createFileRoute, notFound, redirect, type ErrorComponentProps } from "@tanstack/react-router";
+import { createFileRoute, notFound, rootRouteId, redirect, type ErrorComponentProps } from "@tanstack/react-router";
 import { ErroreRottaShop } from "@/components/shop/guscio/GuscioShop";
 import { leggeroDaPubblico, PaginaCategoria } from "@/components/shop/pagine/PaginaCategoria";
 import { TESTI_SHOP, riempi } from "@/landing/testi-shop";
@@ -25,7 +25,7 @@ const TARIFFA_ASSENTE: SpedizionePubblica = { stato: "assente" };
 export const Route = createFileRoute("/shop/c/$slug")({
   validateSearch: (search: Record<string, unknown>): Record<string, unknown> => search,
   loader: async ({ params, context }) => {
-    if (context.modalita !== "cms") throw notFound();
+    if (context.modalita !== "cms") throw notFound({ routeId: rootRouteId });
     let prodotti: Awaited<ReturnType<typeof elencoProdotti>> = [];
     let categorie: Awaited<ReturnType<typeof elencoCategorie>> = [];
     //  un guasto non è un errore al pubblico: contenuto di partenza e tariffa assente (la fascia di fiducia mostra le sole voci vere)

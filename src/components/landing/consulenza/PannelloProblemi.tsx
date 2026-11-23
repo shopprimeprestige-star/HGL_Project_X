@@ -65,7 +65,7 @@ export function PannelloProblemi({
   if (aperto !== apertoVisto.current) {
     apertoVisto.current = aperto;
     const a = aperto && typeof document !== "undefined" ? chiHaAperto(document) : null;
-    if (a instanceof HTMLElement) chiHaApertoRef.current = a;
+    if (aperto) chiHaApertoRef.current = a instanceof HTMLElement ? a : null;
   }
 
   const scegli = (id: IdProblema) => {

@@ -7,12 +7,14 @@
  *   4 · «Cura» del piè di pagina a 44 × 44                                                                                (T103a-5)
  *   5 · 404 sotto `/shop/*` nel guscio nuovo, con i testi che esistono, `codice` com'è oggi                              (T103a-4)
  *   6 · il fuoco torna a chi ha aperto il pannello consulenza dopo Esc                                                    (T103a-6, T103c-4)
+ *   7 · con `codice` il 404 di categoria e ricerca resta quello della radice (il `notFoundComponent` di `/shop` non lo prende)   (revisore)
  *  Regola: `mod[...]` solo per i moduli di MODULI; gli altri si caricano con `carica(radice, "src/…")`. Nessuna rete, dati inventati. */
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { rendi, rendiComponente } from "./_rende.mjs";
 
 const requireQui = createRequire(import.meta.url);
@@ -136,4 +138,22 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("T103a-6: il pannello ricorda chi l'ha aperto PRIMA che la barra diventi `inert` e glielo restituisce alla chiusura (`onCloseAutoFocus`)", [true, true], [
     /chiHaAperto\(document\)/.test(pannello), /onCloseAutoFocus=\{\(e\) =>[^}]*restituisciFuoco\(e,/.test(pannello),
   ]);
+
+  /* ── 7 · con `codice` `throw notFound()` di ricerca e categoria resta della radice ── */
+  //  Con il `notFoundComponent` di `/shop` un `notFound()` senza `routeId` passa dalla radice alla rotta `/shop` (il 404 perde il guscio di oggi e diventa un `<p>`).
+  //  Prova con il router vero (`createRouter` + `createMemoryHistory`, nessun server): il loader lancia ESATTAMENTE ciò che c'è scritto nel sorgente di ciascuna rotta.
+  const R = await import(pathToFileURL(join(radice, "node_modules/@tanstack/react-router/dist/esm/index.js")).href);
+  for (const [file, percorso] of [["src/routes/shop.cerca.tsx", "/shop/cerca"], ["src/routes/shop.c.$slug.tsx", "/shop/c/x"]]) {
+    const src = nudo(file);
+    const arg = src.match(/throw notFound\(([^)]*(?:\([^)]*\))?[^)]*)\)/)?.[1].trim() ?? "?";
+    c(`${file}: il \`notFound\` del ramo \`codice\` indica la radice (\`notFound({ routeId: rootRouteId })\`) e importa \`rootRouteId\``, [true, true], [arg === "{ routeId: rootRouteId }", /import \{[^}]*\brootRouteId\b[^}]*\} from "@tanstack\/react-router"/.test(src)]);
+    const opzioni = arg === "" ? undefined : arg === "{ routeId: rootRouteId }" ? { routeId: R.rootRouteId } : { sconosciuto: true };
+    const root = R.createRootRoute({ notFoundComponent: () => null });
+    const shop = R.createRoute({ getParentRoute: () => root, path: "/shop", component: () => null, notFoundComponent: () => null });
+    const figlia = R.createRoute({ getParentRoute: () => shop, path: percorso.startsWith("/shop/c/") ? "/c/$slug" : "/cerca", loader: () => { throw R.notFound(opzioni); }, component: () => null });
+    const router = R.createRouter({ routeTree: root.addChildren([shop.addChildren([figlia])]), history: R.createMemoryHistory({ initialEntries: [percorso] }) });
+    await router.load();
+    const globale = router.state.matches.filter((m) => m.globalNotFound).map((m) => m.routeId);
+    c(`${file}: con \`/shop\` che ha il suo \`notFoundComponent\` il 404 di \`codice\` è gestito dalla RADICE (\`globalNotFound\` su \`__root__\`, non su \`/shop\`)`, ["__root__"], globale);
+  }
 }

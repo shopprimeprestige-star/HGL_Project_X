@@ -60,6 +60,7 @@ const FINTI = {
     export const useNavigate = () => (o) => { (S().navigazioni ??= []).push(o); };
     export const useRouter = () => ({ invalidate: () => {}, options: { defaultErrorComponent: S().erroreDelRouter } });
     export const notFound = () => new Error("notFound");
+    export const rootRouteId = "__root__";
     //  il 404 predefinito del router (T109a: lo usa shop.tsx con codice): lo stesso markup
     export const DefaultGlobalNotFound = () => React.createElement("p", null, "Not Found");
     export const redirect = (o) => Object.assign(new Error("redirect"), { redirect: o });
