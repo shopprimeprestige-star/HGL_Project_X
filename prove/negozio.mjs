@@ -15,12 +15,37 @@
  *  l'involucro delle funzioni del server).
  *  ⚠️ Un file senza `prove` è un errore, non un salto: una prova che non gira
  *  non deve sembrare una prova che passa. */
-import { readdirSync } from "node:fs";
+import { readdirSync, realpathSync } from "node:fs";
+import { createRequire } from "node:module";
+import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const cartella = join(dirname(fileURLToPath(import.meta.url)), "negozio");
 const AIUTI = new Set(["dati.mjs"]);
+
+/** ── LA MEMORIA: CHE COSA TRATTENEVA I PACCHETTI (23/11/2026) ───────────────────────────────────────────────────
+ *  Le prove che disegnano una pagina la impacchettano con esbuild (≈87.000 righe `.cjs`: React, react-dom/server, la pagina) e la caricano con
+ *  `require` da una cartella temporanea. Ogni pacchetto restava vivo fino alla fine della suite, per DUE vie indipendenti (tolta una, l'altra basta):
+ *   1. Node: `require.cache[file]` e, anche dopo `delete`, `modulo.parent.children` (qui il genitore è il `createRequire` della prova, che non muore mai);
+ *   2. `globalThis.__pagine[N]` / `__pagina` (`_rende.mjs`): la pagina del disegno, con i `gestori` (le chiusure `onClick` del pacchetto).
+ *  Dopo ogni file di prove si staccano tutte e due: i moduli caricati da una cartella temporanea durante la prova, e i registri delle pagine.
+ *  Prima: oltre 6 GB residenti e «heap out of memory» col limite normale; dopo: vedi la lavagna. Nessun controllo cambia. */
+const require_ = createRequire(import.meta.url);
+const TMP = realpathSync(tmpdir());
+// shortcut: stacca solo i moduli sotto tmpdir() comparsi durante la prova (quelli di `prove-contabilita` c'erano già); se una prova dovesse caricare altro, estendere qui
+function liberaDopoProva(giaCaricati) {
+  for (const k of Object.keys(require_.cache)) {
+    if (giaCaricati.has(k) || !k.startsWith(TMP)) continue;
+    const modulo = require_.cache[k];
+    delete require_.cache[k];
+    const figli = modulo?.parent?.children;
+    if (figli) { const i = figli.indexOf(modulo); if (i >= 0) figli.splice(i, 1); }
+  }
+  delete globalThis.__pagine;
+  delete globalThis.__pagina;
+  delete globalThis.__PROVA_PAGINA__;
+}
 
 export async function proveNegozio(mod, ctx) {
   const file = readdirSync(cartella)
@@ -29,6 +54,11 @@ export async function proveNegozio(mod, ctx) {
   for (const f of file) {
     const m = await import(pathToFileURL(join(cartella, f)).href);
     if (typeof m.prove !== "function") throw new Error(`prove/negozio/${f}: manca «export async function prove»`);
-    await m.prove(mod, ctx);
+    const giaCaricati = new Set(Object.keys(require_.cache));
+    try {
+      await m.prove(mod, ctx);
+    } finally {
+      liberaDopoProva(giaCaricati);
+    }
   }
 }
