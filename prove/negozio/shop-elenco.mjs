@@ -198,6 +198,7 @@ export async function prove(mod, { c, gruppo, radice }) {
   /* ── codice: identico a oggi ── */
   impostaPagina({ pathname: "/shop", searchStr: "", context: { modalita: "codice" }, loaderData: null });
   const hCodice = norm(M.disegna(M.Indice.options.component));
+  c("codice: il titolo e il sottotitolo di oggi restano (premium, indistinguibili): l'impronta lo prova, qui il testo", [true, true], [/Toupee\s*indistinguibili\s*e tutto per curarli/.test(testoVisibile(hCodice)), /grado premium/.test(testoVisibile(hCodice))]);
   c("codice: il markup di /shop è IDENTICO a oggi (impronta sha256; unica differenza ammessa: l'`aria-label` del campo di ricerca)", IMPRONTA_DI_OGGI, createHash("sha256").update(hCodice.replace(' aria-label="Cerca nel negozio"', "")).digest("hex"));
   c("codice: il campo di ricerca ha un nome per chi usa il lettore di schermo", true, /<input[^>]*aria-label="Cerca nel negozio"/.test(hCodice));
   const nomiOggi = [...hCodice.matchAll(/class="line-clamp-1 font-semibold text-white transition hover:text-brand">([^<]*)</g)].map((m) => m[1].replace(/&#x27;/g, "'").replace(/&amp;/g, "&"));
