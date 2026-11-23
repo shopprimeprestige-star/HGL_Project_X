@@ -6,6 +6,8 @@ import { createFileRoute, notFound, useRouter } from "@tanstack/react-router";
 import { PaginaCerca, testoDaIndirizzo } from "@/components/shop/pagine/PaginaCerca";
 import { TESTI_PROVVISORI } from "@/landing/testi-shop";
 import { elencoProdotti } from "@/shop/cms/catalogo.functions";
+import { soloLeggere } from "@/shop/cms/vetrina-card";
+import { quattroDallaVetrina } from "@/shop/cms/vetrina-ricerca";
 
 export const Route = createFileRoute("/shop/cerca")({
   validateSearch: (cerca: Record<string, unknown>) => ({ q: testoDaIndirizzo(cerca.q) }),
@@ -13,9 +15,15 @@ export const Route = createFileRoute("/shop/cerca")({
     if (context.modalita !== "cms") throw notFound();
     //  Un guasto non è «nessun risultato»: la pagina lo dice e lascia riprovare.
     try {
-      return { prodotti: await elencoProdotti({ data: {} }), guasto: false };
+      //  Al browser arrivano solo le card leggere (e le 4 patch dello stato vuoto), non i prodotti interi (V1-T14).
+      const prodotti = await elencoProdotti({ data: {} });
+      return {
+        carte: soloLeggere(prodotti),
+        suggeriti: soloLeggere(quattroDallaVetrina(prodotti)),
+        guasto: false,
+      };
     } catch {
-      return { prodotti: [], guasto: true };
+      return { carte: [], suggeriti: [], guasto: true };
     }
   },
   //  Nessun indice (anche nell'intestazione del documento); il titolo non porta il testo cercato.
@@ -31,11 +39,12 @@ export const Route = createFileRoute("/shop/cerca")({
 
 function CercaShop() {
   const { q } = Route.useSearch();
-  const { prodotti, guasto } = Route.useLoaderData();
+  const { carte, suggeriti, guasto } = Route.useLoaderData();
   const router = useRouter();
   return (
     <PaginaCerca
-      prodotti={prodotti}
+      carte={carte}
+      suggeriti={suggeriti}
       q={q}
       guasto={guasto}
       riprova={() => void router.invalidate()}

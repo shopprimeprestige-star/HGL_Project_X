@@ -60,11 +60,19 @@ export async function prove(mod, { c, gruppo, radice }) {
   const SERVER = (prodotti = CATALOGO) => ({ elencoProdotti: () => prodotti });
   const CMS = { modalita: "cms" };
   /** Disegna la rotta con `q` GIÀ passata da `validateSearch` (come fa il router) e i dati del caricamento. */
-  const pagina = async (q, prodotti = CATALOGO, extra = {}) => {
-    const g = await rendi(radice, ROTTA, { server: SERVER(prodotti), context: CMS, loaderData: { prodotti, guasto: false }, ...extra, search: { q } });
-    return g;
+  /** Il caricamento VERO della rotta (col server finto che dà `prodotti`): la pagina si disegna con ciò che il browser riceverebbe davvero. */
+  const dati = new Map();
+  const caricamento = async (prodotti) => {
+    if (!dati.has(prodotti)) {
+      const r = await rendi(radice, ROTTA, { server: SERVER(prodotti), context: CMS, loaderData: { carte: [], suggeriti: [], guasto: false }, search: { q: "" } });
+      dati.set(prodotti, await r.route.loader({ context: CMS, params: {}, search: { q: "" } }));
+    }
+    return dati.get(prodotti);
   };
-  const route = (await rendi(radice, ROTTA, { server: SERVER(), context: CMS, loaderData: { prodotti: CATALOGO, guasto: false }, search: { q: "" } })).route;
+  /** Disegna la rotta con `q` GIÀ passata da `validateSearch` (come fa il router) e i dati del caricamento. */
+  const pagina = async (q, prodotti = CATALOGO, extra = {}) =>
+    rendi(radice, ROTTA, { server: SERVER(prodotti), context: CMS, loaderData: await caricamento(prodotti), ...extra, search: { q } });
+  const route = (await rendi(radice, ROTTA, { server: SERVER(), context: CMS, loaderData: { carte: [], suggeriti: [], guasto: false }, search: { q: "" } })).route;
   const vs = (q) => route.validateSearch({ q }).q;
 
   // ═════════════ SORGENTE: privacy, eventi, guscio, testi ═════════════
@@ -117,16 +125,23 @@ export async function prove(mod, { c, gruppo, radice }) {
   } else c("il router vero si carica per la prova di codifica", true, false);
 
   // il caricamento: nessun testo cercato verso il server, `notFound` con `codice`, un guasto non rompe la pagina
-  const l = await rendi(radice, ROTTA, { server: SERVER(), context: CMS, loaderData: { prodotti: [], guasto: false }, search: { q: "mario rossi" } });
+  const l = await rendi(radice, ROTTA, { server: SERVER(), context: CMS, loaderData: { carte: [], suggeriti: [], guasto: false }, search: { q: "mario rossi" } });
   const risposta = await l.route.loader({ context: CMS, deps: { q: "mario rossi" }, params: {}, search: { q: "mario rossi" } });
   c("loader (cms): un solo `elencoProdotti`, senza `q`, e nient'altro", [["elencoProdotti"], [[{ data: {} }]]], [l.pagina.chiamate, l.pagina.chiamateArgs]);
   c("loader: il testo cercato non compare in nessun argomento", false, JSON.stringify(l.pagina.chiamateArgs).includes("mario"));
-  c("loader: dà i prodotti del server e `guasto` falso", [CATALOGO.length, false], [risposta?.prodotti?.length, risposta?.guasto]);
-  const lc = await rendi(radice, ROTTA, { server: SERVER(), context: { modalita: "codice" }, loaderData: { prodotti: [], guasto: false }, search: { q: "alfa" } });
+  c("loader: dà una card per prodotto, le 4 patch dello stato vuoto e `guasto` falso", [CATALOGO.length, attesi4, false], [risposta?.carte?.length, risposta?.suggeriti?.map((x) => x.nome), risposta?.guasto]);
+  // peso (V1-T14): al browser non arriva nessun prodotto intero, solo le card leggere
+  const CAMPI_CARD = ["slug", "nome", "riga", "prezzoCent", "prezziDiversi", "foto", "fotoAlt", "nColori", "conVarianti", "aggiungibile", "disponibile", "senzaPrezzo", "skuVarianti"].sort();
+  const tutteLeCard = [...risposta.carte, ...risposta.suggeriti];
+  c("loader: ogni card ha i soli campi della card leggera (nessun campo del prodotto intero)", [], [...new Set(tutteLeCard.flatMap((x) => Object.keys(x)))].filter((k) => !CAMPI_CARD.includes(k)));
+  c("loader: nessun testo del prodotto intero (descrizione lunga, FAQ, passi, SEO, correlato, foto 1600, prezzi delle varianti)", [], ["Descrizione lunga", "Domanda di prova", "Primo passo", "titolo di prova", "-1600.webp", "correlato", "descrizioneLunga", "varianti\":"].filter((t) => JSON.stringify(risposta).includes(t)));
+  c("loader: quello che va al browser pesa meno di un quarto dei prodotti interi", true, JSON.stringify(risposta).length * 4 < JSON.stringify(CATALOGO).length);
+  c("loader: le 4 patch dello stato vuoto sono le stesse di `quattroDallaVetrina` (non cambia niente per la pagina)", true, JSON.stringify(risposta.suggeriti.map((x) => x.slug)) === JSON.stringify(R.quattroDallaVetrina(CATALOGO).map((x) => x.slug)));
+  const lc = await rendi(radice, ROTTA, { server: SERVER(), context: { modalita: "codice" }, loaderData: { carte: [], suggeriti: [], guasto: false }, search: { q: "alfa" } });
   c("loader (codice): `notFound`, e non chiama il server", ["notFound", []], await lc.route.loader({ context: { modalita: "codice" }, params: {}, search: { q: "alfa" } }).then(() => ["nessun errore", lc.pagina.chiamate], (e) => [e?.message, lc.pagina.chiamate]));
-  const lg = await rendi(radice, ROTTA, { server: { elencoProdotti: () => { throw new Error("rete"); } }, context: CMS, loaderData: { prodotti: [], guasto: true }, search: { q: "alfa" } });
+  const lg = await rendi(radice, ROTTA, { server: { elencoProdotti: () => { throw new Error("rete"); } }, context: CMS, loaderData: { carte: [], suggeriti: [], guasto: true }, search: { q: "alfa" } });
   const guasto = await lg.route.loader({ context: CMS, params: {}, search: { q: "alfa" } });
-  c("loader: se il server non risponde la pagina non si rompe (`guasto`, nessun prodotto)", [[], true], [guasto?.prodotti, guasto?.guasto]);
+  c("loader: se il server non risponde la pagina non si rompe (`guasto`, nessuna card)", [[], [], true], [guasto?.carte, guasto?.suggeriti, guasto?.guasto]);
   const testa = route.head({ match: { context: CMS } });
   c("testata: `noindex`, titolo del documento, e nessun testo cercato", [true, TESTI_PROVVISORI.cerca.metaTitolo, false], [
     testa.meta.some((m) => m.name === "robots" && /noindex/.test(m.content)), testa.meta.find((m) => m.title)?.title, JSON.stringify(route.head({ match: { context: CMS }, params: {}, search: { q: "mario rossi" } })).includes("mario"),
@@ -173,7 +188,7 @@ export async function prove(mod, { c, gruppo, radice }) {
   }
   const v = await pagina("alfa", []);
   c("nessun prodotto in catalogo: lo stato vuoto, nessuna card, nessun errore", [1, 0, false], [conta(v.html, /data-stato="vuoto"/g), conta(v.html, /<article\b/g), testo(v.html).includes(TESTI_SHOP.header.patch + " ")]);
-  const g = await pagina("alfa", [], { loaderData: { prodotti: [], guasto: true } });
+  const g = await pagina("alfa", [], { loaderData: { carte: [], suggeriti: [], guasto: true } });
   c("il server non ha risposto: dice che è un problema nostro, con «Riprova», e non «non troviamo»", [true, true, false], [
     testo(g.html).includes(TESTI_SHOP.err500.titolo), testo(g.html).includes(TESTI_PROVVISORI.errore.riprova), testo(g.html).includes("Non troviamo"),
   ]);
