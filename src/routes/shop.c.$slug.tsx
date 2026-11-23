@@ -8,7 +8,8 @@
  *  ⚠️ Il disegno è di `PaginaCategoria` (T95); il guscio (header, piè di pagina, barre) è di `shop.tsx` (T93). */
 import { createFileRoute, notFound, redirect } from "@tanstack/react-router";
 import { leggeroDaPubblico, PaginaCategoria } from "@/components/shop/pagine/PaginaCategoria";
-import { MARCHIO, SITO } from "@/seo/regole";
+import { TESTI_SHOP, riempi } from "@/landing/testi-shop";
+import { SITO } from "@/seo/regole";
 import type { SpedizionePubblica } from "@/shop/cassa/spedizione";
 import { tariffaSpedizione } from "@/shop/cassa/tariffe.functions";
 import { elencoCategorie, elencoProdotti } from "@/shop/cms/catalogo.functions";
@@ -16,7 +17,7 @@ import { contenutoShop } from "@/shop/cms/contenuto-shop.functions";
 import { datiStrutturatiLista, serializzaJsonLd } from "@/shop/cms/json-ld";
 import type { ProdottoPubblico } from "@/shop/cms/modello";
 import { contenutoVuoto, mediaDi } from "@/shop/cms/vetrina-contenuto";
-import { canonical, immagineCondivisione, metaCategoria } from "@/shop/cms/vetrina-seo";
+import { canonical, immagineCondivisione, metaCategorie } from "@/shop/cms/vetrina-seo";
 
 const TARIFFA_ASSENTE: SpedizionePubblica = { stato: "assente" };
 
@@ -36,12 +37,13 @@ export const Route = createFileRoute("/shop/c/$slug")({
     }
     const categoria = categorie.find((c) => c.slug === params.slug);
     if (!categoria || prodotti.length === 0) throw redirect({ to: "/shop" });
-    return { categoria, prodotti: prodotti.map(leggeroDaPubblico), contenuto: await contenuto, tariffa: await tariffa };
+    //  i meta di tutte le categorie insieme: mai due uguali (D97, V1-C3), anche se il CMS scrive lo stesso testo due volte
+    const meta = metaCategorie(categorie)[categorie.indexOf(categoria)];
+    return { categoria, meta, prodotti: prodotti.map(leggeroDaPubblico), contenuto: await contenuto, tariffa: await tariffa };
   },
   head: ({ loaderData, params }) => {
     if (!loaderData) return { meta: [] };
-    const { categoria, prodotti, contenuto } = loaderData;
-    const { titolo, descrizione } = metaCategoria(categoria);
+    const { meta: { titolo, descrizione }, prodotti, contenuto } = loaderData;
     const url = canonical(`/shop/c/${params.slug}`, SITO);
     const media = mediaDi(contenuto);
     const immagine = immagineCondivisione({ condivisione: media["shop.condivisione"], heroFoto: media["shop.heroFoto"] });
@@ -49,7 +51,8 @@ export const Route = createFileRoute("/shop/c/$slug")({
     const lista = prodotti.map((p) => ({ slug: p.card.slug, nome: p.card.nome })) as unknown as ProdottoPubblico[];
     return {
       meta: [
-        { title: `${titolo} | ${MARCHIO}` },
+        //  stesso suffisso di scheda, carrello e cerca («… | Hair Genius Shop»); se il CMS lo ha già scritto non si raddoppia
+        { title: titolo.includes("Hair Genius") ? titolo : riempi(TESTI_SHOP.meta.scheda.titolo, { nome: titolo }) },
         { name: "description", content: descrizione },
         { property: "og:description", content: descrizione },
         { property: "og:type", content: "website" },

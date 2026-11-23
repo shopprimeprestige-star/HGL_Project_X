@@ -1,6 +1,6 @@
 /** ── PaginaCategoria · VETRINA V1 · T95 ───────────────────────────────────────
  *  La pagina `/shop/c/<slug>` (documento §3.4 e §4.5.3). Dall'alto: fascia blueprint compatta (percorso, titolo, frase, voci di fiducia vere e,
- *  da 768 px, la foto della categoria in 4:3), poi la griglia di card con i filtri di T90 su fondo bianco, in fondo «Non sai quale scegliere?»
+ *  da 768 px, la foto della categoria in 4:3), poi la griglia di card con i filtri di T90 su fondo bianco con trama, in fondo «Non sai quale scegliere?»
  *  con la consulenza come LINK (mai un bottone pieno: l'unico pieno della pagina, se serve, è dei filtri).
  *  Non monta il guscio (header, piè di pagina, barre fisse: sono di T93) e non legge niente da sé: il `loader` della rotta le dà `dati`.
  *  ⚠️ Il loader dà card LEGGERE (`ProdottoCategoria`: la card, lo SKU e quel che serve ai filtri), non i `ProdottoPubblico` interi: descrizioni,
@@ -9,7 +9,7 @@
  *   colonna dei filtri (`lg:sticky`) lo presuppongono (T90, punto 4). Il `-mx` della barra vale solo sotto i 1024 px, dove il contenitore è a tutta larghezza.
  *  ⚠️ Testi: solo da `testi-shop.ts` e dal contenuto dello shop (`testiDi`: uno svuotato nel CRM non si disegna, V1-T16). Titolo e frase come D97.
  *  La foto della categoria viene dal CMS (D95: `CategoriaPubblica.foto`, il pannello CRM la carica già): le chiavi `shop.cat.<slug>.foto` non esistono. */
-import { lazy, Suspense, useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { ChevronRight } from "lucide-react";
 import { FotoShop } from "@/components/shop/FotoShop";
@@ -26,6 +26,7 @@ import { eInvisibleDerm } from "@/shop/cms/pubblico";
 import { cardDaPubblico, type CardLeggera } from "@/shop/cms/vetrina-card";
 import { confermatiDa, testiDi, type ContenutoShop } from "@/shop/cms/vetrina-contenuto";
 import type { Filtrabile } from "@/shop/cms/vetrina-filtri";
+import type { MetaPagina } from "@/shop/cms/vetrina-seo";
 
 const PannelloProblemi = lazy(() => import("@/components/landing/consulenza/PannelloProblemi"));
 
@@ -42,6 +43,8 @@ export function leggeroDaPubblico(p: ProdottoPubblico): ProdottoCategoria {
 /** Quello che il `loader` della rotta dà alla pagina. */
 export interface DatiCategoria {
   categoria: CategoriaPubblica;
+  /** Titolo e descrizione per la `head`: li sceglie il loader sull'elenco di tutte le categorie (mai due uguali). Qui non servono. */
+  meta: MetaPagina;
   prodotti: ProdottoCategoria[];
   contenuto: ContenutoShop;
   tariffa: SpedizionePubblica;
@@ -81,13 +84,13 @@ const PERCORSO = TESTI_SHOP.footer.colonnaShop;
 
 export function PaginaCategoria({ dati, search }: { dati: DatiCategoria; search: unknown }) {
   const { categoria, contenuto, tariffa } = dati;
-  //  stabile (dipende solo dall'elenco del loader); salta ciò che non è una riga leggera, come `soloLeggere` salta ciò che non ha nome
-  const prodotti = useMemo(() => (Array.isArray(dati.prodotti) ? dati.prodotti.filter((p) => !!p?.card) : []), [dati.prodotti]);
+  const { prodotti } = dati;
   const { titolo, frase } = testiCategoria(categoria);
   const t = testiDi(contenuto);
   const blocco = { titolo: t["shop.cat.blocco.titolo"], testo: t["shop.cat.blocco.testo"], link: t["shop.cat.blocco.link"] };
   const confermati = confermatiDa(contenuto);
-  const alt = categoria.fotoAlt ?? riempi(ALT_MODELLI_SHOP.categoria, { categoria: categoria.nome, n: prodotti.length });
+  //  ripiego se il CMS non ha scritto la descrizione (D36 dice che c'è sempre): il modello del documento, al singolare con un solo prodotto
+  const alt = categoria.fotoAlt ?? riempi(ALT_MODELLI_SHOP.categoria, { categoria: categoria.nome, n: prodotti.length }).replace(/\b1 prodotti\b/, "1 prodotto");
   useListaVista(`c:${categoria.slug}`, prodotti, categoria.nome);
 
   // ── la consulenza: il flusso che esiste, in ritardo (come l'header) ──
@@ -135,7 +138,7 @@ export function PaginaCategoria({ dati, search }: { dati: DatiCategoria; search:
       </section>
 
       {/* i prodotti, su bianco: nessun antenato con `overflow` (la barra «Filtra» e la colonna dei filtri sono `sticky`) */}
-      <section className="bg-white text-ink">
+      <section className="bg-white-trama text-ink">
         <div className="mx-auto max-w-7xl px-4 pb-12 pt-6 min-[360px]:px-6 lg:px-10 lg:pb-16 lg:pt-10">
           <FiltriCategoria prodotti={prodotti} search={search}>
             {(visibili) => <GrigliaCard card={visibili.map((p) => p.card)} colonne={3} testi={confermati} prima livello="h2" className="2xl:grid-cols-4" />}

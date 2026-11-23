@@ -55,7 +55,7 @@ export async function prove(mod, { c, gruppo, radice }) {
     tariffaSpedizione: () => D.TARIFFA_OK,
     ...extra,
   });
-  const dalloStato = (extra, modalita = "cms") => ({ context: { modalita }, loaderData: { categoria: categorie[0], prodotti: patch.map((p) => leggero(CARD, p)), contenuto, tariffa: D.TARIFFA_OK }, server: server(extra), ...(extra?.__stato ?? {}) });
+  const dalloStato = (extra, modalita = "cms") => ({ context: { modalita }, loaderData: { categoria: categorie[0], meta: SEO.metaCategorie(categorie)[0], prodotti: patch.map((p) => leggero(CARD, p)), contenuto, tariffa: D.TARIFFA_OK }, server: server(extra), ...(extra?.__stato ?? {}) });
   const { route, pagina: reg } = await rendi(radice, ROTTA, { ...dalloStato(), params: { slug: "patch-pronte" } });
   const carica = async (slug, extra, modalita = "cms") => {
     const p = { ...dalloStato(extra), params: { slug } };
@@ -91,9 +91,17 @@ export async function prove(mod, { c, gruppo, radice }) {
   const testa = route.head({ loaderData: ok.r, params: { slug: "patch-pronte" } });
   const meta = (n) => testa.meta.find((m) => m.name === n || m.property === n)?.content;
   c("head: senza dati (codice) solo `meta` vuoto", { meta: [] }, route.head({ params: { slug: "x" } }));
-  c("head: titolo e descrizione sono quelli del CMS (D97), canonical senza parametri", [true, "Descrizione di prova della categoria Patch pronte di prova.", "https://hair-genius-hub.hair/shop/c/patch-pronte"], [/^Patch pronte di prova \| titolo di prova \| /.test(testa.meta.find((m) => m.title)?.title ?? ""), meta("description"), testa.links[0].href]);
-  const senzaSeo = route.head({ loaderData: { ...ok.r, categoria: { ...categorie[0], slug: "districanti", nome: "Districanti", seo: { titolo: null, descrizione: null } } }, params: { slug: "districanti" } });
-  c("head: senza testi del CMS vale la riga del documento (§3.4); meta delle sei categorie tutte diversi", ["Districanti per patch capillari | Hair Genius Labs", true], [senzaSeo.meta.find((m) => m.title)?.title, (() => { const t = new Set(); const d = new Set(); for (const x of mod["shop/cms/vetrina-seo"] ? ["patch-pronte", "shampoo-e-balsami", "districanti", "colle-e-remover", "spazzole", "kit"] : []) { const m = SEO.metaCategoria({ slug: x, nome: x }); t.add(m.titolo); d.add(m.descrizione); } return t.size === 6 && d.size === 6; })()]);
+  c("head: titolo e descrizione sono quelli del CMS (D97), suffisso «| Hair Genius Shop» come scheda e carrello, canonical senza parametri", ["Patch pronte di prova | titolo di prova | Hair Genius Shop", "Descrizione di prova della categoria Patch pronte di prova.", "https://hair-genius-hub.hair/shop/c/patch-pronte"], [testa.meta.find((m) => m.title)?.title, meta("description"), testa.links[0].href]);
+  c("head: un titolo del CMS che ha già «Hair Genius» non si raddoppia", "Patch | Hair Genius Labs", route.head({ loaderData: { ...ok.r, meta: { titolo: "Patch | Hair Genius Labs", descrizione: "d" } }, params: { slug: "patch-pronte" } }).meta.find((m) => m.title)?.title);
+  //  due categorie che nel CMS hanno lo STESSO testo SEO: il loader dà meta diversi (T77 `metaCategorie`, D97 «mai uguali», V1-C3)
+  const doppie = [{ ...categorie[0], seo: { titolo: "Stesso titolo", descrizione: "Stessa descrizione" } }, { ...categorie[1], seo: { titolo: "Stesso titolo", descrizione: "Stessa descrizione" } }];
+  const dA = await carica("patch-pronte", { elencoCategorie: () => doppie });
+  const dB = await carica("cura", { elencoCategorie: () => doppie });
+  c("loader: due categorie con lo stesso testo SEO nel CMS hanno meta diversi; la prima tiene il suo", [true, true, "Stesso titolo"], [dA.r?.meta.titolo !== dB.r?.meta.titolo && dA.r?.meta.descrizione !== dB.r?.meta.descrizione, dB.r?.meta.titolo.length > 0, dA.r?.meta.titolo]);
+  const slugDoc = ["patch-pronte", "shampoo-e-balsami", "districanti", "colle-e-remover", "spazzole", "kit"];
+  const sei = slugDoc.map((x) => ({ slug: x, nome: x, tipo: "categoria", frase: null, foto: null, fotoAlt: null, seo: { titolo: null, descrizione: null }, ordine: 0, quanti: 1 }));
+  const metaSei = SEO.metaCategorie(sei);
+  c("meta delle sei categorie del documento tutti diversi (titolo e descrizione)", [6, 6], [new Set(metaSei.map((m) => m.titolo)).size, new Set(metaSei.map((m) => m.descrizione)).size]);
   const ostile = route.head({ loaderData: { ...ok.r, prodotti: ok.r.prodotti.map((p, i) => (i === 0 ? { ...p, card: { ...p.card, nome: "</script><script>alert(1)</script>" } } : p)) }, params: { slug: "patch-pronte" } });
   const json = ostile.scripts[0].children;
   c("head: dati strutturati ItemList con tutti i prodotti; un nome con `</script>` non chiude il tag e si rilegge identico", [6, false, "</script><script>alert(1)</script>"], (() => { try { const j = JSON.parse(json); return [j.itemListElement.length, /</.test(json), j.itemListElement[0].name]; } catch { return ["non si rilegge", null, null]; } })());
@@ -101,7 +109,7 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("head: immagine di condivisione solo se c'è (nessuna inventata)", ["https://prova.test/c.jpg", undefined], [conImg.meta.find((m) => m.property === "og:image")?.content, testa.meta.find((m) => m.property === "og:image")?.content]);
 
   /* ── il disegno ── */
-  const dati = (extra = {}) => ({ categoria: categorie[0], prodotti: patch.map((p) => leggero(CARD, p)), contenuto, tariffa: D.TARIFFA_OK, ...extra });
+  const dati = (extra = {}) => ({ categoria: categorie[0], meta: SEO.metaCategorie(categorie)[0], prodotti: patch.map((p) => leggero(CARD, p)), contenuto, tariffa: D.TARIFFA_OK, ...extra });
   const disegna = async (d, search = {}) => (await rendiComponente(radice, PAGINA, "PaginaCategoria", { dati: d, search }, { server: {}, context: { modalita: "cms" } })).html;
   const h = await disegna(dati());
   const t = testo(h);
@@ -116,6 +124,10 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("foto della categoria: dal CMS, 4:3, dentro un riquadro `hidden md:block` (solo da 768 px), non `eager`", [true, true, true, false], [iFoto > 0, /aspect-ratio:\s*4\s*\/\s*3/.test(h), antF.some((a) => /\bhidden\b/.test(a.classi) && /\bmd:block\b/.test(a.classi)), /loading="eager"[^>]*categoria-patch-pronte|categoria-patch-pronte[^>]*loading="eager"/.test(h)]);
   const hSenzaFoto = await disegna(dati({ categoria: { ...nome0, foto: null, fotoAlt: null } }));
   c("senza foto della categoria la fascia è solo testo (nessun riquadro)", false, /categoria-patch-pronte-960/.test(hSenzaFoto));
+  const altUno = await disegna(dati({ categoria: { ...nome0, fotoAlt: null }, prodotti: [dati().prodotti[0]] }));
+  const altSei = await disegna(dati({ categoria: { ...nome0, fotoAlt: null } }));
+  c("alt di ripiego (senza descrizione del CMS): «1 prodotto» al singolare, «6 prodotti» al plurale", [true, true, false], [/alt="Patch pronte di prova: 1 prodotto in fila/.test(altUno), /alt="Patch pronte di prova: 6 prodotti in fila/.test(altSei), /1 prodotti/.test(altUno)]);
+  c("fondo dei prodotti con trama (`bg-white-trama`), come la vetrina della home", true, /<section class="bg-white-trama text-ink">/.test(h));
   const nCard = conta(h, "<article");
   c("una card per prodotto, titoli al livello h2 (sotto l'H1); nessuna stella, barrato, sconto", [6, 6, 0, false], [nCard, conta(h, "<h2 class=\"line-clamp-2"), conta(h, "lucide-star"), /line-through/.test(h)]);
   const hCura = await disegna(dati({ categoria: categorie[1], prodotti: cura.map((p) => leggero(CARD, p)) }));
