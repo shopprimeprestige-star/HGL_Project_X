@@ -9,8 +9,8 @@
  *   d'anteprima è privata e `no-store`: non si ferma da nessuna parte.
  *  ⚠️ Collaudo con chiave (T67, D57): con il cookie `__Host-hgl_collaudo` valido, SOLO per quel browser, il catalogo è `cms` (un'istanza a
  *   parte, con la sua memoria) e ogni risposta è `private, no-store`. Senza cookie (o con uno falso, scaduto, di altro segreto) non cambia niente. */
-import { createServerFn } from "@tanstack/react-start";
-import { getRequestUrl, setResponseHeader } from "@tanstack/react-start/server";
+import { createServerFn, createServerOnlyFn } from "@tanstack/react-start";
+import { getRequestHeader, getRequestUrl, setResponseHeader } from "@tanstack/react-start/server";
 import { cacheDellaRisposta, creaCatalogo, type Catalogo, type ClienteDb, type EsitoScheda } from "./catalogo.server";
 import { CACHE_COLLAUDO, collaudoValido } from "./collaudo";
 
@@ -33,12 +33,15 @@ export async function catalogoPubblico(): Promise<Catalogo> {
   return istanza;
 }
 
+/** Legge il cookie della richiesta in corso. `createServerOnlyFn` (non un `import()` dinamico del modulo del server: in `vite dev` finiva nel client e
+ *  `import-protection` rifiutava tutto con un 500, T107): nel browser lancia, e `collaudoDellaRichiesta` risponde `false` col suo `try/catch`. */
+const leggiCookie = createServerOnlyFn(() => getRequestHeader("cookie"));
+
 /** Il cookie del collaudo di QUESTA richiesta è valido? Il segreto si legge qui, ogni volta. Mai un'eccezione; fuori da una richiesta (prove,
  *  prerender) o senza cookie: no, e senza lavoro. */
 export async function collaudoDellaRichiesta(cookie?: string | null): Promise<boolean> {
   try {
-    //  import dinamico: una funzione esportata che nomina il modulo del server lo porterebbe nel pacchetto del browser (come `catalogoPubblico` con il client del server)
-    const intestazione = cookie === undefined ? (await import("@tanstack/react-start/server")).getRequestHeader("cookie") : cookie;
+    const intestazione = cookie === undefined ? leggiCookie() : cookie;
     if (!intestazione) return false;
     return await collaudoValido(intestazione, process.env.SUPABASE_SERVICE_ROLE_KEY, Date.now());
   } catch {

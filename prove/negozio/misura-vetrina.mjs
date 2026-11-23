@@ -75,6 +75,14 @@ async function provePure(_mod, { c, gruppo }) {
     c("opzione sconosciuta, valore mancante e scenario sbagliato sono errori", [true, true, true, true], [
       L(["--boh"]).errori.length > 0, L(["--base"]).errori.length > 0, L(["--scenario", "nonesiste"]).errori.length > 0, L(["--solo", "T99"]).errori.length > 0,
     ]);
+    // T107 · `--finto`: l'origine del finto Supabase (le foto stanno su un'altra porta di 127.0.0.1), verificata come `--base`
+    const conFinto = L(["--finto", "http://127.0.0.1:5301/"]);
+    c("--finto: legge l'origine del finto (loopback, come --base); senza, non c'è", [[], "http://127.0.0.1:5301", undefined], [conFinto.errori, conFinto.opzioni.finto, vuoto.opzioni.finto]);
+    c("--finto con un indirizzo non locale, https, con utente o senza valore è un errore", [true, true, true, true, true], [
+      L(["--finto", "https://sito.example"]).errori.length > 0, L(["--finto", "http://abcd.supabase.co"]).errori.length > 0, L(["--finto", "https://127.0.0.1:5301"]).errori.length > 0,
+      L(["--finto", "http://utente:segreto@127.0.0.1:5301"]).errori.length > 0, L(["--finto"]).errori.length > 0,
+    ]);
+    c("…e il messaggio non ripete la password", false, L(["--finto", "http://utente:segreto@127.0.0.1:5301"]).errori.join(" ").includes("segreto"));
     c("una pagina con indirizzo completo è un errore", true, L(["--pagine", "/shop,https://sito.example/x"]).errori.length > 0);
     c("la scheda e lo SKU servono insieme agli scenari: se manca uno, avvisa", true, L(["--scheda", "/shop/prodotto/p"]).errori.some((e) => /sku/i.test(e)));
     // lo strumento non legge le variabili delle chiavi: passarle non cambia niente
@@ -372,6 +380,21 @@ async function provePure(_mod, { c, gruppo }) {
       (await instrada("http://127.0.0.1:5199/prova-anteprima-a")).ab, (await instrada("http://127.0.0.1:5199/prova-anteprima/x")).ab,
     ]);
     c("un indirizzo storto o con utente nel filtro viene abortito", [true, true], [(await instrada("not a url")).ab, (await instrada("http://utente@127.0.0.1:5199/")).ab]);
+    c("senza --finto il filtro non cambia: la porta del finto resta bloccata", true, (await instrada("http://127.0.0.1:5301/storage/v1/object/public/shop-media/a.jpg")).ab);
+    // T107 · con `--finto` passa SOLO quell'origine: tutto il resto (altre porte, localhost, rotte vietate, utente) resta fermato come prima
+    const eventiFinto = [];
+    const browserConFinto = { ...finto, newContext: async (o) => { const ctx = await finto.newContext(o); const route = ctx.route; ctx.route = async (g, fn) => { eventiFinto.push(fn); await route(g, fn); }; return ctx; } };
+    await M.misura({ chromium: { launch: async () => browserConFinto } }, M.leggiArgomenti(["--solo", "T11", "--finto", "http://127.0.0.1:5301"], {}).opzioni);
+    const filtroFinto = eventiFinto[eventiFinto.length - 1];
+    const instradaFinto = async (url) => { const r = { ab: false, cont: false }; await filtroFinto({ request: () => ({ url: () => url }), abort: async () => { r.ab = true; }, continue: async () => { r.cont = true; } }); return r; };
+    c("--finto: il filtro lascia passare base e finto (le foto), e solo quelli", [true, true], [(await instradaFinto("http://127.0.0.1:5199/shop")).cont, (await instradaFinto("http://127.0.0.1:5301/storage/v1/object/public/shop-media/a.jpg")).cont]);
+    c("--finto: una porta diversa da base e finto resta bloccata, come localhost, un altro host e il non locale", [true, true, true, true, true], [
+      (await instradaFinto("http://127.0.0.1:3000/shop")).ab, (await instradaFinto("http://127.0.0.1:5302/x.jpg")).ab, (await instradaFinto("http://localhost:5301/x.jpg")).ab,
+      (await instradaFinto("https://abcd.supabase.co/storage/v1/object/public/x.jpg")).ab, (await instradaFinto("http://127.0.0.1:5301.sito.example/x.jpg")).ab,
+    ]);
+    c("--finto: le quattro rotte vietate e l'utente restano fermati anche sull'origine del finto", [true, true, true], [
+      (await instradaFinto("http://127.0.0.1:5301/media/abc")).ab, (await instradaFinto("http://127.0.0.1:5199/api/og/anteprima")).ab, (await instradaFinto("http://utente@127.0.0.1:5301/x.jpg")).ab,
+    ]);
     c("la cartella del repository non ha file nuovi dopo la prova", true, !existsSync(join(RADICE, "misura-vetrina.json")) && !readFileSync(FILE, "utf8").includes("writeFileSync"));
     c("lo strumento non nomina né legge .env, .dev.vars, process.env a tappeto", [false, false], [/\.env|dev\.vars/.test(readFileSync(FILE, "utf8").replace(/process\.env/g, "")), /Object\.(keys|entries|assign)\(process\.env\)|\.\.\.process\.env/.test(readFileSync(FILE, "utf8"))]);
     c("Playwright, axe e Lighthouse non sono in package.json", [false, false, false], (() => { const pj = readFileSync(join(RADICE, "package.json"), "utf8"); return [/"playwright/.test(pj), /axe-core|@axe-core/.test(pj), /lighthouse/.test(pj)]; })());
