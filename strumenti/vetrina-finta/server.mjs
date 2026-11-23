@@ -123,7 +123,9 @@ export async function avviaFinto({ scenario = "completo", porta = 0 } = {}) {
     // le foto di prova: nessuna chiave (come lo storage pubblico)
     const foto = /^\/storage\/v1\/object\/public\/(shop-media|landing-media)\/(.+)$/.exec(percorso);
     if (foto && (metodo === "GET" || metodo === "HEAD")) {
-      const svg = svgProva(decodeURIComponent(foto[2]));
+      let nomeFoto;
+      try { nomeFoto = decodeURIComponent(foto[2]); } catch { return errore(400, "400", "finto: percorso non valido", percorso); }
+      const svg = svgProva(nomeFoto);
       if (!svg) return errore(404, "404", "finto: foto non riconosciuta", percorso);
       ricorda(metodo, percorso, 200);
       return risposta(200, svg, "image/svg+xml; charset=utf-8", { "cache-control": "public, max-age=3600" });

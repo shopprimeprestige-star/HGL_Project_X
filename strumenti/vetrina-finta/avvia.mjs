@@ -34,7 +34,11 @@ export class ErroreSalvaguardia extends Error {
 /* ── 1 · i file che portano segreti ─────────────────────────────────────────── */
 
 /** `.env`, `.env.local`, `.env.production`, `.dev.vars`, `.dev.vars.prod`…: tutto ciò che vite e wrangler leggono da soli. `.env.example` no. */
-export const eFileSegreto = (nome) => (nome.startsWith(".env") && nome !== ".env.example") || nome.startsWith(".dev.vars");
+export const eFileSegreto = (nome) => {
+  // macOS non distingue maiuscole e minuscole: `.ENV` è un `.env` per Vite.
+  const n = nome.toLowerCase();
+  return (n.startsWith(".env") && n !== ".env.example") || n.startsWith(".dev.vars");
+};
 
 /** I nomi dei file segreti trovati nelle cartelle date (`cartella/nome`); vuoto = via libera. */
 export function trovaFileSegreti(cartelle) {

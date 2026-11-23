@@ -156,6 +156,7 @@ export async function prove(mod, { c, gruppo }) {
       const foto = await chiedi("/storage/v1/object/public/shop-media/prodotti/PR-PATCH-1/principale-480.svg", { chiave: null });
       c("la foto di prova: 200, image/svg+xml, quadrata e con la scritta", [200, true, true, true], [foto.stato, /image\/svg\+xml/.test(foto.intestazioni.get("content-type")), /width="480" height="480"/.test(foto.testo), />PROVA</.test(foto.testo)]);
       c("una foto che non ha la forma attesa: 404", 404, (await chiedi("/storage/v1/object/public/shop-media/..%2Fx.svg", { chiave: null })).stato);
+      c("un percorso con codifica rotta: 400, e il finto resta in piedi", [400, 200], [(await chiedi("/storage/v1/object/public/shop-media/%E0%A4%A", { chiave: null })).stato, (await chiedi("/storage/v1/object/public/shop-media/prodotti/PR-PATCH-1/principale-480.svg", { chiave: null })).stato]);
       c("il finto non ha mandato niente fuori: il registro ha solo richieste sue", true, finto.registro.every((r) => r.percorso.startsWith("/rest/v1/") || r.percorso.startsWith("/storage/v1/") || r.percorso.startsWith("/auth/")));
     } finally {
       await finto.chiudi();
@@ -191,7 +192,7 @@ export async function prove(mod, { c, gruppo }) {
 
     /* ══ 3 · IL LANCIATORE: I FILE CHE PORTANO SEGRETI ════════════════════════════════════════════════════ */
     gruppo("VETRINA V1 · T75 · IL LANCIATORE RIFIUTA .env E .dev.vars (D91)");
-    const NOMI_SEGRETI = [".env", ".env.local", ".env.production", ".env.development.local", ".dev.vars", ".dev.vars.staging", ".envrc"];
+    const NOMI_SEGRETI = [".env", ".env.local", ".env.production", ".env.development.local", ".dev.vars", ".dev.vars.staging", ".envrc", ".ENV", ".Env.local", ".DEV.VARS"];
     const NOMI_LIBERI = [".env.example", ".gitignore", "env.txt", "dev.vars"];
     c("riconosce come segreti i nomi di vite e wrangler", NOMI_SEGRETI.map(() => true), NOMI_SEGRETI.map((n) => A.eFileSegreto(n)));
     c("lascia stare .env.example e gli altri", NOMI_LIBERI.map(() => false), NOMI_LIBERI.map((n) => A.eFileSegreto(n)));
@@ -217,8 +218,8 @@ export async function prove(mod, { c, gruppo }) {
     const buona = await lanciaSicura(pulita);
     c("una cartella pulita (con solo .env.example) parte e l'app ci gira dentro", [true, true], [buona.uscita !== null, !!buona.uscita && realpathSync(buona.uscita.cwd) === realpathSync(pulita)]);
 
-    for (const nome of NOMI_SEGRETI) {
-      const dir = nuova(`con${nome.replace(/\W/g, "_")}`);
+    for (const [i, nome] of NOMI_SEGRETI.entries()) {
+      const dir = nuova(`con${i}${nome.replace(/\W/g, "_")}`);
       writeFileSync(join(dir, nome), "SUPABASE_URL=https://progetto-di-prova.supabase.co\n");
       const e = await rifiutata(dir);
       c(`${nome} nella cartella dell'app: il lanciatore si ferma`, [true, false], [e instanceof A.ErroreSalvaguardia && e.message.includes(nome), existsSync(join(dir, "uscita.json"))]);
