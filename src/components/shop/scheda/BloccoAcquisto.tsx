@@ -7,11 +7,13 @@
  *  Regole (SPEC, V1-S3, V1-S4):
  *   · il bottone si spegne SOLO per «Esaurito»; senza scelta resta acceso e il clic porta il fuoco alla scelta mancante (`fuocoSullaScelta`);
  *   · mai una riga nel carrello senza SKU: scelta mancante, combinazione che non esiste, variante esaurita, anteprima, Invisible Derm, prezzo non valido;
+ *   · anteprima (bozza vista con la chiave, D94): stesso disegno della scheda vera, senza il bottone (al suo posto la striscia «anteprima») e senza
+ *     `ATTRIBUTO_BLOCCO`: il titolare controlla in bozza campioni, spedizione e fiducia, ma niente si compra;
  *   · il prezzo viene dal prodotto del server (variante scelta, o «Da …» se le varianti costano cifre diverse): mai dal carrello o dalla memoria del browser;
  *   · dopo l'aggiunta: «Aggiunto» per 2 s, poi di nuovo «Aggiungi al carrello» (il timer CAMBIA uno stato: T105), e la striscia «{nome} è nel carrello ·
  *     Vai al carrello», che resta finché non si cambia pagina. Nessun avviso a comparsa, nessuna scorciatoia di acquisto immediato.
  *  Cosa decide e cosa no: la logica sta in `vetrina-varianti.ts`, `vetrina-scheda.ts`, `vetrina-eventi.ts`, `vetrina-interazioni.ts`, `vetrina-fiducia.ts`;
- *  qui si collega e si disegna. Le parole stanno in `testi-shop.ts`. Il montaggio nella pagina è di T97b: sul computer il blocco è `sticky` (`lg:self-start`
+ *  qui si collega e si disegna. Le parole stanno in `testi-shop.ts`. Lo monta `PaginaScheda` (T97b): sul computer il blocco è `sticky` (`lg:self-start`
  *  perché in una griglia non si stiri) e porta `ATTRIBUTO_BLOCCO`, così la barra fissa si nasconde finché nome, prezzo e bottone sono a schermo. */
 import { useEffect, useRef, useState, type RefObject } from "react";
 import { Check } from "lucide-react";
@@ -219,15 +221,8 @@ export function BloccoAcquisto({
     </p>
   );
 
-  // anteprima (bozza vista con la chiave, D94): si vede com'è, ma non si vende
-  if (prodotto.anteprima) {
-    return (
-      <div className={radice}>
-        {testata}
-        {prezzoRiga && <div className="mt-5">{prezzoRiga}</div>}
-      </div>
-    );
-  }
+  // anteprima (bozza vista con la chiave, D94): si vede com'è, tutta, ma non si vende: manca solo il bottone (al suo posto la striscia)
+  const anteprima = !!prodotto.anteprima;
 
   const spedizione = blocco.rigaSpedizione ? voci.find((v) => v.id === "spedizione")?.testo : null;
   const pronta = badgeProntaConsegna(
@@ -238,7 +233,8 @@ export function BloccoAcquisto({
 
   return (
     <div className={radice}>
-      <div {...ATTRIBUTO_BLOCCO} className="flex flex-col gap-5">
+      {/* in anteprima non c'è bottone: la barra d'acquisto non ha niente da inseguire, quindi niente `ATTRIBUTO_BLOCCO` */}
+      <div {...(anteprima ? {} : ATTRIBUTO_BLOCCO)} className="flex flex-col gap-5">
         {testata}
         {(prezzoRiga || spedizione) && (
           <div className="flex flex-col gap-1.5">
@@ -258,27 +254,33 @@ export function BloccoAcquisto({
           mancante={acquisto.mancante}
           ref={acquisto.selettoreRef}
         />
-        <button
-          type="button"
-          onClick={acquisto.aggiungi}
-          disabled={esaurito}
-          className={`shop-anello flex h-14 w-full items-center justify-center gap-2 rounded-md px-6 text-base font-semibold transition-colors ${
-            esaurito
-              ? "cursor-not-allowed border-2 border-ink/40 bg-white text-ink-muted"
-              : "bg-[#0A1430] text-white hover:bg-[#1B2A4E]"
-          }`}
-        >
-          {esaurito ? (
-            t.esaurito
-          ) : aggiunto ? (
-            <>
-              <Check aria-hidden className="shop-pop h-5 w-5" />
-              {t.aggiunto}
-            </>
-          ) : (
-            t.aggiungi
-          )}
-        </button>
+        {anteprima ? (
+          <p className="flex min-h-14 items-center rounded-md border border-ink/15 bg-white px-4 text-sm font-semibold text-[#0A1430]">
+            {TESTI_PROVVISORI.scheda.anteprimaStriscia}
+          </p>
+        ) : (
+          <button
+            type="button"
+            onClick={acquisto.aggiungi}
+            disabled={esaurito}
+            className={`shop-anello flex h-14 w-full items-center justify-center gap-2 rounded-md px-6 text-base font-semibold transition-colors ${
+              esaurito
+                ? "cursor-not-allowed border-2 border-ink/40 bg-white text-ink-muted"
+                : "bg-[#0A1430] text-white hover:bg-[#1B2A4E]"
+            }`}
+          >
+            {esaurito ? (
+              t.esaurito
+            ) : aggiunto ? (
+              <>
+                <Check aria-hidden className="shop-pop h-5 w-5" />
+                {t.aggiunto}
+              </>
+            ) : (
+              t.aggiungi
+            )}
+          </button>
+        )}
       </div>
       {/* Le due zone ci sono sempre, anche vuote: una regione `aria-live` che nasce con il testo dentro non viene letta. */}
       <div aria-live="polite">

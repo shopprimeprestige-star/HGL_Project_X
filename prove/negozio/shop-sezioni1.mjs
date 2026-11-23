@@ -236,7 +236,7 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("nessun movimento scritto qui (animate, transition, hover:translate): le animazioni sono di `styles.css`", false, /animate-|transition|hover:-?translate|motion-/.test(sorgente.replace(/\/\*[\s\S]*?\*\/|\/\/.*$/gm, "")));
   c("il sorgente non contiene «da confermare» né segnaposto aperti, nemmeno nei commenti, né l'indirizzo dello studio", false, /da confermare|\{\{|Scipioni/i.test(sorgente));
   c("il sorgente usa `FotoShop` per ogni foto (nessun <img> scritto a mano) e importa i testi solo da `testi-shop`", [false, true, true], [/<img\b/.test(sorgente.replace(/\/\*[\s\S]*?\*\//g, "")), /from "@\/components\/shop\/FotoShop"/.test(sorgente), /from "@\/landing\/testi-shop"/.test(sorgente)]);
-  c("il componente non è montato in nessuna route (lo monta T97b)", [], await montato(radice));
+  c("lo importa solo `PaginaScheda` (T97b), nessuna route lo nomina direttamente", ["/src/components/shop/pagine/PaginaScheda.tsx"], await montato(radice));
 }
 
 /** I file di `src/routes` e `src/components` che importano `SezioniScheda1` (riga `from …/SezioniScheda1`: una citazione in un commento non conta) (salvo il file stesso). */
