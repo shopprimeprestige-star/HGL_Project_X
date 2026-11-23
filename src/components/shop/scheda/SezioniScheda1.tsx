@@ -40,6 +40,8 @@ const titolo = (provvisorio: string | undefined, riserva: string) => provvisorio
 const H2 = "text-xl font-bold tracking-tight text-[#0A1430]";
 const TESTO = "text-base leading-relaxed text-ink-muted";
 const PANNELLO = "@container rounded-[14px] bg-light-panel p-5 sm:p-8";
+/** La copertina del video sta in un riquadro 4:5 largo al più 320 px (`max-w-xs`): le misure riservano il posto, il riquadro decide l'aspetto. */
+const MISURE_COPERTINA = { width: 320, height: 400 };
 
 /** Le due colonne (media a sinistra) solo quando la sezione stessa è larga: sotto la galleria sul computer resta una colonna. */
 const Colonne = ({ media, children }: { media: ReactNode; children: ReactNode }) =>
@@ -69,7 +71,7 @@ function Colore({ testi, media, onConsulenza }: { testi: Contenuto; media: Conte
               {foto && <FotoShop src={foto.src} alt={foto.alt} uso="colori" className="w-full rounded-md" />}
               {conVideo && (
                 <div className="w-full max-w-xs">
-                  <VideoSlot src={video.src} poster={copertina.src} alt={video.alt} titolo={T.coloreLink} />
+                  <VideoSlot src={video.src} poster={copertina.src} alt={video.alt} titolo={T.coloreLink} misure={MISURE_COPERTINA} />
                   <Trascrizione testo={testoParlato ?? ""} />
                 </div>
               )}

@@ -16,9 +16,11 @@ type Props = {
   muto?: boolean;
   /** classi Tailwind della proporzione e della larghezza */
   className?: string;
+  /** misure (px) della copertina, per riservare il posto prima che si carichi; senza, la <img> non le scrive */
+  misure?: { width: number; height: number };
 };
 
-export function VideoSlot({ src, poster, alt, titolo, muto = false, className = "aspect-[4/5]" }: Props) {
+export function VideoSlot({ src, poster, alt, titolo, muto = false, className = "aspect-[4/5]", misure }: Props) {
   const [avviato, setAvviato] = useState(false);
   const video = useRef<HTMLVideoElement>(null);
   // il tasto Play sparisce al clic: il fuoco della tastiera passa al video, non si perde
@@ -32,7 +34,7 @@ export function VideoSlot({ src, poster, alt, titolo, muto = false, className = 
         <video ref={video} src={src} poster={poster || undefined} controls autoPlay playsInline muted={muto} aria-label={alt} className="absolute inset-0 h-full w-full object-cover" />
       ) : (
         <>
-          {poster && <img src={poster} alt="" aria-hidden="true" loading="lazy" className="absolute inset-0 h-full w-full object-cover" />}
+          {poster && <img src={poster} alt="" aria-hidden="true" width={misure?.width} height={misure?.height} loading="lazy" className="absolute inset-0 h-full w-full object-cover" />}
           <button
             type="button"
             onClick={() => setAvviato(true)}
