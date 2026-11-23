@@ -40,15 +40,11 @@ export interface BloccoMisurato {
 /** Va messo sul blocco d'acquisto (scheda) e sul bottone del riepilogo (carrello): finché è a schermo la barra si nasconde. */
 export const ATTRIBUTO_BLOCCO = { "data-barra-nascondi": "vista" } as const;
 
-/** Un blocco copre la barra se: `vista` = una parte qualunque è a schermo; `fondo` = il suo bordo basso entra negli ultimi `margine` px
- *  (dove starebbe la barra) e il suo bordo alto è a schermo. Un blocco senza dimensioni (`display:none`) o con un valore sconosciuto non conta. */
-export function bloccoCopre(blocchi: readonly BloccoMisurato[], alto: number, margine: number): boolean {
-  return blocchi.some((b) => {
-    if (b.width === 0 && b.height === 0) return false;
-    if (b.tipo === "vista") return b.bottom > 0 && b.top < alto;
-    if (b.tipo === "fondo") return b.bottom > alto - margine && b.top < alto;
-    return false;
-  });
+/** `alto` = l'altezza UTILE dello schermo: quella sopra il banner dei cookie (`innerHeight - altezzaBanner`), perché ciò che sta dietro il banner non
+ *  si vede e non si tocca. Un blocco copre la barra se una sua parte è nell'area utile; un blocco tutto sotto il banner conta come uscito (la barra compare).
+ *  Un blocco senza dimensioni (`display:none`) o con un valore sconosciuto non conta. */
+export function bloccoCopre(blocchi: readonly BloccoMisurato[], alto: number): boolean {
+  return blocchi.some((b) => !(b.width === 0 && b.height === 0) && b.tipo === "vista" && b.bottom > 0 && b.top < alto);
 }
 
 /** Quanto schermo occupa il banner dei cookie, dal basso, in px interi (0 se non c'è, mai oltre lo schermo). */
@@ -82,67 +78,96 @@ export function misuraBlocchi(doc: Document): BloccoMisurato[] {
   });
 }
 
-/** Rilegge le posizioni subito e poi a ogni scorrimento, ridimensionamento o cambio d'altezza della pagina (contenuti che arrivano dopo).
- *  `margine()` si legge a ogni giro: la barra vera può cambiare altezza. Restituisce la funzione che scollega tutto. */
-export function collegaBlocchi(win: Finestra, doc: Document, margine: () => number, quandoCambia: (copre: boolean) => void): () => void {
-  const verifica = () => quandoCambia(bloccoCopre(misuraBlocchi(doc), win.innerHeight, margine()));
+const bannerDi = (doc: Document) => doc.querySelector("[data-banner-cookie]");
+const radiceShop = (doc: Document) => doc.querySelector<HTMLElement>("[data-shop-v1]");
+
+/** Chiama `quandoCambia` quando il banner arriva, se ne va o cambia altezza (preferenze aperte) e quando cambia l'elemento `[data-shop-v1]`. */
+function seguiBanner(win: Finestra, doc: Document, quandoCambia: () => void): () => void {
+  let osservato: Element | null = null;
+  const ridimensiona = typeof win.ResizeObserver === "function" ? new win.ResizeObserver(quandoCambia) : null;
+  const cambiaPagina = typeof win.MutationObserver === "function" ? new win.MutationObserver(() => {
+    const banner = bannerDi(doc);
+    if (banner !== osservato) {
+      if (osservato) ridimensiona?.unobserve(osservato);
+      if (banner) ridimensiona?.observe(banner);
+      osservato = banner;
+    }
+    quandoCambia();
+  }) : null;
+  osservato = bannerDi(doc);
+  if (osservato) ridimensiona?.observe(osservato);
+  cambiaPagina?.observe(doc.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ["data-shop-v1", "data-banner-cookie"] });
+  return () => {
+    cambiaPagina?.disconnect();
+    ridimensiona?.disconnect();
+  };
+}
+
+/** Rilegge le posizioni subito e poi a ogni scorrimento, ridimensionamento, cambio d'altezza della pagina (contenuti che arrivano dopo) e del banner.
+ *  L'altezza utile è quella sopra il banner. Restituisce la funzione che scollega tutto. */
+export function collegaBlocchi(win: Finestra, doc: Document, quandoCambia: (copre: boolean) => void): () => void {
+  const verifica = () => quandoCambia(bloccoCopre(misuraBlocchi(doc), win.innerHeight - altezzaBanner(bannerDi(doc)?.getBoundingClientRect(), win.innerHeight)));
   const r = perFotogramma(win, verifica);
   verifica();
   win.addEventListener("scroll", r.pianifica, { passive: true });
   win.addEventListener("resize", r.pianifica);
   const osserva = typeof win.ResizeObserver === "function" ? new win.ResizeObserver(r.pianifica) : null;
   osserva?.observe(doc.body);
+  const scollegaBanner = seguiBanner(win, doc, r.pianifica);
   return () => {
     win.removeEventListener("scroll", r.pianifica);
     win.removeEventListener("resize", r.pianifica);
     osserva?.disconnect();
+    scollegaBanner();
     r.annulla();
   };
 }
 
-const radiceShop = (doc: Document) => doc.querySelector<HTMLElement>("[data-shop-v1]");
-
-/** Scrive `--banner-h` su `[data-shop-v1]`: lo segue quando il banner arriva, cambia altezza (preferenze aperte) o se ne va. */
-export function collegaAltezzaBanner(win: Finestra, doc: Document): () => void {
-  let osservato: Element | null = null;
-  const ridimensiona = typeof win.ResizeObserver === "function" ? new win.ResizeObserver(() => r.pianifica()) : null;
-  const scrivi = () => {
-    const banner = doc.querySelector("[data-banner-cookie]");
-    if (banner !== osservato) {
-      if (osservato) ridimensiona?.unobserve(osservato);
-      if (banner) ridimensiona?.observe(banner);
-      osservato = banner;
-    }
-    radiceShop(doc)?.style.setProperty("--banner-h", `${altezzaBanner(banner?.getBoundingClientRect(), win.innerHeight)}px`);
+/** Una proprietà scritta su `[data-shop-v1]`: si ricorda l'elemento su cui si è scritto, così la toglie da lì anche se l'attributo nel frattempo è sparito. */
+function proprietaSuRadice(doc: Document, nome: string) {
+  let scritto: HTMLElement | null = null;
+  return {
+    scrivi: (valore: string | null) => {
+      const radice = radiceShop(doc);
+      if (scritto && scritto !== radice) scritto.style.removeProperty(nome);
+      scritto = radice;
+      if (valore === null) radice?.style.removeProperty(nome);
+      else radice?.style.setProperty(nome, valore);
+    },
+    togli: () => scritto?.style.removeProperty(nome),
   };
+}
+
+/** Scrive `--banner-h` su `[data-shop-v1]`: lo segue quando il banner arriva, cambia altezza o se ne va. */
+export function collegaAltezzaBanner(win: Finestra, doc: Document): () => void {
+  const banner = proprietaSuRadice(doc, "--banner-h");
+  const scrivi = () => banner.scrivi(`${altezzaBanner(bannerDi(doc)?.getBoundingClientRect(), win.innerHeight)}px`);
   const r = perFotogramma(win, scrivi);
-  const cambiaPagina = typeof win.MutationObserver === "function" ? new win.MutationObserver(r.pianifica) : null;
-  cambiaPagina?.observe(doc.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ["data-shop-v1", "data-banner-cookie"] });
+  const scollegaBanner = seguiBanner(win, doc, r.pianifica);
   win.addEventListener("resize", r.pianifica);
   scrivi();
   return () => {
     r.annulla();
-    cambiaPagina?.disconnect();
-    ridimensiona?.disconnect();
+    scollegaBanner();
     win.removeEventListener("resize", r.pianifica);
-    radiceShop(doc)?.style.removeProperty("--banner-h");
+    banner.togli();
   };
 }
 
 /** Il fuoco non deve finire sotto la barra (WCAG 2.4.11): `src/styles.css` legge `--barra-h` (+ 16 px) come `scroll-padding-bottom`.
  *  Qui lo scrive: l'altezza vera della barra (0 sopra i 1024 px, dove è `display:none`) più il banner che le sta sotto. */
 export function collegaBarraH(win: Finestra, doc: Document, barra: HTMLElement): () => void {
+  const proprieta = proprietaSuRadice(doc, "--barra-h");
   const scrivi = () => {
     const h = barra.offsetHeight;
-    if (h > 0) radiceShop(doc)?.style.setProperty("--barra-h", `calc(var(--banner-h, 0px) + ${h}px)`);
-    else radiceShop(doc)?.style.removeProperty("--barra-h");
+    proprieta.scrivi(h > 0 ? `calc(var(--banner-h, 0px) + ${h}px)` : null);
   };
   const osserva = typeof win.ResizeObserver === "function" ? new win.ResizeObserver(scrivi) : null;
   osserva?.observe(barra);
   scrivi();
   return () => {
     osserva?.disconnect();
-    radiceShop(doc)?.style.removeProperty("--barra-h");
+    proprieta.togli();
   };
 }
 
@@ -153,10 +178,6 @@ export function useAltezzaBanner(): void {
 
 /* ── il disegno ──────────────────────────────────────────────────────────── */
 
-/** 72 px = altezza del Design (§4.5 «Barra d'acquisto»: «72 + area dei gesti»), la stessa di `spazioRiservato("acquisto")`. */
-const ALTEZZA_PX = 72;
-/** Aria prima del blocco `fondo`, come `BarraConsulenza`. */
-const ARIA_FONDO_PX = 16;
 /** La zona dei gesti dell'iPhone si lascia solo se sotto non c'è il banner (che ha già la sua). */
 const ZONA_GESTI = "max(0px, calc(env(safe-area-inset-bottom, 0px) - var(--banner-h, 0px)))";
 
@@ -166,7 +187,7 @@ function useBlocchiCoprono(attiva: boolean) {
   const [copre, setCopre] = useState(true);
   useLayoutEffect(() => {
     if (!attiva) return;
-    return collegaBlocchi(window, document, () => Math.max(rif.current?.offsetHeight ?? 0, ALTEZZA_PX) + ARIA_FONDO_PX, setCopre);
+    return collegaBlocchi(window, document, setCopre);
   }, [attiva]);
   return { rif, copre };
 }
@@ -192,11 +213,12 @@ export function ContenitoreBarra({ visibile, etichetta, rif, children }: { visib
         data-nascosta={visibile ? undefined : ""}
         inert={!visibile}
         style={{ paddingBottom: ZONA_GESTI }}
-        className={`fixed inset-x-0 bottom-[var(--banner-h,0px)] z-40 border-t border-ink/10 bg-white shadow-galleggiante transition-[transform,visibility] duration-200 motion-reduce:transition-none lg:hidden ${
+        className={`fixed inset-x-0 bottom-[var(--banner-h,0px)] z-40 border-t border-ink/10 bg-white shadow-galleggiante transition-[translate,visibility] duration-200 motion-reduce:transition-none lg:hidden ${
           visibile ? "translate-y-0" : "invisible translate-y-full"
         }`}
       >
-        <div className="mx-auto flex h-[72px] max-w-6xl items-center gap-3 px-4">{children}</div>
+        {/* 71 px + 1 px di bordo = i 72 del Design (§4.5), quanto lo spazio riservato: la pagina non scatta e il piè di pagina non resta sotto. */}
+        <div className="mx-auto flex h-[71px] max-w-6xl items-center gap-3 px-4">{children}</div>
       </div>
     </>
   );
@@ -227,8 +249,8 @@ export function BarraAcquisto({ nome, prezzo, formatta, foto, esaurito = false, 
   const t = TESTI_SHOP.scheda;
   return (
     <ContenitoreBarra visibile={!copre} etichetta={t.aggiungi} rif={rif}>
-      {/* La miniatura non dice niente che il nome accanto non dica: alt vuoto. Sotto i 360 px il posto serve al nome. */}
-      <FotoShop foto={foto} alt="" uso="miniatura" className="h-12 w-12 shrink-0 rounded-md max-[359px]:hidden" />
+      {/* La miniatura non dice niente che il nome accanto non dica: alt vuoto. Sotto i 360 px (359,98 = prima di 360) il posto serve al nome. */}
+      <FotoShop foto={foto} alt="" uso="miniatura" className="h-12 w-12 shrink-0 rounded-md max-[359.98px]:hidden" />
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm text-ink-muted">{nome}</p>
         <p className="text-base font-semibold tabular-nums text-ink">{testoPrezzo(prezzo, formatta)}</p>

@@ -55,7 +55,7 @@ function ambiente({ alto = 800, blocchi = [], banner = null, radice = true, osse
     win.ResizeObserver = class { constructor(f) { this.f = f; stato.resize = this; } observe(x) { stato.osservati.push(x); } unobserve(x) { stato.osservati = stato.osservati.filter((y) => y !== x); } disconnect() { stato.staccati++; stato.osservati = []; } };
     win.MutationObserver = class { constructor(f) { this.f = f; stato.mutazioni.push(this); } observe(x, o) { this.opzioni = o; this.radice = x; } disconnect() { this.staccato = true; } };
   }
-  const bannerEl = banner && { getBoundingClientRect: () => stato.banner.rect };
+  const bannerEl = { getBoundingClientRect: () => stato.banner.rect };
   const radiceEl = { style: { setProperty: (n, v) => { stato.proprieta[n] = v; }, removeProperty: (n) => { delete stato.proprieta[n]; stato.tolte.push(n); } } };
   const doc = {
     body: { nome: "body" }, documentElement: { nome: "html" },
@@ -86,8 +86,7 @@ export async function prove(mod, { c, gruppo, radice }) {
 
   // ── la logica di nascondimento (pura) ──
   const V = (top, bottom, extra = {}) => ({ tipo: "vista", top, bottom, width: 100, height: bottom - top, ...extra });
-  const F = (top, bottom) => ({ tipo: "fondo", top, bottom, width: 100, height: bottom - top });
-  const copre = (bl, alto = 800, margine = 88) => B.bloccoCopre(bl, alto, margine);
+  const copre = (bl, alto = 800) => B.bloccoCopre(bl, alto);
   c("nessun blocco → la barra non è coperta (può comparire)", false, copre([]));
   c("blocco «vista» a metà schermo → la barra si nasconde", true, copre([V(200, 500)]));
   c("blocco «vista» uscito dall'alto (bordo basso a 0 o sopra) → la barra compare", [false, false], [copre([V(-300, 0)]), copre([V(-300, -10)])]);
@@ -95,11 +94,12 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("blocco «vista» ancora sotto lo schermo (bordo alto = altezza o oltre) → la barra compare", [false, false], [copre([V(800, 1000)]), copre([V(900, 1100)])]);
   c("blocco «vista» che entra dal basso di 1 px → la barra si nasconde", true, copre([V(799, 1000)]));
   c("blocco più alto dello schermo che lo attraversa → nascosta", true, copre([V(-500, 1500)]));
-  c("blocco «fondo»: copre solo se il suo bordo basso entra nell'area della barra (margine) e il bordo alto è a schermo", [false, true, true, false], [
-    copre([F(300, 700)], 800, 88), copre([F(300, 713)], 800, 88), copre([F(780, 1000)], 800, 88), copre([F(800, 1000)], 800, 88),
+  c("altezza UTILE (sopra il banner): un blocco tutto dietro il banner conta come uscito → la barra compare (V1-H5)", [false, true, true], [
+    copre([V(550, 850)], 844 - 300), copre([V(400, 700)], 844 - 300), copre([V(543, 850)], 844 - 300),
   ]);
-  c("«fondo»: il margine è quello dato (la barra vera può essere più alta)", [false, true], [copre([F(300, 700)], 800, 88), copre([F(300, 700)], 800, 120)]);
-  c("un blocco senza dimensioni (display:none) non conta", [false, false], [copre([V(200, 500, { width: 0, height: 0 })]), copre([F(700, 900)].map((b) => ({ ...b, width: 0, height: 0 })))]);
+  c("altezza UTILE: senza banner lo stesso blocco (550-850 su 844) è a schermo → nascosta", true, copre([V(550, 850)], 844));
+  c("un blocco marcato «fondo» (la scheda di oggi) non conta per queste barre", false, copre([{ tipo: "fondo", top: 300, bottom: 700, width: 100, height: 400 }]));
+  c("un blocco senza dimensioni (display:none) non conta", [false, false], [copre([V(200, 500, { width: 0, height: 0 })]), copre([V(700, 900, { width: 0, height: 0 })])]);
   c("un valore sconosciuto dell'attributo non nasconde niente", false, copre([{ tipo: "altro", top: 100, bottom: 400, width: 100, height: 300 }, { tipo: undefined, top: 100, bottom: 400, width: 100, height: 300 }]));
   c("basta UN blocco a schermo tra molti", true, copre([V(-900, -500), V(1200, 1500), V(300, 400)]));
   c("la funzione non cambia l'elenco ricevuto", true, (() => { const bl = [V(200, 500)]; const copia = JSON.stringify(bl); copre(bl); return JSON.stringify(bl) === copia; })());
@@ -115,7 +115,7 @@ export async function prove(mod, { c, gruppo, radice }) {
   {
     const letture = [];
     const a = ambiente({ blocchi: [{ tipo: "vista", top: 200, bottom: 500 }] });
-    const scollega = B.collegaBlocchi(a.win, a.doc, () => 88, (x) => letture.push(x));
+    const scollega = B.collegaBlocchi(a.win, a.doc, (x) => letture.push(x));
     c("collegaBlocchi: subito una lettura (prima del disegno), blocco a schermo → coperta", [true], letture.slice());
     a.stato.blocchi.length = 0;
     c("collegaBlocchi: ascolta scroll e resize, osserva il corpo della pagina", [true, true, ["body"]], [a.stato.ascolti.has("scroll"), a.stato.ascolti.has("resize"), a.stato.osservati.map((x) => x.nome)]);
@@ -126,23 +126,37 @@ export async function prove(mod, { c, gruppo, radice }) {
     a.stato.resize.f(); // la pagina cambia altezza (contenuti che arrivano dopo)
     c("collegaBlocchi: anche il cambio di altezza della pagina pianifica un ricalcolo", 1, a.stato.raf.size);
     scollega();
-    c("collegaBlocchi: scollegando toglie gli ascolti, stacca l'osservatore e annulla il fotogramma in attesa", [false, false, 1, 0], [a.stato.ascolti.has("scroll"), a.stato.ascolti.has("resize"), a.stato.staccati, a.stato.raf.size]);
+    c("collegaBlocchi: scollegando toglie gli ascolti, stacca i due osservatori (pagina e banner) e annulla il fotogramma in attesa", [false, false, 2, 0], [a.stato.ascolti.has("scroll"), a.stato.ascolti.has("resize"), a.stato.staccati, a.stato.raf.size]);
   }
   {
     const letture = [];
     const a = ambiente({ blocchi: [{ tipo: "vista", top: -200, bottom: -10 }], osservatori: false });
-    const scollega = B.collegaBlocchi(a.win, a.doc, () => 88, (x) => letture.push(x));
+    const scollega = B.collegaBlocchi(a.win, a.doc, (x) => letture.push(x));
     c("collegaBlocchi senza ResizeObserver (browser vecchio): non lancia, funziona con scroll e resize", [[false], true], [letture, a.stato.ascolti.has("scroll")]);
     scollega();
   }
+  // ── con il banner aperto l'altezza utile è quella sopra il banner (V1-H5) ──
   {
-    // il margine è letto ogni volta (la barra vera può cambiare altezza: zona dei gesti)
-    let margine = 88;
     const letture = [];
-    const a = ambiente({ blocchi: [{ tipo: "fondo", top: 300, bottom: 740 }] });
-    B.collegaBlocchi(a.win, a.doc, () => margine, (x) => letture.push(x));
-    margine = 40; a.stato.ascolti.get("scroll")(); a.fotogramma();
-    c("collegaBlocchi: il margine è quello di adesso, non quello del primo calcolo", [true, false], letture);
+    const a = ambiente({ alto: 844, banner: R(544, 300), blocchi: [{ tipo: "vista", top: 550, bottom: 850 }] });
+    B.collegaBlocchi(a.win, a.doc, (x) => letture.push(x));
+    c("banner da 300 px a 390×844, blocco a 550-850 (tutto dietro il banner): la barra COMPARE", [false], letture.slice());
+    a.stato.blocchi[0] = { dataset: { barraNascondi: "vista" }, getBoundingClientRect: () => ({ top: 400, bottom: 700, width: 100, height: 300 }) };
+    a.stato.ascolti.get("scroll")(); a.fotogramma();
+    c("blocco sopra il banner (400-700): la barra si nasconde", [false, true], letture);
+  }
+  {
+    const letture = [];
+    const a = ambiente({ alto: 844, blocchi: [{ tipo: "vista", top: 550, bottom: 850 }] });
+    B.collegaBlocchi(a.win, a.doc, (x) => letture.push(x));
+    a.stato.banner = { rect: R(544, 300) }; // il banner arriva dopo il primo controllo
+    a.stato.mutazioni[0].f(); a.fotogramma();
+    c("il banner arriva dopo: si rilegge e la barra compare", [true, false], letture);
+    a.stato.banner.rect = R(744, 100); // preferenze chiuse: il banner si abbassa, il blocco torna sopra di lui
+    a.stato.resize.f(); a.fotogramma();
+    c("il banner cambia altezza: si rilegge", [true, false, true], letture);
+    a.stato.banner = null; a.stato.mutazioni[0].f(); a.fotogramma();
+    c("il banner se ne va: il blocco è di nuovo a schermo (nascosta, come senza banner)", [true, false, true, true], letture);
   }
 
   // ── il collegamento al banner (documento finto) ──
@@ -165,6 +179,14 @@ export async function prove(mod, { c, gruppo, radice }) {
     a.stato.ascolti.get("resize")(); a.fotogramma();
     scollega();
     c("useAltezzaBanner: scollegando toglie --banner-h, stacca gli osservatori, toglie gli ascolti", [["--banner-h"], {}, true, false, false], [a.stato.tolte, a.stato.proprieta, a.stato.mutazioni[0].staccato === true, a.stato.ascolti.has("resize"), a.stato.raf.size > 0]);
+  }
+  {
+    const a = ambiente({ banner: R(600, 200) });
+    const scollega = B.collegaAltezzaBanner(a.win, a.doc);
+    const vero = a.doc.querySelector;
+    a.doc.querySelector = (q) => (q === "[data-shop-v1]" ? null : vero(q)); // GuscioShop ha già tolto l'attributo
+    scollega();
+    c("useAltezzaBanner: toglie --banner-h dall'elemento su cui ha scritto, anche se l'attributo è sparito prima", [["--banner-h"], {}], [a.stato.tolte, a.stato.proprieta]);
   }
   {
     const a = ambiente({ radice: false, banner: R(600, 200) });
@@ -212,13 +234,13 @@ export async function prove(mod, { c, gruppo, radice }) {
     spazio.includes(`height:${BAR.spazioRiservato("acquisto")}`) && BAR.spazioRiservato("acquisto").includes("72px"), /\blg:hidden\b/.test(spazio), /aria-hidden="true"/.test(spazio),
   ]);
   c("barra d'acquisto: lo spazio sta PRIMA della barra (resta nel flusso, sotto non c'è altro)", true, h.indexOf("data-barra-spazio") < h.indexOf("data-barra-fissa"));
-  c("barra d'acquisto: altezza 72 e area dei gesti (padding che si toglie se sotto c'è il banner)", [true, true], [h.includes("h-[72px]"), /padding-bottom:max\(0px, ?calc\(env\(safe-area-inset-bottom, ?0px\) ?- ?var\(--banner-h, ?0px\)\)\)/.test(barra)]);
+  c("barra d'acquisto: altezza 72 (71 + 1 px di bordo, come lo spazio riservato) e area dei gesti (padding che si toglie se sotto c'è il banner)", [true, true], [h.includes("h-[71px]"), /padding-bottom:max\(0px, ?calc\(env\(safe-area-inset-bottom, ?0px\) ?- ?var\(--banner-h, ?0px\)\)\)/.test(barra)]);
   const testoBarra = SENZA_TAG(h.replace(/aria-label="[^"]*"/g, ""));
   c("barra d'acquisto: il testo visibile è solo nome, prezzo e il bottone (testo da testi-shop.ts)", `Patch Prova Alfa 289,00 € ${S.scheda.aggiungi}`, testoBarra);
   c("barra d'acquisto: il bottone è pieno «notte» 48 px, e di tipo button", [true, true, true], [/<button[^>]*type="button"/.test(h), /bg-\[#0A1430\]/.test(h) && /hover:bg-\[#1B2A4E\]/.test(h) && /text-white/.test(h), /\bh-12\b/.test(h)]);
   c("barra d'acquisto: anello di fuoco di T74 (azzurro, perché la barra è chiara)", true, /shop-anello(\s|")/.test(h));
   c("barra d'acquisto: il nome si taglia a una riga", true, /<p[^>]*\btruncate\b[^>]*>Patch Prova Alfa/.test(h));
-  c("barra d'acquisto: miniatura 48 px, decorativa (alt vuoto, il nome è accanto), nascosta sotto 360 px", [true, true, true], [/<img[^>]*alt=""/.test(h), /\bh-12\b[^"]*\bw-12\b|\bw-12\b[^"]*\bh-12\b/.test(h), /max-\[359px\]:hidden/.test(h)]);
+  c("barra d'acquisto: miniatura 48 px, decorativa (alt vuoto, il nome è accanto), nascosta sotto 360 px", [true, true, true], [/<img[^>]*alt=""/.test(h), /\bh-12\b[^"]*\bw-12\b|\bw-12\b[^"]*\bh-12\b/.test(h), /max-\[359\.98px\]:hidden/.test(h)]);
   c("barra d'acquisto: «Aggiungi» chiama quello che dà il genitore (lo stesso gesto del bottone nel blocco)", 1, await (async () => {
     let n = 0;
     const { pagina } = await acq({ onAggiungi: () => { n++; } });
@@ -250,6 +272,7 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("contenitore: VISIBILE = niente inert, niente data-nascosta, al suo posto (translate-y-0)", [false, false, true, false], [/\sinert/.test(contAperto), /data-nascosta/.test(contAperto), /translate-y-0/.test(contAperto), /\binvisible\b/.test(contAperto)]);
   c("contenitore: NASCOSTO = inert + invisibile + spostato + segnato (mai raggiungibile con Tab)", [true, true, true, false], [/\sinert/.test(contChiuso), /\binvisible\b/.test(contChiuso), /data-nascosta/.test(contChiuso), /translate-y-0/.test(contChiuso)]);
   c("contenitore: lo spazio riservato c'è in entrambi i casi (la pagina non salta quando la barra compare)", [true, true], [aperta.includes("data-barra-spazio"), chiusa.includes("data-barra-spazio")]);
+  c("contenitore: la transizione anima la proprietà `translate` (Tailwind 4 compila `translate-y-full` così, non come `transform`) e la visibilità", [true, false], [/transition-\[translate,visibility\]/.test(contAperto), /transition-\[transform/.test(contAperto)]);
   c("contenitore: movimento ridotto → nessuna transizione", true, /motion-reduce:transition-none/.test(contAperto));
 
   // ── il disegno: barra del carrello ──
@@ -273,5 +296,5 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("prezzi solo da vetrina-carrello: nessun accesso alla memoria del browser, nessuna riga del carrello, nessun `useCart`", [false, false, false, false], [/localStorage|sessionStorage/.test(codice), /useCart|CartContext/.test(codice), /\.snap\b|prezzoCent/.test(codice), /fetch\(|supabase/i.test(codice)]);
   c("importa `testoPrezzo` e `barraCarrello` da vetrina-carrello e `spazioRiservato` da vetrina-barre", [true, true, true], [/testoPrezzo/.test(codice) && /vetrina-carrello/.test(codice), /barraCarrello/.test(codice), /spazioRiservato/.test(codice) && /vetrina-barre/.test(codice)]);
   c("non importa la barra della consulenza (V1-T8: la monta solo il guscio), né colori del blu o del rosso", [false, false, false], [/BarraConsulenza/.test(codice.replace(/\bBarra(Acquisto|Carrello)\b/g, "")), /brand-scuro|bg-brand|text-brand/.test(codice), /FF3B3B|destructive/i.test(codice)]);
-  c("l'altezza 72 del documento di Design è in un punto solo e `--barra-h` la include (il fuoco non finisce sotto la barra)", [true, true], [(codice.match(/\b72\b/g) ?? []).length >= 1, /--barra-h/.test(codice)]);
+  c("la riga è alta 71 (+ 1 px di bordo = 72 del Design) in un punto solo e `--barra-h` esiste (il fuoco non finisce sotto la barra)", [1, true], [(codice.match(/\b71px\b/g) ?? []).length, /--barra-h/.test(codice)]);
 }
