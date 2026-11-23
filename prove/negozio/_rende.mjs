@@ -14,8 +14,13 @@
  *     risposta (valore, o funzione degli argomenti: se lancia, la chiamata lancia); OGNI ALTRA LANCIA un errore («chiamata al server NON prevista»).
  *     Risposte «come oggi», senza dichiararle: `collaudoDellaVisita` → `stato.collaudo ?? false`; `modalitaCatalogo` → `stato.modalita ?? "codice"`
  *     (il valore dello stato); `modalitaCertaDelServer` → `stato.modalitaCerta ?? "incerto"`; `schedaProdotto` → `{ esito: "non_trovato" }`.
- *     Senza `stato.server` le funzioni rispondono come prima di T70a (le prove esistenti non cambiano), ma registrano comunque le chiamate. */
-import { mkdtempSync, writeFileSync } from "node:fs";
+ *     Senza `stato.server` le funzioni rispondono come prima di T70a (le prove esistenti non cambiano), ma registrano comunque le chiamate.
+ *
+ *  ── T70c (manutenzione, scelta dal revisore di T85) ──
+ *   · la cartella temporanea di ogni disegno si cancella a fine impacchettamento, anche se lancia (prima ne restavano migliaia nel `tmpdir()`);
+ *   · `import.meta.env` è definito come in `_pagine.mjs`: produzione sul server (`DEV: false, PROD: true, SSR: true`); una prova che vuole lo
+ *     sviluppo passa `stato.env = { PROD: false, DEV: true }` (si sommano ai valori di base). */
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -99,10 +104,19 @@ let numero = 0;
 const CARRELLO_VUOTO = { lines: [], subtotal: 0, count: 0, setQty() {}, remove() {}, clear() {}, replaceLines() {}, add() {} };
 const RIVALIDA_OK = { stato: "ok", avviso: null, controlla: async () => ({ stato: "non_verificabile" }) };
 
-/** Impacchetta `entrata` (sorgente di un modulo che esporta `html()` e, per le rotte, `route`) con i finti dello stato e ne carica il risultato. */
+/** Impacchetta `entrata` (sorgente di un modulo che esporta `html()` e, per le rotte, `route`) con i finti dello stato e ne carica il risultato.
+ *  La cartella temporanea serve solo a caricare il pacchetto (è tutto in memoria dopo): si cancella sempre, anche se il disegno lancia. */
 async function impacchetta(radice, entrata, stato) {
-  const esbuild = requireQui("esbuild");
   const dir = mkdtempSync(join(tmpdir(), "prova-pagina-"));
+  try {
+    return await impacchettaIn(dir, radice, entrata, stato);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+async function impacchettaIn(dir, radice, entrata, stato) {
+  const esbuild = requireQui("esbuild");
   const file_entrata = join(dir, "entrata.tsx");
   //  Ogni disegno ha la SUA pagina: nel codice del pacchetto `globalThis.__pagina` diventa `globalThis.__pagine[N]` (N scritto qui, al momento
   //  dell'impacchettamento). Così il `loader` o il `beforeLoad` di un disegno, chiamati dopo un disegno successivo, registrano e rispondono
@@ -127,6 +141,8 @@ async function impacchetta(radice, entrata, stato) {
     absWorkingDir: radice,
     nodePaths: [join(radice, "node_modules")],
     logLevel: "silent",
+    //  `import.meta.env` di Vite, come in `_pagine.mjs`: produzione sul server; `stato.env` cambia i valori per quel disegno
+    define: { "import.meta.env": JSON.stringify({ DEV: false, PROD: true, SSR: true, ...(stato.env ?? {}) }) },
     plugins: [
       {
         name: "finti",

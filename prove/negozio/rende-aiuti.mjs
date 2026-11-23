@@ -5,9 +5,10 @@
  *   · «server che lancia»: una funzione del server che il codice di oggi non chiama LANCIA davvero, ogni chiamata si registra
  *     (nome e ordine), le chiamate di oggi rispondono come oggi;
  *   · `senzaFinti` disegna il componente VERO dove di solito c'è un finto; `finti` si somma (e si può sovrascrivere un finto);
- *   · `rendiComponente` disegna un componente con le sue props; le cinque pagine dello shop si disegnano e `beforeLoad`/`loader` registrano le chiamate.
+ *   · `rendiComponente` disegna un componente con le sue props; le cinque pagine dello shop si disegnano e `beforeLoad`/`loader` registrano le chiamate;
+ *   · (T70c) ogni disegno cancella la sua cartella temporanea, anche se fallisce; `import.meta.env` è definito (produzione, `stato.env` per cambiarlo).
  *  Dati inventati, nessuna rete, nessun database. */
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import * as D from "./_dati-vetrina.mjs";
@@ -211,4 +212,49 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("`shop.c.$slug` con la categoria inventata si disegna", true, cat.html.includes("Patch di prova Alfa") || cat.html.includes(D.CATEGORIE[0].nome));
   const esitoCat = await cat.route.loader({ params: { slug: "patch-pronte" }, context: { modalita: "codice" } }).then(() => "nessun errore", (e) => String(e.message));
   c("…`loader` con `codice` fa `notFound` senza chiamare il server", ["notFound", []], [esitoCat, cat.pagina.chiamate]);
+
+  // ── T70c · la cartella temporanea di ogni disegno non resta sul disco; `import.meta.env` è definito ──
+  const lavoro = mkdtempSync(join(tmpdir(), "prova-aiuti-t70c-"));
+  const tmpPrima = process.env.TMPDIR;
+  try {
+    const scrivi = (nome, codice) => { const f = join(lavoro, nome); writeFileSync(f, codice); return f; };
+    const amb = scrivi("Amb.tsx", `export const Amb = () => <p>{String(import.meta.env.PROD)}|{String(import.meta.env.DEV)}|{String(import.meta.env.SSR)}</p>;`);
+    const rotto = scrivi("Rotto.tsx", `export const Rotto = () => { throw new Error("componente rotto"); };`);
+    const tmpDisegni = join(lavoro, "tmp");
+    mkdirSync(tmpDisegni);
+    const resta = () => readdirSync(tmpDisegni);
+    //  i disegni scrivono nel `tmpdir()` di QUEL momento: lo si punta a una cartella solo nostra, così si conta cosa resta
+    process.env.TMPDIR = tmpDisegni;
+    await rendiComponente(radice, amb, "Amb", {});
+    c("T70c: dopo `rendiComponente` non resta nessuna cartella temporanea", [], resta());
+    await rendi(radice, "src/routes/shop.carrello.tsx", { loaderData: { prodotti: [] } }).catch(() => {});
+    c("T70c: dopo `rendi` non resta nessuna cartella temporanea", [], resta());
+    const esiti = [];
+    for (const prova of [
+      () => rendiComponente(radice, join(lavoro, "NonEsiste.tsx"), "X", {}),
+      () => rendiComponente(radice, rotto, "Rotto", {}),
+      () => rendi(radice, join(lavoro, "NonEsiste.tsx"), {}),
+    ]) esiti.push(await prova().then(() => "nessun errore", (e) => (/componente rotto/.test(String(e)) ? "rotto" : "lancia")));
+    c("T70c: i disegni che falliscono lanciano davvero (file che non c'è, componente che lancia)", ["lancia", "rotto", "lancia"], esiti);
+    c("T70c: …e anche allora non resta nessuna cartella temporanea", [], resta());
+  } finally {
+    if (tmpPrima === undefined) delete process.env.TMPDIR; else process.env.TMPDIR = tmpPrima;
+  }
+  try {
+    const amb = join(lavoro, "Amb.tsx");
+    const letto = async (stato) => (await rendiComponente(radice, amb, "Amb", {}, stato)).html.replace(/<[^>]*>/g, "");
+    c("T70c: `import.meta.env` di base è produzione sul server (PROD, non DEV, SSR)", "true|false|true", await letto({}));
+    c("T70c: `stato.env` cambia i valori per quel disegno (sviluppo)", "false|true|true", await letto({ env: { PROD: false, DEV: true } }));
+    c("T70c: …e il disegno dopo torna ai valori di base", "true|false|true", await letto({}));
+    const fotoShop = join(radice, "src/components/shop/FotoShop.tsx");
+    const misure = { w480: "/a-480.jpg", w960: "/a-960.jpg" };
+    const foto = await rendiComponente(radice, fotoShop, "FotoShop", { foto: misure, alt: "Una foto di prova", uso: "card" });
+    c("T70c: il `FotoShop` vero si disegna (legge `import.meta.env.PROD` senza lanciare)", [1, "Una foto di prova"], [(foto.html.match(/<img\b/g) ?? []).length, (foto.html.match(/\salt="([^"]*)"/) ?? [])[1]]);
+    const senzaAlt = await rendiComponente(radice, fotoShop, "FotoShop", { foto: misure, uso: "card" });
+    c("T70c: …di base è produzione: senza alt disegna `alt=\"\"`", "", (senzaAlt.html.match(/\salt="([^"]*)"/) ?? [])[1]);
+    const sviluppo = await rendiComponente(radice, fotoShop, "FotoShop", { foto: misure, uso: "card" }, { env: { PROD: false, DEV: true } }).then(() => "nessun errore", (e) => String(e.message));
+    c("T70c: …con `stato.env` di sviluppo, senza alt lancia", "FotoShop: manca l'alt della foto", sviluppo);
+  } finally {
+    rmSync(lavoro, { recursive: true, force: true });
+  }
 }
