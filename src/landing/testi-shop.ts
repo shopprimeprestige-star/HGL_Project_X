@@ -250,9 +250,16 @@ export const TESTI_PROVVISORI = {
     titolo: "Risultati per “{testo}”",
     metaTitolo: "Cerca | Hair Genius Shop",
   },
+  // I filtri della categoria (T90). Il documento dà «Filtra ({n})», «Azzera filtri» e i nomi dei gruppi; qui le parole che mancano.
   filtri: {
     titolo: "Filtri",
     mostra: "Mostra {n} prodotti",
+    mostraUno: "Mostra 1 prodotto", // il documento dà solo il plurale
+    chiudi: "Chiudi i filtri",
+    numero: "{n} prodotti", // quanti prodotti passano: in colonna sul computer e detto a voce
+    unProdotto: "1 prodotto",
+    togli: "Togli il filtro {nome}", // il chip rimovibile, per chi usa lo schermo parlato
+    attivi: "Filtri attivi", // il nome dell'elenco dei chip
   },
   galleria: {
     ingrandisci: "Ingrandisci la foto",
