@@ -236,6 +236,7 @@ export const TESTI_PROVVISORI = {
     apriMenu: "Apri il menu",
     chiudiMenu: "Chiudi il menu",
     cerca: "Cerca",
+    carrelloAriaUno: "Carrello, 1 prodotto", // il documento dà solo il plurale («Carrello, {n} prodotti»)
     logoAlt: "Hair Genius Labs", // il nome del marchio, come nella landing
   },
   cerca: {
