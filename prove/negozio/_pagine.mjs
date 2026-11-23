@@ -36,7 +36,9 @@ export const useRouterState = (o) => {
 };
 export const useNavigate = () => () => {};
 export const useRouter = () => ({ invalidate() {}, options: {} });
-export const notFound = () => ({ __notFound: true });
+export const notFound = (o) => ({ __notFound: true, ...(o ?? {}) });
+export const rootRouteId = "__root__";
+export const DefaultGlobalNotFound = () => createElement("p", null, "Not Found");
 export const redirect = (o) => ({ __redirect: o });
 `;
 
