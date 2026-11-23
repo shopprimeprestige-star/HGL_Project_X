@@ -2144,6 +2144,13 @@ video:not([controls])::-internal-media-controls-overlay-cast-button {
   scroll-padding-bottom: calc(var(--barra-h, 0px) + 16px);
 }
 
+/* In fondo alla pagina c'è posto anche per il banner dei cookie: `scroll-padding` non basta, la pagina non scorre oltre la sua fine
+   e il piè di pagina resterebbe sotto il banner (R1-1). Lo spazio della barra lo riserva lei, dopo il piè di pagina; questo sta sotto di lui.
+   Senza banner `--banner-h` non c'è e vale 0. */
+[data-shop-v1] [data-guscio="nuovo"] {
+  padding-bottom: var(--banner-h, 0px);
+}
+
 /* Anello di fuoco: 2 px, scarto 2 px. Azzurro su chiaro (5,3:1), bianco su scuro (17,2:1). */
 [data-shop-v1] .shop-anello:focus-visible {
   outline: 2px solid #006CC4;
