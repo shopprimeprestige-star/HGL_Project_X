@@ -1,8 +1,9 @@
 /** ── VETRINA V1 · T78 · I BLOCCHI DELLA SCHEDA: QUALI E IN CHE ORDINE (parte pura) ─
  *  Cosa deve valere (SPEC §4.5.4 n. 7-8, V1-S5, V1-T8):
- *   · l'ordine è fisso: galleria, acquisto, colore (solo patch), confezione, come si usa, scheda tecnica, FAQ, box, «Ti serve anche»;
+ *   · l'ordine è fisso: galleria, acquisto, colore (solo patch), confezione, come si usa, scheda tecnica, avvertenze, FAQ, box, «Ti serve anche»;
  *   · il box «Non è il prodotto giusto per te?» sta DOPO le FAQ, solo su una patch con `boxConsulenza`; mai sulla cura, mai sul kit;
  *   · «Ti serve anche»: UNA sola card, mai Invisible Derm, mai senza prezzo (la card ha «Aggiungi»);
+ *   · «Avvertenze»: dopo la scheda tecnica e prima delle FAQ, solo se il prodotto ne ha (vuote = nessun blocco);
  *   · «Scheda tecnica»: nessuna riga «da confermare», nessun segnaposto `{{…}}`, nessuna riga vuota; senza righe il blocco non c'è;
  *   · il kit mostra la sua confezione come «Cosa contiene», un elenco di testo (D81);
  *   · il pop-up d'uscita si monta solo sulla scheda di una patch con il carrello VUOTO (`popupPuoMontarsi`).
@@ -23,6 +24,8 @@ export type Blocco =
   | { id: "confezione"; titolo: "confezione" | "cosaContiene"; voci: string[] }
   | { id: "comeSiUsa" }
   | { id: "schedaTecnica"; righe: Riga[] }
+  /** Le avvertenze del prodotto, dopo la scheda tecnica e prima delle FAQ: un elenco di testo. */
+  | { id: "avvertenze"; voci: string[] }
   | { id: "faq" }
   | { id: "box" }
   | { id: "tiServeAnche"; correlato: NonNullable<ProdottoPubblico["correlato"]> };
@@ -59,6 +62,7 @@ export function bloccheScheda(p: ProdottoPubblico, contesto?: ContestoScheda | n
     ...(pieno(p.confezione) ? [{ id: "confezione", titolo: p.tipo === "kit" ? "cosaContiene" : "confezione", voci: p.confezione } as const] : []),
     ...(pieno(p.passi) ? [{ id: "comeSiUsa" } as const] : []),
     ...(righe.length > 0 ? [{ id: "schedaTecnica", righe } as const] : []),
+    ...(pieno(p.avvertenze) ? [{ id: "avvertenze", voci: p.avvertenze } as const] : []),
     ...(pieno(p.faq) ? [{ id: "faq" } as const] : []),
     ...(eUnaPatchInVendita(p) && p.boxConsulenza === true ? [{ id: "box" } as const] : []),
     ...(proponibile ? [{ id: "tiServeAnche", correlato: c } as const] : []),

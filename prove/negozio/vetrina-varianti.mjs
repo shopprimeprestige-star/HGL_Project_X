@@ -55,6 +55,14 @@ export async function prove(mod, { c, gruppo, radice }) {
     V.messaggioMancante([{ nome: "Lunghézza", valori: [{ valore: "Corta", campione: null }] }], {}).chiave,
   ]);
 
+  // ── i messaggi esistono in testi-shop.ts, sotto la stessa chiave (provvisori, per il copywriter) ──
+  const testiShop = readFileSync(join(radice, "src/landing/testi-shop.ts"), "utf8");
+  const blocco = testiShop.match(/scegli:\s*\{([^}]*)\}/)?.[1] ?? "";
+  const frase = (k) => blocco.match(new RegExp(`${k}:\\s*"([^"]*)"`))?.[1];
+  c("le quattro chiavi `scheda.scegli.*` hanno il loro testo provvisorio in testi-shop.ts", ["Scegli il colore.", "Scegli la misura.", "Scegli la lunghezza.", "Scegli la base."], ["colore", "misura", "lunghezza", "base"].map(frase));
+  c("ogni opzione dei dati ha il suo messaggio (la chiave di `messaggioMancante` finisce in una voce che esiste)", [], CATALOGO.flatMap((p) => p.opzioni).map((o) => V.messaggioMancante([o], {}).chiave.split(".").at(-1)).filter((k) => !frase(k)));
+  c("i messaggi non hanno parole vietate", [], trovaParoleVietate(blocco));
+
   // ── statoBottone: mai disabilitato per mancanza di scelta ──
   const scelte = (p) => {
     // tutte le scelte parziali e complete del prodotto, come le farebbe un cliente

@@ -21,8 +21,8 @@ export async function prove(mod, { c, gruppo, radice }) {
   const copia = (x) => structuredClone(x);
 
   // ── l'ordine ──
-  const ORDINE = ["galleria", "acquisto", "colore", "confezione", "comeSiUsa", "schedaTecnica", "faq", "box", "tiServeAnche"];
-  c("patch con tutto: galleria, acquisto, colore, confezione, come si usa, scheda tecnica, FAQ, box, «Ti serve anche»", ORDINE, ids(alfa));
+  const ORDINE = ["galleria", "acquisto", "colore", "confezione", "comeSiUsa", "schedaTecnica", "avvertenze", "faq", "box", "tiServeAnche"];
+  c("patch con tutto: galleria, acquisto, colore, confezione, come si usa, scheda tecnica, avvertenze, FAQ, box, «Ti serve anche»", ORDINE, ids(alfa));
   c("il box sta DOPO le FAQ (V1-T8) e dopo la scheda tecnica", [true, true], (() => { const i = ids(alfa); return [i.indexOf("box") > i.indexOf("faq"), i.indexOf("box") > i.indexOf("schedaTecnica")]; })());
   c("«Ti serve anche» sta in fondo, dopo il box", "tiServeAnche", ids(alfa).at(-1));
   c("il blocco d'acquisto viene subito dopo la galleria, prima di ogni sezione", ["galleria", "acquisto"], ids(alfa).slice(0, 2));
@@ -108,8 +108,17 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("senza voci di confezione: nessun blocco", false, ids({ ...alfa, confezione: [] }).includes("confezione"));
   c("senza passi: niente «Come si usa»", false, ids({ ...alfa, passi: [] }).includes("comeSiUsa"));
   c("senza domande: niente FAQ (e il box resta dopo la scheda tecnica)", [false, true], (() => { const i = ids({ ...alfa, faq: [] }); return [i.includes("faq"), i.indexOf("box") > i.indexOf("schedaTecnica")]; })());
-  c("il kit non ha colore né box e ha l'elenco di cosa contiene", ["galleria", "acquisto", "confezione", "comeSiUsa", "schedaTecnica", "faq"], ids(kit));
-  c("la cura: confezione, come si usa, scheda tecnica, FAQ, niente box né «Ti serve anche»", ["galleria", "acquisto", "confezione", "comeSiUsa", "schedaTecnica", "faq"], ids(shampoo));
+  c("il kit non ha colore né box e ha l'elenco di cosa contiene", ["galleria", "acquisto", "confezione", "comeSiUsa", "schedaTecnica", "avvertenze", "faq"], ids(kit));
+  c("la cura: confezione, come si usa, scheda tecnica, avvertenze, FAQ, niente box né «Ti serve anche»", ["galleria", "acquisto", "confezione", "comeSiUsa", "schedaTecnica", "avvertenze", "faq"], ids(shampoo));
+
+  // ── avvertenze: dopo la scheda tecnica, prima delle FAQ, solo se il dato c'è ──
+  const avv = (p) => S.bloccheScheda(p, ctx()).find((b) => b.id === "avvertenze");
+  c("le avvertenze portano le voci del prodotto", alfa.avvertenze, avv(alfa)?.voci);
+  c("stanno dopo la scheda tecnica e prima delle FAQ (e quindi prima del box)", [true, true, true], (() => { const i = ids(alfa); return [i.indexOf("avvertenze") > i.indexOf("schedaTecnica"), i.indexOf("avvertenze") < i.indexOf("faq"), i.indexOf("avvertenze") < i.indexOf("box")]; })());
+  c("senza avvertenze (vuote, assenti): nessun blocco", [false, false], [{ ...alfa, avvertenze: [] }, { ...alfa, avvertenze: undefined }].map((p) => ids(p).includes("avvertenze")));
+  c("senza scheda tecnica e senza FAQ le avvertenze restano al loro posto, prima del box", ["comeSiUsa", "avvertenze", "box", "tiServeAnche"], ids({ ...alfa, caratteristiche: [], faq: [] }).slice(4));
+  c("sulla cura e sul kit ci sono, se il dato c'è", [true, true], [shampoo, kit].map((p) => ids(p).includes("avvertenze")));
+  c("nessuna parola vietata nelle voci delle avvertenze (nemmeno «da confermare»)", [], trovaParoleVietate(JSON.stringify(avv(alfa) ?? [])));
 
   // ── galleria e acquisto ──
   c("senza nessuna foto utilizzabile: nessun blocco galleria (il resto resta)", [false, true], (() => { const i = ids(CATALOGO_SENZA_FOTO.find((p) => p.slug === alfa.slug)); return [i.includes("galleria"), i.includes("acquisto")]; })());
