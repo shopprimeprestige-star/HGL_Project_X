@@ -47,7 +47,8 @@ export const Route = createFileRoute("/shop")({
   //  Il guscio nuovo (D72) ha bisogno delle categorie per «Cura» e per la ricerca: si chiedono qui, SOLO con `cms` e sulle cinque pagine V1.
   //  Con `codice` (e per cassa, ordine, collaudo) non si chiama niente e il valore è `undefined`, come oggi che il layout non ha un loader.
   //  Un guasto non è mai un errore al pubblico: elenco vuoto e l'header non ha «Cura».
-  loader: async ({ context, location }): Promise<{ categorie: Pick<CategoriaPubblica, "slug" | "nome" | "quanti">[] } | undefined> => {
+  //  ⚠️ I parametri sono annotati di proposito: un `context` dedotto dalla rotta rende circolare il tipo che `Route.useLoaderData()` legge dal `component`.
+  loader: async ({ context, location }: { context: { modalita: Modalita }; location?: { pathname?: string } }) => {
     if (context.modalita !== "cms" || !guscioNuovo(location?.pathname)) return undefined;
     const elenco: unknown = await elencoCategorie().catch(() => null);
     return {
@@ -208,8 +209,7 @@ function GuscioDiOggi({ modalita }: { modalita: Modalita }) {
 
 /** Il guscio nuovo (T93): le categorie vengono dal loader di questa rotta. */
 function GuscioNuovo() {
-  //  shortcut: `tsc` legge il tipo del loader come `undefined` (non ho trovato perché: gli altri layout con loader non lo fanno); il tipo si dice a mano, da togliere se la deduzione torna.
-  const dati = Route.useLoaderData() as { categorie?: Pick<CategoriaPubblica, "slug" | "nome" | "quanti">[] } | undefined;
+  const dati = Route.useLoaderData();
   return (
     <GuscioShop categorie={dati?.categorie}>
       <Outlet />

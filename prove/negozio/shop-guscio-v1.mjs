@@ -13,10 +13,29 @@
  *  Cosa NON si prova qui (non gira senza browser): il fuoco vero, la tastiera, `inert` che esclude davvero dalla tabulazione, il telefono e la
  *  barra sopra il banner, gli effetti che segnalano lo stato della pagina (`useStatoPagina`): li guardano T103c e T106. Dati inventati, nessuna rete. */
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import * as D from "./_dati-vetrina.mjs";
 import { rendi, rendiComponente } from "./_rende.mjs";
+
+const requireQui = createRequire(import.meta.url);
+
+/** Impacchetta un modulo del progetto e ne restituisce le esportazioni (`testi-shop.ts` non è fra i moduli che la suite prepara in `mod`). */
+function carica(radice, file) {
+  const dir = mkdtempSync(join(tmpdir(), "prova-guscio-v1-modulo-"));
+  try {
+    const r = requireQui("esbuild").buildSync({
+      entryPoints: [join(radice, file)], bundle: true, write: false, platform: "node", format: "cjs", jsx: "automatic",
+      loader: { ".png": "dataurl" }, alias: { "@": join(radice, "src") }, absWorkingDir: radice, nodePaths: [join(radice, "node_modules")], logLevel: "silent",
+    });
+    const f = join(dir, "modulo.cjs");
+    writeFileSync(f, r.outputFiles[0].text);
+    return requireQui(f);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
 
 const FILE_SHOP = "src/routes/shop.tsx";
 const FILE_GUSCIO = "src/components/shop/guscio/GuscioShop.tsx";
@@ -42,7 +61,7 @@ export async function prove(mod, { c, gruppo, radice }) {
   const leggi = (f) => readFileSync(join(radice, f), "utf8");
   const srcShop = senzaCommenti(leggi(FILE_SHOP));
   const srcG = senzaCommenti(leggi(FILE_GUSCIO));
-  const T = mod["landing/testi-shop"];
+  const T = carica(radice, "src/landing/testi-shop.ts");
   const BARRE = mod["shop/cms/vetrina-barre"];
   const CAR = mod["lib/carattere"];
   const TS = T.TESTI_SHOP;
