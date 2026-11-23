@@ -124,9 +124,11 @@ export function creaLettoreContenuto(porte: PorteContenuto): () => Promise<Lettu
     const t = String(typeof codice === "string" || typeof codice === "number" ? codice : "errore");
     porte.log?.(/^[A-Za-z0-9_.:-]{1,40}$/.test(t) ? t : "errore");
   };
+  // chi legge riceve una copia: se la modifica, la lettura dopo (dalla memoria) non cambia
+  const copia = (c: ContenutoShop): ContenutoShop => ({ testi: { ...c.testi }, media: { ...c.media } });
   return async () => {
     const ora = porte.adesso();
-    if (tenuto && ora < tenuto.fino) return { contenuto: tenuto.contenuto, guasto: false };
+    if (tenuto && ora < tenuto.fino) return { contenuto: copia(tenuto.contenuto), guasto: false };
     try {
       const r = await porte.db.from("landing_content").select("data").eq("id", "default").maybeSingle();
       if (r.error) {
@@ -135,7 +137,7 @@ export function creaLettoreContenuto(porte: PorteContenuto): () => Promise<Lettu
       }
       const contenuto = contenutoDaRiga(r.data?.data);
       tenuto = memoriaMs > 0 ? { fino: ora + memoriaMs, contenuto } : null;
-      return { contenuto, guasto: false };
+      return { contenuto: copia(contenuto), guasto: false };
     } catch (e) {
       segnala(e);
       return { contenuto: contenutoVuoto(), guasto: true };

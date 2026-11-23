@@ -305,6 +305,17 @@ export async function prove(_mod, { c, gruppo, radice }) {
     t += 1;
     await lettore();
     c("…a 30 s esatti si rilegge", 8, dbL.chiamate.length);
+    // chi modifica il risultato non cambia la lettura dopo (la memoria tiene una copia sua)
+    const dbI = dbFinto({ riga: RIGA_MISTA });
+    const lettoreI = M.creaLettoreContenuto({ db: dbI, adesso: () => t });
+    const prima = await lettoreI();
+    prima.contenuto.testi["shop.hero.h1"] = "SPORCATO";
+    delete prima.contenuto.media["shop.heroFoto"];
+    prima.contenuto.testi["shop.nuova"] = "SPORCATO";
+    const seconda = await lettoreI();
+    c("lettore: modificare la risposta NON cambia la lettura successiva (dalla memoria, senza rileggere)", [dalla, 4], [seconda.contenuto, dbI.chiamate.length]);
+    seconda.contenuto.testi["shop.hero.h1"] = "SPORCATO";
+    c("…vale anche per le letture dalla memoria fra loro", dalla, (await lettoreI()).contenuto);
     const senzaMemoria = M.creaLettoreContenuto({ db: dbL, adesso: () => t, memoriaMs: 0 });
     const n0 = dbL.chiamate.length;
     await senzaMemoria();
