@@ -7,7 +7,9 @@
  *      con `codice` testata e piè di pagina sono IDENTICI a oggi (D29) salvo il link «Gestisci cookie»;
  *      con `cms` la frase «Spedizione gratuita sopra €59» non c'è (la cifra non è più vera) e il link c'è lo stesso;
  *   3. il nome della protesi per la barra con il catalogo CMS (`nomeProtesiPerBarra`).
- *  I due blocchi «identici a oggi» sono stati ricavati dal codice di PRIMA di T18 (commit e28471d). */
+ *  I due blocchi «identici a oggi» sono stati ricavati dal codice di PRIMA di T18 (commit e28471d).
+ *  ⚠️ T93 (D72): con `cms` il guscio di oggi vale solo fuori dalle cinque pagine V1 (cassa, ordine, collaudo, percorsi sconosciuti): i controlli
+ *  «cms» di questo file guardano `/shop/checkout`; il guscio nuovo e la tabella percorso → guscio sono in `shop-guscio-v1.mjs`. */
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { impacchettaPagina, impostaPagina, testoVisibile } from "./_pagine.mjs";
@@ -72,8 +74,12 @@ export async function prove(mod, { c, gruppo, radice }) {
     c("codice: «Spedizione gratuita sopra €59» resta com'è oggi", true, testoVisibile(piede(co)).includes("Spedizione gratuita sopra €59"));
     c("il link «Gestisci cookie» ha un'area da toccare di almeno 24 px (-my-1.5 py-1.5 sul testo da 16 px) senza allungare la riga, e ha il cursore giusto", [true, true], (() => { const b = piede(co).match(/<button[^>]*>/)?.[0] ?? ""; return [/py-1\.5/.test(b) && /-my-1\.5/.test(b), /cursor-pointer/.test(b)]; })());
 
-    const cms = vista("cms");
-    c("cms: la testata è la stessa", true, cms.includes(TESTATA_DI_OGGI));
+    //  T93 (D72): con `cms` il guscio di oggi resta su cassa, ordine, collaudo e percorsi sconosciuti; sulle cinque pagine V1 c'è il guscio nuovo
+    //  (lo prova `shop-guscio-v1.mjs`). I controlli sul guscio di R2 con `cms` sono quindi ricollocati sul percorso della cassa.
+    const cms = vista("cms", "/shop/checkout");
+    //  su `/shop/checkout` «Catalogo» non è la voce attiva: è l'unica differenza con la testata fotografata su `/shop`
+    const testataFuoriCatalogo = TESTATA_DI_OGGI.replace('class="text-sm transition text-white">Catalogo', 'class="text-sm transition text-white/60 hover:text-white">Catalogo');
+    c("cms: la testata è la stessa (con «Catalogo» non attivo, fuori da /shop)", true, cms.includes(testataFuoriCatalogo) && testataFuoriCatalogo !== TESTATA_DI_OGGI);
     c("cms: nel piè di pagina niente «59», niente «Spedizione gratuita» (la cifra non è più vera)", [false, false], [/59/.test(testoVisibile(piede(cms))), /Spedizione gratuita/i.test(testoVisibile(piede(cms)))]);
     c("cms: il piè di pagina ha ancora Privacy, Termini, Cookie, Catalogo, il link «Gestisci cookie» e la ragione sociale", [true, true, true, true, true, true],
       ["Privacy", "Termini", "Cookie", "Catalogo", "Gestisci cookie", `© ${anno} Hair Genius Labs SRLS`].map((t) => testoVisibile(piede(cms)).includes(t)));

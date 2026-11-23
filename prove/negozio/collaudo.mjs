@@ -409,7 +409,8 @@ async function proveBuild(K, { c, gruppo, radice }) {
       c(`cookie valido: ${p} → \`cache-control: private, no-store\` (mai public) sull'HTML`, ["private, no-store", false], [r.h.get("cache-control"), /public/.test(r.h.get("cache-control") ?? "")]);
     }
     const conCookie = curl("/shop", { cookie: cookieBuono });
-    c("cookie valido: l'HTML è quello del catalogo nuovo (`cms`: «Patch e prodotti per la cura»)", [true, false], [conCookie.testo.includes("Patch e prodotti per la cura"), conCookie.testo.includes("Protesi e cura di grado premium")]);
+    //  T93 (D72): su `/shop` con `cms` c'è il guscio nuovo (marchio `data-guscio="nuovo"`, piè di pagina «Hair Genius Labs · Roma»), non più la frase del vecchio piè di pagina.
+    c("cookie valido: l'HTML è quello del catalogo nuovo (`cms`: guscio nuovo di V1)", [true, false], [conCookie.testo.includes('data-guscio="nuovo"'), conCookie.testo.includes("Protesi e cura di grado premium")]);
     c("cookie valido: le altre intestazioni dell'HTML non cambiano (stesso content-type e codifica)", [senza["/shop"].h.get("content-type"), senza["/shop"].h.get("content-encoding")], [conCookie.h.get("content-type"), conCookie.h.get("content-encoding")]);
     const fuori = curl("/privacy-policy", { cookie: cookieBuono });
     const fuoriSenza = curl("/privacy-policy");
@@ -459,7 +460,7 @@ async function proveBuild(K, { c, gruppo, radice }) {
     c("POST /api/public/shop-collaudo con la chiave giusta: 200, `no-store`, cookie __Host- con Secure, HttpOnly, SameSite=Lax, Path=/, Max-Age 14400, senza Domain", [200, "no-store", true, true, true, true, true, true, false], [buono.stato, buono.h.get("cache-control"), setc.startsWith("__Host-hgl_collaudo="), attributi.includes("Secure"), attributi.includes("HttpOnly"), attributi.includes("SameSite=Lax"), attributi.includes("Path=/"), attributi.includes("Max-Age=14400"), /domain/i.test(setc)]);
     const valore = /^__Host-hgl_collaudo=([^;]+)/.exec(setc)?.[1];
     const dopo = curl("/shop", { cookie: `__Host-hgl_collaudo=${valore}` });
-    c("il cookie che il server ha messo apre davvero il collaudo (HTML `private, no-store`, catalogo nuovo)", ["private, no-store", true], [dopo.h.get("cache-control"), dopo.testo.includes("Patch e prodotti per la cura")]);
+    c("il cookie che il server ha messo apre davvero il collaudo (HTML `private, no-store`, catalogo nuovo)", ["private, no-store", true], [dopo.h.get("cache-control"), dopo.testo.includes('data-guscio="nuovo"')]);
     const rifiuti = [
       curl("/api/public/shop-collaudo", { metodo: "POST", corpo: JSON.stringify({ k: altera(String(chiave)) }) }),
       curl("/api/public/shop-collaudo", { metodo: "POST", corpo: JSON.stringify({ k: await K?.emettiChiaveCollaudo(segreto, Date.now() - 3 * ORE) }) }),
