@@ -15,13 +15,13 @@ import { TESTI_SHOP } from "@/landing/testi-shop";
 import { testoPrezzo, type RigaVista } from "@/shop/cms/vetrina-carrello";
 import { StepperQuantita } from "./StepperQuantita";
 
-/** Un avviso inline ambra, con icona. Senza testo disegna solo la regione vuota (pronta a dire il prossimo avviso). */
+/** Un avviso inline con filetto ambra a sinistra (il giallo pieno è dei riquadri di modifica, T101 A18) e icona. Senza testo disegna solo la regione vuota (pronta a dire il prossimo avviso). */
 export function AvvisoCarrello({ testo }: { testo: string | null | undefined }) {
   return (
     <div role="status">
       {testo ? (
-        <p className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-          <TriangleAlert aria-hidden className="mt-0.5 h-4 w-4 shrink-0 text-amber-700" />
+        <p className="flex items-start gap-2 rounded-md border border-l-4 border-ink/10 border-l-[#8A5A00] bg-white px-3 py-2 text-sm text-ink">
+          <TriangleAlert aria-hidden className="mt-0.5 h-4 w-4 shrink-0 text-[#8A5A00]" />
           {testo}
         </p>
       ) : null}

@@ -172,7 +172,7 @@ export function PaginaCarrello() {
     <div className="mx-auto w-full max-w-6xl px-4 py-8 min-[360px]:px-6 lg:py-12">
       {conRighe && (
         <header>
-          <h1 className="text-3xl font-bold tracking-tight text-[#0A1430]">{t.titolo}</h1>
+          <h1 className="text-2xl font-bold leading-[1.1] tracking-tight text-[#0A1430] md:text-4xl">{t.titolo}</h1>
           <p className="mt-2 text-base text-ink-muted">{t.sottotitolo}</p>
         </header>
       )}
