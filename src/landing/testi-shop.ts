@@ -256,6 +256,14 @@ export const TESTI_PROVVISORI = {
     trascrizione: "Leggi il testo del video", // lo stesso testo già approvato per la landing
     anteprimaStriscia: "Anteprima: questo prodotto non è in vendita.",
     anteprimaRiquadro: "Mostra cosa è nascosto", // titolo del riquadro ambra (D94)
+    // Messaggio accanto alla scelta mancante quando si preme «Aggiungi» (V1-S3). Il documento lo lascia al copywriter («tipo "Scegli il colore."»):
+    // provvisorio, da confermare QUI. La chiave `scheda.scegli.<opzione>` è quella che dà `messaggioMancante` (T78).
+    scegli: {
+      colore: "Scegli il colore.",
+      misura: "Scegli la misura.",
+      lunghezza: "Scegli la lunghezza.",
+      base: "Scegli la base.",
+    },
   },
   carrello: {
     quantita: "Quantità",
