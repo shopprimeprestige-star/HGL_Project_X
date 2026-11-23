@@ -28,7 +28,7 @@ const testoVero = (t: unknown): t is string =>
 /** Sotto la piega: il browser salta il disegno finché la sezione è lontana; 480 px è la misura di riserva (nessun salto allo scorrere).
  *  `content-visibility:auto` ritaglia ciò che esce dal contenitore: i 4 px di spazio (`p-1`, compensati da `-m-1`) lasciano vedere l'anello del fuoco. */
 const SOTTO_LA_PIEGA = "-m-1 p-1 [content-visibility:auto] [contain-intrinsic-size:auto_480px]";
-const CLASSI_TITOLO = "text-lg font-bold text-[#0A1430]";
+const CLASSI_TITOLO = "text-xl font-bold tracking-tight text-[#0A1430] md:text-2xl";
 
 function Faq({ faq }: { faq: ProdottoPubblico["faq"] }) {
   const id = useId();

@@ -37,7 +37,7 @@ const rigaVera = (r: Riga) => vero(r?.etichetta) && vero(r?.valore);
 /** Il titolo provvisorio (non del documento): svuotato dal copywriter, vale il testo di riserva. */
 const titolo = (provvisorio: string | undefined, riserva: string) => provvisorio?.trim() || riserva;
 
-const H2 = "text-xl font-bold tracking-tight text-[#0A1430]";
+const H2 = "text-xl font-bold tracking-tight text-[#0A1430] md:text-2xl";
 const TESTO = "text-base leading-relaxed text-ink-muted";
 const PANNELLO = "@container rounded-[14px] bg-light-panel p-5 sm:p-8";
 /** La copertina del video sta in un riquadro 4:5 largo al più 320 px (`max-w-xs`): le misure riservano il posto, il riquadro decide l'aspetto. */

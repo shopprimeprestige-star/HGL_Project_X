@@ -150,7 +150,7 @@ export function GalleriaProdotto({ diapositive }: GalleriaProdottoProps) {
               role={mostra ? "group" : undefined}
               aria-roledescription={mostra ? G.diapositiva : undefined}
               aria-label={mostra ? etichettaDiapositiva(i, n, d.tipo) : undefined}
-              className="w-full shrink-0 snap-center"
+              className="relative w-full shrink-0 snap-center"
             >
               {d.tipo === "foto" ? (
                 <button

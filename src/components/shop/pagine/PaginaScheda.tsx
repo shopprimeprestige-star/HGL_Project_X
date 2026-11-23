@@ -171,9 +171,9 @@ function SchedaVista({
       : null;
 
   return (
-    // gli h2 delle sezioni di T88a (`text-xl`) e di T88b/T85 (`text-lg`) si allineano qui, senza toccare i loro file
-    <div className="mx-auto w-full max-w-6xl px-4 pb-16 pt-6 min-[360px]:px-6 lg:pt-10 [&_h2]:text-lg">
-      <div className="grid gap-8 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] lg:gap-x-12 lg:gap-y-10">
+    // i titoli delle sezioni (h2) hanno tutti la stessa misura nei loro file: `text-xl md:text-2xl` (T102 A12)
+    <div className="mx-auto w-full max-w-6xl px-4 pb-16 pt-4 min-[360px]:px-6 lg:pt-10">
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] lg:gap-x-12 lg:gap-y-10">
         <div
           className="min-w-0 lg:col-start-1 lg:row-start-1"
           onPointerDownCapture={precarica}

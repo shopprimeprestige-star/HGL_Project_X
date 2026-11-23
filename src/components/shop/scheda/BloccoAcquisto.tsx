@@ -294,12 +294,11 @@ export function BloccoAcquisto({
       </div>
       <div role="status">
         {acquisto.nelCarrello && (
-          <p className="mt-3 flex flex-wrap items-center gap-x-2 rounded-md border border-ink/10 bg-white px-4 text-sm text-[#0A1430]">
-            <span className="py-2">{nome(prodotto.nome)}</span>
-            <span aria-hidden="true">·</span>
+          <p className="mt-3 flex items-center justify-between gap-3 rounded-md border border-ink/10 bg-white px-4 text-sm text-[#0A1430]">
+            <span className="min-w-0 py-2">{nome(prodotto.nome)}</span>
             <Link
               to="/shop/carrello"
-              className="shop-anello inline-flex min-h-11 items-center font-semibold underline underline-offset-4"
+              className="shop-anello inline-flex min-h-11 shrink-0 items-center font-semibold underline underline-offset-4"
             >
               {t.vaiAlCarrello}
             </Link>
