@@ -47,7 +47,15 @@ export async function prove(_mod, { c, gruppo, radice }) {
   c("catalogo.functions.ts: `collaudoDellaRichiesta` legge il cookie con `createServerOnlyFn` (lancia nel client, il `try/catch` risponde `false`)", true, /createServerOnlyFn\(/.test(funz) && /getRequestHeader\(/.test(funz));
 
   /* ══ 2 · `vite dev` VERO ═══════════════════════════════════════════════════════════════════════════════════ */
-  const { avvia, ErroreSalvaguardia } = await import(pathToFileURL(join(radice, "strumenti/vetrina-finta/avvia.mjs")).href);
+  const { avvia, ErroreSalvaguardia, riscalda } = await import(pathToFileURL(join(radice, "strumenti/vetrina-finta/avvia.mjs")).href);
+  { // riscaldamento del lanciatore (T106): chiede la forma `__x00__` dell'entrata del client finché risponde, poi si ferma
+    const chieste = [];
+    let n = 0;
+    const prendi = async (u) => { chieste.push(u); n++; if (n < 3) throw new Error("non in ascolto"); return { ok: true }; };
+    c("riscalda: riprova finché l'app risponde, chiede `/@id/__x00__virtual:tanstack-start-client-entry`", [true, 3, "http://127.0.0.1:5199/@id/__x00__virtual:tanstack-start-client-entry"],
+      [await riscalda(5199, { attesa: 0, prendi }), chieste.length, chieste[0]]);
+    c("riscalda: dopo i tentativi si arrende con `false`, senza lanciare", false, await riscalda(5199, { tentativi: 2, attesa: 0, prendi: async () => ({ ok: false }) }));
+  }
   const base = mkdtempSync(join(tmpdir(), "vite-dev-client-"));
   const albero = join(radice, "src/routeTree.gen.ts");
   const alberoPrima = existsSync(albero) ? readFileSync(albero, "utf8") : null; // `vite dev` lo rigenera: si rimette com'era

@@ -45,6 +45,7 @@ export function provenienzaDaPercorso(pathname: string): Provenienza {
 const SENZA_BARRA = [
   "/shop/carrello",
   "/shop/checkout",
+  "/shop/ordine",
   "/crm",
   "/meetly",
   "/videochiamata",

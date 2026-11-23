@@ -17,6 +17,7 @@ const T0 = Date.parse("2026-11-23T10:00:00.000Z");
 /** I finti: la funzione del server si chiama come una funzione; le intestazioni si registrano; il database lo decide la prova. */
 const FINTI = {
   "@tanstack/react-start": `
+    export const createServerOnlyFn = (f) => f; // T107: catalogo.functions legge il cookie con createServerOnlyFn
     export const createServerFn = () => {
       let v = (d) => d;
       const b = { inputValidator(f) { v = f; return b; }, handler(h) { return async (arg) => h({ data: v(arg && arg.data) }); } };
