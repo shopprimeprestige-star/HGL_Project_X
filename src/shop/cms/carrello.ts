@@ -8,13 +8,14 @@
  *  più disponibili», mai un errore).
  *  ⚠️ I soldi si sommano in CENTESIMI e si dividono per cento una volta sola. */
 import type { RigaCarrelloServer } from "./catalogo.server";
-import type { SrcFoto } from "./modello";
+import type { MisureFoto } from "./vetrina-foto";
 
 export interface SnapRiga {
   nome: string;
   slug: string;
   prezzoCent: number;
-  foto: SrcFoto | null;
+  /** Le misure che ci sono: la card ne ha due (480, 960), le righe salvate prima e quelle del server anche la 1600. */
+  foto: MisureFoto | null;
   varianteNome: string | null;
 }
 export interface RigaCarrello {
