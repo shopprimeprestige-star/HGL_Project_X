@@ -161,12 +161,12 @@ export async function prove(mod, { c, gruppo, radice }) {
       const bottoneOggi = sorgenteDiOggi.match(/onClick=\{apri\}\s*className="([^"]*)"/)?.[1] ?? null;
       c("le stringhe di oggi si ritrovano nel base (la prova sa cosa confrontare)", [true, true], [contenitoreOggi(true) !== null, bottoneOggi !== null]);
 
-      const PIU = "max-sm:bottom-[var(--banner-h,0px)]";
+      const PIU = "max-sm:bottom-[var(--banner-h,0px)] sm:bottom-[var(--banner-h,0px)]";
       COMBO.forEach((o, k) => {
         const r = classi[k];
         const nome = `visibile=${o.visibile} sopraAlBanner=${o.sopraAlBanner} hoverScuro=${o.hoverScuro}`;
         if (!o.sopraAlBanner) c(`classiBarra (${nome}): il contenitore è quello di oggi, byte per byte`, contenitoreOggi(o.visibile), r.contenitore);
-        else c(`classiBarra (${nome}): il contenitore è quello di oggi più UNA classe, `+ "`bottom` sotto il banner solo sul telefono", contenitoreOggi(o.visibile) + " " + PIU, r.contenitore);
+        else c(`classiBarra (${nome}): il contenitore è quello di oggi più UNA classe, `+ "`bottom` sopra il banner a ogni larghezza (T109a: prima solo sotto i 640 px)", contenitoreOggi(o.visibile) + " " + PIU, r.contenitore);
         if (!o.hoverScuro) c(`classiBarra (${nome}): il bottone è quello di oggi, byte per byte`, bottoneOggi, r.bottone);
         else c(`classiBarra (${nome}): il bottone è quello di oggi con SOLO l'hover più scuro (mai più chiaro: 4,2:1 → ≥ 4,5:1)`,
           [bottoneOggi.replace("hover:brightness-110", "hover:brightness-90"), false, true], [r.bottone, r.bottone.includes("brightness-110"), r.bottone.includes("hover:brightness-90")]);
