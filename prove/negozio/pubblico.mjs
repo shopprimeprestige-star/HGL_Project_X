@@ -253,7 +253,7 @@ export async function prove(mod, { c, gruppo, radice }) {
     (() => { const p = PUB.costruisciPubblico({ ...righeTabelle(), media: [] }, opz)[0]; return [p.media, p.seo.immagine === null]; })());
 
   // correlato
-  c("«Ti serve anche»: slug, nome, prezzo da e foto del prodotto collegato (se pubblicato)", { slug: "altro-prodotto", nome: "Altro prodotto", prezzoDaCent: 3500, foto: { w480: `${BASE}/prova/aaaaaaaaaaaa-480.webp`, w960: `${BASE}/prova/aaaaaaaaaaaa-960.webp`, w1600: `${BASE}/prova/aaaaaaaaaaaa-1600.webp` } }, P.correlato);
+  c("«Ti serve anche»: slug, nome, prezzo da, foto del collegato (se pubblicato) e, dalla sua card, sku / «Da» / «si compra con un clic» (T88b)", { slug: "altro-prodotto", nome: "Altro prodotto", prezzoDaCent: 3500, foto: { w480: `${BASE}/prova/aaaaaaaaaaaa-480.webp`, w960: `${BASE}/prova/aaaaaaaaaaaa-960.webp`, w1600: `${BASE}/prova/aaaaaaaaaaaa-1600.webp` }, sku: "PROVA-004-A", prezziDiversi: false, aggiungibile: true }, P.correlato);
   c("il collegamento a una bozza non esce; e un prodotto senza collegamento ha null", [null, null],
     [PUB.costruisciPubblico({ ...righeTabelle(), prodotti: righeTabelle().prodotti.map((p) => (p.slug === "prodotto-di-prova" ? { ...p, correlato_id: uuid(0x201) } : p)) }, opz)[0].correlato,
       trova(tab, "altro-prodotto").correlato]);

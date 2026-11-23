@@ -27,6 +27,9 @@ import {
   type SrcFoto,
 } from "./modello";
 import { categoriaDaRiga, booleano, faq, intero, mediaDaRiga, oggetto, prodottoDaRiga, righeDi, testi, testo, varianteDaRiga } from "./righe";
+// ⚠️ Ciclo voluto e innocuo: `vetrina-card` importa `eInvisibleDerm` da qui, noi `cardDaPubblico` da lì. Entrambi si usano solo DENTRO le funzioni
+//  (mai mentre il modulo si carica), quindi l'ordine di caricamento non conta; la prova `shop-sezioni2` li impacchetta nei due ordini.
+import { cardDaPubblico } from "./vetrina-card";
 
 export interface OpzioniPubblico {
   /** Dove stanno le foto (`…/storage/v1/object/public/shop-media`): si antepone ai percorsi. Senza, restano com'erano. */
@@ -197,7 +200,15 @@ export function costruisciPubblico(righe: unknown, opzioni: OpzioniPubblico = {}
   // «Ti serve anche»: uno solo, pubblicato, diverso da sé
   for (const x of costruiti) {
     const altro = costruiti.find((y) => y.id === x.correlatoId && y.pubblicato && y.id !== x.id);
-    if (altro) x.p.correlato = { slug: altro.p.slug, nome: altro.p.nome, prezzoDaCent: altro.p.prezzoDaCent, foto: altro.p.media.find((m) => m.slot === "principale")?.src ?? null };
+    if (altro) {
+      // «si compra con un clic» e «Da»: la regola è quella della card del collegato (`cardDaPubblico`), mai riscritta qui
+      const card = cardDaPubblico(altro.p);
+      const sku = card.aggiungibile ? (card.skuVarianti[0] ?? null) : null;
+      x.p.correlato = {
+        slug: altro.p.slug, nome: altro.p.nome, prezzoDaCent: altro.p.prezzoDaCent, foto: altro.p.media.find((m) => m.slot === "principale")?.src ?? null,
+        sku, prezziDiversi: card.prezziDiversi, aggiungibile: sku !== null,
+      };
+    }
   }
   return costruiti.map((x) => x.p);
 }
