@@ -11,20 +11,48 @@ import { PopupUscita } from "@/components/landing/consulenza/PopupUscita";
 import { SITO } from "@/seo/regole";
 import { emettiEvento } from "@/lib/tracciamento/api";
 import { modalitaCatalogo, schedaProdotto } from "@/shop/cms/catalogo.functions";
+import { ErroreShop, NonTrovataShop, useStatoPagina } from "@/components/shop/guscio/GuscioShop";
+import { PaginaScheda } from "@/components/shop/pagine/PaginaScheda";
+import { RiquadroAnteprima } from "@/components/shop/scheda/RiquadroAnteprima";
+import type { SpedizionePubblica } from "@/shop/cassa/spedizione";
+import { tariffaSpedizione } from "@/shop/cassa/tariffe.functions";
+import { cassaPubblica, type CassaPubblica } from "@/shop/cms/cassa-pubblica.functions";
+import { contenutoShop } from "@/shop/cms/contenuto-shop.functions";
+import type { ProdottoPubblico } from "@/shop/cms/modello";
+import { contenutoVuoto, type ContenutoShop } from "@/shop/cms/vetrina-contenuto";
 import { modalitaCertaDelServer } from "@/shop/cms/modalita-certa.functions";
 import { daPubblicoAProdotto, varianteDaOpzioni } from "@/shop/cms/adattatore";
 import { cercaScheda, datiEventoCodice, datiEventoScheda, intestazioniScheda, primaVolta, senzaPrezzo, testataScheda, type Scheda } from "@/shop/cms/scheda";
 
-/** Cosa ha deciso il caricamento (T20): la scheda e se l'indirizzo porta `?anteprima=`. Un guasto del database NON arriva qui: è un errore temporaneo; «non trovato» nemmeno: è `notFound()` (risposta 404). */
-type Caricato = { scheda: Exclude<Scheda, { tipo: "temporaneo" | "non_trovato" }>; anteprima: boolean };
+/** Cosa ha deciso il caricamento (T20): la scheda e se l'indirizzo porta `?anteprima=`. Un guasto del database NON arriva qui: è un errore temporaneo; «non trovato» nemmeno: è `notFound()` (risposta 404).
+ *  Con `codice` esattamente com'è oggi. Solo con `cms` (V1 · T97a) in più le tre fonti della pagina nuova: tariffa, testi del contenuto, cassa.
+ *  `anteprima` con `cms` è vero SOLO se il server ha riconosciuto la chiave (la scheda porta `anteprima`): un `?anteprima=` a caso su un prodotto pubblicato non toglie la vendita. */
+type Caricato = {
+  scheda: Exclude<Scheda, { tipo: "temporaneo" | "non_trovato" }>;
+  anteprima: boolean;
+  tariffa?: SpedizionePubblica | null;
+  testi?: ContenutoShop;
+  cassa?: CassaPubblica | null;
+};
 
 export const Route = createFileRoute("/shop/prodotto/$slug")({
   validateSearch: (raw: Record<string, unknown>): { anteprima?: string } => ({ anteprima: typeof raw.anteprima === "string" && raw.anteprima ? raw.anteprima.slice(0, 300) : undefined }),
   loaderDeps: ({ search }) => ({ anteprima: search.anteprima ?? "" }),
-  loader: async ({ params, deps }): Promise<Caricato> => {
+  loader: async ({ params, deps, context }): Promise<Caricato> => {
+    const cms = context?.modalita === "cms"; //  `?.`: senza contesto (chiamate delle prove vecchie) vale `codice`, come oggi
+    //  Solo con `cms` le tre fonti in più: partono insieme alla scheda (una scheda che non c'è non le aspetta) e un guasto di una non è mai un errore al pubblico.
+    //  Con `codice` non si chiama NIENTE di nuovo: il valore e le chiamate di oggi sono l'oro (`codice-identico-v1.mjs`).
+    const altre = cms
+      ? Promise.all([
+          tariffaSpedizione().catch((): SpedizionePubblica | null => null),
+          contenutoShop().catch(contenutoVuoto),
+          cassaPubblica().catch((): CassaPubblica | null => null),
+        ])
+      : null;
     const scheda = await cercaScheda(
       {
-        modalita: () => modalitaCatalogo(),
+        //  con `cms` la modalità l'ha già letta il guscio (`beforeLoad` di `/shop`): non si richiede al server
+        modalita: cms ? async () => "cms" : () => modalitaCatalogo(),
         modalitaCerta: () => modalitaCertaDelServer(),
         scheda: (slug, chiave) => schedaProdotto({ data: { slug, chiave } }),
         nelCodice: (slug) => Boolean(getProduct(slug)),
@@ -36,7 +64,9 @@ export const Route = createFileRoute("/shop/prodotto/$slug")({
     if (scheda.tipo === "temporaneo") throw new Error("catalogo-temporaneamente-non-raggiungibile");
     // un indirizzo che non c'è risponde 404 (prima era una pagina 200 che diceva «non trovato»: per Google è un errore morbido)
     if (scheda.tipo === "non_trovato") throw notFound();
-    return { scheda, anteprima: Boolean(deps.anteprima) };
+    if (!altre || scheda.tipo !== "cms") return { scheda, anteprima: Boolean(deps.anteprima) };
+    const [tariffa, testi, cassa] = await altre;
+    return { scheda, anteprima: Boolean(scheda.prodotto.anteprima), tariffa, testi, cassa };
   },
   // con il catalogo `codice` la testata resta quella di `shop.tsx`; con il CMS: titolo, descrizione, immagine, canonical e JSON-LD (non in anteprima)
   head: ({ loaderData, match }) => {
@@ -50,8 +80,8 @@ export const Route = createFileRoute("/shop/prodotto/$slug")({
   },
   //  Guasto (loader lanciato: `match.status` «error», nessun `loaderData`) → `no-store`; anteprima → `private, no-store`.
   headers: ({ loaderData, match }) => intestazioniScheda({ anteprima: Boolean(loaderData?.anteprima), errore: match?.status === "error" }),
-  errorComponent: ErroreTemporaneo,
-  notFoundComponent: NonTrovato,
+  errorComponent: ErroreScheda,
+  notFoundComponent: NonTrovataScheda,
   component: ProductDetail,
 });
 
@@ -85,10 +115,51 @@ function ErroreTemporaneo() {
   );
 }
 
+//  Con `cms` (V1) 404 e 500 sono quelli del guscio nuovo: dicono al guscio il loro stato, così sotto non compare la barra della consulenza.
+//  Con `codice` (o se il contesto manca) restano quelli di oggi.
+function NonTrovataScheda() {
+  return Route.useRouteContext().modalita === "cms" ? <NonTrovataShop /> : <NonTrovato />;
+}
+
+function ErroreScheda({ error }: { error: Error }) {
+  return Route.useRouteContext().modalita === "cms" ? <ErroreShop error={error} /> : <ErroreTemporaneo />;
+}
+
+//  Lo smistatore: la pagina nuova solo con `cms` nel contesto E con una scheda `cms` (se la modalità si è letta male per un attimo la scheda
+//  può essere `codice`, e allora la pagina di oggi, che sa gestirla, senza chiamare niente di nuovo).
 //  `key={slug}`: passando da una scheda all'altra la scelta di variante e quantità riparte da zero.
 function ProductDetail() {
   const { slug } = Route.useParams();
-  return <SchedaVista key={slug} slug={slug} />;
+  const { modalita } = Route.useRouteContext();
+  const dati = Route.useLoaderData();
+  return modalita === "cms" && dati.scheda.tipo === "cms" ? <SchedaNuova key={slug} dati={dati} prodotto={dati.scheda.prodotto} /> : <SchedaVista key={slug} slug={slug} />;
+}
+
+/** La scheda V1: il riquadro d'anteprima (solo con chiave riconosciuta) sopra `PaginaScheda`, e gli eventi della visita. */
+function SchedaNuova({ dati, prodotto }: { dati: Caricato; prodotto: ProdottoPubblico }) {
+  const anteprima = dati.anteprima;
+  //  anteprima e prodotto che non si compra: niente barra, né d'acquisto né di consulenza (T93)
+  useStatoPagina(anteprima || !prodotto.acquistabile ? "non_in_vendita" : "normale");
+  const slug = prodotto.slug;
+  //  Una scheda vista: solo un conteggio (non in anteprima). Come oggi.
+  useEffect(() => {
+    if (anteprima) return;
+    traccia("stock_vista_scheda", { prodotto: slug }, { dedupKey: `scheda:${slug}` });
+  }, [slug, anteprima]);
+  //  ViewContent: una volta per prodotto e sessione, mai in anteprima, mai per Invisible Derm né per un prodotto senza prezzo (D39).
+  //  `AddToCart` NON è qui: lo emette `useAcquisto` (dentro la pagina), una volta per clic.
+  useEffect(() => {
+    if (anteprima || !prodotto.acquistabile || senzaPrezzo(prodotto.nome, prodotto.slug)) return;
+    const evento = datiEventoScheda(prodotto, prodotto.varianti[0]?.sku ?? null);
+    if (evento && primaVolta(window.sessionStorage, `hg_vc_${slug}`)) emettiEvento("ViewContent", evento);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- una volta per prodotto: la variante scelta dopo non rifà l'evento
+  }, [slug, anteprima]);
+  return (
+    <>
+      {anteprima && <RiquadroAnteprima nascosti={prodotto.anteprima?.nascosti} />}
+      <PaginaScheda scheda={dati.scheda} tariffa={dati.tariffa} testi={dati.testi} cassa={dati.cassa} anteprima={anteprima} />
+    </>
+  );
 }
 
 function SchedaVista({ slug }: { slug: string }) {

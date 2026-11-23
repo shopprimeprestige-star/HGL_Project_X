@@ -126,6 +126,8 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("Invisible Derm: riconosciuto dal nome e dall'indirizzo, in ogni scrittura", [true, true, true, false], ["Invisible Derm Protocol®", "invisible-derm-protocollo", "INVISIBLE  DERM", "Spray districante"].map(S.senzaPrezzo));
 
   // ── la pagina, disegnata davvero ──
+  //  V1 · T97a: questi disegni NON hanno `context`, quindi la rotta sceglie la pagina di OGGI (che sa gestire una scheda `cms`: il ripiego di una modalità
+  //  letta male per un attimo). La pagina nuova, la sua rotta e l'anteprima nuova si provano in `shop-scheda-rotta-v1.mjs` e `shop-scheda-v1.mjs`.
   const FILE = "src/routes/shop.prodotto.$slug.tsx";
   const pagina = (slug, loaderData, extra = {}) => rendi(radice, FILE, { params: { slug }, loaderData, carrello: { add() {}, lines: [] }, ...extra });
   const cmsDi = (p, anteprima = false) => ({ scheda: { tipo: "cms", prodotto: p }, anteprima });
@@ -213,7 +215,7 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("sorgente: `ViewContent` con `datiEventoScheda`, `AddToCart` con gli stessi dati dello stesso SKU, via `emettiEvento` (nessun pixel a mano)", [true, true, false], [src.includes('emettiEvento("ViewContent"') && src.includes("datiEventoScheda(cms"), src.includes('emettiEvento("AddToCart"'), /fbq|ttq|gtag|fireCapi|firePixel|trackEvent/.test(src)]);
   c("sorgente: nessun evento in anteprima, ViewContent una volta per sessione, la bozza non si compra", [true, true, true], [/if \(dati && !anteprima\) emettiEvento\("AddToCart"/.test(src), src.includes("primaVolta(window.sessionStorage"), src.includes("fuoriVendita")]);
   c("sorgente: variante esaurita → `disabled`; guardia sulle stelle (`reviews > 0`); mai la giacenza a schermo", [true, true, false], [src.includes("disabled={nonAcquistabile}"), src.includes("product.reviews > 0"), /giacenza/i.test(src.replace(/^\s*\/\/.*$/gm, ""))]);
-  c("sorgente: «non trovato» lancia `notFound()` nel loader (risposta 404) e la rotta ha `notFoundComponent`", [true, true], [/scheda\.tipo === "non_trovato"\) throw notFound\(\)/.test(src), /notFoundComponent: NonTrovato/.test(src)]);
+  c("sorgente: «non trovato» lancia `notFound()` nel loader (risposta 404) e la rotta ha `notFoundComponent` (V1 · T97a: lo smistatore `NonTrovataScheda`, che con `codice` mostra `NonTrovato` di oggi)", [true, true, true], [/scheda\.tipo === "non_trovato"\) throw notFound\(\)/.test(src), /notFoundComponent: NonTrovataScheda/.test(src), /<NonTrovato \/>/.test(src)]);
   c("sorgente: la rotta non scrive l'indirizzo dello studio", false, /scipioni|via degli/i.test(src));
 
   // ── con `codice` la pagina è IDENTICA a quella di oggi (stesso marchio, byte per byte) ──
