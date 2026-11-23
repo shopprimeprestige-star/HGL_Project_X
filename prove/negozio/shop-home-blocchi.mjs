@@ -58,7 +58,14 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("bottoni: categorie piene (patch e cura) → tutti e due", [true, true, true, true], await bottoni([SLUG_PATCH, SLUG_CURA]));
   c("bottoni: la categoria della cura vuota (non nell'elenco) → resta solo «Patch pronte»", [true, false, true, true], await bottoni([SLUG_PATCH]));
   c("bottoni: la categoria delle patch vuota → resta solo «Cura e manutenzione»", [false, true, true, true], await bottoni([SLUG_CURA]));
-  c("bottoni: elenco vuoto, con categorie sconosciute, storto → nessun bottone, l'hero sta in piedi (H1, ritratto, fascia)", [[false, false, true, false], [false, false, true, false], [false, false, true, false]], [await bottoni([]), await bottoni(["altra", "patch"]), await bottoni("patch-pronte")]);
+  c("bottoni: elenco vuoto o storto → nessun bottone, l'hero sta in piedi (H1, ritratto, fascia)", [[false, false, true, false], [false, false, true, false]], [await bottoni([]), await bottoni("patch-pronte")]);
+  // T102 A2: se lo slug delle patch pronte non combacia, il pieno ripiega sulla prima categoria con prodotti (non quella della cura, che ha già il suo bottone)
+  const hRipiego = await hero(CONTENUTO_PIENO, TARIFFA_OK, ["altra", "patch"]);
+  const ripiego = link(hRipiego, "Patch pronte");
+  c("bottoni: slug delle patch diverso → il pieno «Patch pronte» porta alla prima categoria con prodotti, nessun cura", ["/shop/c/altra", true, false], [attr(ripiego ?? "", "href"), classePiena(ripiego ?? "", "white"), !!link(hRipiego, "Cura e manutenzione")]);
+  const hRipiegoCura = await hero(CONTENUTO_PIENO, TARIFFA_OK, [SLUG_CURA, "altra"]);
+  c("bottoni: il ripiego salta la categoria della cura (niente due bottoni verso lo stesso posto)", ["/shop/c/altra", KC.HREF_CURA], [attr(link(hRipiegoCura, "Patch pronte") ?? "", "href"), attr(link(hRipiegoCura, "Cura e manutenzione") ?? "", "href")]);
+  c("bottoni: ripiego con slug storti (vuoto, non testo) → nessun pieno, nessun lancio", [false, false], [!!link(await hero(CONTENUTO_PIENO, TARIFFA_OK, ["", 7, null]), "Patch pronte"), !!link(await hero(CONTENUTO_PIENO, TARIFFA_OK, [SLUG_CURA]), "Patch pronte")]);
   c("bottoni: prop assente (default sicuro) → nessun bottone, mai un 404", [false, false, true, false], await bottoni("assente"));
   const hSenzaBottoni = await hero(CONTENUTO_PIENO, TARIFFA_OK, []);
   c("bottoni: senza bottoni restano il ritratto, la riga dello studio e la fascia, e non resta un contenitore vuoto", [true, true, false], [leggibile(hSenzaBottoni).includes("Applichiamo patch a Roma ogni giorno.") && /Studio a Roma/.test(hSenzaBottoni), imgs(hSenzaBottoni).length === 2, /sm:flex-row/.test(hSenzaBottoni)]);
@@ -97,7 +104,7 @@ export async function prove(mod, { c, gruppo, radice }) {
   const fasciaUl = hH.match(/<ul\b[^>]*>/)?.[0] ?? "";
   const cornice = hH.match(/<div\b[^>]*\bbrackets\b[^>]*>/)?.[0] ?? "";
   c("layout hero: la fascia occupa le due colonne sul computer (lg:col-span-2); la foto sta nel riquadro dichiarato (max-w-[440px], a destra sul computer)", [true, true, true], [/\blg:col-span-2\b/.test(fasciaUl), /\bmax-w-\[440px\]/.test(cornice), /\blg:ml-auto\b/.test(cornice)]);
-  c("layout hero: senza foto la fascia è centrata e NON ha lg:col-span-2", [true, false], [/justify-center/.test((hVuotoLayout.match(/<ul\b[^>]*>/) ?? [""])[0]), /lg:col-span-2/.test(hVuotoLayout)]);
+  c("layout hero: senza foto la fascia è centrata, ha la sua distanza dal blocco sopra (mt-8, T102 A1) e NON ha lg:col-span-2", [true, true, false], [/justify-center/.test((hVuotoLayout.match(/<ul\b[^>]*>/) ?? [""])[0]), /\bmt-8\b/.test((hVuotoLayout.match(/<ul\b[^>]*>/) ?? [""])[0]), /lg:col-span-2/.test(hVuotoLayout)]);
   // la fascia nell'hero
   c("fascia nell'hero: con la tariffa vera: studio, spedizione, consulenza (pillole scure), dopo la foto", [true, true, true], [tH.includes("Studio a Roma"), tH.includes("Consulenza gratuita, online"), /Spedizione: 4,90/.test(tH)]);
   c("fascia: senza tariffa restano le due voci confermate (studio e consulenza); la spedizione non c'è", [true, true, false], [tH.includes("Studio a Roma"), (await hero(CONTENUTO_PIENO, TARIFFA_ASSENTE)).includes("Consulenza gratuita, online"), /Spedizione/.test(await hero(CONTENUTO_PIENO, TARIFFA_ASSENTE))]);

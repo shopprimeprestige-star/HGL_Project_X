@@ -46,7 +46,11 @@ export function HeroShop({
   const didascalia = piano.ritratto && t["shop.hero.didascalia"] ? riempi(t["shop.hero.didascalia"], { nome: piano.nome }) : null;
   const riga = t["shop.hero.riga"];
   const h1 = t["shop.hero.h1"];
-  const cta1 = haProdotti(HREF_PATCH_PRONTE, categorieConProdotti) ? t["shop.hero.cta1"] : null;
+  // Il pieno porta alle «Patch pronte»; se il loro indirizzo non è fra le categorie con prodotti (slug diverso nel catalogo) ripiega sulla prima che ne ha,
+  // purché non sia quella della cura (che ha già il suo bottone): meglio un'azione sopra la piega che un hero senza (T101 A2).
+  const slugRipiego = Array.isArray(categorieConProdotti) ? categorieConProdotti.find((s) => typeof s === "string" && s !== "" && !HREF_CURA.endsWith(`/${s}`)) : undefined;
+  const hrefPieno = haProdotti(HREF_PATCH_PRONTE, categorieConProdotti) ? HREF_PATCH_PRONTE : slugRipiego ? HREF_PATCH_PRONTE.replace(/[^/]+$/, encodeURIComponent(slugRipiego)) : null;
+  const cta1 = hrefPieno ? t["shop.hero.cta1"] : null;
   const cta2 = haProdotti(HREF_CURA, categorieConProdotti) ? t["shop.hero.cta2"] : null;
   return (
     <section className="bg-blueprint relative overflow-hidden before:pointer-events-none before:absolute before:inset-[-20%] before:content-[''] before:bg-[radial-gradient(600px_circle_at_30%_20%,var(--brand-velo-22)_0%,transparent_60%)] before:animate-[spotlight-drift_12s_ease-in-out_infinite] motion-reduce:before:animate-none">
@@ -68,7 +72,7 @@ export function HeroShop({
           {(cta1 || cta2) && (
             <div className={`mt-8 flex w-full flex-col gap-3 sm:w-auto sm:flex-row ${centrato ? "justify-center" : ""}`}>
               {cta1 && (
-                <Link to={HREF_PATCH_PRONTE} className={PIENO}>
+                <Link to={hrefPieno ?? HREF_PATCH_PRONTE} className={PIENO}>
                   {cta1}
                 </Link>
               )}
@@ -96,7 +100,7 @@ export function HeroShop({
             <span className="br-bl z-10" aria-hidden="true" />
           </div>
         )}
-        <FasciaFiducia voci={vociDellaFascia(contenuto, tariffa)} className={centrato ? "justify-center" : "lg:col-span-2"} />
+        <FasciaFiducia voci={vociDellaFascia(contenuto, tariffa)} className={centrato ? "justify-center mt-8" : "lg:col-span-2"} />
       </div>
     </section>
   );

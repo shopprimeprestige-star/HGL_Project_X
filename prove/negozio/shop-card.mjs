@@ -163,7 +163,8 @@ async function componenti(mod, { c, gruppo, radice }) {
   c("blocco: elenco rotto o vuoto → niente, senza lanciare", ["", "", ""], [await bf({ voci: [] }), await bf({ voci: null }), await bf({ voci: [{ id: "spedizione", testo: "" }] })]);
   const hFascia = await bf({ voci, tipo: "fascia" });
   const fascia = KF.montaFascia(voci);
-  c("fascia: le voci di `montaFascia` (studio, spedizione, reso, consulenza) a pillole", [fascia.length, fascia.length], [conta(hFascia, /<li\b/g), conta(hFascia, /rounded-full/g)]);
+  // T102 A3: le pillole non sono più `rounded-full` (a due righe diventavano una capsula deformata) ma `rounded-2xl leading-snug`; la prova resta sul numero e sul fatto che siano pillole bordate
+  c("fascia: le voci di `montaFascia` (studio, spedizione, reso, consulenza) a pillole (rounded-2xl, interlinea stretta)", [fascia.length, fascia.length, fascia.length, 0], [conta(hFascia, /<li\b/g), conta(hFascia, /<li\b[^>]*\brounded-2xl\b[^>]*\bleading-snug\b/g), conta(hFascia, /<li\b[^>]*\bborder\b/g), conta(hFascia, /rounded-full/g)]);
   c("fascia: una voce sola → non si monta; chiara = bordo ink, scura = bordo e testo bianchi", ["", true, true], [await bf({ voci: [voci[0]], tipo: "fascia" }), /border-ink\/15/.test(hFascia) && !/text-white/.test(hFascia), /border-white\/20[^"]*text-white/.test(await bf({ voci, tipo: "fascia", scuro: true }))]);
   c("fascia: niente parole vietate né segnaposto", [[], false], [trovaParoleVietate(hFascia), /\{\{|da confermare/i.test(hFascia)]);
 
