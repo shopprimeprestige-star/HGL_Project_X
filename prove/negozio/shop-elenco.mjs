@@ -169,7 +169,7 @@ export async function prove(mod, { c, gruppo, radice }) {
   //   attaccato dopo lo smontaggio (mutazione del revisore: `return suScelta(` → `suScelta(` restava verde).
   c("`useListaVista` restituisce la pulizia di `suScelta` (nessun ascolto resta attaccato a `window`)", true, /return\s+suScelta\(/.test(src.griglia));
   c("il conteggio degli articoli dell'elenco di `codice` passa da `etichettaArticoli` (singolare «1 articolo»); la categoria V1 non lo scrive (il numero è di `FiltriCategoria`)", [true, false, false], [/etichettaArticoli\(/.test(src.indice), /etichettaArticoli\(/.test(src.categoria + src.paginaCategoria), /articoli<\/span>|\} articoli/.test(src.indice)]);
-  c("la categoria: codice → `notFound()`; CMS senza categoria o senza prodotti → `redirect` a /shop", [true, true], [/notFound\(\)/.test(src.categoria), /redirect\(\{\s*to:\s*"\/shop"/.test(src.categoria)]);
+  c("la categoria: codice → `notFound({ routeId: rootRouteId })` (404 della radice, T109a); CMS senza categoria o senza prodotti → `redirect` a /shop", [true, true], [/notFound\(\{\s*routeId:\s*rootRouteId\s*\}\)/.test(src.categoria), /redirect\(\{\s*to:\s*"\/shop"/.test(src.categoria)]);
 
   /* ───────────────── 3 · IL MARKUP: CODICE E CMS ───────────────── */
   let M = null;
