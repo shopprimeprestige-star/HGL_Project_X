@@ -46,6 +46,7 @@ const SENZA_BARRA = [
   "/shop/carrello",
   "/shop/checkout",
   "/shop/ordine",
+  "/shop/collaudo",
   "/crm",
   "/meetly",
   "/videochiamata",
