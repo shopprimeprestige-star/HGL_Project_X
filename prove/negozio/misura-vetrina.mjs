@@ -307,10 +307,24 @@ async function provePure(_mod, { c, gruppo }) {
     const r = M.riassumi(punti);
     c("più misure insieme: un no vince, poi un null, vuoto non è verde", [true, null, false, false, false], [M.unisciEsiti([true, true]), M.unisciEsiti([true, null]), M.unisciEsiti([null, false, true]), M.unisciEsiti([]), M.unisciEsiti([false])]);
     c("riassunto: un rosso = non ok; conta ok, no e saltati", [false, { ok: 1, no: 1, saltati: 1 }], [r.ok, r.totali]);
-    c("riassunto: tutti ok o saltati = ok; nessun punto = non ok", [true, false], [M.riassumi(punti.filter((x) => x.ok !== false)).ok, M.riassumi([]).ok]);
+    const verde = { id: "a", criteri: [], ok: true, dettaglio: "" };
+    const nullo = { id: "b", criteri: [], ok: null, dettaglio: "saltato" };
+    const rosso = { id: "c", criteri: [], ok: false, dettaglio: "" };
+    c("riassunto: tutti ok = verde e non incompleto; nessun punto = non ok", [true, false, false], [M.riassumi([verde]).ok, M.riassumi([verde]).incompleto, M.riassumi([]).ok]);
+    c("riassunto: un punto null (non misurato) NON è verde ed è incompleto", [false, true, 1], [M.riassumi([verde, nullo]).ok, M.riassumi([verde, nullo]).incompleto, M.riassumi([verde, nullo]).totali.saltati]);
+    c("riassunto: con un rosso non si dice «incompleto» (il rosso vince)", [false, false], [M.riassumi([verde, nullo, rosso]).ok, M.riassumi([verde, nullo, rosso]).incompleto]);
+    c("codici di uscita: 0 verde, 1 rosso, 3 nessun rosso ma non tutto misurato", [0, 1, 3, 1], [M.codiceUscita(M.riassumi([verde])), M.codiceUscita(M.riassumi([verde, rosso])), M.codiceUscita(M.riassumi([verde, nullo])), M.codiceUscita(M.riassumi([verde, nullo, rosso]))]);
+    c("--solo: un punto escluso non c'è e non conta come saltato; con tutti gli altri verdi resta verde", [true, false, true, true, 0], (() => {
+      const tutti = [{ id: "T3-pieni", ok: true }, { id: "T12-finestra", ok: null }, { id: "T15-offline", ok: true }];
+      const scelti = tutti.filter((x) => M.puntoScelto(x.id, ["T3", "T15"])).map((x) => ({ id: x.id, criteri: [], ok: x.ok, dettaglio: "" }));
+      return [M.puntoScelto("T3-pieni", ["T3"]), M.puntoScelto("T10-accetta", ["T1"]), M.puntoScelto("T12-h1", []), M.riassumi(scelti).ok, M.codiceUscita(M.riassumi(scelti))];
+    })());
+    c("--solo T10 non prende T1... e T1x resta distinto da T1", [false, true], [M.puntoScelto("T10-accetta", ["T1"]), M.puntoScelto("T10-accetta", ["T10"])]);
+    c("riassunto: tutti ok o saltati non è più verde, nessun punto = non ok", [false, false], [M.riassumi(punti.filter((x) => x.ok !== false)).ok, M.riassumi([]).ok]);
     c("il JSON ha per punto id, criteri, ok (true/false/null) e dettaglio", true, r.punti.every((x) => typeof x.id === "string" && Array.isArray(x.criteri) && [true, false, null].includes(x.ok) && typeof x.dettaglio === "string"));
     c("il JSON è serializzabile senza perdere niente", JSON.stringify(r), JSON.stringify(JSON.parse(JSON.stringify(r))));
     c("codice di uscita: 0 se tutto ok, 1 se c'è un rosso", [0, 1], [M.codiceUscita(M.riassumi([punti[0]])), M.codiceUscita(r)]);
+    c("l'aiuto e la testa spiegano il codice 3", [true, true], [/3 /.test(spawnSync(process.execPath, [FILE, "--aiuto"], { encoding: "utf8", env: { PATH: process.env.PATH } }).stdout), /3 nessun/.test(readFileSync(FILE, "utf8"))]);
     c("un controllo che lancia diventa un punto rosso col messaggio, non uno stack", [false, true, false], (() => {
       const q = M.puntoDaErrore("T3-pieni", ["V1-T3"], new Error("la pagina è sparita\n    at x.js:1:1"));
       return [q.ok, /la pagina è sparita/.test(q.dettaglio), /at x\.js/.test(q.dettaglio)];
@@ -338,6 +352,7 @@ async function provePure(_mod, { c, gruppo }) {
     const pwFinto = { chromium: { launch: async (o) => { eventi.push(`launch ${JSON.stringify(o)}`); return finto; } } };
     const opz = M.leggiArgomenti(["--solo", "T11", "--canale", "chrome"], {}).opzioni;
     const esito = await M.misura(pwFinto, opz);
+    c("--solo T11: nel risultato ci sono solo i punti T11", true, esito.punti.every((x) => x.id.startsWith("T11-")));
     c("anche se ogni controllo lancia, il browser si chiude e i punti sono rossi con un messaggio", [true, true, true], [finto.chiuso, esito.punti.length > 0 && esito.punti.every((x) => x.ok === false || x.ok === null), esito.punti.every((x) => !/\n\s+at /.test(x.dettaglio))]);
     const lancio = eventi.find((e) => e.startsWith("launch")) ?? "";
     c("il browser parte con la regola del resolver: tutto NOTFOUND tranne il loopback (copre redirect, WebSocket e preconnect)", [true, true, true, true], [

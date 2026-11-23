@@ -14,7 +14,8 @@
  *  Uso:  node strumenti/misura-vetrina.mjs --playwright <cartella> [--base http://127.0.0.1:5199] [--pagine /shop,/shop/cerca,/shop/carrello]
  *                                          [--scheda /shop/prodotto/<slug> --sku <SKU>[,<SKU>]] [--scenario stress] [--solo T3,T11]
  *                                          [--canale chrome] [--finestra "<css del bottone che apre una finestra>"]
- *  Codice di uscita: 0 tutto ok, 1 almeno un punto no, 2 non si è potuto misurare (argomenti, Playwright o browser mancanti). */
+ *  Codice di uscita: 0 tutto ok, 1 almeno un punto no, 2 non si è potuto misurare (argomenti, Playwright o browser mancanti),
+ *  3 nessun rosso ma non tutto misurato (almeno un punto `null`: saltato o misura incompleta; i punti esclusi con `--solo` non contano). */
 import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
 import { join, resolve } from "node:path";
@@ -494,12 +495,16 @@ export function controllaH1(n) {
 
 /* ══ 9 · L'USCITA ════════════════════════════════════════════════════════════════════════════════════════════════ */
 
-/** `punti`: `[{id, criteri, ok: true|false|null (saltato), dettaglio}]`. Un punto no = non ok; nessun punto = non ok (una misura che non ha misurato niente non è verde). */
+/** `punti`: `[{id, criteri, ok: true|false|null (saltato o incompleto), dettaglio}]`. Verde solo se tutti i punti scelti sono ok: un no, un null o nessun punto = non verde.
+ *  `incompleto` = nessun rosso ma almeno un punto non misurato. */
 export function riassumi(punti) {
   const totali = { ok: punti.filter((p) => p.ok === true).length, no: punti.filter((p) => p.ok === false).length, saltati: punti.filter((p) => p.ok === null).length };
-  return { ok: punti.length > 0 && totali.no === 0, totali, punti };
+  return { ok: punti.length > 0 && totali.no === 0 && totali.saltati === 0, incompleto: totali.no === 0 && totali.saltati > 0, totali, punti };
 }
-export const codiceUscita = (r) => (r.ok ? 0 : 1);
+/** 0 verde · 1 almeno un rosso · 3 nessun rosso ma non tutto misurato (il 2 è «non si è potuto misurare», lo dà `main`). */
+export const codiceUscita = (r) => (r.ok ? 0 : r.incompleto ? 3 : 1);
+/** `--solo` sceglie per famiglia (la parte prima del trattino): `T1` non prende `T10`. Senza `--solo` valgono tutti. */
+export const puntoScelto = (id, solo) => !solo.length || solo.includes(id.split("-")[0]);
 /** Un controllo che lancia diventa un punto no col messaggio (una riga, mai la pila). */
 export const puntoDaErrore = (id, criteri, e) => ({ id, criteri, ok: false, dettaglio: `errore nel controllo: ${String(e?.message ?? e).split("\n")[0].slice(0, 300)}` });
 
@@ -915,7 +920,7 @@ export async function misura(pw, opzioni) {
   const ambiente = { newContext: (o) => browser.newContext(o), base: opzioni.base };
   try {
     for (const p of PUNTI) {
-      if (opzioni.solo.length && !opzioni.solo.includes(p.id.split("-")[0])) continue;
+      if (!puntoScelto(p.id, opzioni.solo)) continue;
       try { punti.push(await p.esegui(ambiente, opzioni)); }
       catch (e) { punti.push(puntoDaErrore(p.id, p.criteri, e)); }
     }
@@ -929,7 +934,7 @@ export async function misura(pw, opzioni) {
 
 async function main() {
   const { aiuto, errori, opzioni } = leggiArgomenti(process.argv.slice(2), process.env);
-  if (aiuto) { console.log(`${COME_SI_USA}\n\n${COME_PREPARARE}\n\nPunti: ${PUNTI.map((p) => p.id).join(", ")}`); return 0; }
+  if (aiuto) { console.log(`${COME_SI_USA}\n\n${COME_PREPARARE}\n\nUscita: 0 tutto ok · 1 almeno un no · 2 non si è potuto misurare · 3 nessun no ma non tutto misurato (punti null: saltati o incompleti)\n\nPunti: ${PUNTI.map((p) => p.id).join(", ")}`); return 0; }
   if (errori.length) { console.error(`RIFIUTATO: ${errori.join("\nRIFIUTATO: ")}\n${COME_SI_USA}`); return 2; }
   const { pw, errore } = await caricaPlaywright(opzioni.playwright);
   if (errore) { console.error(errore); return 2; }
