@@ -7,6 +7,7 @@
  *  `src/shop/cms/contenuto-shop.functions.ts`, `src/landing/testi-shop.ts`, `src/routes/shop*.tsx`. Dei file MODIFICATI contano solo le righe nuove
  *  (diff col base); il codice di oggi spostato di peso in un'altra funzione si esclude con un elenco chiuso (`SPOSTATO_DI_OGGI`), e la regola 9 prova
  *  che è davvero identico al base.
+ *  V1-T6/T7 nel sorgente: parole vietate di §12.4.1 n. 11, prezzi barrati, nome e CAP dello studio nei file V1 (l'HTML è di T99b).
  *   1  nessun `PlaceholderBox`, `btn-premium`, `backdrop-blur`, `sonner`/`toast`… nei file V1;     2  nessun `Anton`, `Instrument`, `font-family`, rosso;
  *   5  ogni `<FotoShop` e `<img` ha `alt`;      6  nessun testo scritto a mano nei componenti (JsxText e aria-label/placeholder/alt/title);
  *   7  nessun pixel/script di terzi, importazioni di tracciamento a elenco chiuso;      8  nessuno storage che legga un prezzo;
@@ -126,7 +127,8 @@ async function corpo(mod, { c, radice, lavoro }) {
   };
 
   // ── i file di V1, con le righe nuove di quelli modificati ──
-  const candidati = camminaCartella(radice, "src").filter((f) => DI_V1.some((t) => t(f))).sort();
+  //  senza storia non si sa cosa è nuovo: nessun file V1 (le regole non inventano violazioni) e due rossi chiari (storia e numero di file)
+  const candidati = storia ? camminaCartella(radice, "src").filter((f) => DI_V1.some((t) => t(f))).sort() : [];
   const v1 = [];
   for (const rel of candidati) {
     const testo = leggi(rel);
@@ -135,14 +137,16 @@ async function corpo(mod, { c, radice, lavoro }) {
     if (base === testo) continue; // non toccato da V1
     const a = join(lavoro, "base.txt");
     writeFileSync(a, base);
-    const d = spawnSync("git", ["diff", "--no-index", "-U0", "--no-color", a, join(radice, rel)], { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 }).stdout ?? "";
+    const d = spawnSync("git", ["diff", "--no-index", "-U0", "-w", "--no-color", a, join(radice, rel)], { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 }).stdout ?? "";
     const nuove = new Set();
     for (const m of d.matchAll(/^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@/gm)) {
       const da = Number(m[1]);
       const n = m[2] === undefined ? 1 : Number(m[2]);
       for (let i = 0; i < n; i++) nuove.add(da + i);
     }
-    v1.push({ rel, testo, nuove });
+    //  i testi (stringhe) che già c'erano nel base: se una riga nuova li riscrive in un'altra forma sono ancora quelli di oggi, non testi nuovi
+    const vecchi = new Set(gettoni(albero(base, rel)).filter((g) => eStringa(g.nodo) && g.t.length > 8).map((g) => g.t));
+    v1.push({ rel, testo, nuove, vecchi });
   }
   for (const f of v1) {
     f.sf = albero(f.testo, f.rel);
@@ -157,7 +161,7 @@ async function corpo(mod, { c, radice, lavoro }) {
   /** Vale come «nuovo»: nei file nuovi sempre, nei modificati solo se la riga è fra quelle aggiunte e non nel codice di oggi spostato. */
   const nuovo = (f, r) => (f.nuove === null || f.nuove.has(r)) && !f.esclusi.some(([a, b]) => r >= a && r <= b);
   const v1tsx = v1.filter((f) => f.rel.endsWith(".tsx"));
-  const gettoniNuovi = (f) => f.gettoni.filter((g) => nuovo(f, rigaDi(f.sf, g.pos)));
+  const gettoniNuovi = (f) => f.gettoni.filter((g) => nuovo(f, rigaDi(f.sf, g.pos)) && !(f.vecchi && eStringa(g.nodo) && f.vecchi.has(g.t)));
   /** Cerca un'espressione regolare nei gettoni di codice di ogni file V1 → «file:riga». */
   const cerca = (re, files = v1) => files.flatMap((f) => gettoniNuovi(f).filter((g) => re.test(g.t)).map((g) => `${f.rel}:${rigaDi(f.sf, g.pos)}`));
 
@@ -181,6 +185,31 @@ async function corpo(mod, { c, radice, lavoro }) {
     c("2 · nessun Anton né Instrument nei file V1", [], cerca(/\bAnton\b|\bInstrument\b|font-anton|font-instrument/i));
     c("2 · nessun font-family nei file V1 (il carattere è dei CSS, non dei componenti)", [], cerca(/font-?family/i));
     c("2 · nessun #FF3B3B né destructive nei file V1 (V1 non usa il rosso)", [], cerca(/#FF3B3B|destructive/i));
+  });
+
+  // ── V1-T6 e V1-T7 nel sorgente: parole vietate (§12.4.1 n. 11), prezzi barrati, nessun indirizzo ──
+  //  Le parole sono costruite a pezzi: questa prova non le contiene scritte (e non guarda `prove/`). I commenti non contano (l'albero non li porta).
+  await regola(c, "V1-T6", () => {
+    const p = (...pezzi) => pezzi.join("");
+    const VIETATE = new RegExp([
+      p("toup", "ee"), p("indistinguibi", "l"), p("invisibi", "l[ei]"), p("garan", "tit"), p("prem", "ium"), p("\\bRe", "my\\b"), p("\\beuro", "pe"), p("Best ", "seller"), p("Top ", "rated"),
+      p("Risp", "armi"), p("4,", "8/5"), p("1\\.", "500"), p("214 ", "recensioni"), p("Bio-", "Mimetic"), p("24", "/48"), p("\\bult", "imi\\b"), p("\\{", "\\{"),
+      p("da conf", "ermare"), p("line", "-through"), p("\\bsolo ", "\\d"),
+    ].join("|"), "i");
+    //  `{{` dentro `.includes("{{")` è la guardia che scarta i segnaposto (D96): non è un testo che si mostra.
+    const eGuardia = (g) => ts.isCallExpression(g.nodo.parent) && /\.(includes|indexOf|startsWith)$/.test(g.nodo.parent.expression.getText());
+    const colpe = v1.flatMap((f) => gettoniNuovi(f).filter((g) => VIETATE.test(g.t) && !(g.t.replace(/\{\{/g, "") !== g.t && !VIETATE.test(g.t.replace(/\{\{/g, "")) && eGuardia(g))).map((g) => `${f.rel}:${rigaDi(f.sf, g.pos)}`));
+    c("V1-T6 · nessuna parola vietata (§12.4.1 n. 11), né «ultimi», «solo N», «{{», «da confermare» nel sorgente V1", [], colpe);
+    const barrati = [];
+    for (const f of v1tsx) for (const el of elementiJsx(f.sf)) if (/^(del|s|strike)$/.test(nomeTag(el)) && nuovo(f, riga(f.sf, el))) barrati.push(`${f.rel}:${riga(f.sf, el)} <${nomeTag(el)}>`);
+    c("V1-T6 · nessun prezzo barrato (<del>, <s>, <strike>) nei file V1", [], barrati);
+  });
+  await regola(c, "V1-T7", () => {
+    const NOME = new RegExp(["scipi", "oni"].join(""), "i");
+    const CAP = new RegExp(`\\b${["00", "192"].join("")}\\b`);
+    // il testo intero, commenti compresi (come r2-regole): un indirizzo non va scritto nemmeno in un commento; nei file modificati contano le righe nuove
+    const colpe = v1.flatMap((f) => f.testo.split("\n").map((t, i) => ({ t, r: i + 1 })).filter(({ t, r }) => (NOME.test(t) || CAP.test(t)) && nuovo(f, r)).map(({ r }) => `${f.rel}:${r}`));
+    c("V1-T7 · nessun nome né CAP dello studio nei file V1 (il civico si riconosce da questi due)", [], colpe);
   });
 
   // ── 5 · alt ──
