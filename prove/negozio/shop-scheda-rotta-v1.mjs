@@ -173,6 +173,10 @@ async function corpo(mod, { c, gruppo, radice }) {
   const riquadro = (nascosti) => rendiComponente(radice, COMPONENTE_NUOVO, "RiquadroAnteprima", { nascosti }).then((r) => r.html, (e) => `<<eccezione: ${e?.message}>>`);
   const hR = await riquadro(bozza.anteprima.nascosti);
   c("RiquadroAnteprima: un `<details>` CHIUSO con il titolo come `<summary>`, ambra, un `<li>` per motivo", [true, false, true, true, 2], [/<details[^>]*>\s*<summary/.test(hR), /<details[^>]*\sopen/.test(hR), hR.includes("border-amber-300") && hR.includes("bg-amber-50"), hR.includes(TESTI_PROVVISORI.scheda.anteprimaRiquadro), (hR.match(/<li>/g) ?? []).length]);
+  //  T100a: due motivi uguali (stesso blocco, stesso testo) sono due righe. ⚠️ `react-dom/server` NON avvisa delle chiavi doppie (lo fa solo il browser): il guardiano della chiave è il controllo di sorgente qui sotto.
+  const hDoppi = await riquadro([{ blocco: "faq", motivo: "Manca la risposta." }, { blocco: "faq", motivo: "Manca la risposta." }, { blocco: "faq", motivo: "Manca la risposta." }]);
+  c("RiquadroAnteprima: motivi doppi (stesso blocco e stesso testo) = una riga ciascuno", 3, (hDoppi.match(/<li\b/g) ?? []).length);
+  c("RiquadroAnteprima: la `key` di ogni riga ha l'indice (sorgente)", true, /<li key=\{`\$\{i\}-\$\{n\.blocco\}`\}>/.test(readFileSync(join(radice, COMPONENTE_NUOVO), "utf8")));
   c("RiquadroAnteprima: senza motivi (assenti, vuoti, nulli, non testo) non si disegna niente", ["", "", "", "", ""], [await riquadro(undefined), await riquadro([]), await riquadro(null), await riquadro([{ blocco: "x", motivo: "  " }, { blocco: "y" }]), await riquadro("non un elenco")]);
   await blocco("blocco 6", async () => {
     const h = await riquadro([{ blocco: "blocco-interno", motivo: "<b>grassetto</b> & altro" }]);

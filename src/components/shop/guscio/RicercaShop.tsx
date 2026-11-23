@@ -6,7 +6,7 @@
  *    risponde (o risponde vuoto) si riprova al fuoco dopo; intanto Invio porta comunque alla pagina dei risultati.
  *  · Tendina di 5 voci al massimo (`suggerimenti`), con miniatura (se la foto non c'è, solo testo), nome e prezzo (Invisible Derm: nessuna
  *    cifra). Il fuoco resta SEMPRE nel campo: la voce evidenziata la nomina `aria-activedescendant`. Frecce, Invio ed Esc sono di
- *    `voceEvidenziata` (T105): voce evidenziata → la sua scheda; nessuna voce → `/shop/cerca?q=` (sotto i 2 caratteri Invio non fa niente).
+ *    `voceEvidenziata` (T105): voce evidenziata → la sua scheda; nessuna voce → `/shop/cerca` con `q` (sotto i 2 caratteri Invio non fa niente).
  *  · `Search` (D90): dopo 1 s di pausa o con Invio, una volta sola per testo (`creaEmettitoreRicerca`); il testo esce SOLO se è il nome di
  *    un prodotto o di una categoria (`eventoCerca` con il vocabolario del catalogo scaricato): un nome di persona, un indirizzo, una
  *    parola di salute partono senza testo. Il testo cercato non va mai in un indirizzo diverso da `/shop/cerca`.
@@ -216,8 +216,8 @@ export function RicercaShop({ categorie }: RicercaShopProps) {
       chiudiCampo();
     } else if (r.azione === "cerca") {
       ricerca.invio(testo);
-      // shortcut: indirizzo costruito a mano, perché `/shop/cerca` entra nell'albero delle rotte con T96; poi si possono usare `to` e `search` tipati.
-      void navigate({ href: `/shop/cerca?${new URLSearchParams({ q: pulito(testo) })}` });
+      //  `to` e `search` tipati, non un indirizzo scritto a mano: il router mette fra virgolette il testo che sembrerebbe un numero («1e3» resta «1e3», non diventa 1000).
+      void navigate({ to: "/shop/cerca", search: { q: pulito(testo) } });
       chiudiCampo();
     }
   };

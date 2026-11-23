@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, type ErrorComponentProps } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import * as Lucide from "lucide-react";
 import { Search, Star, ShieldCheck, Truck, Sparkles } from "lucide-react";
@@ -8,6 +8,7 @@ import { ChipCategorie, GrigliaProdotti, useListaVista } from "@/shop/cms/Grigli
 import { creaEmettitoreRicerca, etichettaArticoli, filtraVoci, frasaSenzaRisultati, vociDaCodice, vociDaPubblici } from "@/shop/cms/elenco";
 import { emettiEvento } from "@/lib/tracciamento/api";
 import { NOME_PRODOTTO } from "@/landing/testi-sito";
+import { ErroreRottaShop } from "@/components/shop/guscio/GuscioShop";
 import { PaginaHome, datiHome, type DatiHome } from "@/components/shop/pagine/PaginaHome";
 import { SITO } from "@/lib/sito";
 import { tariffaSpedizione } from "@/shop/cassa/tariffe.functions";
@@ -55,8 +56,14 @@ export const Route = createFileRoute("/shop/")({
       links: [{ rel: "canonical", href: indirizzo }],
     };
   },
+  errorComponent: ErroreHome,
   component: Home,
 });
+
+//  500: con `cms` quello del guscio nuovo (senza barra), con `codice` quello di sempre. La home non lancia mai un 404.
+function ErroreHome(props: ErrorComponentProps) {
+  return <ErroreRottaShop {...props} cms={Route.useRouteContext().modalita === "cms"} />;
+}
 
 /** Lo smistatore: con il catalogo CMS la home nuova, altrimenti `Storefront` com'è. */
 function Home() {

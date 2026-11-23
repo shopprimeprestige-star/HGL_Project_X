@@ -58,7 +58,7 @@ const FINTI = {
     export const useSearch = () => S().search ?? {};
     export const useParams = () => S().params ?? {};
     export const useNavigate = () => (o) => { (S().navigazioni ??= []).push(o); };
-    export const useRouter = () => ({ invalidate: () => {} });
+    export const useRouter = () => ({ invalidate: () => {}, options: { defaultErrorComponent: S().erroreDelRouter } });
     export const notFound = () => new Error("notFound");
     export const redirect = (o) => Object.assign(new Error("redirect"), { redirect: o });
   `,

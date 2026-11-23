@@ -6,7 +6,8 @@
  *  ⚠️ I filtri stanno nell'indirizzo (`?colore=…&disp=1`) ma si applicano nel browser sui prodotti già caricati: `validateSearch` lascia passare
  *   ogni parametro (i filtri li legge T90, gli altri, come gli utm, restano) e NON c'è `loaderDeps`: un filtro non rifà il loader (T90, punto 2).
  *  ⚠️ Il disegno è di `PaginaCategoria` (T95); il guscio (header, piè di pagina, barre) è di `shop.tsx` (T93). */
-import { createFileRoute, notFound, redirect } from "@tanstack/react-router";
+import { createFileRoute, notFound, redirect, type ErrorComponentProps } from "@tanstack/react-router";
+import { ErroreRottaShop } from "@/components/shop/guscio/GuscioShop";
 import { leggeroDaPubblico, PaginaCategoria } from "@/components/shop/pagine/PaginaCategoria";
 import { TESTI_SHOP, riempi } from "@/landing/testi-shop";
 import { SITO } from "@/seo/regole";
@@ -64,8 +65,14 @@ export const Route = createFileRoute("/shop/c/$slug")({
       scripts: [{ type: "application/ld+json", children: serializzaJsonLd(datiStrutturatiLista(lista, SITO)) }],
     };
   },
+  errorComponent: ErroreCategoria,
   component: CategoriaShop,
 });
+
+//  500: con `cms` quello del guscio nuovo (senza barra), con `codice` quello di sempre. Il 404 resta della radice: con `cms` la rotta non lo lancia mai (rimanda a `/shop`).
+function ErroreCategoria(props: ErrorComponentProps) {
+  return <ErroreRottaShop {...props} cms={Route.useRouteContext().modalita === "cms"} />;
+}
 
 function CategoriaShop() {
   const dati = Route.useLoaderData();

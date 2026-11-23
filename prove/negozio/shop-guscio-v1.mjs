@@ -130,6 +130,8 @@ export async function prove(mod, { c, gruppo, radice }) {
   ]);
   const senzaCategorie = (await vista("cms", "/shop", { loaderData: undefined })).html;
   c("senza categorie (guasto del server) l'header non ha «Cura» e la pagina si disegna lo stesso", [false, true], [/Shampoo e balsami/.test(senzaCategorie.slice(0, senzaCategorie.indexOf("</header>"))), nuovo(senzaCategorie)]);
+  const piede = (h) => h.slice(h.indexOf("<footer"), h.indexOf("</footer>"));
+  c("T100a: «Cura» nel piè di pagina c'è con le categorie che hanno prodotti (il guscio le passa) e non c'è senza", [true, false], [/href="\/shop\/c\/shampoo-e-balsami"/.test(piede(v)), /href="\/shop\/c\/shampoo-e-balsami"/.test(piede(senzaCategorie))]);
   c("niente sfondo scuro del vecchio guscio e niente `Toaster` nel nuovo; la radice del guscio nuovo è chiara", [false, true], [v.includes("bg-blueprint"), /data-guscio="nuovo"[^>]*class="[^"]*bg-white/.test(v) || /class="[^"]*bg-white[^"]*"[^>]*data-guscio="nuovo"/.test(v)]);
 
   /* la barra: chi la monta e con quali proprietà */
@@ -144,8 +146,8 @@ export async function prove(mod, { c, gruppo, radice }) {
     const h = conCms[p];
     return [conta(h, "data-slot-barra-fissa"), h.indexOf("</footer>") < h.indexOf("data-slot-barra-fissa"), h.indexOf("</main>") < h.indexOf("data-slot-barra-fissa"), h.endsWith(`${SLOT}</div></div>`)];
   }));
-  c("lo slot lo vedono le pagine solo se `barraFissa` dice «acquisto» (non su 404, 500, anteprima, Invisible Derm); il nodo è quello dell'ultimo figlio", [true, true], [
-    /slot: barra === "acquisto" \? slot : null/.test(srcG), /<div ref=\{setSlot\} data-slot-barra-fissa="" \/>\s*<\/ContestoGuscio\.Provider>/.test(srcG),
+  c("lo slot ha UNA strada sola: l'attributo `data-slot-barra-fissa` (T100a: niente `useSlotBarra`, niente `slot` nel contesto, nessun riferimento al nodo); è l'ultimo figlio, e `barraFissa` decide ancora la barra della consulenza", [false, false, false, true, true], [
+    /useSlotBarra/.test(srcG), /\bslot\s*:/.test(srcG), /setSlot/.test(srcG), /<div data-slot-barra-fissa="" \/>\s*<\/ContestoGuscio\.Provider>/.test(srcG), /barra === "consulenza" && <BarraConsulenza/.test(srcG),
   ]);
   c("`barraFissa` riceve sempre lo stato (404, 500, anteprima, Invisible Derm = nessuna barra): sorgente e funzione", [true, [null, null, null, "acquisto"]], [
     /barraFissa\(\s*pathname\s*,\s*stato\s*\)/.test(srcG), ["non_trovata", "errore", "non_in_vendita", "normale"].map((s) => BARRE.barraFissa("/shop/prodotto/x", s)),
@@ -205,7 +207,7 @@ export const Lente = () => {
       /function NonTrovataShop\(\)\s*\{\s*useStatoPagina\("non_trovata"\)/.test(srcG), /useStatoPagina\("errore"\)/.test(srcG),
     ]);
     c("`useStatoPagina`: segnala in un effetto e rimette «normale» allo smontaggio; fuori dal guscio non fa niente (contesto di partenza)", [true, true, true], [
-      /export function useStatoPagina\([\s\S]*?useEffect\(/.test(srcG), /return \(\) => segnala\("normale"\)/.test(srcG), /createContext<[^>]*>\(\{ segnala: \(\) => \{\}, slot: null \}\)/.test(srcG),
+      /export function useStatoPagina\([\s\S]*?useEffect\(/.test(srcG), /return \(\) => segnala\("normale"\)/.test(srcG), /createContext<[^>]*>\(\{ segnala: \(\) => \{\} \}\)/.test(srcG),
     ]);
 
     const cf = await disegna("Confine", { guasto: false });

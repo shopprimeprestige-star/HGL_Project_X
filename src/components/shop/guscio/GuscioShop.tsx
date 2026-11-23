@@ -5,15 +5,16 @@
  *  il bersaglio di «Vai al contenuto», che sta già nell'header) · piè di pagina · in fondo, DOPO il piè di pagina e fuori da `main`, la barra fissa.
  *  La barra la decide `barraFissa(percorso, stato)`: consulenza su home e categoria (la monta il guscio, `sopraAlBanner` e `hoverScuro`);
  *  acquisto su scheda e carrello (il guscio ha in fondo uno SLOT, `data-slot-barra-fissa`, e la pagina ci disegna `BarraAcquisto`/`BarraCarrello` con `createPortal`, perché
- *  solo lei ha nome, prezzo e gesto d'aggiunta: `useSlotBarra()`). Lo stato della pagina (404, 500, prodotto non in vendita, anteprima) lo
+ *  solo lei ha nome, prezzo e gesto d'aggiunta: lo slot lo trova da sé, con quell'attributo, una strada sola). Lo stato della pagina (404, 500, prodotto non in vendita, anteprima) lo
  *  dice la pagina con `useStatoPagina(...)`: con uno stato che non sia «normale» non c'è nessuna barra.
  *  Per le pagine che arrivano dopo (T94-T98): `NonTrovataShop` e `ErroreShop` sono i `notFoundComponent` e `errorComponent` da montare sulle rotte
- *  V1 (avvolgono la pagina di T83, segnalano lo stato e conservano il ricaricamento dei pezzi che non arrivano di `router.tsx`);
+ *  V1 (avvolgono la pagina di T83, segnalano lo stato e conservano il ricaricamento dei pezzi che non arrivano di `router.tsx`); `ErroreRottaShop` è
+ *  l'`errorComponent` delle rotte V1 che con `codice` non hanno una pagina d'errore loro: con `cms` il 500 del guscio, con `codice` quello del router, com'è oggi;
  *  `ConfinePezzoInRitardo` è il confine d'errore comune per i pezzi caricati in ritardo (menu, lightbox, filtri).
  *  Cosa NON fa: i dati delle pagine, le barre vere (T84a), la cassa. `data-shop-v1` va su `<html>` (lo scroll e i portali lo vedono) e si toglie
  *  allo smontaggio. Il fuoco vero, `inert` e il telefono si guardano nel browser (T103c, T106). Testi: solo `testi-shop.ts`. */
 import { Component, createContext, lazy, Suspense, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Link, useRouterState } from "@tanstack/react-router";
+import { Link, useRouter, useRouterState, type ErrorComponentProps } from "@tanstack/react-router";
 import logo from "@/assets/logo-hair-genius.png";
 import { BarraConsulenza } from "@/components/landing/consulenza/BarraConsulenza";
 import { TESTI_PROVVISORI, TESTI_SHOP } from "@/landing/testi-shop";
@@ -38,10 +39,8 @@ export const guscioNuovo = (pathname: unknown): boolean => guscioPerPercorso(pat
 interface Contesto {
   /** La pagina dice com'è (404, 500, non in vendita…): `barraFissa` ne tiene conto. */
   segnala: (stato: StatoPagina) => void;
-  /** Il nodo in fondo al guscio dove una pagina d'acquisto disegna la sua barra; `null` sul server, prima del montaggio e fuori dal guscio. */
-  slot: HTMLElement | null;
 }
-const ContestoGuscio = createContext<Contesto>({ segnala: () => {}, slot: null });
+const ContestoGuscio = createContext<Contesto>({ segnala: () => {} });
 
 /** Da chiamare nel corpo di una pagina che non vuole barre: `useStatoPagina("non_trovata" | "errore" | "non_in_vendita")`. Allo smontaggio torna «normale». */
 export function useStatoPagina(stato: StatoPagina): void {
@@ -51,11 +50,6 @@ export function useStatoPagina(stato: StatoPagina): void {
     segnala(stato);
     return () => segnala("normale");
   }, [stato, segnala]);
-}
-
-/** Il nodo della barra d'acquisto (scheda, carrello): `createPortal(<BarraAcquisto … />, slot)` quando non è `null`. */
-export function useSlotBarra(): HTMLElement | null {
-  return useContext(ContestoGuscio).slot;
 }
 
 /** 404 e 500 dentro il guscio: avvolgono la pagina di T83 (che non legge il router) e dicono alla pagina il suo stato. */
@@ -73,6 +67,14 @@ export function ErroreShop({ error }: { error: Error }) {
     if (pezzoMancante) ricaricaPerPezzoMancante(error);
   }, [error, pezzoMancante]);
   return <PaginaErrore riprova={() => void ripulisciERicarica()} />;
+}
+
+/** `errorComponent` di categoria, ricerca, home e carrello: con `cms` il 500 del guscio nuovo (niente barra), con `codice` il predefinito del router,
+ *  cioè quello che queste rotte hanno sempre avuto (non hanno un `errorComponent` loro). `cms` lo dice la rotta: legge il suo contesto. */
+export function ErroreRottaShop({ cms, ...props }: ErrorComponentProps & { cms: boolean }) {
+  const Predefinito = useRouter().options.defaultErrorComponent;
+  // shortcut: senza un predefinito (il router vero ne ha sempre uno, `getRouter`) si mostra il 500 del guscio invece di una pagina bianca; cambiarlo se un router senza predefinito arriva in produzione
+  return cms || !Predefinito ? <ErroreShop error={props.error} /> : <Predefinito {...props} />;
 }
 
 /* ── i pezzi caricati in ritardo ───────────────────────────────────────────────────────────────────────────── */
@@ -165,7 +167,6 @@ export interface GuscioShopProps {
 export function GuscioShop({ categorie, children }: GuscioShopProps) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const [stato, setStato] = useState<StatoPagina>("normale");
-  const [slot, setSlot] = useState<HTMLElement | null>(null);
   const [pannelloMontato, setPannelloMontato] = useState(false);
   const [pannelloAperto, setPannelloAperto] = useState(false);
 
@@ -174,8 +175,7 @@ export function GuscioShop({ categorie, children }: GuscioShopProps) {
   useAltezzaBanner();
 
   const barra = barraFissa(pathname, stato);
-  //  Lo slot lo vede solo chi disegna la barra d'acquisto, e solo se `barraFissa` la vuole (non su 404, 500, anteprima, Invisible Derm).
-  const contesto = useMemo(() => ({ segnala: setStato, slot: barra === "acquisto" ? slot : null }), [slot, barra]);
+  const contesto = useMemo(() => ({ segnala: setStato }), []);
 
   /** La voce «Consulenza gratuita» del piè di pagina: lo stesso flusso dell'header (D84), contata come `ClickConsulenza` dal punto «footer». */
   const apriConsulenza = () => {
@@ -195,7 +195,7 @@ export function GuscioShop({ categorie, children }: GuscioShopProps) {
         <main id={ID_CONTENUTO} tabIndex={-1} className="flex-1 focus:outline-none">
           {children}
         </main>
-        <FooterShop consulenza={apriConsulenza} />
+        <FooterShop consulenza={apriConsulenza} categorie={categorie} />
         {pannelloMontato && (
           // shortcut: se il pezzo non arriva il pannello non si apre e non si dice niente (il tasto di «Riprova» è dell'header); se serve un avviso, qui.
           <ConfinePezzoInRitardo ripiego={null}>
@@ -206,8 +206,8 @@ export function GuscioShop({ categorie, children }: GuscioShopProps) {
         )}
         {/* In fondo, dopo il piè di pagina e fuori da `main`: lo spazio che la barra riserva sta sempre sotto tutto. */}
         {barra === "consulenza" && <BarraConsulenza provenienza="stock" sopraAlBanner hoverScuro />}
-        {/* Lo slot c'è sempre ed è l'ultimo figlio del guscio (attributo concordato con T97b e T98). */}
-        <div ref={setSlot} data-slot-barra-fissa="" />
+        {/* Lo slot c'è sempre ed è l'ultimo figlio del guscio (attributo concordato con T97b e T98): le pagine d'acquisto lo cercano con quell'attributo. */}
+        <div data-slot-barra-fissa="" />
       </ContestoGuscio.Provider>
     </div>
   );

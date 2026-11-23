@@ -3,7 +3,7 @@
  *  Il dato è il blocco `tiServeAnche` di `bloccheScheda` (T78): `correlato` = indirizzo, nome, prezzo da, foto. Quel blocco c'è solo con
  *  un prezzo e mai per Invisible Derm (lo decide T78); qui lo si rispetta di nuovo: senza prezzo o per Invisible Derm non si disegna niente.
  *  Il bottone segue `azioneCard` sulla card fatta da `correlato` (che porta `sku`, `prezziDiversi`, `aggiungibile`, T88b): «Aggiungi» con un clic se si può,
- *  altrimenti «Scegli» verso la scheda. `card` (di norma non serve) è una card già pronta dello stesso prodotto, che vince su quella derivata. */
+ *  altrimenti «Scegli» verso la scheda. La card la fa sempre `correlato`: una card già pronta non si passa (nessuno lo faceva, e due strade per lo stesso dato divergono). */
 import { useId } from "react";
 import { FotoShop } from "@/components/shop/FotoShop";
 import { AzioneCard, NomeCard, PrezzoCard } from "@/components/shop/CardProdotto";
@@ -38,11 +38,9 @@ function cardDaCorrelato(c: Correlato): CardLeggera {
 
 export function TiServeAnche({
   correlato,
-  card,
   titolo = TESTI_SHOP.scheda.tiServeAnche,
 }: {
   correlato: Correlato | null | undefined;
-  card?: CardLeggera | null;
   titolo?: string;
 }) {
   const idTitolo = useId();
@@ -52,8 +50,7 @@ export function TiServeAnche({
     eInvisibleDerm(correlato.nome, correlato.slug)
   )
     return null;
-  const c =
-    card && card.slug === correlato.slug && !card.senzaPrezzo ? card : cardDaCorrelato(correlato);
+  const c = cardDaCorrelato(correlato);
   return (
     <section aria-labelledby={idTitolo} className="flex flex-col gap-3">
       <h2 id={idTitolo} className="text-lg font-bold text-[#0A1430]">
