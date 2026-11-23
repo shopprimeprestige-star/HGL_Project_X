@@ -6,9 +6,11 @@
  *  (2 s e 300 ms) e il banner offline si guardano con Playwright (T103c, T106). Qui sta la logica che li comanda.
  *  Criteri: V1-T12 (parte logica), V1-S2, V1-S3, V1-T15 (offline, scheletri). */
 
-/** Per quanto il bottone dice «Aggiunto» (V1-S3). */
+/** Per quanto il bottone dice «Aggiunto» (V1-S3). Il componente, allo scadere del timer, deve CAMBIARE uno stato
+ *  (`setAggiuntoIl(null)`), non solo ri-renderizzare: `setTimeout` può scattare 1 ms prima del confronto con `Date.now()`. */
 export const DURATA_AGGIUNTO_MS = 2000;
-/** Prima di questo ritardo gli scheletri non si mostrano: un'attesa breve non deve lampeggiare (V1-T15). */
+/** Prima di questo ritardo gli scheletri non si mostrano: un'attesa breve non deve lampeggiare (V1-T15). Allo scadere del timer
+ *  il componente deve CAMBIARE uno stato (`setScheletro(true)`), non solo ri-renderizzare: stesso motivo di sopra. */
 export const RITARDO_SCHELETRO_MS = 300;
 
 /** Un istante valido: numero finito. Tutto il resto (null, undefined, NaN) si legge come «mai successo». */

@@ -148,6 +148,7 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("Esc con la tendina chiusa: niente, il tasto resta a chi sta sopra (campo, foglio)", { aperta: false, indice: null, azione: "nessuna", gestito: false }, tasto(V.TENDINA_CHIUSA, "Escape", 5));
   c("un altro tasto (lettera, Tab, Home): nessun cambiamento e non si prende il tasto", [true, true, true], ["a", "Tab", "Home"].map((k) => { const s = T(true, 2); const r = tasto(s, k, 5); return r.aperta === true && r.indice === 2 && r.azione === "nessuna" && r.gestito === false; }));
   c("la voce evidenziata fuori campo (i risultati sono calati da 5 a 3) viene tolta: Invio → cerca", { indice: null, azione: "cerca" }, (() => { const r = tasto(T(true, 4), "Enter", 3); return { indice: r.indice, azione: r.azione }; })());
+  c("bordo: indice uguale al totale (3 su 3 voci) è fuori campo: Invio → cerca, indice null", { indice: null, azione: "cerca" }, (() => { const r = tasto(T(true, 3), "Enter", 3); return { indice: r.indice, azione: r.azione }; })());
   c("voce fuori campo + freccia giù → riparte dalla prima", 0, tasto(T(true, 4), "ArrowDown", 3).indice);
   c("risultati finiti (5 → 0) con tendina «aperta» nello stato: Esc non è gestito, è come chiusa", false, tasto(T(true, 1), "Escape", 0).gestito);
   c("totale non valido (NaN) si legge come zero risultati", "cerca", tasto(T(true, 0), "Enter", NaN).azione);
