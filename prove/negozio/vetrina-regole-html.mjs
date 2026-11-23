@@ -17,6 +17,7 @@
  *  Memoria: ogni disegno si impacchetta con esbuild (≈ 11 MB di heap trattenuto per pacchetto). Qui se ne tengono vivi al massimo due (la «sonda» della
  *  pagina, che serve per chiamarne il `loader` vero, e il disegno in corso) e si staccano da `require.cache` e dal registro `__pagine` subito dopo.
  *  Come per `r2-regole`, la ricerca delle parole proibite non guarda `prove/`. */
+import { createHash } from "node:crypto";
 import { realpathSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
@@ -69,21 +70,28 @@ const entita = (t) => t.replace(/&#x27;/g, "'").replace(/&quot;/g, '"').replace(
 const nodi = (h) => entita(h.replace(/<script[\s\S]*?<\/script>/g, " ").replace(RE_TAG, (tag) => `\u0001${[...tag.matchAll(/\s(?:alt|aria-label|title|placeholder)="([^"]*)"/g)].map((m) => m[1]).join("\u0001")}\u0001`)).split("\u0001").map((t) => t.replace(/\s+/g, " ").trim()).filter(Boolean);
 const leggibile = (h) => nodi(h).join(" ");
 const conta = (h, re) => (h.match(re) ?? []).length;
-const attr = (tag, nome) => (tag.match(new RegExp(`\\s${nome}(?:="([^"]*)")?(?=[\\s/>])`)) ?? [])[1] ?? (new RegExp(`\\s${nome}(?=[\\s/>])`).test(tag) ? "" : undefined);
+const attr = (tag, nome) => (tag.match(new RegExp(`\\s${nome}(?:="([^"]*)")?(?=[\\s/>]|$)`)) ?? [])[1] ?? (new RegExp(`\\s${nome}(?=[\\s/>]|$)`).test(tag) ? "" : undefined);
 const imgs = (h) => h.match(/<img\b(?:"[^"]*"|'[^']*'|[^>"'])*>/g) ?? [];
-/** Le immagini con un dato in più: stanno dentro un link, un bottone o una voce di elenco (che hanno un nome accanto)? */
+/** Le immagini con un dato in più: stanno dentro un link o un bottone che ha un nome accessibile altrove (`aria-label` o testo che si legge)? */
 const VUOTI = new Set(["img", "br", "hr", "input", "link", "meta", "path", "circle", "rect", "line", "source", "use", "polyline", "polygon", "ellipse"]);
-function immaginiConAntenati(h) {
+function immaginiConNome(h) {
   const pila = [];
-  const fuori = [];
+  const controlli = [];
+  const foto = [];
   for (const m of h.matchAll(RE_TAG)) {
     const nome = m[0].match(/^<\/?([a-zA-Z0-9]+)/)[1].toLowerCase();
-    const chiude = m[0].startsWith("</");
-    if (nome === "img") { fuori.push({ tag: m[0], dentro: pila.some((x) => x === "a" || x === "button" || x === "li") }); continue; }
+    if (nome === "img") { foto.push({ tag: m[0], pos: m.index }); continue; }
     if (VUOTI.has(nome) || m[0].endsWith("/>")) continue;
-    if (chiude) { const i = pila.lastIndexOf(nome); if (i >= 0) pila.length = i; } else pila.push(nome);
+    if (!m[0].startsWith("</")) { pila.push({ nome, tag: m[0], da: m.index + m[0].length }); continue; }
+    const k = pila.findLastIndex((x) => x.nome === nome);
+    if (k < 0) continue;
+    const [aperto] = pila.splice(k);
+    if (nome === "a" || nome === "button") controlli.push({ tag: aperto.tag, da: aperto.da, a: m.index });
   }
-  return fuori;
+  return foto.map(({ tag, pos }) => {
+    const dentro = controlli.filter((x) => x.da <= pos && pos < x.a).sort((x, y) => y.da - x.da)[0];
+    return { tag, conNome: Boolean(dentro && ((attr(dentro.tag, "aria-label") ?? "").trim() || leggibile(h.slice(dentro.da, dentro.a)))) };
+  });
 }
 
 /** Cosa è «un pieno»: l'azione col fondo notte e il testo bianco (sul chiaro) o col fondo bianco e il testo notte (sullo scuro), o il blu della consulenza.
@@ -129,7 +137,7 @@ const documento = (guscio, pagina) => guscio.replace(SEGNAPOSTO, pagina);
 
 /** Le regole su UN documento reso. `nome` = «pagina · scenario»; `pagina` = il solo frammento della pagina (le foto del guscio, il logo, non sono foto di contenuto);
  *  `testa` = ciò che `head()` dà (meta e JSON-LD); `derm` = i pezzi di documento che parlano di Invisible Derm (le sue card, o tutta la pagina della sua scheda). */
-function regole(c, { nome, doc, pagina, testa = {}, derm = null, tuttoDerm = false }) {
+function regole(c, { nome, doc, registro = {}, pagina, testa = {}, derm = null, tuttoDerm = false }) {
   const h = senzaDati(doc);
   const { meta, scripts } = leggiTesta(testa);
   const tuttaLaTesta = JSON.stringify(meta) + scripts.join("\n");
@@ -142,20 +150,22 @@ function regole(c, { nome, doc, pagina, testa = {}, derm = null, tuttoDerm = fal
   c(`${nome}: nessun prezzo nei <meta> (né «€», né una cifra con due decimali)`, [], meta.filter((m) => PREZZO.test(String(m.content ?? m.title ?? m.href ?? ""))).map((m) => m.property ?? m.name ?? m.rel));
   // 5b · un solo h1
   c(`${nome}: un solo h1`, 1, conta(h, /<h1[\s>]/g));
-  // 5b · ogni <img> con alt, width, height. `alt=""` è un `alt` (decorazione) solo dentro un link, un bottone o una voce di elenco, che hanno un nome accanto
-  //  (campioni, miniature della galleria, riga del carrello), con `aria-hidden`, o se è una miniatura fissa (`sizes="72px"`, «Ti serve anche»); su una foto grande è un testo alternativo mancato
-  //  (in produzione `FotoShop` senza descrizione scrive `alt=""`).
-  const manca = immaginiConAntenati(h).flatMap(({ tag, dentro }) => {
+  // 5b · ogni <img> con alt, width, height. `alt=""` è un `alt` (decorazione) solo con `aria-hidden`, `role="presentation"`, per una miniatura fissa (`sizes="…px"` ≤ 96:
+  //  campioni, miniature della galleria, riga del carrello, «Ti serve anche») o dentro un link o un bottone che ha un nome altrove (`aria-label` o testo). Non dentro una
+  //  voce di elenco e mai per una foto grande (la card): in produzione `FotoShop` senza descrizione scrive `alt=""`.
+  const senzaAlt = [], senzaMisure = [], copertine = [];
+  for (const { tag, conNome } of immaginiConNome(h)) {
     const alt = attr(tag, "alt");
     const dimensione = (n) => /^[1-9]\d*$/.test(attr(tag, n) ?? "");
-    const mancanti = [];
     const miniatura = /^\d+px$/.test(attr(tag, "sizes") ?? "") && parseInt(attr(tag, "sizes"), 10) <= 96;
-    if (alt === undefined || (alt === "" && !dentro && !miniatura && attr(tag, "aria-hidden") !== "true" && attr(tag, "role") !== "presentation")) mancanti.push("alt");
-    if (!dimensione("width")) mancanti.push("width");
-    if (!dimensione("height")) mancanti.push("height");
-    return mancanti.length ? [`${mancanti.join("+")} · ${(attr(tag, "src") ?? "").slice(0, 60)}`] : [];
-  });
-  c(`${nome}: ogni <img> ha alt, width e height`, [], manca);
+    const decorativa = attr(tag, "aria-hidden") === "true" || attr(tag, "role") === "presentation" || miniatura || conNome;
+    const dove = (attr(tag, "src") ?? "").slice(0, 60);
+    if (alt === undefined || (alt === "" && !decorativa)) senzaAlt.push(dove);
+    if (!dimensione("width") || !dimensione("height")) (attr(tag, "src") ?? "").startsWith("data:") ? senzaMisure.push(`logo · ${dove}`) : (/copertina|poster/i.test(dove) || attr(tag, "aria-hidden") === "true" ? copertine : senzaMisure).push(dove);
+  }
+  c(`${nome}: ogni <img> ha alt`, [], senzaAlt);
+  c(`${nome}: ogni <img> ha width e height (logo e foto)`, [], senzaMisure);
+  c(`${nome}: la copertina del video ha width e height`, [], copertine);
   // 5b · solo una foto `eager` (la prima di contenuto), le altre `lazy`
   const foto = imgs(senzaDati(pagina));
   const nonLazy = foto.filter((i) => attr(i, "loading") !== "lazy");
@@ -163,6 +173,7 @@ function regole(c, { nome, doc, pagina, testa = {}, derm = null, tuttoDerm = fal
   c(`${nome}: fra le foto della pagina al più una è eager (le altre lazy) e al più una ha la priorità alta`, [true, true], [nonLazy.length <= 1, altaPriorita.length <= 1 && altaPriorita.every((i) => nonLazy.includes(i))]);
   // 17 · un solo pieno nel marchio
   const pien = pieni(h);
+  registro[nome] = pien.length;
   c(`${nome}: un solo pieno nel marchio (al massimo un'azione piena; la barra fissa non è nell'HTML)`, [], pien.length <= 1 ? [] : pien);
   // 4 · Invisible Derm senza cifre
   if (derm) {
@@ -201,6 +212,10 @@ async function corpo(mod, { c, radice }) {
   const KC = mod["shop/cms/vetrina-carrello"];
   const SLUG_PATCH = KC.HREF_PATCH_PRONTE.split("/").pop();
   const SLUG_CURA = KC.HREF_CURA.split("/").pop();
+  /** Quanti pieni ha visto la regola in ogni documento: serve a provare che la regola vede qualcosa (un riconoscimento cieco darebbe sempre 0). */
+  const registro = {};
+  /** L'impronta della pagina (senza guscio) di ogni pagina e scenario: i quattro scenari devono dare pagine diverse davvero (non lo stesso HTML quattro volte). */
+  const impronte = {};
   const guasta = (n = "giù") => () => { throw new Error(n); };
 
   /* ═════ i dati: un solo punto dove si dice cosa vale ogni scenario ═════ */
@@ -258,7 +273,9 @@ async function corpo(mod, { c, radice }) {
   /** Disegna e controlla un documento: la pagina `html` dentro il guscio dello scenario. */
   const controlla = (nome, scenario, pagina, extra = {}) => {
     if (!guscio[scenario]) return c(`${nome}: il guscio dello scenario c'è`, true, false);
-    regole(c, { nome, doc: documento(guscio[scenario], pagina.html), pagina: pagina.html, testa: pagina.testa, ...extra });
+    const dove = nome.match(/^(home|categoria|ricerca|scheda|carrello) · (completo|vuoto|pochi|guasto)$/);
+    if (dove) (impronte[dove[1]] ??= {})[dove[2]] = createHash("sha1").update(senzaDati(pagina.html)).digest("hex");
+    regole(c, { nome, registro, doc: documento(guscio[scenario], pagina.html), pagina: pagina.html, testa: pagina.testa, ...extra });
   };
 
   /* ═════ HOME ═════ */
@@ -431,6 +448,17 @@ async function corpo(mod, { c, radice }) {
       libera(base);
     }
   });
+
+  c("la regola del pieno vede i pieni veri (non è cieca): eroe, «Cerca», «Aggiungi», «Vai alla cassa» e il carrello vuoto ne hanno uno", { home: 1, ricerca: 1, scheda: 1, carrello: 1, carrelloVuoto: 1 }, {
+    home: registro["home · completo"], ricerca: registro["ricerca · completo"], scheda: registro["scheda · completo"], carrello: registro["carrello · completo"], carrelloVuoto: registro["carrello · vuoto"],
+  });
+
+  for (const pagina of ["home", "categoria", "ricerca", "scheda", "carrello"]) {
+    const per = impronte[pagina] ?? {};
+    const uguali = SCENARI.flatMap((a, i) => SCENARI.slice(i + 1).filter((b) => !per[a] || !per[b] || per[a] === per[b]).map((b) => `${a} = ${b}`));
+    //  Unica uguaglianza voluta: il `loader` della home, se tutto il server è giù, dà per costruzione la home «vuota» (contenuto vuoto, nessuna tariffa, nessuna categoria).
+    c(`${pagina}: i quattro scenari danno pagine diverse (completo, vuoto, pochi, guasto)${pagina === "home" ? ", salvo vuoto = guasto (il guasto è la home vuota per costruzione)" : ""}`, pagina === "home" ? ["vuoto = guasto"] : [], uguali);
+  }
 
   /* ═════ 404 e 500 DENTRO IL GUSCIO ═════ */
   await blocco(c, "errori", async () => {
