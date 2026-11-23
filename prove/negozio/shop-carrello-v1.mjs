@@ -5,7 +5,8 @@
  *  `ViewCart` nel sorgente) e il sorgente (chiave delle righe, barra nello slot, nessun testo scritto a mano, nessun `localStorage`).
  *  Gli effetti non girano in `react-dom/server`: la barra nello slot, `ViewCart`, la ricerca del «Ti serve anche» e gli avvisi per riga tolta
  *  si provano nel sorgente e con le funzioni pure di T79; il resto è di T103c (browser). Con `codice` la pagina di oggi non cambia (lo prova l'oro). */
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createRequire } from "node:module";
 import { CARRELLO_MISTO, CARRELLO_NUOVO, CARRELLO_VECCHIO, TARIFFA_CARRELLO_OK, carrelloFinto, rivalidaFinta, trovaParoleVietate } from "./_dati-vetrina.mjs";
@@ -16,14 +17,27 @@ const PAGINA = "src/components/shop/pagine/PaginaCarrello.tsx";
 const requireQui = createRequire(import.meta.url);
 const conta = (html, re) => (html.match(re) ?? []).length;
 const leggibile = (html) => html.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+/** `prove.mjs` non impacchetta `src/landing/*`: i testi si caricano da soli (come `shop-barre.mjs`), senza moduli aggiunti a mano nella suite. */
+async function carica(radice, file) {
+  const esbuild = requireQui(join(radice, "node_modules/esbuild"));
+  const dir = mkdtempSync(join(tmpdir(), "prova-carrello-v1-"));
+  try {
+    const r = await esbuild.build({ entryPoints: [join(radice, file)], bundle: true, write: false, platform: "node", format: "cjs", alias: { "@": join(radice, "src") }, absWorkingDir: radice, nodePaths: [join(radice, "node_modules")], logLevel: "silent" });
+    const uscita = join(dir, "modulo.cjs");
+    writeFileSync(uscita, r.outputFiles[0].text);
+    return requireQui(uscita);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
 const nudo = (s) => s.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
 const CONSULENZA = /consulenza|non sai cosa scegliere/i;
 
 export async function prove(mod, { c, gruppo, radice }) {
   gruppo("VETRINA V1 · T98 · PAGINA DEL CARRELLO (23/11/2026)");
   const V = mod["shop/cms/vetrina-carrello"];
-  const TS = mod["landing/testi-shop"];
-  if (!V || !TS) return c("i moduli `vetrina-carrello` e `testi-shop` esistono", true, false);
+  const TS = await carica(radice, "src/landing/testi-shop.ts");
+  if (!V) return c("il modulo `vetrina-carrello` esiste", true, false);
   const T = TS.TESTI_SHOP.carrello;
   const pagina = (lines, extra = {}) =>
     rendi(radice, FILE, { loaderData: { modo: "cms" }, carrello: carrelloFinto(lines, extra.carrello), rivalida: rivalidaFinta(extra.rivalida), tariffa: extra.tariffa ?? TARIFFA_CARRELLO_OK, pathname: "/shop/carrello" });
@@ -152,6 +166,7 @@ export async function prove(mod, { c, gruppo, radice }) {
     ts_.forEachChild(n, visita);
   };
   visita(sf);
+  c("sorgente: le righe di prima si dimenticano quando il carrello si svuota (se si toglie l'unica riga durante il controllo, nessun «non è più disponibile» falso)", true, /useEffect\(\(\) => \{\s*if \(lines\.length === 0\) \{\s*prima\.current = \[\];\s*return;\s*\}[^]*?avvisiRiga\(prima\.current, lines\)/.test(sn));
   c("sorgente: nessuna parola scritta a mano nel componente (né testo in JSX né aria-label/alt/title): tutto da `testi-shop.ts` e dalle frasi di R2", [], scritti);
   c("sorgente: nessun segnaposto né «da confermare» né `font-family` nel componente", [false, false], [/\{\{|da confermare/i.test(src), /font-family|Anton|Instrument/.test(src)]);
 }

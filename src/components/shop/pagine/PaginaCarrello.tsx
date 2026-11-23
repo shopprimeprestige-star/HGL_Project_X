@@ -108,6 +108,11 @@ export function PaginaCarrello() {
   const prima = useRef<CartLine[]>([]);
   const [esito, setEsito] = useState<{ avvisi: AvvisoRiga[]; ripulite: number }>({ avvisi: [], ripulite: 0 });
   useEffect(() => {
+    // carrello svuotato (anche dal cliente, durante il controllo): niente da confrontare, altrimenti la riga tolta da lui passerebbe per «non più disponibile»
+    if (lines.length === 0) {
+      prima.current = [];
+      return;
+    }
     if (stato === "controllo") {
       prima.current = lines;
       return;
