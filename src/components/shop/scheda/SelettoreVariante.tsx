@@ -136,13 +136,14 @@ function Pillola({ valore, scelto, esaurito, tappa, onScegli }: PropsRadio) {
       aria-label={etichettaCampione(valore, esaurito)}
       tabIndex={tappa ? 0 : -1}
       onClick={onScegli}
-      className={`shop-anello relative min-h-11 min-w-11 overflow-hidden rounded-md border-2 px-4 text-base font-semibold ${
+      className={`shop-anello relative inline-flex min-h-11 min-w-11 items-center justify-center gap-1.5 overflow-hidden rounded-md border-2 px-4 text-base font-semibold ${
         scelto
           ? "border-[#0A1430] bg-[#0A1430] text-white"
           : `border-[#0A1430]/60 bg-white ${esaurito ? "text-[#0A1430]/65" : "text-[#0A1430]"}`
       }`}
     >
       {valore}
+      {scelto && <Check className="size-4" aria-hidden="true" />}
       {esaurito && (
         <span
           data-esaurito

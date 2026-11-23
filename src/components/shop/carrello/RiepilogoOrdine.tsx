@@ -40,7 +40,7 @@ export function RiepilogoOrdine({ riepilogo, formatta, refBottone }: Props) {
           <dt className="font-semibold">
             {t.totale} <span className="text-sm font-normal text-ink-muted">({t.ivaInclusa})</span>
           </dt>
-          <dd className="text-lg font-semibold tabular-nums">
+          <dd className="text-2xl font-bold tabular-nums lg:text-[28px]">
             {testoPrezzo(riepilogo.totale, formatta)}
           </dd>
         </div>

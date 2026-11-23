@@ -282,13 +282,13 @@ export async function prove(mod, { c, gruppo, radice }) {
   const testoAvviso = "Di questo prodotto ne abbiamo 3. Abbiamo portato la quantità a 3.";
   const conAvviso = (await disegnaRiga(alfa, { avviso: testoAvviso })).html;
   c("con avviso: il testo è dentro una regione «status»", true, new RegExp(`<div[^>]*role="status"[^>]*>(?:(?!</div>).)*${testoAvviso.replace(/[.]/g, "\\.")}`).test(conAvviso));
-  c("l'avviso è ambra (sfondo, bordo e testo) e ha un'icona nascosta alla lettura", [true, true, true, true], [/bg-amber-50/.test(conAvviso), /border-amber-/.test(conAvviso), /text-amber-9\d\d/.test(conAvviso), /<svg\b[^>]*aria-hidden="true"/.test(conAvviso.slice(conAvviso.indexOf('role="status"')))]);
+  c("l'avviso è un riquadro bianco col filetto ambra a sinistra (T102 A18: niente giallo pieno), testo notte, e ha un'icona ambra nascosta alla lettura", [true, true, true, false, true], [/border-l-4/.test(conAvviso) && /border-l-\[#8A5A00\]/.test(conAvviso), /\bbg-white\b/.test(conAvviso), /text-\[#8A5A00\]/.test(conAvviso), /(bg|border|text)-amber-/.test(conAvviso), /<svg\b[^>]*aria-hidden="true"/.test(conAvviso.slice(conAvviso.indexOf('role="status"')))]);
   c("l'avviso non è rosso (il rosso non si usa nelle pagine V1)", false, /\b(bg|text|border)-(red|rose)-/.test(conAvviso));
-  c("un avviso vuoto o null non disegna nessun riquadro", [false, false], [(await disegnaRiga(alfa, { avviso: "" })).html.includes("bg-amber-50"), (await disegnaRiga(alfa, { avviso: null })).html.includes("bg-amber-50")]);
+  c("un avviso vuoto o null non disegna nessun riquadro", [false, false], [(await disegnaRiga(alfa, { avviso: "" })).html.includes("border-l-[#8A5A00]"), (await disegnaRiga(alfa, { avviso: null })).html.includes("border-l-[#8A5A00]")]);
   c("`AvvisoCarrello` è esportato: la pagina lo usa per le righe tolte e per la frase generale", [true, true], [/export function AvvisoCarrello/.test(sorgenti.RigaCarrelloShop), typeof banco.AvvisoCarrello === "function"]);
   const hAvviso = (await rendiComponente(radice, file("RigaCarrelloShop.tsx"), "AvvisoCarrello", { testo: "Una frase per la pagina." })).html;
-  c("`AvvisoCarrello` da solo: regione + riquadro ambra + testo", [true, true], [/role="status"/.test(hAvviso), /bg-amber-50/.test(hAvviso) && hAvviso.includes("Una frase per la pagina.")]);
-  c("`AvvisoCarrello` senza testo: solo la regione vuota", [true, false], [/role="status"/.test((await rendiComponente(radice, file("RigaCarrelloShop.tsx"), "AvvisoCarrello", { testo: null })).html), (await rendiComponente(radice, file("RigaCarrelloShop.tsx"), "AvvisoCarrello", { testo: null })).html.includes("bg-amber-50")]);
+  c("`AvvisoCarrello` da solo: regione + riquadro ambra + testo", [true, true], [/role="status"/.test(hAvviso), /border-l-\[#8A5A00\]/.test(hAvviso) && hAvviso.includes("Una frase per la pagina.")]);
+  c("`AvvisoCarrello` senza testo: solo la regione vuota", [true, false], [/role="status"/.test((await rendiComponente(radice, file("RigaCarrelloShop.tsx"), "AvvisoCarrello", { testo: null })).html), (await rendiComponente(radice, file("RigaCarrelloShop.tsx"), "AvvisoCarrello", { testo: null })).html.includes("border-l-[#8A5A00]")]);
 
   // ════ IL RIEPILOGO ═══════════════════════════════════════════════════════════════════════════════════════
   const vOk = vista(CARRELLO_NUOVO, "ok");
@@ -301,7 +301,8 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("«IVA inclusa» è nella voce del Totale", true, /Totale[^<]*(<[^>]*>[^<]*){0,3}IVA inclusa/.test(hOk));
   c("le cifre sono quelle del riepilogo: prodotti, spedizione (490), totale", [true, true, true], [tOk.includes(formatta(rOk.prodotti.cent)), tOk.includes(formatta(490)), tOk.includes(formatta(rOk.prodotti.cent + 490))]);
   c("totale = prodotti + spedizione (nessun sconto, nessuna soglia)", rOk.prodotti.cent + 490, rOk.totale.cent);
-  c("il Totale è l'ultima cifra e ha più peso (font-semibold) delle altre; mai il carattere più grande della pagina (≤ text-xl)", [true, false], [/<dd\b[^>]*font-semibold[^>]*>[^<]*<\/dd>\s*<\/div>\s*<a|font-semibold[^>]*>[^<]*€/.test(hOk), /\btext-(2xl|3xl|4xl|5xl)\b/.test(hOk)]);
+  // T102 A17: il Totale passa da 18 px a 24/28 px (era invisibile accanto al prezzo di una riga). Resta più piccolo dell'H1 del carrello (24 px sul telefono, 36 dal tablet, A9): mai il carattere più grande.
+  c("il Totale è l'ultima cifra, in grassetto, 24 px (28 dal computer): mai oltre l'H1 del carrello (nessun text-3xl o più)", [true, true, true, false], [/<dd\b[^>]*font-bold[^>]*>[^<]*<\/dd>\s*<\/div>\s*<\/dl>\s*<a/.test(hOk), /<dd\b[^>]*\btext-2xl\b[^>]*>[^<]*<\/dd>/.test(hOk), /\blg:text-\[28px\]/.test(hOk), /\btext-(3xl|4xl|5xl)\b/.test(hOk)]);
   c("è una lista di descrizioni (dl): voce e valore legati per chi legge con lo schermo", [true, 3], [/<dl\b/.test(hOk), conta(hOk, /<dt\b/g)]);
   c("nessuna barra di spedizione gratuita, nessuna consulenza, nessun «da calcolare»", false, /gratuit|gratis|ti mancano|consulenza|da calcolare/i.test(hOk));
   c("niente prezzi barrati né sconti", false, /<del|<s>|line-through|sconto|-\d+ ?%/i.test(hOk));

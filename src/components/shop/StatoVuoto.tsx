@@ -16,8 +16,8 @@ export type AzioneStato = { testo: string; aspetto?: AspettoAzione } & (
 //  Notte `#0A1430` (bianco sopra: 18,2:1), un solo pieno per schermo; il link usa il blu scuro del marchio (5:1 su bianco).
 const BASE = "inline-flex items-center justify-center text-sm transition-colors shop-anello";
 const ASPETTI: Record<AspettoAzione, string> = {
-  pieno: `${BASE} min-h-12 w-full rounded-md bg-[#0A1430] font-semibold px-6 text-white hover:bg-[#1B2A4E] sm:w-auto sm:min-w-48`,
-  contorno: `${BASE} min-h-12 w-full rounded-md border-2 font-semibold border-[#0A1430] px-6 text-[#0A1430] hover:bg-ink/5 sm:w-auto sm:min-w-48`,
+  pieno: `${BASE} min-h-12 w-full rounded-md bg-[#0A1430] font-semibold px-6 text-white hover:bg-[#1B2A4E] sm:min-w-0`,
+  contorno: `${BASE} min-h-12 w-full rounded-md border-2 font-semibold border-[#0A1430] px-6 text-[#0A1430] hover:bg-ink/5 sm:min-w-0`,
   link: `${BASE} min-h-11 px-2 font-medium text-brand-scuro underline underline-offset-4 hover:text-ink`,
 };
 
@@ -61,7 +61,7 @@ export function StatoVuoto({ titolo, testo, azioni = [], icona: Icona = Inbox, l
         </p>
       ))}
       {azioni.length > 0 && (
-        <div className="mt-6 flex w-full flex-col items-center gap-3 sm:w-auto">
+        <div className="mt-6 flex w-full flex-col items-center gap-3 sm:w-64">
           {azioni.map((a) => (
             <Ingresso key={a.testo} azione={a} />
           ))}

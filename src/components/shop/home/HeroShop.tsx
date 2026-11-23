@@ -10,9 +10,9 @@ import { Link } from "@tanstack/react-router";
 import { RichText } from "@/components/landing/RichText";
 import { FotoShop } from "@/components/shop/FotoShop";
 import { FasciaFiducia, vociDellaFascia } from "@/components/shop/home/FasciaFiducia";
-import { riempi } from "@/landing/testi-shop";
+import { riempi, TESTI_SHOP } from "@/landing/testi-shop";
 import type { SpedizionePubblica } from "@/shop/cassa/spedizione";
-import { HREF_CURA, HREF_PATCH_PRONTE } from "@/shop/cms/vetrina-carrello";
+import { HREF_CURA, HREF_PATCH_PRONTE, hrefCategoria } from "@/shop/cms/vetrina-carrello";
 import { confermatiDa, mediaDi, slotUsabile, testiDi } from "@/shop/cms/vetrina-contenuto";
 import { pianoHero } from "@/shop/cms/vetrina-home";
 
@@ -46,7 +46,18 @@ export function HeroShop({
   const didascalia = piano.ritratto && t["shop.hero.didascalia"] ? riempi(t["shop.hero.didascalia"], { nome: piano.nome }) : null;
   const riga = t["shop.hero.riga"];
   const h1 = t["shop.hero.h1"];
-  const cta1 = haProdotti(HREF_PATCH_PRONTE, categorieConProdotti) ? t["shop.hero.cta1"] : null;
+  // Il pieno porta alle «Patch pronte» (testo del CMS). Se la loro categoria non ha prodotti ripiega sulla prima categoria DOCUMENTATA che ne ha
+  // (`TESTI_SHOP.categorie`), purché non sia quella della cura (che ha già il suo bottone), e la scritta è il NOME di quella categoria: mai «Patch pronte»
+  // sopra un'altra destinazione. Slug non documentato = nessun bottone (T101 A2, rifatta dopo il revisore).
+  const pieno = haProdotti(HREF_PATCH_PRONTE, categorieConProdotti)
+    ? { href: HREF_PATCH_PRONTE, testo: t["shop.hero.cta1"] }
+    : (() => {
+        const ripiego = Array.isArray(categorieConProdotti)
+          ? categorieConProdotti.map((s) => TESTI_SHOP.categorie.find((c) => c.slug === s)).find((c) => c && hrefCategoria(c) !== HREF_CURA)
+          : undefined;
+        return ripiego ? { href: hrefCategoria(ripiego), testo: ripiego.nome } : null;
+      })();
+  const cta1 = pieno?.testo ?? null;
   const cta2 = haProdotti(HREF_CURA, categorieConProdotti) ? t["shop.hero.cta2"] : null;
   return (
     <section className="bg-blueprint relative overflow-hidden before:pointer-events-none before:absolute before:inset-[-20%] before:content-[''] before:bg-[radial-gradient(600px_circle_at_30%_20%,var(--brand-velo-22)_0%,transparent_60%)] before:animate-[spotlight-drift_12s_ease-in-out_infinite] motion-reduce:before:animate-none">
@@ -68,7 +79,7 @@ export function HeroShop({
           {(cta1 || cta2) && (
             <div className={`mt-8 flex w-full flex-col gap-3 sm:w-auto sm:flex-row ${centrato ? "justify-center" : ""}`}>
               {cta1 && (
-                <Link to={HREF_PATCH_PRONTE} className={PIENO}>
+                <Link to={pieno?.href ?? HREF_PATCH_PRONTE} className={PIENO}>
                   {cta1}
                 </Link>
               )}
@@ -96,7 +107,7 @@ export function HeroShop({
             <span className="br-bl z-10" aria-hidden="true" />
           </div>
         )}
-        <FasciaFiducia voci={vociDellaFascia(contenuto, tariffa)} className={centrato ? "justify-center" : "lg:col-span-2"} />
+        <FasciaFiducia voci={vociDellaFascia(contenuto, tariffa)} className={centrato ? "justify-center mt-8" : "lg:col-span-2"} />
       </div>
     </section>
   );

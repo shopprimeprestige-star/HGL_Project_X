@@ -63,7 +63,7 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("V1-K4: nessuna barra di spedizione gratuita, nessuna soglia, mai «da calcolare»", [false, false, false], [/gratuit/i.test(hc), /per la spedizione|ti manca/i.test(hc), /da calcolare/i.test(hc)]);
   c("nessuna stella, recensione, barrato; nessuna parola vietata né segnaposto; nessun «da confermare»", [[], false, false], [trovaParoleVietate(hc), /lucide-star|recension|line-through/i.test(hc), /\{\{|da confermare/i.test(hc)]);
   c("la regione degli avvisi c'è sempre (anche vuota): una regione che nasce già piena non viene letta", [true, true], [/<div role="status"><\/div>/.test(hc), conta(hc, /role="status"/g) >= 3]);
-  c("senza avvisi nessun riquadro ambra e nessun `role=alert`", [false, false], [/border-amber/.test(hc), /role="alert"/.test(hc)]);
+  c("senza avvisi nessun riquadro ambra (filetto `border-l-[#8A5A00]`, T102 A18) e nessun `role=alert`", [false, false], [/border-l-\[#8A5A00\]/.test(hc), /role="alert"/.test(hc)]);
 
   // ── il vuoto: K5 ──
   const vuoto = await pagina([]);
@@ -98,7 +98,7 @@ export async function prove(mod, { c, gruppo, radice }) {
   // ── righe del catalogo vecchio e di Invisible Derm (V1-K3) ──
   const misto = await pagina(CARRELLO_MISTO);
   c("V1-K3: righe vecchie e Invisible Derm non si disegnano (una sola riga), e la frase «alcuni prodotti non sono più disponibili» si legge nel riquadro ambra", [1, true, true], [
-    conta(misto.html, /<li\b/g), /role="status"[^>]*><p[^>]*>(?:<svg[^]*?<\/svg>)?Alcuni prodotti non sono più disponibili/.test(misto.html), /border-amber/.test(misto.html)]);
+    conta(misto.html, /<li\b/g), /role="status"[^>]*><p[^>]*>(?:<svg[^]*?<\/svg>)?Alcuni prodotti non sono più disponibili/.test(misto.html), /border-l-\[#8A5A00\]/.test(misto.html)]);
   const soloVecchio = await pagina(CARRELLO_VECCHIO);
   c("V1-K3: con SOLE righe vecchie (e il controllo fatto) il carrello è vuoto — si decide sulle righe che si vedono, non sul conteggio — e la frase c'è", [1, true, 0, true], [
     conta(soloVecchio.html, /data-stato="vuoto"/g), /Alcuni prodotti non sono più disponibili/.test(soloVecchio.html), conta(soloVecchio.html, /Vai alla cassa/g), CONSULENZA.test(soloVecchio.html)]);

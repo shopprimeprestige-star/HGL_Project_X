@@ -138,8 +138,8 @@ export function ShopHeader({ categorie, ricerca }: ShopHeaderProps) {
       <header className="sticky top-0 z-30 border-b border-white/10 bg-[#081634]/95">
         <div className="mx-auto flex h-14 max-w-7xl items-center gap-2 px-4 min-[360px]:px-6 lg:h-[72px] lg:gap-8 lg:px-10">
           <Link to="/shop" className="brackets shop-anello-scuro inline-flex shrink-0 items-center justify-center px-3 py-2.5 lg:px-4">
-            <span className="br-tr" />
-            <span className="br-bl" />
+            <span className="br-tr" aria-hidden="true" />
+            <span className="br-bl" aria-hidden="true" />
             <img src={logo} alt={GUSCIO.logoAlt} width={1920} height={453} className="h-6 w-auto select-none lg:h-9" draggable={false} />
           </Link>
 

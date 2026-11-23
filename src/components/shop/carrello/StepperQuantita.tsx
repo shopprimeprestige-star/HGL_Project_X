@@ -22,7 +22,7 @@ export function quantitaDaTesto(testo: string, attuale: number, min: number, max
 }
 
 const BOTTONE =
-  "shop-anello flex h-11 w-11 items-center justify-center rounded-md border border-ink/25 bg-white text-[#0A1430] transition-colors hover:bg-ink/5 active:bg-ink/10 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white";
+  "shop-anello flex h-11 w-11 items-center justify-center rounded-md border border-[#7C8695] bg-white text-[#0A1430] transition-colors hover:bg-ink/5 active:bg-ink/10 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white";
 
 interface Props {
   qty: number;
@@ -78,7 +78,7 @@ export function StepperQuantita({
             conferma();
           } else if (e.key === "Escape") setBozza(null);
         }}
-        className="shop-anello h-11 w-12 rounded-md border border-ink/25 bg-white text-center text-base font-semibold tabular-nums text-[#0A1430]"
+        className="shop-anello h-11 w-12 rounded-md border border-[#7C8695] bg-white text-center text-base font-semibold tabular-nums text-[#0A1430]"
       />
       <button type="button" disabled={qty >= max} onClick={() => vai(qty + 1)} className={BOTTONE}>
         <Plus aria-hidden className="h-4 w-4" />

@@ -40,7 +40,7 @@ export function BloccoFiducia({
     return (
       <ul role="list" className={`flex flex-wrap gap-2 ${className}`}>
         {scelte.map((v) => (
-          <li key={v.id} className={`rounded-full border px-3 py-1.5 text-sm ${pillola}`}>
+          <li key={v.id} className={`rounded-2xl border px-3 py-1.5 text-sm leading-snug ${pillola}`}>
             {v.testo}
           </li>
         ))}

@@ -237,7 +237,12 @@ export async function prove(_mod, { c, gruppo, radice }) {
       const colonna = trova(a.albero, (e) => figli(e).some((f) => f?.type?.name === "BloccoAcquisto"))[0];
       return [/\blg:col-start-2\b/.test(colonna?.props.className ?? ""), /\blg:row-span-2\b/.test(colonna?.props.className ?? ""), /overflow/.test(codice)];
     })());
-    c("tutti gli h2 delle sezioni hanno la stessa misura: la pagina li porta a `text-lg` (T88a ha `text-xl`, il resto `text-lg`)", 1, trova(a.albero, (e) => typeof e.props?.className === "string" && e.props.className.includes("[&_h2]:text-lg")).length);
+    // T102 A12: prima la pagina schiacciava tutti gli h2 a 18 px con `[&_h2]:text-lg`; ora ogni file dà il suo titolo `text-xl md:text-2xl` (20/24 px) e la pagina non forza niente
+    const classiTitoli = ["scheda/SezioniScheda1.tsx", "scheda/SezioniScheda2.tsx", "TiServeAnche.tsx"].map((f) => {
+      const t = senzaCommenti(readFileSync(join(radice, "src/components/shop", f), "utf8"));
+      return (t.match(/(?:const (?:H2|CLASSI_TITOLO) = |<h2\b[^>]*className=)"([^"]*)"/) ?? [])[1] ?? "";
+    });
+    c("tutti gli h2 delle sezioni hanno la stessa misura (`text-xl md:text-2xl`, grassetto) e la pagina non li forza più", [true, true, 0], [classiTitoli.every((k) => /\btext-xl\b/.test(k) && /\bmd:text-2xl\b/.test(k) && /\bfont-bold\b/.test(k)), new Set(classiTitoli).size === 1, trova(a.albero, (e) => typeof e.props?.className === "string" && /\[&_h2\]/.test(e.props.className)).length]);
 
     // ── il kit: «Cosa contiene» una volta sola ──
     const k = apri(kit);

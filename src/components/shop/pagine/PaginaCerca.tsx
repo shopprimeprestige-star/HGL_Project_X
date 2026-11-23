@@ -64,7 +64,7 @@ export function PaginaCerca({ carte, suggeriti, q, guasto = false, riprova }: Pa
   const risultati = ricercaFatta && !guasto && trovati.length > 0;
   return (
     <div className="mx-auto w-full max-w-6xl px-4 py-8 min-[360px]:px-6 sm:py-12">
-      <h1 className="text-balance break-words text-3xl font-bold tracking-tight text-[#0A1430] sm:text-4xl">
+      <h1 className="text-balance break-words text-2xl font-bold leading-[1.1] tracking-tight text-[#0A1430] md:text-4xl">
         {ricercaFatta
           ? riempi(TESTI_PROVVISORI.cerca.titolo, { testo: cercato })
           : TESTI_PROVVISORI.guscio.cerca}
@@ -88,7 +88,7 @@ export function PaginaCerca({ carte, suggeriti, q, guasto = false, riprova }: Pa
           autoCapitalize="off"
           spellCheck={false}
           enterKeyHint="search"
-          className="shop-anello h-12 min-w-0 flex-1 appearance-none truncate rounded-md border border-ink/40 bg-white px-3 text-base text-ink placeholder:text-ink-muted"
+          className="shop-anello h-12 min-w-0 flex-1 appearance-none truncate rounded-md border border-[#7C8695] bg-white px-3 text-base text-ink placeholder:text-ink-muted"
         />
         <button
           type="submit"
@@ -118,7 +118,7 @@ export function PaginaCerca({ carte, suggeriti, q, guasto = false, riprova }: Pa
         </div>
       ) : risultati ? (
         <div className="mt-3">
-          <GrigliaCard card={trovati} livello="h2" prima />
+          <GrigliaCard card={trovati} colonne={4} livello="h2" prima />
         </div>
       ) : (
         <div className="mt-8 space-y-12">

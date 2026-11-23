@@ -53,7 +53,7 @@ export function TiServeAnche({
   const c = cardDaCorrelato(correlato);
   return (
     <section aria-labelledby={idTitolo} className="flex flex-col gap-3">
-      <h2 id={idTitolo} className="text-lg font-bold text-[#0A1430]">
+      <h2 id={idTitolo} className="text-xl font-bold tracking-tight text-[#0A1430] md:text-2xl">
         {titolo}
       </h2>
       <div className="group relative flex items-center gap-3 rounded-[14px] border border-ink/10 bg-white p-3 transition-colors hover:border-brand/35 focus-within:border-brand/35">
