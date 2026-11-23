@@ -48,6 +48,7 @@ import { CookieBanner } from "@/components/landing/CookieBanner";
 import { FaqAccordion } from "@/components/landing/FaqAccordion";
 import { MediaSlot } from "@/components/landing/MediaSlot";
 import { RichText } from "@/components/landing/RichText";
+import { H2, Pillola, Pilastro, SEZIONE, Testata, Trascrizione } from "@/components/landing/blocchi";
 import { BarraPrenotaId } from "@/components/landing/invisible-derm/BarraPrenotaId";
 import { ClipLoop } from "@/components/landing/invisible-derm/ClipLoop";
 import { DisegnoConfronto } from "@/components/landing/invisible-derm/DisegnoConfronto";
@@ -134,15 +135,6 @@ function useFocusPrenota() {
   }, []);
 }
 
-function Pillola({ children }: { children: React.ReactNode }) {
-  return (
-    <span className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/5 px-4 py-2 text-sm font-semibold text-white">
-      <Check className="h-4 w-4 shrink-0 text-brand" strokeWidth={2.5} aria-hidden="true" />
-      {children}
-    </span>
-  );
-}
-
 /** Apre il popup del calendario (in v1 ogni bottone apre il popup, il modulo in fondo resta). */
 const ApriPrenota = createContext<() => void>(() => {});
 
@@ -203,51 +195,6 @@ function Cta({ traccia }: { traccia: string }) {
       <Bottone traccia={traccia} />
       <p className="mt-3 text-sm text-white/75">{RIGA_BOTTONE}</p>
     </div>
-  );
-}
-
-const SEZIONE = "px-6 lg:px-10 max-w-7xl mx-auto py-16 sm:py-20 lg:py-28";
-const H2 = "mt-4 text-3xl md:text-5xl font-bold tracking-tight leading-[1.05] text-balance";
-
-function Testata({ id, sopratitolo, children, centrato = true, scuro = false }: { id: string; sopratitolo: string; children: React.ReactNode; centrato?: boolean; scuro?: boolean }) {
-  return (
-    <div className={centrato ? "mx-auto max-w-3xl text-center" : ""}>
-      <div className="eyebrow">{sopratitolo}</div>
-      <h2 id={id} className={`${H2} ${scuro ? "text-white" : "text-ink"}`}>
-        {children}
-      </h2>
-    </div>
-  );
-}
-
-function Pilastro({ n, Icon, titolo, testo, kicker, didascalia, media, className = "" }: { n: string; Icon: typeof Ruler; titolo: string; testo: string; kicker?: string; didascalia?: string; media?: React.ReactNode; className?: string }) {
-  return (
-    <div className={`ng-pillar p-7 ${className}`}>
-      {media ? (
-        <div className="-mx-7 -mt-7 mb-6 [&>div]:rounded-none">{media}</div>
-      ) : (
-        <>
-          <span className="ng-pillar__num">{n}</span>
-          <div className="ng-pillar__icon mb-6">
-            <Icon className="relative z-10 h-6 w-6" strokeWidth={2} />
-          </div>
-        </>
-      )}
-      <h3 className="text-lg font-bold tracking-tight text-ink">{titolo}</h3>
-      {media && kicker && <div className="ng-pillar__kicker mt-3">{kicker}</div>}
-      <p className="mt-3 text-base leading-relaxed text-ink-muted">{testo}</p>
-      {media && didascalia && <p className="mt-3 text-sm text-ink-muted">{didascalia}</p>}
-    </div>
-  );
-}
-
-function Trascrizione({ testo }: { testo: string }) {
-  if (!testo) return null;
-  return (
-    <details className="mt-3 text-sm text-ink-muted">
-      <summary className="inline-flex min-h-11 cursor-pointer items-center font-semibold underline underline-offset-4">{COSE.linkTrascrizione}</summary>
-      <p className="mt-2 whitespace-pre-line leading-relaxed">{testo}</p>
-    </details>
   );
 }
 

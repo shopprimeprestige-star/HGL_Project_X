@@ -1,0 +1,34 @@
+{
+ "base": "99d94d3",
+ "identiche": true,
+ "sorgenti": {
+  "Pillola": "function Pillola({ children }: { children: React.ReactNode }) {\n  return (\n    <span className=\"inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/5 px-4 py-2 text-sm font-semibold text-white\">\n      <Check className=\"h-4 w-4 shrink-0 text-brand\" strokeWidth={2.5} aria-hidden=\"true\" />\n      {children}\n    </span>\n  );\n}",
+  "Testata": "function Testata({ id, sopratitolo, children, centrato = true, scuro = false }: { id: string; sopratitolo: string; children: React.ReactNode; centrato?: boolean; scuro?: boolean }) {\n  return (\n    <div className={centrato ? \"mx-auto max-w-3xl text-center\" : \"\"}>\n      <div className=\"eyebrow\">{sopratitolo}</div>\n      <h2 id={id} className={`${H2} ${scuro ? \"text-white\" : \"text-ink\"}`}>\n        {children}\n      </h2>\n    </div>\n  );\n}",
+  "Pilastro": "function Pilastro({ n, Icon, titolo, testo, kicker, didascalia, media, className = \"\" }: { n: string; Icon: typeof Ruler; titolo: string; testo: string; kicker?: string; didascalia?: string; media?: React.ReactNode; className?: string }) {\n  return (\n    <div className={`ng-pillar p-7 ${className}`}>\n      {media ? (\n        <div className=\"-mx-7 -mt-7 mb-6 [&>div]:rounded-none\">{media}</div>\n      ) : (\n        <>\n          <span className=\"ng-pillar__num\">{n}</span>\n          <div className=\"ng-pillar__icon mb-6\">\n            <Icon className=\"relative z-10 h-6 w-6\" strokeWidth={2} />\n          </div>\n        </>\n      )}\n      <h3 className=\"text-lg font-bold tracking-tight text-ink\">{titolo}</h3>\n      {media && kicker && <div className=\"ng-pillar__kicker mt-3\">{kicker}</div>}\n      <p className=\"mt-3 text-base leading-relaxed text-ink-muted\">{testo}</p>\n      {media && didascalia && <p className=\"mt-3 text-sm text-ink-muted\">{didascalia}</p>}\n    </div>\n  );\n}",
+  "Trascrizione": "function Trascrizione({ testo }: { testo: string }) {\n  if (!testo) return null;\n  return (\n    <details className=\"mt-3 text-sm text-ink-muted\">\n      <summary className=\"inline-flex min-h-11 cursor-pointer items-center font-semibold underline underline-offset-4\">{COSE.linkTrascrizione}</summary>\n      <p className=\"mt-2 whitespace-pre-line leading-relaxed\">{testo}</p>\n    </details>\n  );\n}",
+  "SEZIONE": "const SEZIONE = \"px-6 lg:px-10 max-w-7xl mx-auto py-16 sm:py-20 lg:py-28\";",
+  "H2": "const H2 = \"mt-4 text-3xl md:text-5xl font-bold tracking-tight leading-[1.05] text-balance\";"
+ },
+ "html": {
+  "invisible-derm": {
+   "vuoto": {
+    "sha256": "5f169cd0bb85d47da0bc25a6a794cb449d001489d8e8a72530594a694aa6bb79",
+    "lunghezza": 130648
+   },
+   "pieno": {
+    "sha256": "85117e1db0262faa62cfab0d0e18215efd2d8d1866dac2b9772d079aa379738c",
+    "lunghezza": 138371
+   }
+  },
+  "invisible-derm-v1": {
+   "vuoto": {
+    "sha256": "e1da0a9c8d04413365e6d598b059e8b3ce2c9b6817b07824a21e8072499eddc0",
+    "lunghezza": 134159
+   },
+   "pieno": {
+    "sha256": "648507c214106dbb61641e4b1c4645ad5d62772502173ffe276bf06bcaa63792",
+    "lunghezza": 138325
+   }
+  }
+ }
+}
