@@ -35,7 +35,9 @@ export async function prove(mod, { c, gruppo, radice }) {
   const KC = mod["shop/cms/vetrina-carrello"];
   const dir = join(radice, "src/components/shop/home");
   const disegna = async (file, nome, props, extra = {}) => (await rendiComponente(radice, join(dir, file), nome, props, extra)).html;
-  const hero = (contenuto = CONTENUTO_PIENO, tariffa = TARIFFA_OK) => disegna("HeroShop.tsx", "HeroShop", { contenuto, tariffa });
+  const SLUG_PATCH = KC.HREF_PATCH_PRONTE.split("/").pop();
+  const SLUG_CURA = KC.HREF_CURA.split("/").pop();
+  const hero = (contenuto = CONTENUTO_PIENO, tariffa = TARIFFA_OK, categorieConProdotti = [SLUG_PATCH, SLUG_CURA]) => disegna("HeroShop.tsx", "HeroShop", { contenuto, tariffa, categorieConProdotti });
   const vetrina = (card, contenuto = CONTENUTO_PIENO) => disegna("VetrinaHome.tsx", "VetrinaHome", { card, contenuto });
   const patch = KH.scegliVetrina(CATALOGO);
 
@@ -51,6 +53,15 @@ export async function prove(mod, { c, gruppo, radice }) {
   const patchPronte = link(hH, "Patch pronte");
   const cura = link(hH, "Cura e manutenzione");
   c("hero: «Patch pronte» → la categoria delle patch pronte, «Cura e manutenzione» → la categoria della cura (gli stessi indirizzi del carrello vuoto)", [KC.HREF_PATCH_PRONTE, KC.HREF_CURA], [attr(patchPronte ?? "", "href"), attr(cura ?? "", "href")]);
+  // i bottoni portano solo a categorie con prodotti (revisore T91, punto 1): vuota o inesistente = nessun bottone; prop assente = nessun bottone
+  const bottoni = async (cat) => { const h = await (cat === "assente" ? disegna("HeroShop.tsx", "HeroShop", { contenuto: CONTENUTO_PIENO, tariffa: TARIFFA_OK }) : hero(CONTENUTO_PIENO, TARIFFA_OK, cat)); return [!!link(h, "Patch pronte"), !!link(h, "Cura e manutenzione"), /<h1\b/.test(h), /<a\b[^>]*\bmin-h-12/.test(h)]; };
+  c("bottoni: categorie piene (patch e cura) → tutti e due", [true, true, true, true], await bottoni([SLUG_PATCH, SLUG_CURA]));
+  c("bottoni: la categoria della cura vuota (non nell'elenco) → resta solo «Patch pronte»", [true, false, true, true], await bottoni([SLUG_PATCH]));
+  c("bottoni: la categoria delle patch vuota → resta solo «Cura e manutenzione»", [false, true, true, true], await bottoni([SLUG_CURA]));
+  c("bottoni: elenco vuoto, con categorie sconosciute, storto → nessun bottone, l'hero sta in piedi (H1, ritratto, fascia)", [[false, false, true, false], [false, false, true, false], [false, false, true, false]], [await bottoni([]), await bottoni(["altra", "patch"]), await bottoni("patch-pronte")]);
+  c("bottoni: prop assente (default sicuro) → nessun bottone, mai un 404", [false, false, true, false], await bottoni("assente"));
+  const hSenzaBottoni = await hero(CONTENUTO_PIENO, TARIFFA_OK, []);
+  c("bottoni: senza bottoni restano il ritratto, la riga dello studio e la fascia, e non resta un contenitore vuoto", [true, true, false], [leggibile(hSenzaBottoni).includes("Applichiamo patch a Roma ogni giorno.") && /Studio a Roma/.test(hSenzaBottoni), imgs(hSenzaBottoni).length === 2, /sm:flex-row/.test(hSenzaBottoni)]);
   c("hero: «Patch pronte» è PIENO chiaro (bianco con testo notte), 48 px (56 dal computer)", [true, true, true], [classePiena(patchPronte ?? "", "white"), /text-\[#0A1430\]/.test(patchPronte ?? ""), /\bmin-h-12\b/.test(patchPronte ?? "") && /\blg:min-h-14\b/.test(patchPronte ?? "")]);
   c("hero: «Cura e manutenzione» è di CONTORNO bianco (bordo 2 px, testo bianco, nessun riempimento), 48 px", [true, true, false, true], [/\bborder-2\b/.test(cura ?? "") && /\bborder-white\b/.test(cura ?? ""), /\btext-white\b/.test(cura ?? ""), classePiena(cura ?? "", "white|brand|\\[#0A1430\\]"), /\bmin-h-12\b/.test(cura ?? "")]);
   c("hero: un SOLO pieno (V1-T3): un solo elemento con fondo pieno bianco o blu, nessun blu di consulenza, nessun rosso", [1, false], [tagAperti(hH, "a").filter((t) => classePiena(t, "white|brand|\\[#0A1430\\]|brand-scuro")).length, /#FF3B3B|bg-destructive|text-destructive|bg-brand-scuro/i.test(hH)]);
@@ -82,6 +93,11 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("foto: descrizione dello slot (alt) letta dal contenuto, cornice con gli angoli a mirino", [true, true], [attr(tagHero, "alt")?.startsWith("Patch capillare pronta") ?? false, /\bbrackets\b/.test(hH) && /\bbr-tr\b/.test(hH) && /\bbr-bl\b/.test(hH)]);
   c("foto: sul computer la foto sta a destra in due colonne; sul telefono la fascia viene DOPO la foto", [true, true], [/\blg:grid-cols-\[1\.05fr_1fr\]/.test(hH), hH.indexOf("hero.jpg") > 0 && hH.indexOf("hero.jpg") < hH.indexOf("Studio a Roma")]);
 
+  const hVuotoLayout = await hero(CONTENUTO_VUOTO);
+  const fasciaUl = hH.match(/<ul\b[^>]*>/)?.[0] ?? "";
+  const cornice = hH.match(/<div\b[^>]*\bbrackets\b[^>]*>/)?.[0] ?? "";
+  c("layout hero: la fascia occupa le due colonne sul computer (lg:col-span-2); la foto sta nel riquadro dichiarato (max-w-[440px], a destra sul computer)", [true, true, true], [/\blg:col-span-2\b/.test(fasciaUl), /\bmax-w-\[440px\]/.test(cornice), /\blg:ml-auto\b/.test(cornice)]);
+  c("layout hero: senza foto la fascia è centrata e NON ha lg:col-span-2", [true, false], [/justify-center/.test((hVuotoLayout.match(/<ul\b[^>]*>/) ?? [""])[0]), /lg:col-span-2/.test(hVuotoLayout)]);
   // la fascia nell'hero
   c("fascia nell'hero: con la tariffa vera: studio, spedizione, consulenza (pillole scure), dopo la foto", [true, true, true], [tH.includes("Studio a Roma"), tH.includes("Consulenza gratuita, online"), /Spedizione: 4,90/.test(tH)]);
   c("fascia: senza tariffa restano le due voci confermate (studio e consulenza); la spedizione non c'è", [true, true, false], [tH.includes("Studio a Roma"), (await hero(CONTENUTO_PIENO, TARIFFA_ASSENTE)).includes("Consulenza gratuita, online"), /Spedizione/.test(await hero(CONTENUTO_PIENO, TARIFFA_ASSENTE))]);
@@ -125,6 +141,9 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("vetrina: link «Vedi tutte le patch pronte →» alla categoria delle patch pronte", [KC.HREF_PATCH_PRONTE, true], [attr(link(hV5, "Vedi tutte le patch pronte →") ?? "", "href"), /min-h-11/.test(link(hV5, "Vedi tutte") ?? "")]);
   c("vetrina: 5 prodotti = 3 colonne sul computer; sempre 2 sul telefono", [true, true, false], [/\bgrid-cols-2\b/.test(hV5), /\bmd:grid-cols-3\b/.test(hV5), /\blg:grid-cols-4\b/.test(hV5)]);
   c("vetrina: `colonneVetrina` decide: 4 prodotti = 4 colonne (lg:grid-cols-4), 3 = 3, 2 = 2", [true, true, true], [/\blg:grid-cols-4\b/.test(await vetrina(patch.slice(0, 4))), (await vetrina(patch.slice(0, 3))).includes("md:grid-cols-3") && !(await vetrina(patch.slice(0, 3))).includes("lg:grid-cols-4"), !/md:grid-cols-3/.test(await vetrina(patch.slice(0, 2)))]);
+  const grigliaUl = hV5.match(/<ul\b[^>]*grid[^>]*>/)?.[0] ?? "";
+  const vediTutte = link(hV5, "Vedi tutte") ?? "";
+  c("layout vetrina: sul computer il titolo sta a sinistra, il link a destra (colonna 2, riga 1, in basso), la griglia sotto a tutta larghezza (due colonne, riga 2)", [true, true, true, true, true, true], [/\blg:col-span-2\b/.test(grigliaUl), /\blg:row-start-2\b/.test(grigliaUl), /\blg:col-start-2\b/.test(vediTutte), /\blg:row-start-1\b/.test(vediTutte), /\blg:self-end\b/.test(vediTutte), /\blg:grid-cols-\[1fr_auto\]/.test(hV5)]);
   c("vetrina: nessuna foto `eager` (la sola `eager` della home è quella dell'hero), tutte lazy con larghezza e altezza", [0, true, true], [conta(hV5, /loading="eager"/g), imgs(hV5).every((i) => attr(i, "loading") === "lazy"), imgs(hV5).every((i) => attr(i, "width") && attr(i, "height"))]);
   c("vetrina: i titoli e i bottoni sono quelli della card (Scegli / Aggiungi), nessun secondo pieno (V1-T3)", [0, 0], [[...tagAperti(hV5, "button"), ...tagAperti(hV5, "a")].filter((t) => classePiena(t, "brand|\\[#0A1430\\]|brand-scuro")).length, [...tagAperti(hV5, "span")].filter((t) => classePiena(t, "brand|\\[#0A1430\\]|brand-scuro")).length]);
   c("vetrina: nessuna stella, nessun barrato, nessuna parola vietata, nessun Invisible Derm, nessun rosso", [[], false, false], [trovaParoleVietate(hV5), /Invisible Derm|★|stell/i.test(hV5), /#FF3B3B|bg-destructive/i.test(hV5)]);

@@ -21,7 +21,20 @@ const BOTTONE = "shop-anello-scuro inline-flex min-h-12 w-full items-center just
 const PIENO = `${BOTTONE} bg-white text-[#0A1430] hover:bg-[#EEF2FF]`;
 const CONTORNO = `${BOTTONE} border-2 border-white text-white hover:bg-white/10`;
 
-export function HeroShop({ contenuto, tariffa }: { contenuto?: unknown; tariffa?: SpedizionePubblica | null }) {
+/** Un bottone si mostra solo se la sua categoria ha prodotti (altrimenti porterebbe alla home stessa o a un 404). */
+const haProdotti = (href: string, slugs?: readonly string[]) => Array.isArray(slugs) && slugs.some((s) => typeof s === "string" && s !== "" && href.endsWith(`/${s}`));
+
+export function HeroShop({
+  contenuto,
+  tariffa,
+  categorieConProdotti,
+}: {
+  contenuto?: unknown;
+  tariffa?: SpedizionePubblica | null;
+  /** Gli indirizzi (slug) delle categorie che hanno prodotti pubblicati. Senza questa prop i bottoni NON si mostrano (meglio nessun bottone che un 404);
+   *  se nessuno dei due resta, l'hero sta in piedi senza bottoni. La pagina (T94) la ricava da `elencoCategorie`. */
+  categorieConProdotti?: readonly string[];
+}) {
   const t = testiDi(contenuto);
   const media = mediaDi(contenuto);
   const firmatario = confermatiDa(contenuto).firmatario;
@@ -33,8 +46,8 @@ export function HeroShop({ contenuto, tariffa }: { contenuto?: unknown; tariffa?
   const didascalia = piano.ritratto && t["shop.hero.didascalia"] ? riempi(t["shop.hero.didascalia"], { nome: piano.nome }) : null;
   const riga = t["shop.hero.riga"];
   const h1 = t["shop.hero.h1"];
-  const cta1 = t["shop.hero.cta1"];
-  const cta2 = t["shop.hero.cta2"];
+  const cta1 = haProdotti(HREF_PATCH_PRONTE, categorieConProdotti) ? t["shop.hero.cta1"] : null;
+  const cta2 = haProdotti(HREF_CURA, categorieConProdotti) ? t["shop.hero.cta2"] : null;
   return (
     <section className="bg-blueprint relative overflow-hidden before:pointer-events-none before:absolute before:inset-[-20%] before:content-[''] before:bg-[radial-gradient(600px_circle_at_30%_20%,var(--brand-velo-22)_0%,transparent_60%)] before:animate-[spotlight-drift_12s_ease-in-out_infinite] motion-reduce:before:animate-none">
       <div
