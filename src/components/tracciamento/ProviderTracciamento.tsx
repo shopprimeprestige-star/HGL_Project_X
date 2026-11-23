@@ -7,7 +7,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouterState } from "@tanstack/react-router";
 import { EVENTO_CONSENSO, leggiConsenso, scriviConsenso, type Consenso } from "@/lib/consenso";
-import { percorsoAmmesso } from "@/lib/tracciamento/ammesse";
+import { bannerAmmesso } from "@/lib/tracciamento/ammesse";
 import { daiCaricatore, emettiEvento } from "@/lib/tracciamento/api";
 import type { ConfigPubblica } from "@/lib/tracciamento/carica";
 import { BannerCookie, type SceltaBanner } from "./BannerCookie";
@@ -79,12 +79,12 @@ export function ProviderTracciamento() {
     };
   }, []);
 
-  // a OGNI cambio di pagina: si rivaluta (script, PageView, meta del referrer) e, dove il banner può comparire, si sa se è un amministratore
+  // a OGNI cambio di pagina: si rivaluta (script, PageView, meta del referrer) e, dove il banner può comparire (anche su ricerca e filtri, dove i pixel no), si sa se è un amministratore
   useEffect(() => {
     const c = controllo.current;
     if (!c) return;
     void c.valuta();
-    if (percorsoAmmesso(percorso, ricerca, window.self !== window.top)) void c.verificaAdmin().then(setAdmin);
+    if (bannerAmmesso(percorso, ricerca, window.self !== window.top, false)) void c.verificaAdmin().then(setAdmin);
   }, [percorso, ricerca]);
 
   const salva = useCallback((s: SceltaBanner) => {

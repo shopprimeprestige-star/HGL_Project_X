@@ -3,7 +3,10 @@
  *  AMMESSE (per schema di percorso), non di quelle escluse: una pagina nuova non traccia finché non la si aggiunge.
  *  E l'indirizzo che esce verso le piattaforme è RICOSTRUITO, mai copiato. Dati: percorsi e codici inventati. */
 
-export async function prove(mod, { c, gruppo }) {
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
+export async function prove(mod, { c, gruppo, radice }) {
   const A = mod["lib/tracciamento/ammesse"];
   gruppo("SHOP R1 · T26 · PAGINE AMMESSE, BANNER, INDIRIZZI PULITI (20/11/2026)");
   c("il modulo c'è", true, !!A);
@@ -71,7 +74,6 @@ export async function prove(mod, { c, gruppo }) {
     ["/shop", "?qualcosa=Y", false, false],
     ["/shop", "?utm_source=meta&qualcosa=Y", false, false],
     ["/shop/prodotto/x", "?fbclid=1&invito=Z", false, false],
-    ["/shop/cerca", "?q=capelli", false, false],
     ["/shop", "?=x", false, false],
     ["/shop", "?UTM_SOURCE=meta", false, true],
     ["/shop", "?gad_source=1&gclid=abc&gad_campaignid=9", false, true],
@@ -101,11 +103,32 @@ export async function prove(mod, { c, gruppo }) {
   c("il banner non compare a un amministratore riconosciuto, in nessuna pagina ammessa", [], tabella.filter(([p, q, f, a]) => a && banner(p, q, f, true)).map((r) => r[0]));
   c("percorsoAmmesso e bannerAmmesso (admin no) danno la stessa risposta su tutta la tabella", [], tabella.filter(([p, q, f]) => ok(p, q, f) !== banner(p, q, f, false)));
 
+  /* ── T109c · T103a-2: banner e «Gestisci cookie» anche dove l'indirizzo porta il testo cercato o i filtri; i pixel e gli eventi NO ──
+     Il pixel di Meta (e quello di TikTok) legge l'indirizzo della pagina da solo: dove c'è `?q=mario+rossi` non deve partire niente. Il banner invece
+     non manda niente a nessuno, e senza di lui il visitatore non può né scegliere né riaprire la scelta. Perciò sono due domande diverse. */
+  const SOLO_BANNER = [["/shop/cerca", "?q=capelli"], ["/shop/cerca", "?q=mario%20rossi%20calvizie"], ["/shop/c/patch", "?colore=nero"], ["/shop/c/patch", "?colore=castano,nero&lunghezza=30&misura=m&disp=1"],
+    ["/shop/c/patch", "?finitura=lucida"], ["/shop/c/patch", "?utm_source=meta&colore=nero&fbclid=1"], ["/SHOP/Cerca/", "?Q=capelli"]];
+  for (const [p, q] of SOLO_BANNER) {
+    c(`${p}${q}: il banner e «Gestisci cookie» sì, i pixel e gli eventi no`, [true, false], [banner(p, q, false, false), ok(p, q, false)]);
+  }
+  c("solo-banner: mai a un amministratore riconosciuto, mai in cornice", [[], []], [SOLO_BANNER.filter(([p, q]) => banner(p, q, false, true)), SOLO_BANNER.filter(([p, q]) => banner(p, q, true, false))]);
+  c("solo-banner: ogni chiave vietata (codici) toglie il banner anche sulla ricerca e sulle categorie, in maiuscolo e dopo altre chiavi",
+    [], A.CHIAVI_QUERY_VIETATE.filter((k) => ["/shop/cerca", "/shop/c/patch"].some((p) => banner(p, `?${k}=1`, false, false) || banner(p, `?q=a&${k.toUpperCase()}=1`, false, false) || banner(`${p}?${k}=1`, "?q=a", false, false))));
+  c("solo-banner: vale per la ricerca e per la categoria, NON per la scheda, il carrello, la home, l'ordine, il CRM né per un percorso più lungo",
+    [], [["/shop/prodotto/x", "?q=a"], ["/shop/carrello", "?q=a"], ["/shop/checkout", "?q=a"], ["/", "?q=a"], ["/shop", "?q=a"], ["/shop/ordine/HG-1", "?q=a"], ["/crm/leads", "?q=a"], ["/shop/cerca/x", "?q=a"], ["/shop/c/a/b", "?colore=nero"], ["/shop/c", "?colore=nero"], ["/shop/c/", "?colore=nero"], ["/blog/x", "?q=a"], ["/shop/cercare", "?q=a"]]
+      .filter(([p, q]) => banner(p, q, false, false)));
+  c("il testo cercato e i filtri non escono MAI in un indirizzo né in una query inviata, nemmeno dove il banner è ammesso",
+    [false, false, "", ""], [/ciao|mario|colore|disp/.test(urlPulito("https://sito.test", "/shop/cerca", "?q=mario+rossi&utm_source=a")), /nero|colore|lunghezza|misura/.test(urlPulito("https://sito.test", "/shop/c/patch", "?colore=nero&lunghezza=30&misura=m&disp=1")), queryPulita("?q=mario+rossi&colore=nero&misura=m"), queryPulita("?finitura=lucida&disp=1")]);
+  if (radice) {
+    const provider = readFileSync(join(radice, "src/components/tracciamento/ProviderTracciamento.tsx"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:"'`])\/\/.*$/gm, "$1");
+    c("il provider chiede se è un amministratore con `bannerAmmesso` (come il banner), non con `percorsoAmmesso`: su ricerca e filtri `admin` resterebbe `null` e il banner non comparirebbe mai", [true, false], [/if \(bannerAmmesso\(percorso, ricerca, window\.self !== window\.top, false\)\)\s*void c\.verificaAdmin/.test(provider), /percorsoAmmesso/.test(provider)]);
+  }
+
   /* ── le query: ognuna delle chiavi vietate fa cadere la pagina, in qualunque scrittura ── */
   const VIETATE = ["anteprima", "t", "watch", "modifica", "sess", "code", "codice", "token", "key", "embed"];
   c("ogni chiave vietata, anche da sola e senza valore, esclude la pagina", [], VIETATE.filter((k) => ok("/shop", `?${k}`, false) || ok("/shop", `?${k}=1`, false)));
   c("…anche scritta in maiuscolo o dopo altre chiavi", [], VIETATE.filter((k) => ok("/shop", `?${k.toUpperCase()}=1`, false) || ok("/shop", `?utm_source=a&${k}=1&fbclid=2`, false)));
-  c("la ricerca senza «?» davanti vale uguale; una chiave ammessa non esclude, una sconosciuta sì (anche «q»)", [true, false, false, true], [ok("/shop", "utm_source=a", false), ok("/shop", "t=1", false), ok("/shop/cerca", "?q=capelli", false), ok("/shop", "gclid=1&utm_term=x", false)]);
+  c("la ricerca senza «?» davanti vale uguale; una chiave ammessa non esclude, una sconosciuta sì (anche «q»: per i pixel)", [true, false, false, true], [ok("/shop", "utm_source=a", false), ok("/shop", "t=1", false), ok("/shop/cerca", "?q=capelli", false), ok("/shop", "gclid=1&utm_term=x", false)]);
   c("una chiave vietata scritta dentro il percorso (dopo un «?») esclude la pagina", [false, true], [ok("/shop?t=1", "", false), ok("/shop?utm_source=a", "", false)]);
   c("il frammento (#…) non conta", true, ok("/shop#t=1", "", false));
   c("valori non testo: no, nessuna eccezione", [false, false, false, false], [ok(null, "", false), ok(undefined, "", false), ok(42, "", false), ok({}, "", false)]);

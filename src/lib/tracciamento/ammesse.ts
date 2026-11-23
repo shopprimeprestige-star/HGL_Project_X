@@ -55,9 +55,23 @@ export function percorsoAmmesso(percorso: unknown, ricerca: unknown, inCornice: 
   return !!prefisso && SLUG.test(p.slice(prefisso.length));
 }
 
-/** Il banner compare dove le pagine sono ammesse, e non a un amministratore già riconosciuto. */
+/** Il banner compare dove le pagine sono ammesse, e non a un amministratore già riconosciuto.
+ *  ⚠️ In più, e SOLO per il banner (e «Gestisci cookie»), la ricerca e le categorie con i filtri nell'indirizzo (`/shop/cerca?q=…`,
+ *  `/shop/c/patch?colore=…&disp=1`): i pixel NO. Il pixel di Meta legge da solo l'indirizzo della pagina, quindi il testo cercato
+ *  non deve poter arrivare lì; il banner invece non manda niente a nessuno, e senza di lui il visitatore non può scegliere né
+ *  riaprire la scelta. Le chiavi dei filtri sono i nomi delle opzioni dei prodotti (`colore`, `misura`, ma anche altre): non si
+ *  elencano, si escludono i codici (`CHIAVI_QUERY_VIETATE`) come per ogni altra pagina.
+ *  shortcut: lista nera delle chiavi, solo per questo banner e solo su due schemi di percorso; si cambia se un giorno quelle
+ *  pagine portano codici con un nome nuovo (basta aggiungerlo a `CHIAVI_QUERY_VIETATE`). */
 export function bannerAmmesso(percorso: unknown, ricerca: unknown, inCornice: boolean, admin: boolean): boolean {
-  return !admin && percorsoAmmesso(percorso, ricerca, inCornice);
+  if (admin) return false;
+  if (percorsoAmmesso(percorso, ricerca, inCornice)) return true;
+  if (inCornice || typeof percorso !== "string") return false;
+  const p = normalizza(percorso);
+  const elenco = p === "/shop/cerca" || (p.startsWith("/shop/c/") && SLUG.test(p.slice("/shop/c/".length)));
+  const incorporata = percorso.split("#")[0].split("?").slice(1).join("?");
+  const vietata = [...coppie(ricerca), ...coppie(incorporata)].some(([k]) => (CHIAVI_QUERY_VIETATE as readonly string[]).includes(k));
+  return elenco && !vietata;
 }
 
 /** Le sole chiavi ammesse di una ricerca, come testo senza «?» («utm_source=a&fbclid=1»). */
