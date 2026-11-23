@@ -18,6 +18,7 @@
  *  ⚠️ La ricerca delle parole proibite non guarda `prove/` (qui le parole stanno per forza). Dati: solo il sorgente, nessun database né rete.
  *  Lancio da solo: serve un lanciatore che costruisce `mod` come `prove.mjs` (la prova legge `mod` solo per moduli che sono in MODULI). */
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
@@ -50,13 +51,19 @@ const SMISTATORI = [
 const ECCEZIONI_TIPO = {
   "src/routes/shop.prodotto.$slug.tsx": { Caricato: "T97a: con `cms` il loader porta in più tariffa, testi e cassa (facoltativi); con `codice` il valore è quello di oggi (l'oro lo prova)" },
 };
+/** L'impronta di una dichiarazione: sha-256 del suo testo (commenti compresi) con gli spazi ridotti a uno. Per fissare ESATTAMENTE un corpo, non «uno dei tanti che tolgono qualcosa». */
+const impronta = (testo) => createHash("sha256").update(norma(testo)).digest("hex");
 /** T100a: le sole CANCELLAZIONI ammesse nel codice di oggi, a elenco chiuso. `shop.carrello.tsx` aveva in `CartPage` un ramo `cms` morto (con `cms` il carrello è
  *  `PaginaCarrello`, un'altra funzione): tolto, con `FotoRigaCms` (la sua foto) e l'import `useTariffa` (il suo gancio). Vale solo se `CartPage` di adesso è il `CartPage`
  *  del base MENO alcuni pezzi (ogni suo segno sta anche nel base, nello stesso ordine: niente di cambiato, niente di aggiunto), se le due dichiarazioni sparite non
- *  ricompaiono sotto altra forma e se tutto il resto del file resta identico al base. Che il disegno di `codice` sia lo stesso lo dice l'oro (`codice-identico-v1`, HTML byte per byte). */
+ *  ricompaiono sotto altra forma e se tutto il resto del file resta identico al base.
+ *  ⚠️ «Solo cancellazioni» NON basta (una cancellazione in più, p.es. `const total = subtotal + shipping` → `subtotal`, toglierebbe i 4,90 € al cliente di oggi e nessuna regola se ne
+ *  accorgerebbe): il `CartPage` di adesso deve avere ESATTAMENTE l'impronta di quello di f57326a (`impronta` qui sotto: sha-256 del testo con gli spazi ridotti). Una modifica voluta
+ *  di `CartPage` si fa insieme al nuovo valore dell'impronta e a una frase in lavagna; i totali mostrati li prova `shop-carrello-oggi.mjs`. Che il disegno di `codice` sia lo stesso lo dice l'oro (`codice-identico-v1`, HTML byte per byte). */
 const CANCELLAZIONI_DI_OGGI = {
   "src/routes/shop.carrello.tsx": {
     ridotte: { CartPage: "T100a: tolto il ramo `cms` morto (`cms`, tariffa del server, `senzaCifra`, riga con SKU disegnata)" },
+    improntaRidotte: { CartPage: "a9b0992485b3836fbc6c9695c2787cded5f0350cb65c4530a4f5c9ab6f3b2f85" },
     sparite: { FotoRigaCms: "T100a: serviva solo al ramo `cms` morto di `CartPage`" },
     importSpariti: { "@/shop/useTariffa::useTariffa": "T100a: il gancio della tariffa serviva solo al ramo `cms` morto" },
   },
@@ -406,7 +413,8 @@ async function corpo(mod, { c, radice, lavoro }) {
       };
       const ammesse = ECCEZIONI_TIPO[s.file] ?? {};
       //  T100a: le sole cancellazioni ammesse (elenco chiuso): `CartPage` è il base meno alcuni pezzi; due dichiarazioni sono sparite per intero
-      const canc = CANCELLAZIONI_DI_OGGI[s.file] ?? { ridotte: {}, sparite: {}, importSpariti: {} };
+      const canc = CANCELLAZIONI_DI_OGGI[s.file] ?? { ridotte: {}, improntaRidotte: {}, sparite: {}, importSpariti: {} };
+      const improntaOra = (k) => { const d = dOra.get(k); return d === undefined ? null : impronta(d); };
       const foglie = (sf, nome) => {
         const d = sf.statements.find((x) => (ts.isFunctionDeclaration(x) && x.name?.text === nome) || (ts.isVariableStatement(x) && x.declarationList.declarations.some((y) => y.name.getText(sf) === nome)));
         const r = [];
@@ -415,9 +423,10 @@ async function corpo(mod, { c, radice, lavoro }) {
       };
       /** `ora` è `prima` con dei pezzi tolti: ogni segno di `ora` ritrova il suo posto in `prima`, nello stesso ordine, e qualcosa è stato tolto davvero. */
       const soloTolti = (prima, ora) => { let i = 0; for (const t of ora) { while (i < prima.length && prima[i] !== t) i++; if (i === prima.length) return false; i++; } return ora.length > 0 && ora.length < prima.length; };
-      const soloCancellazioni = (k) => (k in canc.ridotte && dOra.has(k) && soloTolti(foglie(sfBase, k), foglie(sfOra, k))) || (k in canc.sparite && !dOra.has(k));
+      const soloCancellazioni = (k) => (k in canc.ridotte && dOra.has(k) && soloTolti(foglie(sfBase, k), foglie(sfOra, k)) && improntaOra(k) === canc.improntaRidotte[k]) || (k in canc.sparite && !dOra.has(k));
       const cambiate = [...dBase.keys()].filter((k) => k !== "Route" && k !== s.sostituita && dBase.get(k) !== dOra.get(k) && !(k in ammesse && soloAllargata(k)) && !soloCancellazioni(k));
       for (const k of Object.keys(canc.ridotte)) c(`9 · ${s.file}: cancellazione ammessa in «${k}» (${canc.ridotte[k].split(":")[0]}): il corpo è quello del base MENO alcuni pezzi, niente cambiato né aggiunto`, true, dOra.has(k) && soloTolti(foglie(sfBase, k), foglie(sfOra, k)));
+      for (const k of Object.keys(canc.improntaRidotte)) c(`9 · ${s.file}: «${k}» è ESATTAMENTE quello fissato da T100a (impronta del testo): nemmeno una cancellazione in più`, canc.improntaRidotte[k], improntaOra(k));
       for (const k of Object.keys(canc.sparite)) c(`9 · ${s.file}: «${k}» è sparita per intero (${canc.sparite[k].split(":")[0]}) e non ricompare`, true, dBase.has(k) && !dOra.has(k));
       for (const k of Object.keys(ammesse)) c(`9 · ${s.file}: eccezione nominata «${k}» (${ammesse[k].split(":")[0]}): il tipo di oggi è solo allargato con membri facoltativi`, true, soloAllargata(k));
       c(`9 · ${s.file}: ogni funzione, costante e tipo di oggi è identico al base (testo del corpo)`, [], cambiate);
