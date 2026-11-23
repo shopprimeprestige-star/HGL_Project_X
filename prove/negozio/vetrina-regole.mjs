@@ -45,9 +45,16 @@ const SMISTATORI = [
   { file: "src/routes/shop.prodotto.$slug.tsx", sostituita: "ProductDetail", rimasto: { apertura: /^<SchedaVista\b/, dove: "ProductDetail" } },
   { file: "src/routes/shop.carrello.tsx" },
 ];
+/** Le sole dichiarazioni di oggi che V1 ha cambiato per scelta, una per una e col motivo. Valgono solo se i membri del base restano identici e quelli nuovi sono
+ *  facoltativi (`?:`): il tipo si allarga, non cambia. Un'altra dichiarazione cambiata è un rosso. */
+const ECCEZIONI_TIPO = {
+  "src/routes/shop.prodotto.$slug.tsx": { Caricato: "T97a: con `cms` il loader porta in più tariffa, testi e cassa (facoltativi); con `codice` il valore è quello di oggi (l'oro lo prova)" },
+};
 const KEYFRAMES_D100 = new Set(["shop-respiro", "shop-foglio", "shop-dissolvi", "shop-pop"]);
 const ALLEGATI_PREZZO = new Set(["prezzo", "prezzi", "price", "prices", "cent", "cents", "centesimi", "importo", "totale", "subtotale", "amount"]);
 const IMPORT_TRACCIA_AMMESSI = new Set(["emettiEvento", "emettiSoloContatore", "traccia", "GestisciCookie"]);
+/** `@/lib/consenso`: le pagine V1 ne prendono solo il nome dell'evento della scelta sul banner (oggi usato da PaginaCategoria). */
+const IMPORT_CONSENSO_AMMESSI = new Set(["EVENTO_CONSENSO"]);
 
 // ── aiuti sull'albero ────────────────────────────────────────────────────────────────────────────────────────────
 const albero = (testo, nome) => ts.createSourceFile(nome, testo, ts.ScriptTarget.ES2022, true, nome.endsWith("x") ? ts.ScriptKind.TSX : ts.ScriptKind.TS);
@@ -243,20 +250,35 @@ async function corpo(mod, { c, radice, lavoro }) {
   await regola(c, "regola 6", () => {
     const LETTERE = /\p{L}/u;
     const ATTRIBUTI = new Set(["aria-label", "placeholder", "alt", "title"]);
+    /** Le parti di testo che un'espressione porta scritte a mano: stringhe, parti fisse di un modello `…${x}…`, rami di `?:` e di `||`/`??`/`&&` (di `&&` solo il lato destro). */
+    const testiDi = (e) => {
+      if (!e) return [];
+      if (eStringa(e)) return [e.text];
+      if (ts.isTemplateExpression(e)) return [e.head.text, ...e.templateSpans.map((x) => x.literal.text)];
+      if (ts.isParenthesizedExpression(e) || ts.isAsExpression(e) || ts.isNonNullExpression(e)) return testiDi(e.expression);
+      if (ts.isConditionalExpression(e)) return [...testiDi(e.whenTrue), ...testiDi(e.whenFalse)];
+      if (ts.isBinaryExpression(e)) {
+        const k = e.operatorToken.kind;
+        if (k === ts.SyntaxKind.AmpersandAmpersandToken) return testiDi(e.right);
+        if (k === ts.SyntaxKind.BarBarToken || k === ts.SyntaxKind.QuestionQuestionToken) return [...testiDi(e.left), ...testiDi(e.right)];
+      }
+      return [];
+    };
     const scritti = [];
     for (const f of v1tsx) {
       cammina(f.sf, (n) => {
-        let testo = null;
-        let dove = n;
-        if (ts.isJsxText(n)) { testo = n.getText(f.sf); dove = n; }
-        else if (ts.isJsxAttribute(n) && ATTRIBUTI.has(n.name.getText())) testo = valoreStringa(n);
-        else if (ts.isJsxExpression(n) && n.expression && eStringa(n.expression) && (ts.isJsxElement(n.parent) || ts.isJsxFragment(n.parent))) testo = n.expression.text;
-        if (testo === null || !LETTERE.test(testo)) return;
-        const r = ts.isJsxText(n) ? rigaDi(f.sf, n.pos + (n.getText(f.sf).length - n.getText(f.sf).trimStart().length)) : riga(f.sf, dove);
-        if (nuovo(f, r)) scritti.push(`${f.rel}:${r} «${norma(testo).slice(0, 40)}»`);
+        let testi = [];
+        let r = 0;
+        if (ts.isJsxText(n)) { const t = n.getText(f.sf); testi = [t]; r = rigaDi(f.sf, n.pos + (t.length - t.trimStart().length)); }
+        else if (ts.isJsxAttribute(n) && ATTRIBUTI.has(n.name.getText())) {
+          const i = n.initializer;
+          testi = i && eStringa(i) ? [i.text] : i && ts.isJsxExpression(i) ? testiDi(i.expression) : [];
+          r = riga(f.sf, n);
+        } else if (ts.isJsxExpression(n) && (ts.isJsxElement(n.parent) || ts.isJsxFragment(n.parent))) { testi = testiDi(n.expression); r = riga(f.sf, n); }
+        for (const testo of testi) if (LETTERE.test(testo) && nuovo(f, r)) scritti.push(`${f.rel}:${r} «${norma(testo).slice(0, 40)}»`);
       });
     }
-    c("6 · nessun testo scritto a mano nei componenti (JsxText, aria-label, placeholder, alt, title: solo simboli e numeri)", [], scritti);
+    c("6 · nessun testo scritto a mano nei componenti (JsxText, aria-label, placeholder, alt, title, anche in modelli e rami di ?: e &&: solo simboli e numeri)", [], scritti);
   });
 
   // ── 7 · nessuno script di terzi ──
@@ -279,16 +301,17 @@ async function corpo(mod, { c, radice, lavoro }) {
     for (const f of v1) {
       for (const imp of f.sf.statements.filter(ts.isImportDeclaration)) {
         const modulo = imp.moduleSpecifier.text;
-        if (!/tracciamento|consulenza\/eventi/.test(modulo) || !nuovo(f, riga(f.sf, imp))) continue;
+        if (!/tracciamento|consulenza\/eventi|lib\/consenso$/.test(modulo) || !nuovo(f, riga(f.sf, imp))) continue;
+        const ammessi = /lib\/consenso$/.test(modulo) ? IMPORT_CONSENSO_AMMESSI : IMPORT_TRACCIA_AMMESSI;
         const cl = imp.importClause;
         if (!cl || cl.isTypeOnly) continue; // solo tipi: nessun codice che parte
         viste++;
         const nomi = [cl.name?.text, ...(cl.namedBindings && ts.isNamedImports(cl.namedBindings) ? cl.namedBindings.elements.filter((e) => !e.isTypeOnly).map((e) => (e.propertyName ?? e.name).text) : cl.namedBindings ? ["*"] : [])].filter(Boolean);
-        for (const n of nomi) if (!IMPORT_TRACCIA_AMMESSI.has(n)) fuori.push(`${f.rel}:${riga(f.sf, imp)} ${n} da ${modulo}`);
+        for (const n of nomi) if (!ammessi.has(n)) fuori.push(`${f.rel}:${riga(f.sf, imp)} ${n} da ${modulo}`);
       }
     }
     c("7 · il tracciamento si importa in più punti (la regola guarda qualcosa)", true, viste >= 6);
-    c("7 · le pagine importano dal tracciamento solo emettiEvento, emettiSoloContatore, traccia (e il comando GestisciCookie)", [], fuori);
+    c("7 · le pagine importano dal tracciamento solo emettiEvento, emettiSoloContatore, traccia (e il comando GestisciCookie), e da lib/consenso solo EVENTO_CONSENSO", [], fuori);
   });
 
   // ── 8 · nessun prezzo letto dal browser ──
@@ -326,8 +349,11 @@ async function corpo(mod, { c, radice, lavoro }) {
       const m = new Map();
       for (const s of sf.statements) {
         if (ts.isFunctionDeclaration(s) && s.name) m.set(s.name.text, norma(s.getText(sf)));
-        else if (ts.isVariableStatement(s)) for (const d of s.declarationList.declarations) if (ts.isIdentifier(d.name)) m.set(d.name.text, norma(s.getText(sf)));
-        else if (ts.isTypeAliasDeclaration(s) || ts.isInterfaceDeclaration(s) || ts.isClassDeclaration(s)) { if (s.name) m.set(s.name.text, norma(s.getText(sf))); }
+        else if (ts.isVariableStatement(s)) {
+          for (const d of s.declarationList.declarations) if (ts.isIdentifier(d.name)) m.set(d.name.text, norma(s.getText(sf)));
+        } else if (ts.isTypeAliasDeclaration(s) || ts.isInterfaceDeclaration(s) || ts.isClassDeclaration(s)) {
+          if (s.name) m.set(s.name.text, norma(s.getText(sf)));
+        }
       }
       return m;
     };
@@ -344,7 +370,19 @@ async function corpo(mod, { c, radice, lavoro }) {
       const sfOra = albero(leggi(s.file), s.file);
       const dBase = dichiarazioni(sfBase);
       const dOra = dichiarazioni(sfOra);
-      const cambiate = [...dBase.keys()].filter((k) => k !== "Route" && k !== s.sostituita && dBase.get(k) !== dOra.get(k));
+      const membri = (sf, nome) => {
+        const t = sf.statements.find((x) => ts.isTypeAliasDeclaration(x) && x.name.text === nome);
+        return t && ts.isTypeLiteralNode(t.type) ? t.type.members.map((m) => ({ testo: norma(m.getText(sf)).replace(/[;,]$/, ""), facoltativo: !!m.questionToken })) : null;
+      };
+      /** Una dichiarazione ammessa a cambiare: i membri del base ci sono tutti, uguali; i nuovi sono facoltativi. */
+      const soloAllargata = (k) => {
+        const b = membri(sfBase, k);
+        const o = membri(sfOra, k);
+        return !!b && !!o && b.every((m) => o.some((x) => x.testo === m.testo)) && o.filter((x) => !b.some((m) => m.testo === x.testo)).every((x) => x.facoltativo);
+      };
+      const ammesse = ECCEZIONI_TIPO[s.file] ?? {};
+      const cambiate = [...dBase.keys()].filter((k) => k !== "Route" && k !== s.sostituita && dBase.get(k) !== dOra.get(k) && !(k in ammesse && soloAllargata(k)));
+      for (const k of Object.keys(ammesse)) c(`9 · ${s.file}: eccezione nominata «${k}» (${ammesse[k].split(":")[0]}): il tipo di oggi è solo allargato con membri facoltativi`, true, soloAllargata(k));
       c(`9 · ${s.file}: ogni funzione, costante e tipo di oggi è identico al base (testo del corpo)`, [], cambiate);
       c(`9 · ${s.file}: le funzioni di oggi sono molte (la regola guarda qualcosa)`, true, dBase.size >= 3);
       // le sole differenze ammesse nelle importazioni: righe nuove. Una voce del base che sparisce cambia il codice di oggi.
@@ -483,6 +521,7 @@ async function corpo(mod, { c, radice, lavoro }) {
     c("13 · il blocco V1 contiene prefers-reduced-motion", true, /@media[^{]*prefers-reduced-motion/.test(pulito) && media >= 1);
     c("13 · nessuna @keyframes fuori dall'elenco D100 (respiro, foglio, dissolvi, pop)", [], keyframes.filter((k) => !KEYFRAMES_D100.has(k)));
     c("13 · nessuna animazione che non sia nell'elenco D100", [], animazioni.filter((a) => a !== "none" && !KEYFRAMES_D100.has(a)));
+    c("13 · il blocco V1 non usa backdrop-filter, font-family né #FF3B3B", [], pulito.match(/backdrop-filter|font-family|#FF3B3B/gi) ?? []);
     c("13 · il blocco V1 non porta nuovi fondi: nessun gradiente, nessun @import, nessun @font-face", [], pulito.match(/gradient\(|@import|@font-face/g) ?? []);
     c("13 · il blocco V1 è letto (la regola guarda qualcosa)", true, primo.length >= 8 && keyframes.length >= 4);
   });
