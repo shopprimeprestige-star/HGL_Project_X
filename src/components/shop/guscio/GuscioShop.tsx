@@ -95,7 +95,7 @@ export function HeaderDiRiserva() {
     <header className="border-b border-white/10 bg-[#081634] text-white">
       <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-4 gap-y-2 px-4 py-2 min-[360px]:px-6 lg:px-10">
         <Link to="/shop" className="shop-anello-scuro inline-flex min-h-11 shrink-0 items-center">
-          <img src={logo} alt={TESTI_PROVVISORI.guscio.logoAlt} className="h-6 w-auto select-none" draggable={false} />
+          <img src={logo} alt={TESTI_PROVVISORI.guscio.logoAlt} width={1920} height={453} className="h-6 w-auto select-none" draggable={false} />
         </Link>
         <p role="status" className="min-w-0 flex-1 text-sm text-white/85">
           {TESTI_SHOP.err500.testo}

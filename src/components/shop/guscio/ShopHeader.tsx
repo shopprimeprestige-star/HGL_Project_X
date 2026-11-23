@@ -140,7 +140,7 @@ export function ShopHeader({ categorie, ricerca }: ShopHeaderProps) {
           <Link to="/shop" className="brackets shop-anello-scuro inline-flex shrink-0 items-center justify-center px-3 py-2.5 lg:px-4">
             <span className="br-tr" />
             <span className="br-bl" />
-            <img src={logo} alt={GUSCIO.logoAlt} className="h-6 w-auto select-none lg:h-9" draggable={false} />
+            <img src={logo} alt={GUSCIO.logoAlt} width={1920} height={453} className="h-6 w-auto select-none lg:h-9" draggable={false} />
           </Link>
 
           <nav aria-label={TESTI_HEADER_PROVVISORI.navPrincipale} className="hidden items-center gap-8 lg:flex">
