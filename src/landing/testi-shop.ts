@@ -280,6 +280,7 @@ export const TESTI_PROVVISORI = {
     quantita: "Quantità",
     diminuisci: "Diminuisci la quantità",
     aumenta: "Aumenta la quantità",
+    annuncio: "{nome}: quantità {n}", // la regione che lo dice a chi non vede la riga (T89)
   },
   errore: { riprova: "Riprova" },
 };
