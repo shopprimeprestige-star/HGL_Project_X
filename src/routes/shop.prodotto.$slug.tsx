@@ -151,7 +151,14 @@ function SchedaNuova({ dati, prodotto }: { dati: Caricato; prodotto: ProdottoPub
   useEffect(() => {
     if (anteprima || !prodotto.acquistabile || senzaPrezzo(prodotto.nome, prodotto.slug)) return;
     const evento = datiEventoScheda(prodotto, prodotto.varianti[0]?.sku ?? null);
-    if (evento && primaVolta(window.sessionStorage, `hg_vc_${slug}`)) emettiEvento("ViewContent", evento);
+    //  Con i cookie bloccati già solo nominare l'archivio di sessione del browser lancia: senza archivio `primaVolta` dice «prima volta» (come con l'archivio chiuso) e la pagina resta in piedi.
+    let archivio: Storage | null = null;
+    try {
+      archivio = window.sessionStorage;
+    } catch {
+      /* cookie bloccati */
+    }
+    if (evento && primaVolta(archivio, `hg_vc_${slug}`)) emettiEvento("ViewContent", evento);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- una volta per prodotto: la variante scelta dopo non rifà l'evento
   }, [slug, anteprima]);
   return (
