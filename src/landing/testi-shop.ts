@@ -281,6 +281,9 @@ export const TESTI_PROVVISORI = {
       lunghezza: "Scegli la lunghezza.",
       base: "Scegli la base.",
     },
+    // Accanto al bottone d'acquisto (T87b): la variante scelta è esaurita, oppure la scelta fatta non esiste (nessuna variante la ha). Provvisori, per il copywriter.
+    sceltaEsaurita: "Questa scelta è esaurita: provane un'altra.",
+    sceltaNonDisponibile: "Questa scelta non è disponibile.",
   },
   carrello: {
     quantita: "Quantità",
