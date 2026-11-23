@@ -51,7 +51,7 @@ export function barraFissa(percorso: unknown, stato: StatoPagina = "normale"): B
 const ZONA_GESTI = "env(safe-area-inset-bottom, 0px)";
 /** 56 px = la barra della consulenza di oggi (`BarraConsulenza`). */
 const ALTEZZA_CONSULENZA_PX = 56;
-/** shortcut: 72 px = bottone da 56 px più 8 px d'aria sopra e sotto; si cambia con il disegno della barra d'acquisto (T84a) se la misura è un'altra. */
+/** 72 px = altezza della barra d'acquisto del documento del Design (`20-sito/2026-11-20-shop-completo.md`, §4.5 «Barra d'acquisto»: «altezza 72 + area dei gesti»). */
 const ALTEZZA_ACQUISTO_PX = 72;
 
 /** Lo spazio da riservare in fondo alla pagina per questa barra, come lunghezza CSS (`"0px"` se non c'è nessuna barra). */

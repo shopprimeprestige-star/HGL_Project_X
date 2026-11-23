@@ -9,6 +9,9 @@
  *   con `non_verificabile` (o uno stato sconosciuto) sono «—». Mai la cifra ricordata dal browser.
  *  ⚠️ Le righe del catalogo vecchio (senza `sku`) e quelle di Invisible Derm (che nello shop non ha mai un prezzo) non si vedono
  *   mai: si contano in `nascoste` e si tolgono con la frase di R2 (`MSG_RIMOSSE`, «alcuni prodotti non sono più disponibili»).
+ *  ⚠️ SCOSTAMENTO DICHIARATO (V1-K2, quantità oltre la disponibilità): il server non manda la giacenza (solo `disponibile`) e R1/R2 non si
+ *   toccano in V1. L'avviso `quantita` di `avvisiRiga` nasce solo se la rivalida RIDUCE una quantità, cosa che oggi non fa mai; la quantità
+ *   eccessiva la rifiuta la cassa. Il ramo resta pronto per quando `righeCarrello` dirà il massimo.
  *  ⚠️ I soldi si sommano in CENTESIMI interi; il testo della cifra lo fa chi disegna, con il suo formattatore (`testoPrezzo`). */
 import type { StatoCarrello } from "../useRivalidaCarrello";
 import type { TariffaCarrello } from "../cassa/tariffa-carrello";
@@ -206,11 +209,12 @@ export interface IngressoVuoto {
   aspetto: "pieno" | "contorno";
 }
 
-/** Dove portano i due ingressi. «Patch pronte» è la prima categoria del documento (§3.4).
- *  shortcut: «Cura e manutenzione» non ha una categoria sua nel documento (§3.4 ne ha sei); porta alla prima di cura, «shampoo-e-balsami».
- *  Si cambia qui (e nel bottone della home, T91) quando il titolare dice dove deve andare. */
-export const HREF_PATCH_PRONTE = "/shop/c/patch-pronte";
-export const HREF_CURA = "/shop/c/shampoo-e-balsami";
+/** Dove portano i due ingressi, derivati dalle categorie del documento (`TESTI_SHOP.categorie`, §3.4): nessuno slug ripetuto qui.
+ *  «Patch pronte» è la categoria che ha il nome del bottone. shortcut: «Cura e manutenzione» non ha una categoria sua nel documento (§3.4 ne ha sei):
+ *  porta alla seconda, «Shampoo e balsami». Si cambia qui (e nel bottone della home, T91) quando il titolare dice dove deve andare. */
+const hrefCategoria = (c: { slug: string } | undefined): string => (c ? `/shop/c/${c.slug}` : "/shop");
+export const HREF_PATCH_PRONTE = hrefCategoria(TESTI_SHOP.categorie.find((c) => c.nome === TESTI_SHOP.carrello.vuotoBottone1));
+export const HREF_CURA = hrefCategoria(TESTI_SHOP.categorie[1]);
 
 /** Due ingressi (pieno + contorno) e il link alla consulenza, che apre il flusso che esiste (non è un indirizzo). SOLO nel carrello vuoto:
  *  con righe nessun invito alla consulenza. Ogni chiamata dà oggetti nuovi. */

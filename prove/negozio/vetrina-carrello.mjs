@@ -19,6 +19,8 @@ export async function prove(mod, { c, gruppo, radice }) {
   if (!V || !CASSA || !CARR) return;
   const { righeVista, testoPrezzo, riepilogo, avvisiRiga, fraseRipulite, barraCarrello, ingressiCarrelloVuoto } = V;
 
+  const sorgenteCarrello = readFileSync(join(radice, "src/shop/cms/vetrina-carrello.ts"), "utf8");
+  // gli slug cercati nel sorgente sono quelli del CODICE (i commenti li possono citare)
   const dopo = CARRELLO_NUOVO; // due righe: alfa (1 pezzo) e beta (2 pezzi), con i prezzi del catalogo di prova
   const P0 = dopo[0].snap.prezzoCent;
   const P1 = dopo[1].snap.prezzoCent;
@@ -164,13 +166,21 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("vuoto: un solo bottone pieno", 1, vuoto.ingressi.filter((i) => i.aspetto === "pieno").length);
   c("vuoto: i due ingressi portano a pagine dello shop che esistono nel documento (categorie di §3.4)", [true, true], vuoto.ingressi.map((i) => /^\/shop\/c\/[a-z0-9-]+$/.test(i.href)));
   c("vuoto: la patch pronta va alla categoria «patch-pronte»", "/shop/c/patch-pronte", vuoto.ingressi[0].href);
+  /* I link vengono dalle categorie di testi-shop.ts (§3.4), non sono ripetuti nel modulo. */
+  const testiSrc = readFileSync(join(radice, "src/landing/testi-shop.ts"), "utf8");
+  const categorieSrc = testiSrc.slice(testiSrc.indexOf("const CATEGORIE"), testiSrc.indexOf("/** Tutti i testi che vengono dal documento"));
+  const slugDoc = [...categorieSrc.matchAll(/slug: "([^"]+)"/g)].map((m) => m[1]);
+  const nomiDoc = [...categorieSrc.matchAll(/nome: "([^"]+)"/g)].map((m) => m[1]);
+  c("vuoto: le categorie del documento sono sei e la prima ha il nome del bottone «Patch pronte»", [6, "Patch pronte"], [slugDoc.length, nomiDoc[0]]);
+  c("vuoto: i due link sono /shop/c/ + lo slug della categoria del documento (la «patch pronte» per nome, la cura la seconda)", [`/shop/c/${slugDoc[nomiDoc.indexOf("Patch pronte")]}`, `/shop/c/${slugDoc[1]}`], vuoto.ingressi.map((i) => i.href));
+  c("vuoto: gli slug delle categorie non sono ripetuti nel sorgente del modulo", [], slugDoc.filter((sl) => sorgenteCarrello.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "").includes(sl)));
   c("vuoto: il link alla consulenza è una voce di testo che apre il flusso (non un indirizzo)", { testo: "Non sai cosa scegliere? Consulenza gratuita", azione: "consulenza" }, vuoto.consulenza);
   c("vuoto: ogni chiamata dà oggetti nuovi (modificarli non guasta la prossima)", true, ingressiCarrelloVuoto() !== vuoto && ingressiCarrelloVuoto().ingressi[0] !== vuoto.ingressi[0]);
   c("vuoto: nessuna parola vietata, nessun «{{»", [], trovaParoleVietate(JSON.stringify(vuoto)));
   c("con righe NON c'è nessun invito alla consulenza: la vista e la barra non ne portano il testo", [], [JSON.stringify(ok), JSON.stringify(barraCarrello({ righe: 2, nascondiConBottone: false })), JSON.stringify(r1)].filter((t) => /consulenza/i.test(t)));
 
   // ── il sorgente: pura, e nessuna lettura di prezzi dalla memoria del browser (V1-T9) ──
-  const sorgente = readFileSync(join(radice, "src/shop/cms/vetrina-carrello.ts"), "utf8");
+  const sorgente = sorgenteCarrello;
   const codice = sorgente.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
   c("nessun DOM, nessuna memoria del browser, nessuna rete, nessun orologio, nessun React", [], ["window", "document", "localStorage", "sessionStorage", "fetch(", "Date", "Math.random", "setTimeout", "react", "from \"@/shop/CartContext\""].filter((p) => codice.includes(p)));
   c("nessun import dei server (le funzioni del server non entrano in un modulo puro)", [], [...codice.matchAll(/from\s+"([^"]+)"/g)].map((m) => m[1]).filter((m) => /functions|\.server/.test(m)));

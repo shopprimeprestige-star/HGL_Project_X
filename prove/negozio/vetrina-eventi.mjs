@@ -12,7 +12,7 @@
  *  Dati: `_dati-vetrina.mjs` (inventati). */
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { CARRELLO_MISTO, CARRELLO_NUOVO, CARRELLO_VECCHIO, CATALOGO, INVISIBLE_DERM, PRODOTTI, PRODOTTO_STRESS } from "./_dati-vetrina.mjs";
+import { CARRELLO_MISTO, CARRELLO_NUOVO, CARRELLO_VECCHIO, CATALOGO, CATEGORIE, INVISIBLE_DERM, PRODOTTI, PRODOTTO_STRESS } from "./_dati-vetrina.mjs";
 
 export async function prove(mod, { c, gruppo, radice }) {
   const E = mod["shop/cms/vetrina-eventi"];
@@ -54,20 +54,42 @@ export async function prove(mod, { c, gruppo, radice }) {
   const voci = ELENCO.vociDaPubblici(PRODOTTI);
   const lista = eventoListaCategoria(voci, "patch-pronte");
   c("lista: ViewContent di gruppo con gli SKU dei prodotti mostrati e la categoria", { nome: "ViewContent", dati: { contentType: "product_group", contentIds: PRODOTTI.map((p) => p.sku), categoria: "patch-pronte" } }, lista);
+  const conID = ELENCO.vociDaPubblici(CATALOGO);
+  const listaID = eventoListaCategoria(conID, "patch-pronte");
+  c("lista con Invisible Derm in mezzo: il suo SKU NON è nei content_ids, gli altri sì", [false, PRODOTTI.map((p) => p.sku)], [listaID.dati.contentIds.includes(INVISIBLE_DERM.sku), listaID.dati.contentIds]);
+  c("lista con la sola Invisible Derm → nessun evento", null, eventoListaCategoria(ELENCO.vociDaPubblici([INVISIBLE_DERM]), "x"));
+  c("Invisible Derm riconosciuto anche dallo slug, con un nome diverso", false, eventoListaCategoria(ELENCO.vociDaPubblici([...PRODOTTI, { ...INVISIBLE_DERM, nome: "Altro nome", sku: "ALTRO-ID" }]), "x").dati.contentIds.includes("ALTRO-ID"));
+  const vociMiste = [{ product: { id: "inv-derm", name: "Invisible Derm", slug: "invisible-derm" } }, { product: { id: "colla-1", name: "Colla", slug: "colla-1" } }, { product: { id: "altro", name: "Altro", slug: "altro" }, pubblico: INVISIBLE_DERM }];
+  c("lista del catalogo di oggi (solo `product`) o con il solo `pubblico` di Invisible Derm: escluso in entrambi i casi", ["HG-COLLA-1"], eventoListaCategoria(vociMiste, "x").dati.contentIds);
   c("lista senza categoria (la home): niente categoria", false, "categoria" in eventoListaCategoria(voci).dati);
   c("lista vuota → nessun evento", [null, null], [eventoListaCategoria([], "x"), eventoListaCategoria(undefined, "x")]);
   const costruitoLista = costruisci(lista);
   c("a Meta la lista è «product_group» e Google la chiama view_item_list", ["product_group", "view_item_list"], [costruitoLista.meta.parametri.content_type, costruitoLista.ga4.nome]);
   c("la lista non porta nessun valore in euro", false, "value" in costruitoLista.meta.parametri);
 
-  // ── ricerca: il testo cercato non esce se somiglia a un dato personale ──
-  c("ricerca normale: evento Search con il testo ripulito", { nome: "Search", dati: { searchString: "colla per patch" } }, eventoCerca("  colla   per patch "));
-  c("a Meta, TikTok e Google il testo arriva", ["colla", "colla", "colla"], (() => { const x = costruisci(eventoCerca("colla")); return [x.meta.parametri.search_string, x.tiktok.parametri.query, x.ga4.parametri.search_term]; })());
+  // ── ricerca: il testo esce SOLO se è il nome di un prodotto o di una categoria del catalogo pubblico ──
+  const { vocabolarioRicerca } = E;
+  const vocabolario = vocabolarioRicerca(CATALOGO, CATEGORIE);
+  c("vocabolario: i nomi dei prodotti (anche Invisible Derm) e delle categorie, senza doppioni", true,
+    vocabolario.includes("Patch di prova Alfa") && vocabolario.includes("Invisible Derm di prova") && vocabolario.includes("Patch pronte di prova") && new Set(vocabolario).size === vocabolario.length);
+  c("vocabolario: elenchi non validi o nomi vuoti/non testo → niente, senza lanciare", [[], ["Solo"]], [vocabolarioRicerca(null, undefined), vocabolarioRicerca([{ nome: "" }, { nome: 5 }, null, { nome: "Solo" }], [])]);
+  c("ricerca del nome di un prodotto: evento Search con il nome, scritto come nel catalogo", { nome: "Search", dati: { searchString: "Patch di prova Alfa" } }, eventoCerca("  patch   DI prova alfa ", vocabolario));
+  c("ricerca del nome di una categoria: il testo esce", { nome: "Search", dati: { searchString: "Patch pronte di prova" } }, eventoCerca("patch pronte di prova", vocabolario));
+  c("maiuscole e accenti non contano nel confronto (esce il nome del catalogo)", "Perché no", eventoCerca("PERCHE  NO", ["Perché no"]).dati.searchString);
+  c("a Meta, TikTok e Google il testo arriva (se è del catalogo)", ["Patch di prova Alfa", "Patch di prova Alfa", "Patch di prova Alfa"],
+    (() => { const x = costruisci(eventoCerca("patch di prova alfa", vocabolario)); return [x.meta.parametri.search_string, x.tiktok.parametri.query, x.ga4.parametri.search_term]; })());
+  const ALTRI = ["mario rossi", "alopecia", "chemio", "via roma 12", "colla", "patch di prova"];
+  c("testi che NON sono un nome del catalogo (nome, malattia, indirizzo, parte di un nome): l'evento parte SENZA testo",
+    ALTRI.map(() => ({ nome: "Search", dati: {} })), ALTRI.map((t) => eventoCerca(t, vocabolario)));
+  c("senza vocabolario (non ancora scaricato, mancante, vuoto) l'evento parte senza testo", [{ nome: "Search", dati: {} }, { nome: "Search", dati: {} }, { nome: "Search", dati: {} }],
+    [eventoCerca("patch di prova alfa"), eventoCerca("patch di prova alfa", []), eventoCerca("patch di prova alfa", null)]);
   const PERSONALI = ["mario.rossi@esempio.it", "scrivi a anna@x.it", "3331234567", "06 1234 5678", "+39 333 123 4567", "12345678", "colla 123456", "@mario"];
-  c("ricerca con email, telefono o numeri lunghi (6 cifre o più) → nessun evento", PERSONALI.map(() => null), PERSONALI.map((t) => eventoCerca(t)));
-  c("ricerca vuota, di una lettera, non testo → nessun evento", [null, null, null, null, null], ["", " ", "a", undefined, 42].map((t) => eventoCerca(t)));
-  c("ricerca con poche cifre resta (colla 3M, taglia 40)", ["colla 3M", "taglia 40"], ["colla 3M", "taglia 40"].map((t) => eventoCerca(t)?.dati.searchString));
-  c("ricerca lunghissima → al massimo 80 caratteri", 80, eventoCerca("x".repeat(500)).dati.searchString.length);
+  c("email, telefono e numeri lunghi: l'evento parte senza testo, e il testo non compare da nessuna parte", PERSONALI.map(() => true),
+    PERSONALI.map((t) => { const e = eventoCerca(t, vocabolario); return !!e && !("searchString" in e.dati) && !JSON.stringify([e, costruisci(e)]).includes(t); }));
+  c("ricerca vuota, di una lettera, non testo → nessun evento (non è una ricerca)", [null, null, null, null, null], ["", " ", "a", undefined, 42].map((t) => eventoCerca(t, vocabolario)));
+  c("nessun evento di ricerca porta un testo che non sia nel vocabolario (provato su una raccolta di testi, anche personali)", [],
+    [...ALTRI, ...PERSONALI, ...vocabolario, "x".repeat(500), "  ", "Patch"].flatMap((t) => { const e = eventoCerca(t, vocabolario); return e && "searchString" in e.dati && !vocabolario.includes(e.dati.searchString) ? [t] : []; }));
+  c("Search senza testo: Meta, TikTok e Google lo costruiscono lo stesso, senza search_string", [true, false], (() => { const x = costruisci(eventoCerca("alopecia", vocabolario)); return [!!x.ga4 && !!x.meta, "search_string" in x.meta.parametri]; })());
 
   // ── RemoveFromCart: lo SKU della riga, il valore del server, nessun altro campo ──
   const riga = CARRELLO_NUOVO[1]; // beta, 2 pezzi
@@ -98,7 +120,7 @@ export async function prove(mod, { c, gruppo, radice }) {
 
   // ── NESSUN DATO PERSONALE, su tutti gli eventi che si possono costruire ──
   const tutti = [
-    vista, agg, lista, eventoCerca("colla"), rim, vc,
+    vista, agg, lista, eventoCerca("Patch di prova Alfa", vocabolario), eventoCerca("alopecia", vocabolario), rim, vc,
     ...CATALOGO.flatMap((p) => p.varianti.flatMap((x) => [eventoVista(p, x.sku), eventoAggiungi(p, x.sku, 2)])),
   ].filter(Boolean);
   c("la raccolta di eventi è grande", true, tutti.length > 40);

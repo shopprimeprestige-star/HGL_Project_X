@@ -4,15 +4,15 @@
  *  Su `elenco.ts`, `scheda.ts` e `cassa.ts` esistenti: LI RIUSA, non li duplica (stessi SKU, stessi centesimi di oggi).
  *  ⚠️ `content_ids` = SKU della VARIANTE (scheda, carrello) o del prodotto (liste `product_group`); il valore è in CENTESIMI interi
  *   (`costruisciEvento` lo porta in euro).
- *  ⚠️ NESSUN DATO PERSONALE: solo SKU, nome del prodotto (dal catalogo), categoria, numeri e il testo cercato SE non somiglia a
- *   un'email o a un telefono (`testoDaCercare`). Le righe del carrello non portano nomi né altri campi: solo SKU, quantità e valore.
+ *  ⚠️ NESSUN DATO PERSONALE: solo SKU, nome del prodotto (dal catalogo), categoria, numeri e il testo cercato SOLO se è il nome di un
+ *   prodotto o di una categoria del catalogo pubblico (un testo libero può essere un nome, una malattia, un indirizzo: non esce). Le righe del carrello non portano nomi né altri campi: solo SKU, quantità e valore.
  *  ⚠️ Il valore di una riga del carrello esce SOLO se il server l'ha controllato (`stato === "ok"`): la memoria del browser può
  *   essere stata alterata. Altrimenti l'evento parte senza cifra (meglio nessuna cifra che una sbagliata).
  *  ⚠️ Invisible Derm non ha prezzo né vendita: nessun evento di scheda, di aggiunta o di carrello. */
 import type { DatiEvento } from "../../lib/tracciamento/eventi";
 import type { NomeEvento } from "../../lib/tracciamento/nomi";
 import type { StatoCarrello } from "../useRivalidaCarrello";
-import { datiListaVisualizzata, testoDaCercare, type VoceElenco } from "./elenco";
+import { datiListaVisualizzata, eInvisibleDerm, testoDaCercare, type VoceElenco } from "./elenco";
 import { datiEventoRighe } from "./cassa";
 import type { ProdottoPubblico } from "./modello";
 import { skuValido } from "./modello";
@@ -45,16 +45,32 @@ export function eventoAggiungi(p: ProdottoPubblico, skuVariante: string | null |
 
 /* ── liste e ricerca ────────────────────────────────────────────────────── */
 
-/** ViewContent di una lista (home, categoria): gli SKU dei prodotti mostrati e la categoria. `null` se la lista è vuota. */
+/** ViewContent di una lista (home, categoria): gli SKU dei prodotti mostrati e la categoria. Invisible Derm (senza prezzo, non si vende) non c'è
+ *  fra gli SKU. `null` se non resta niente da dire. */
 export function eventoListaCategoria(voci: readonly VoceElenco[] | null | undefined, categoria?: string): EventoDaEmettere | null {
-  const dati = datiListaVisualizzata(Array.isArray(voci) ? voci : [], categoria);
+  const vendibili = (Array.isArray(voci) ? voci : []).filter((v) => !(eInvisibleDerm(v.product?.name, v.product?.slug) || eInvisibleDerm(v.pubblico?.nome, v.pubblico?.slug)));
+  const dati = datiListaVisualizzata(vendibili, categoria);
   return dati ? { nome: "ViewContent", dati } : null;
 }
 
-/** Search: il testo ripulito. `null` se è vuoto, di una lettera, o se somiglia a un'email o a un telefono (chiocciola, sei cifre o più). */
-export function eventoCerca(testo: unknown): EventoDaEmettere | null {
-  const t = testoDaCercare(testo);
-  return t ? { nome: "Search", dati: { searchString: t } } : null;
+/** I nomi che una ricerca può mandare alle piattaforme: quelli dei prodotti e delle categorie del catalogo pubblico già scaricato. */
+export function vocabolarioRicerca(prodotti: readonly { nome?: unknown }[] | null | undefined, categorie: readonly { nome?: unknown }[] | null | undefined): string[] {
+  const nomi = [...(Array.isArray(prodotti) ? prodotti : []), ...(Array.isArray(categorie) ? categorie : [])].flatMap((x) => (typeof x?.nome === "string" && x.nome.trim() ? x.nome.trim() : []));
+  return [...new Set(nomi)];
+}
+
+/** Per confrontare: minuscolo, senza accenti, spazi ridotti a uno. */
+const normalizza = (t: string): string => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
+
+/** Search. L'evento (la ricerca è avvenuta) parte per ogni testo di almeno due caratteri, ma `searchString` c'è SOLO se il testo, normalizzato,
+ *  coincide con il nome di un prodotto o di una categoria del `vocabolario`; esce il nome com'è nel catalogo, mai quello scritto da chi cerca.
+ *  Senza vocabolario (non ancora scaricato) l'evento parte senza testo. `null` se non è una ricerca (vuoto, una lettera, non testo). */
+export function eventoCerca(testo: unknown, vocabolario?: readonly string[] | null): EventoDaEmettere | null {
+  if (typeof testo !== "string" || normalizza(testo).length < 2) return null;
+  const chiave = normalizza(testo);
+  const nome = (Array.isArray(vocabolario) ? vocabolario : []).find((n) => typeof n === "string" && normalizza(n) === chiave);
+  const t = nome === undefined ? null : testoDaCercare(nome);
+  return { nome: "Search", dati: t ? { searchString: t } : {} };
 }
 
 /* ── carrello ───────────────────────────────────────────────────────────── */

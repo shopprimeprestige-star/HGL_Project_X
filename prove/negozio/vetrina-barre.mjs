@@ -102,6 +102,9 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("lo spazio segue la barra scelta per percorso: carrello e scheda uguali, home diversa da scheda", [true, true],
     [spazioRiservato(barraFissa("/shop/carrello")) === spazioRiservato(barraFissa("/shop/prodotto/x")), spazioRiservato(barraFissa("/shop")) !== spazioRiservato(barraFissa("/shop/prodotto/x"))]);
 
+  const sorgenteBarre = readFileSync(join(radice, "src/shop/cms/vetrina-barre.ts"), "utf8");
+  c("l'altezza di 72 px cita il documento del Design (§4.5 «Barra d'acquisto»), non è più un «shortcut»", [true, false], [/§4\.5 «Barra d'acquisto»/.test(sorgenteBarre), /shortcut/.test(sorgenteBarre)]);
+
   // ── il sorgente è puro ──
   const sorgente = readFileSync(join(radice, "src/shop/cms/vetrina-barre.ts"), "utf8");
   const codice = sorgente.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
