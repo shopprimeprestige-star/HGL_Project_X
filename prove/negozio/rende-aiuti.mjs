@@ -196,13 +196,13 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("`shop.carrello` con il carrello nuovo: si disegna con i nomi e il prezzo dei dati inventati", [true, true], [car.html.includes("Patch di prova Alfa"), /289,00\s€/.test(car.html)]);
   await car.route.loader();
   c("…il suo `loader` chiama solo `modalitaCatalogo`", ["modalitaCatalogo"], car.pagina.chiamate);
-  const home = await rendi(radice, R("shop.index"), { ...vuotoLoader, loaderData: { prodotti: D.CATALOGO, categorie: D.CATEGORIE }, context: { modalita: "cms" } });
-  c("`shop.index` (home di oggi) con prodotti e categorie inventati si disegna", true, home.html.includes("Patch di prova Alfa"));
+  const home = await rendi(radice, R("shop.index"), { ...vuotoLoader, loaderData: { contenuto: { testi: {}, media: {} }, tariffa: null, categorieConProdotti: [], vetrina: null }, context: { modalita: "cms" } });
+  c("`shop.index` (home nuova con `cms`, dati leggeri nel `loaderData`) si disegna (un H1)", 1, (home.html.match(/<h1\b/g) ?? []).length);
   const homeLoader = await home.route.loader({ context: { modalita: "codice" } });
   c("…`loader` con `codice` non chiama il server (valore `null`)", [null, []], [homeLoader, home.pagina.chiamate]);
-  home.pagina.server = { elencoProdotti: D.CATALOGO, elencoCategorie: D.CATEGORIE };
+  home.pagina.server = { contenutoShop: { testi: {}, media: {} }, tariffaSpedizione: D.TARIFFA_OK, elencoProdotti: D.CATALOGO, elencoCategorie: D.CATEGORIE };
   const homeCms = await home.route.loader({ context: { modalita: "cms" } });
-  c("…con `cms` chiama `elencoProdotti` e `elencoCategorie` (risposte dichiarate in `stato.server`, modificabili a disegno fatto)", [["elencoProdotti", "elencoCategorie"], 9, 3], [home.pagina.chiamate, homeCms.prodotti.length, homeCms.categorie.length]);
+  c("…con `cms` chiama le quattro letture (risposte dichiarate in `stato.server`, modificabili a disegno fatto) e dà i quattro dati leggeri", [["contenutoShop", "elencoCategorie", "elencoProdotti", "tariffaSpedizione"], ["categorieConProdotti", "contenuto", "tariffa", "vetrina"]], [[...home.pagina.chiamate].sort(), Object.keys(homeCms).sort()]);
   const scheda = await rendi(radice, R("shop.prodotto.$slug"), { ...vuotoLoader, params: { slug: "patch-prova-alfa" }, loaderData: { scheda: { tipo: "cms", prodotto: D.PRODOTTI[0] }, anteprima: false }, carrello: D.carrelloFinto() });
   c("`shop.prodotto.$slug` con una scheda inventata si disegna con il nome del prodotto", true, scheda.html.includes("Patch di prova Alfa"));
   scheda.pagina.chiamate.length = 0;

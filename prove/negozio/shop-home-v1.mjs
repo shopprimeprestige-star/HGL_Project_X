@@ -163,8 +163,9 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("cms senza dati del loader (non è mai atteso): la pagina si disegna lo stesso, non lancia", false, /^LANCIA/.test(hCmsSenzaDati));
 
   // ════ HEAD ══════════════════════════════════════════════════════════════════
-  const testa = (loaderData, context = CMS) => route.head({ match: { context, status: "success" }, loaderData, params: {} });
-  c("head: con `codice` vale `undefined` (la home di oggi non ha head: l'oro non cambia)", [undefined, undefined, undefined], [testa(undefined, { modalita: "codice" }), testa(null, { modalita: "codice" }), route.head({ match: { context: { modalita: "codice" }, status: "success" }, loaderData: undefined, params: {} })]);
+  //  un `head` che lancia dà un rosso («lancia»), non ferma la suite
+  const testa = (loaderData, context = CMS) => { try { return route.head({ match: { context, status: "success" }, loaderData, params: {} }); } catch (e) { return { lancia: String(e?.message ?? e) }; } };
+  c("head: con `codice` vale `undefined` (la home di oggi non ha head: l'oro non cambia)", [undefined, undefined, undefined], [testa(undefined, { modalita: "codice" }), testa(null, { modalita: "codice" }), testa(undefined, { modalita: "codice" })]);
   const T = testa(dati);
   const meta = (k) => T?.meta?.find((m) => m.name === k || m.property === k)?.content;
   const MH = KS.metaHome();
@@ -181,7 +182,7 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("head cms: un indirizzo non https (http, relativo) non diventa immagine di condivisione", undefined, nonHttps?.meta?.find((m) => m.property === "og:image"));
   const jsonT = JSON.stringify(T);
   c("head cms: niente `{{`, niente «da confermare», nessun indirizzo dello studio, nessuna parola vietata, nessun prezzo", [false, false, false, [], false], [/\{\{/.test(jsonT), /da confermare/i.test(jsonT), /Scipioni|\bVia degli\b/i.test(jsonT), D.trovaParoleVietate(jsonT), /€|\d,\d{2}/.test(jsonT)]);
-  c("head cms: non lancia con dati assenti o storti (loaderData null, contenuto assente)", ["ok", "ok"], [(() => { try { testa({}); return "ok"; } catch { return "lancia"; } })(), (() => { try { testa({ ...dati, contenuto: undefined }); return "ok"; } catch { return "lancia"; } })()]);
+  c("head cms: non lancia con dati assenti o storti (loaderData null, contenuto assente)", ["ok", "ok"], [testa({})?.lancia ? "lancia" : "ok", testa({ ...dati, contenuto: undefined })?.lancia ? "lancia" : "ok"]);
 
   // ════ IL SORGENTE ═══════════════════════════════════════════════════════════
   const leggi = (f) => readFileSync(join(radice, f), "utf8");
