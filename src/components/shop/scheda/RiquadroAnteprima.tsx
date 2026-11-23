@@ -14,7 +14,7 @@ export function RiquadroAnteprima({ nascosti }: PropsRiquadroAnteprima) {
   const motivi = (Array.isArray(nascosti) ? nascosti : []).filter((n) => typeof n?.motivo === "string" && n.motivo.trim() !== "");
   if (motivi.length === 0) return null;
   return (
-    <div data-riquadro-anteprima className="mx-auto w-full max-w-6xl px-4 pt-4 min-[360px]:px-6">
+    <div data-riquadro-anteprima className="mx-auto w-full max-w-7xl px-4 pt-4 min-[360px]:px-6 lg:px-10">
       <details className="rounded-md border border-amber-300 bg-amber-50 text-amber-950">
         <summary className="shop-anello min-h-11 cursor-pointer rounded-md px-4 py-3 text-sm font-semibold">{TESTI_PROVVISORI.scheda.anteprimaRiquadro}</summary>
         <ul className="list-disc space-y-1 px-4 pb-4 pl-9 pr-4 text-sm">

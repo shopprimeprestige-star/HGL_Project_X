@@ -57,7 +57,7 @@ export function RigaCarrelloShop({ riga, avviso, formatta, onQuantita, onTogli }
           params={params}
           className="shop-anello flex min-h-11 min-w-0 items-center rounded-sm text-[15px] font-semibold leading-tight text-[#0A1430] underline-offset-4 hover:underline"
         >
-          <span className="line-clamp-2">{riga.nome}</span>
+          <span className="line-clamp-2 break-words">{riga.nome}</span>
         </Link>
         {riga.varianteNome && (
           <p className="col-start-1 break-words text-sm text-ink-muted">{riga.varianteNome}</p>
