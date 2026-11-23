@@ -63,7 +63,7 @@ export function PaginaCerca({ carte, suggeriti, q, guasto = false, riprova }: Pa
 
   const risultati = ricercaFatta && !guasto && trovati.length > 0;
   return (
-    <div className="mx-auto w-full max-w-6xl px-4 py-8 min-[360px]:px-6 sm:py-12">
+    <div className="mx-auto w-full max-w-7xl px-4 py-8 min-[360px]:px-6 sm:py-12 lg:px-10">
       <h1 className="text-balance break-words text-2xl font-bold leading-[1.1] tracking-tight text-[#0A1430] md:text-4xl">
         {ricercaFatta
           ? riempi(TESTI_PROVVISORI.cerca.titolo, { testo: cercato })
