@@ -7,11 +7,14 @@
  *  ⚠️ Mai il sito vero né il database vero: accetta solo http://127.0.0.1, http://localhost o http://[::1]. Due difese insieme:
  *     (1) il browser parte con `--host-resolver-rules="MAP * ~NOTFOUND, EXCLUDE localhost, EXCLUDE 127.0.0.1, EXCLUDE [::1]"`: ogni nome esterno non si risolve,
  *         comunque ci si arrivi (redirect, WebSocket, preconnect, sottorisorse); (2) un filtro di Playwright su ogni richiesta fa passare SOLO l'origine di
- *         `--base` e abortisce le quattro rotte con un indirizzo vero scritto nel codice. Il filtro da solo NON basterebbe: Playwright non lo chiama sui
- *         redirect, né sui WebSocket. Legge dall'ambiente solo `MISURA_*`.
+ *         `--base` (più, se c'è, quella di `--finto`: solo quella) e abortisce le quattro rotte con un indirizzo vero scritto nel codice. Il filtro da solo
+ *         NON basterebbe: Playwright non lo chiama sui redirect, né sui WebSocket. Legge dall'ambiente solo `MISURA_*`.
  *  ⚠️ Non scrive file: l'esito va su stdout; il browser gira in un contesto senza profilo e si chiude in un `finally`.
  *
- *  Uso:  node strumenti/misura-vetrina.mjs --playwright <cartella> [--base http://127.0.0.1:5199] [--pagine /shop,/shop/cerca,/shop/carrello]
+ *  `--finto http://127.0.0.1:<porta>`: l'origine del finto Supabase (`avvia.mjs` la scrive all'avvio). Le foto dei prodotti stanno lì, su un'altra
+ *  porta di 127.0.0.1: senza, il filtro le ferma e le pagine con foto danno sempre errori in console. Loopback, verificata come `--base`.
+ *
+ *  Uso:  node strumenti/misura-vetrina.mjs --playwright <cartella> [--base http://127.0.0.1:5199] [--finto http://127.0.0.1:<porta>] [--pagine /shop,/shop/cerca,/shop/carrello]
  *                                          [--scheda /shop/prodotto/<slug> --sku <SKU>[,<SKU>]] [--scenario stress] [--solo T3,T11]
  *                                          [--canale chrome] [--finestra "<css del bottone che apre una finestra>"]
  *  Codice di uscita: 0 tutto ok, 1 almeno un punto no, 2 non si è potuto misurare (argomenti, Playwright o browser mancanti),
@@ -64,7 +67,7 @@ export const SCENARI = ["completo", "vuoto", "pochi", "guasto", "vecchio", "stre
 /** I punti che si possono scegliere con `--solo` (la parte prima del trattino dell'id). */
 export const FAMIGLIE = ["T3", "T10", "T11", "T12", "T13", "T14", "T15", "H5", "D105"];
 const PAGINE_DI_PARTENZA = ["/shop", "/shop/cerca", "/shop/carrello"];
-const CON_VALORE = new Set(["--base", "--playwright", "--pagine", "--scheda", "--sku", "--scenario", "--solo", "--canale", "--finestra"]);
+const CON_VALORE = new Set(["--base", "--finto", "--playwright", "--pagine", "--scheda", "--sku", "--scenario", "--solo", "--canale", "--finestra"]);
 
 /** `argv` senza i primi due; `env` = l'ambiente (si leggono solo `MISURA_BASE`, `MISURA_PLAYWRIGHT`, `MISURA_CANALE`). Mai un'eccezione: gli errori vanno in `errori`. */
 export function leggiArgomenti(argv, env = {}) {
@@ -83,6 +86,7 @@ export function leggiArgomenti(argv, env = {}) {
   const lista = (s) => (s ? s.split(",").map((x) => x.trim()).filter(Boolean) : []);
   const opzioni = {
     base: v.base ?? env.MISURA_BASE ?? "http://127.0.0.1:5199",
+    finto: v.finto,
     playwright: v.playwright ?? env.MISURA_PLAYWRIGHT,
     pagine: v.pagine ? lista(v.pagine) : PAGINE_DI_PARTENZA,
     scheda: v.scheda,
@@ -98,6 +102,10 @@ export function leggiArgomenti(argv, env = {}) {
   if (origine) {
     opzioni.base = origine;
     for (const p of [...opzioni.pagine, ...(opzioni.scheda ? [opzioni.scheda] : [])]) prova(() => verificaPercorso(p, origine));
+  }
+  if (opzioni.finto !== undefined) {
+    const finto = prova(() => verificaIndirizzoLocale(opzioni.finto));
+    if (finto) opzioni.finto = finto;
   }
   if (opzioni.scenario && !SCENARI.includes(opzioni.scenario)) errori.push(`scenario «${opzioni.scenario}» sconosciuto (${SCENARI.join(", ")})`);
   for (const s of opzioni.solo) if (!FAMIGLIE.includes(s)) errori.push(`--solo «${s}» sconosciuto (${FAMIGLIE.join(", ")})`);
@@ -668,15 +676,15 @@ const PICCOLO = { width: 320, height: 640 };
 const COMPUTER = { width: 1280, height: 800 };
 const TABLET = { width: 700, height: 900 };
 
-/** Il filtro di ogni contesto: passa SOLO l'origine di `--base` (mai un'altra porta di loopback, mai `localhost` se la base è 127.0.0.1) e mai le quattro rotte vietate.
- *  Tutto il resto è fermato. Non vede i redirect né i WebSocket: per quelli c'è la regola del resolver nel `launch`. */
-export function instradaPer(base) {
-  const origine = new URL(base).origin;
+/** Il filtro di ogni contesto: passa SOLO l'origine di `--base` e, se c'è, quella di `--finto` (mai un'altra porta di loopback, mai `localhost` se la base è
+ *  127.0.0.1) e mai le quattro rotte vietate. Tutto il resto è fermato. Non vede i redirect né i WebSocket: per quelli c'è la regola del resolver nel `launch`. */
+export function instradaPer(base, finto) {
+  const origini = new Set([new URL(base).origin, ...(finto ? [new URL(finto).origin] : [])]);
   return async (route) => {
     let passa = false;
     try {
       const u = new URL(route.request().url());
-      passa = u.origin === origine && !u.username && !u.password && !rottaVietata(u.pathname);
+      passa = origini.has(u.origin) && !u.username && !u.password && !rottaVietata(u.pathname);
     } catch { /* indirizzo storto: si ferma */ }
     if (passa) await route.continue();
     else await route.abort("blockedbyclient");
@@ -690,7 +698,7 @@ async function conPagina(browser, viewport, fn, { dopoRichieste } = {}) {
   const contesto = await browser.newContext({ viewport, deviceScaleFactor: 1, isMobile: viewport.width <= 500, hasTouch: viewport.width <= 500, serviceWorkers: "block", locale: "it-IT" });
   const richieste = [];
   try {
-    await contesto.route("**/*", instradaPer(browser.base));
+    await contesto.route("**/*", instradaPer(browser.base, browser.finto));
     contesto.setDefaultTimeout(15_000);
     contesto.on("request", (r) => richieste.push({ url: r.url(), tipo: r.resourceType() }));
     const pagina = await contesto.newPage();
@@ -917,7 +925,7 @@ export async function misura(pw, opzioni) {
   try { browser = await pw.chromium.launch({ channel: opzioni.canale, headless: true, args: ARGOMENTI_BROWSER }); }
   catch { throw new ErroreMisura(messaggioBrowserMancante(opzioni.canale)); }
   const punti = [];
-  const ambiente = { newContext: (o) => browser.newContext(o), base: opzioni.base };
+  const ambiente = { newContext: (o) => browser.newContext(o), base: opzioni.base, finto: opzioni.finto };
   try {
     for (const p of PUNTI) {
       if (!puntoScelto(p.id, opzioni.solo)) continue;
