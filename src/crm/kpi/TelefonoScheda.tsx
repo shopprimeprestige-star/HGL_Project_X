@@ -29,7 +29,13 @@ import { Phone } from "lucide-react";
 import { useCRM } from "@/crm/CRMContext";
 import { cn } from "@/lib/utils";
 import { Kpi, KpiRiga, Scheda, Vuoto } from "@/crm/ui";
-import { LEAD_STATUS_LABEL, STATI_PRIMO_CONTATTO, type Lead, type LeadStatus } from "@/crm/types";
+import {
+  LEAD_STATUS_LABEL,
+  STATI_PRIMO_CONTATTO,
+  eGiaCliente,
+  type Lead,
+  type LeadStatus,
+} from "@/crm/types";
 import type { FiltroPeriodo } from "@/crm/kpi-calcoli";
 import { VOLUME_MINIMO_LPS } from "@/crm/kpi/soglie";
 
@@ -105,7 +111,9 @@ const ORDINE_ESITI: { chiave: string; etichetta: string }[] = [
  *  in types.ts, un altro file — senza dargli una riga qui: quel lead finirebbe
  *  in «oltre», cioè fra chi l'appuntamento l'ha ottenuto, e il tasso salirebbe
  *  senza motivo. Si controlla una volta sola all'avvio e si dice in pagina. */
-const PRIMI_SENZA_ESITO = STATI_PRIMO_CONTATTO.filter((s) => !ESITO_DI[s]);
+//  «Già cliente nostro» sta in quell'elenco per il menu del setter, ma non è un esito di telefonata
+//  e non arriva a questa pagina (`leadsKpi` lo esclude): niente avviso per lui.
+const PRIMI_SENZA_ESITO = STATI_PRIMO_CONTATTO.filter((s) => !ESITO_DI[s] && !eGiaCliente(s));
 
 interface Quota {
   chiave: string;

@@ -4,7 +4,13 @@
  *  cron del server (routes/hooks/attesa-da-chiamare). Prove in
  *  prove/idee/ritorno-in-attesa.mjs.
  *  ───────────────────────────────────────────────────────────────────────── */
-import { STATI_APPUNTAMENTO, STATI_VINTI, type LeadData, type LeadStatus } from "@/crm/types";
+import {
+  STATI_APPUNTAMENTO,
+  STATI_GIA_CLIENTE,
+  STATI_VINTI,
+  type LeadData,
+  type LeadStatus,
+} from "@/crm/types";
 
 /** ── CHI TORNA VA IN «ATTESA WHATSAPP» (30/10/2026) ───────────────────────
  *  Richiesta del titolare: chi ricompare (modulo, foglio, file) passa da solo
@@ -14,8 +20,9 @@ import { STATI_APPUNTAMENTO, STATI_VINTI, type LeadData, type LeadStatus } from 
  *  sotto lo stato («prima: Non interessato», `primaDelRitorno`).
  *  ⚠️ NON SI SPOSTA chi ha un appuntamento (fissato, rifissato, in sede), un
  *   acconto (stato o soldi incassati), chi sta per pagarlo («Attesa acconto») e
- *   chi ha comprato: lì il ritorno è una richiesta del cliente su una pratica
- *   viva, e lo stato dice cose che «Attesa WhatsApp» cancellerebbe.
+ *   chi ha comprato e chi è «Già cliente nostro»: lì il ritorno è una richiesta
+ *   del cliente su una pratica viva, e lo stato dice cose che «Attesa WhatsApp»
+ *   cancellerebbe (per l'ultimo, la scheda tornerebbe nella coda del setter).
  *  `ricarico.inAttesaIl` dice che lo stato l'ha cambiato il ritorno: serve a
  *  raccontare il «prima» e a non spostare la stessa scheda due volte. */
 export const STATI_CHE_RESTANO_AL_RITORNO: LeadStatus[] = [
@@ -23,6 +30,7 @@ export const STATI_CHE_RESTANO_AL_RITORNO: LeadStatus[] = [
   "viene_in_sede",
   "in_attesa_acconto",
   ...STATI_VINTI,
+  ...STATI_GIA_CLIENTE,
 ];
 const STATO_DEL_RITORNO: LeadStatus = "attesa_whatsapp";
 /** Gli stati in cui il ritorno lascia la scheda da solo: «Attesa WhatsApp» e,

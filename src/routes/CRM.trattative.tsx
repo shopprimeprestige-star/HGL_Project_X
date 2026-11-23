@@ -262,7 +262,7 @@ const eImportato = (l: Lead) => !!l.data.importato && !(l.data.dataMeeting && l.
 
 /** Gli stati in cui non c'è nessuna consulenza da avviare: la pratica è chiusa
  *  o il contatto non è mai diventato un lead lavorabile. */
-const STATI_SENZA_CONSULENZA: string[] = ["concluso", "annullato", "per_ora_no", "perdi_tempo"];
+const STATI_SENZA_CONSULENZA: string[] = ["concluso", "annullato", "per_ora_no", "perdi_tempo", "gia_cliente"];
 
 /** Si può avviare la videoconsulenza di questo lead?
  *  Servono tutte e tre: il consulente (entra come padrone di casa), il giorno e

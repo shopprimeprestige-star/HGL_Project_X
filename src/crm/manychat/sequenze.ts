@@ -45,7 +45,7 @@
  *   - se la consulenza è stata fissata meno di 24 ore prima dell'inizio non parte
  *     (c'è già la conferma), e non dice niente.
  *  ───────────────────────────────────────────────────────────────────────── */
-import { STATI_APPUNTAMENTO, STATI_PRIMO_CONTATTO, eAppuntamento } from "../types";
+import { STATI_APPUNTAMENTO, STATI_PRIMO_CONTATTO, eAppuntamento, eGiaCliente } from "../types";
 import { eSoloBlocco } from "../conta-nei-kpi";
 import { statoPrimaDelRitorno } from "../importa/ritorno-attesa";
 import { aRoma, oraNormale } from "../promemoria/formati";
@@ -246,8 +246,10 @@ const TIPI_LEAD_NUOVI: InvioPerFreno["tipo"][] = [
  *  senza gli appuntamenti. Il testo di `hgl_ritorno` chiede «Vuole fissare la consulenza
  *  gratuita?»: a chi ne ha già avuta una (in chat, in valutazione, attesa acconto,
  *  ricontatto fissato, no-show, clienti…) non si scrive. Stato assente = nuovo = sì. */
+//  «Già cliente nostro» (23/11/2026) sta in STATI_PRIMO_CONTATTO per il menu del setter, ma ha già
+//  comprato: «Vuole fissare la consulenza gratuita?» a un cliente è proprio il messaggio sbagliato.
 const STATI_SENZA_CONSULENZA: string[] = STATI_PRIMO_CONTATTO.filter(
-  (s) => !STATI_APPUNTAMENTO.includes(s),
+  (s) => !STATI_APPUNTAMENTO.includes(s) && !eGiaCliente(s),
 );
 const senzaConsulenza = (stato: unknown) =>
   !nonVuoto(stato) || STATI_SENZA_CONSULENZA.includes(String(stato));
