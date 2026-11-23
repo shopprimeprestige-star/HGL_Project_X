@@ -254,6 +254,12 @@ export const TESTI_PROVVISORI = {
     precedente: "Foto precedente",
     successiva: "Foto successiva",
     chiudi: "Chiudi la foto",
+    etichetta: "Foto del prodotto", // nome della galleria per chi usa lo schermo parlato
+    carosello: "carosello", // `aria-roledescription` della galleria (con più di una foto)
+    diapositiva: "diapositiva", // `aria-roledescription` di ogni foto
+    contatore: "{n}/{m}", // «1/5» sulla foto
+    guardaVideo: "Guarda il video", // bottone sulla copertina: il video parte solo al tocco
+    titoloLightbox: "Foto ingrandita", // titolo della finestra (non si vede)
   },
   scheda: {
     cosaContiene: "Cosa contiene", // kit: elenco di testo (D81)
