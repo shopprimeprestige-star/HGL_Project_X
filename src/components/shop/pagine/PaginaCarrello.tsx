@@ -168,8 +168,10 @@ export function PaginaCarrello() {
   const barra = <BarraCarrello righe={vista.righe.length} totale={conti.totale} formatta={formatta} />;
   const vuoto = ingressiCarrelloVuoto();
 
+  // `min-h`: le righe arrivano da `localStorage` dopo il primo disegno (vuoto). Con l'altezza di uno schermo (meno 3 rem, sempre meno dell'header) il piè di pagina sta
+  // sotto la piega prima e dopo e non scende (CLS 0,27 a 320). shortcut: il carrello vuoto ha più spazio sotto; si cambia se il Design chiede il piè visibile nel vuoto.
   return (
-    <div className="mx-auto w-full max-w-6xl px-4 py-8 min-[360px]:px-6 lg:py-12">
+    <div className="mx-auto min-h-[calc(100svh-3rem)] w-full max-w-6xl px-4 py-8 min-[360px]:px-6 lg:py-12">
       {conRighe && (
         <header>
           <h1 className="text-2xl font-bold leading-[1.1] tracking-tight text-[#0A1430] md:text-4xl">{t.titolo}</h1>

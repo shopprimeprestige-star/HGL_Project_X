@@ -126,7 +126,8 @@ function Campione({
   );
 }
 
-/** Una pillola (misura, lunghezza, base…): contorno notte, scelta = piena notte con testo bianco; esaurita = diagonale. */
+/** Una pillola (misura, lunghezza, base…): contorno notte, scelta = piena notte con testo bianco; esaurita = diagonale.
+ *  La spunta c'è in tutte le pillole, invisibile se non scelta: la larghezza non cambia alla scelta e la vicina non si sposta (T109b-4). */
 function Pillola({ valore, scelto, esaurito, tappa, onScegli }: PropsRadio) {
   return (
     <button
@@ -143,7 +144,7 @@ function Pillola({ valore, scelto, esaurito, tappa, onScegli }: PropsRadio) {
       }`}
     >
       {valore}
-      {scelto && <Check className="size-4" aria-hidden="true" />}
+      <Check className={`size-4 ${scelto ? "" : "invisible"}`} aria-hidden="true" />
       {esaurito && (
         <span
           data-esaurito
