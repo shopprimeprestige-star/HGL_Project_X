@@ -14,7 +14,7 @@ import { Link } from "@tanstack/react-router";
 import { ChevronDown, X } from "lucide-react";
 import logo from "@/assets/logo-hair-genius.png";
 import { TESTI_PROVVISORI, TESTI_SHOP } from "@/landing/testi-shop";
-import { SLUG_PATCH, type VoceCura } from "./ShopHeader";
+import { SLUG_PATCH, type VoceCura } from "./voci";
 
 export interface MenuTelefonoProps {
   aperto: boolean;

@@ -15,11 +15,13 @@ import { lazy, Suspense, useEffect, useRef, useState, type KeyboardEvent, type R
 import { Link, useRouterState } from "@tanstack/react-router";
 import { ChevronDown, Menu, ShoppingBag } from "lucide-react";
 import logo from "@/assets/logo-hair-genius.png";
-import { traccia, type NomeEvento } from "@/landing/consulenza/eventi";
 import { riempi, TESTI_PROVVISORI, TESTI_SHOP } from "@/landing/testi-shop";
+import { emettiSoloContatore } from "@/lib/tracciamento/api";
 import { useCart } from "@/shop/CartContext";
 import type { CategoriaPubblica } from "@/shop/cms/modello";
 import { FOGLIO_CHIUSO, foglio, TENDINA_CHIUSA, voceEvidenziata, type StatoFoglio, type StatoTendina } from "@/shop/cms/vetrina-interazioni";
+
+import { SLUG_PATCH, HREF_PATCH, vociCura } from "./voci";
 
 const MenuTelefono = lazy(() => import("./MenuTelefono"));
 const PannelloProblemi = lazy(() => import("@/components/landing/consulenza/PannelloProblemi"));
@@ -33,40 +35,11 @@ export const ID_TASTO_MENU = "tasto-menu";
  *  vietate, per il copywriter. Niente altro è scritto qui: tutto il resto viene da `testi-shop.ts`. */
 export const TESTI_HEADER_PROVVISORI = { navPrincipale: "Principale", titoloMenu: "Menu" };
 
-/** Il conteggio del clic su «Consulenza gratuita» (SPEC n. 22: solo contatore interno, mai alle piattaforme).
- *  shortcut: il nome non è ancora in `NomeEvento` (`eventi.ts` non è di T82a), si dichiara qui con un cast; si toglie quando lo aggiunge chi ne è proprietario. */
-const EVENTO_CLIC_CONSULENZA = "ClickConsulenza" as NomeEvento;
 
 const T = TESTI_SHOP;
 const GUSCIO = TESTI_PROVVISORI.guscio;
 
 /* ── funzioni pure ─────────────────────────────────────────────────────────────────────────────────────────── */
-
-/** La categoria delle patch: ha il nome della voce «Patch pronte». Non è mai una voce di «Cura». */
-const CATEGORIA_PATCH = T.categorie.find((c) => c.nome === T.header.patch);
-const hrefCategoria = (slug: string) => `/shop/c/${slug}`;
-/** Lo slug e l'indirizzo di «Patch pronte» (la categoria con quel nome nel documento). */
-export const SLUG_PATCH = CATEGORIA_PATCH?.slug ?? "";
-export const HREF_PATCH = hrefCategoria(SLUG_PATCH);
-
-export interface VoceCura {
-  slug: string;
-  nome: string;
-  href: string;
-}
-
-/** Le voci di «Cura»: le categorie del documento (nel loro ordine, con i loro nomi) che hanno almeno un prodotto pubblicato.
- *  Elenco mancante o rotto (guasto del server) = nessuna voce, e «Cura» non si disegna. */
-export function vociCura(categorie: readonly Pick<CategoriaPubblica, "slug" | "quanti">[] | null | undefined): VoceCura[] {
-  const conProdotti = new Set<string>();
-  for (const c of Array.isArray(categorie) ? (categorie as readonly unknown[]) : []) {
-    const { slug, quanti } = (c ?? {}) as { slug?: unknown; quanti?: unknown };
-    if (typeof slug === "string" && typeof quanti === "number" && Number.isInteger(quanti) && quanti > 0) conProdotti.add(slug);
-  }
-  return T.categorie
-    .filter((c) => c.slug !== CATEGORIA_PATCH?.slug && conProdotti.has(c.slug))
-    .map((c) => ({ slug: c.slug, nome: c.nome, href: hrefCategoria(c.slug) }));
-}
 
 /** Il numero nel pallino del carrello: niente a zero (o dato sbagliato), «99+» oltre 99. */
 export function numerinoCarrello(n: number): string {
@@ -128,7 +101,8 @@ export function ShopHeader({ categorie, ricerca }: ShopHeaderProps) {
   const [pannelloMontato, setPannelloMontato] = useState(false);
   const [pannelloAperto, setPannelloAperto] = useState(false);
   const apriConsulenza = () => {
-    traccia(EVENTO_CLIC_CONSULENZA, { punto: "header" });
+    // SPEC n. 22: solo contatore interno (`lp_events`), mai alle piattaforme
+    emettiSoloContatore("ClickConsulenza", { punto: "header" });
     setPannelloMontato(true);
     setPannelloAperto(true);
   };
@@ -150,7 +124,7 @@ export function ShopHeader({ categorie, ricerca }: ShopHeaderProps) {
     if (r.azione === "chiudi") tastoCura.current?.focus();
   };
 
-  const fraseCarrello = riempi(T.header.carrelloAria, { n: count });
+  const fraseCarrello = count === 1 ? GUSCIO.carrelloAriaUno : riempi(T.header.carrelloAria, { n: count });
   const attivoPatch = pathname.replace(/\/+$/, "") === HREF_PATCH;
 
   return (

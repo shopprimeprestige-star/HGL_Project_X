@@ -81,11 +81,13 @@ export async function prove(mod, { c, gruppo, radice }) {
 
   const fileHeader = join(radice, "src/components/shop/guscio/ShopHeader.tsx");
   const fileMenu = join(radice, "src/components/shop/guscio/MenuTelefono.tsx");
-  const ci = [existsSync(fileHeader), existsSync(fileMenu)];
-  c("i due componenti esistono (ShopHeader.tsx e MenuTelefono.tsx in components/shop/guscio)", [true, true], ci);
-  if (!ci[0] || !ci[1]) return;
+  const fileVoci = join(radice, "src/components/shop/guscio/voci.ts");
+  const ci = [existsSync(fileHeader), existsSync(fileMenu), existsSync(fileVoci)];
+  c("i tre file esistono (ShopHeader.tsx, MenuTelefono.tsx e voci.ts in components/shop/guscio)", [true, true, true], ci);
+  if (ci.includes(false)) return;
   const srcHeader = readFileSync(fileHeader, "utf8");
   const srcMenu = readFileSync(fileMenu, "utf8");
+  const srcVoci = readFileSync(fileVoci, "utf8");
 
   // ── i pezzi puri, i testi e i riduttori, presi dallo stesso impacchettamento dei componenti ──
   const dir = mkdtempSync(join(tmpdir(), "prova-t82a-"));
@@ -95,9 +97,10 @@ export async function prove(mod, { c, gruppo, radice }) {
       calc,
       `import * as H from ${JSON.stringify(fileHeader)};
        import * as M from ${JSON.stringify(fileMenu)};
+       import * as V from ${JSON.stringify(fileVoci)};
        import { TESTI_SHOP, TESTI_PROVVISORI } from "@/landing/testi-shop";
        import * as I from "@/shop/cms/vetrina-interazioni";
-       export function Calc() { globalThis.__t82a = { H, M, TESTI_SHOP, TESTI_PROVVISORI, I }; return null; }`,
+       export function Calc() { globalThis.__t82a = { H: { ...H, ...V }, M, TESTI_SHOP, TESTI_PROVVISORI, I }; return null; }`,
     );
     await rendiComponente(radice, calc, "Calc", {}, { finti: FINTI });
     const { H, M, TESTI_SHOP: T, TESTI_PROVVISORI: P, I } = globalThis.__t82a;
@@ -162,6 +165,9 @@ export async function prove(mod, { c, gruppo, radice }) {
     const live = tag(con3, 'aria-live="polite"');
     c("`aria-live=\"polite\"`: c'è sempre (anche a carrello vuoto, vuota), e con 3 prodotti annuncia la frase di `testi-shop`", ["", aria3], [testoDopo(h, 'aria-live="polite"', "</span>"), testoDopo(con3, 'aria-live="polite"', "</span>")]);
     c("riga che annuncia: fuori schermo per chi vede (`sr-only`), `role=\"status\"`, e un'unica riga in tutto l'header", [true, "status", 1], [classi(live).includes("sr-only"), attr(live, "role"), conta(con3, "aria-live")]);
+    const nomeCon = async (n) => attr(tag((await header({}, { carrello: { count: n } })).html, 'href="/shop/carrello"'), "aria-label");
+    const annuncio = async (n) => testoDopo((await header({}, { carrello: { count: n } })).html, 'aria-live="polite"', "</span>");
+    c("singolare e plurale: «Carrello, 0 prodotti», «Carrello, 1 prodotto», «Carrello, 2 prodotti», «Carrello, 100 prodotti» (nome del link e riga che annuncia)", [["Carrello, 0 prodotti", "Carrello, 1 prodotto", "Carrello, 2 prodotti", "Carrello, 100 prodotti"], ["", "Carrello, 1 prodotto", "Carrello, 2 prodotti", "Carrello, 100 prodotti"]], [await Promise.all([0, 1, 2, 100].map(nomeCon)), await Promise.all([0, 1, 2, 100].map(annuncio))]);
     c("il link del carrello ha il nome «Carrello, {n} prodotti» (da `testi-shop`) e porta a `/shop/carrello`", [aria3, "/shop/carrello", T.header.carrelloAria.replace("{n}", "0")], [attr(tag(con3, 'href="/shop/carrello"'), "aria-label"), attr(tag(con3, 'href="/shop/carrello"'), "href"), attr(tagCarrello, "aria-label")]);
 
     // le voci sul computer
@@ -191,9 +197,9 @@ export async function prove(mod, { c, gruppo, radice }) {
     c("«Consulenza gratuita»: una voce di testo con sottolineatura (bottone senza fondo né bordo), non un link a un'altra pagina", ["button", true, true, [], undefined], [tagCons.match(/^<(\w+)/)?.[1], cc.includes("underline"), cc.includes("underline-offset-4"), cc.filter((x) => /^(bg-|border(-|$)|rounded)/.test(x) && !x.startsWith("hover:")), attr(tagCons, "href")]);
     c("«Consulenza gratuita»: alta 44 px, con il fuoco bianco, `aria-haspopup=\"dialog\"` (apre il foglio)", [true, true, "dialog"], [cc.includes("min-h-11"), /shop-anello-scuro/.test(tagCons), attr(tagCons, "aria-haspopup")]);
     c("«Consulenza gratuita»: il testo viene da `testi-shop`, e c'è una sola voce (la tendina e il menu non la ripetono sul computer)", 1, conta(h, `>${T.header.consulenza}<`));
-    base.pagina.tracce = [];
+    base.pagina.contatori = [];
     gestore(base.pagina, "button", T.header.consulenza)();
-    c("clic su «Consulenza gratuita»: si conta `ClickConsulenza` con il punto di partenza «header» (nessun altro dato)", [["ClickConsulenza", { punto: "header" }]], base.pagina.tracce);
+    c("clic su «Consulenza gratuita»: si conta `ClickConsulenza` (solo contatore, mai alle piattaforme) con il punto «header» e nessun altro dato", [[["ClickConsulenza", { punto: "header" }]], false, false], [base.pagina.contatori, base.pagina.eventi.length > 0, /\btraccia\b|as NomeEvento/.test(srcHeader)]);
     c("…e apre il flusso che esiste (`PannelloProblemi`, in ritardo) con un punto d'ingresso che esiste già e la provenienza «stock»", [true, true, true, true], [/lazy\(\(\) => import\("@\/components\/landing\/consulenza\/PannelloProblemi"\)\)/.test(srcHeader), /punto="pannello"/.test(srcHeader), /provenienza="stock"/.test(srcHeader), !/^import .*PannelloProblemi/m.test(srcHeader)]);
 
     // ═══ 3 · il menu del telefono ═══
@@ -250,11 +256,12 @@ export async function prove(mod, { c, gruppo, radice }) {
     // ═══ 5 · testi, parole vietate, bundle ═══
     const tutto = [h, con3, mh, menuParziale, parziale].join("\n");
     c("nessuna parola vietata, nessun prezzo, nessun indirizzo dello studio nel disegno", [], D.trovaParoleVietate(tutto));
-    c("nessuna parola vietata nei due sorgenti (le doppie graffe del JSX, `params={{…}}`, non sono segnaposto)", [], D.trovaParoleVietate((srcHeader + srcMenu).replaceAll("={{", "=").replaceAll("}}", "}")));
+    c("nessuna parola vietata nei sorgenti (le doppie graffe del JSX, `params={{…}}`, non sono segnaposto)", [], D.trovaParoleVietate((srcHeader + srcMenu + srcVoci).replaceAll("={{", "=").replaceAll("}}", "}")));
     const letterali = [T.header.patch, T.header.cura, T.header.consulenza, T.header.carrello, T.header.carrelloAria, GUSCIO.vaiAlContenuto, GUSCIO.apriMenu, GUSCIO.chiudiMenu, GUSCIO.logoAlt, T.footer.riga];
     const codice = (srcHeader + srcMenu).replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
     c("i testi vengono tutti da `testi-shop.ts`: nessuno è scritto uguale, fra virgolette o nel JSX, nei due sorgenti (commenti esclusi)", [], letterali.filter((t) => new RegExp(`["'\`>{]\\s*${t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*["'\`<}]`).test(codice)));
     c("i testi locali (nome della navigazione, titolo del foglio) sono costanti provvisorie dichiarate, senza parole vietate", [2, []], [Object.keys(H.TESTI_HEADER_PROVVISORI).length, D.trovaParoleVietate(JSON.stringify(H.TESTI_HEADER_PROVVISORI))]);
+    c("i due componenti non si importano a vicenda con valori (il menu prende i suoi pezzi da `voci.ts`)", [false, true], [/^import [^t\n][^\n]* from "\.\/ShopHeader"/m.test(srcMenu) || /from "\.\/ShopHeader"/.test(srcMenu), /from "\.\/voci"/.test(srcMenu) && /from "\.\/voci"/.test(srcHeader)]);
     c("nessun tracciamento diretto (`fbq`, `ttq`, `gtag`) e nessun colore del marchio dove non deve (`bg-brand` nel pallino)", [false, false], [/\b(fbq|ttq|gtag)\b/.test(srcHeader + srcMenu), /bg-brand/.test(srcHeader + srcMenu)]);
     c("ogni controllo ha il suo anello di fuoco (`shop-anello-scuro`); `outline-none` solo sul foglio stesso (che prende il fuoco da programma, non da tastiera)", [true, false, false], [conta(h, "shop-anello-scuro") >= 4, /outline-none/.test(h), /outline-none/.test(mh.replace(contenuto, ""))]);
   } finally {
