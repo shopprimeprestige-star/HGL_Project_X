@@ -2,8 +2,8 @@
  *  «Ti serve anche»: UNA card orizzontale (foto 72, nome, prezzo, bottone di contorno), sulla scheda e, con un altro titolo, nel carrello.
  *  Il dato è il blocco `tiServeAnche` di `bloccheScheda` (T78): `correlato` = indirizzo, nome, prezzo da, foto. Quel blocco c'è solo con
  *  un prezzo e mai per Invisible Derm (lo decide T78); qui lo si rispetta di nuovo: senza prezzo o per Invisible Derm non si disegna niente.
- *  ⚠️ `correlato` NON porta lo SKU della variante né se si compra con un clic: da solo la card dice «Scegli» e manda alla scheda.
- *  Se la pagina può dare la `CardLeggera` del correlato (`card`), il bottone segue `azioneCard` («Aggiungi» con un clic, se si può). */
+ *  Il bottone segue `azioneCard` sulla card fatta da `correlato` (che porta `sku`, `prezziDiversi`, `aggiungibile`, T88b): «Aggiungi» con un clic se si può,
+ *  altrimenti «Scegli» verso la scheda. `card` (di norma non serve) è una card già pronta dello stesso prodotto, che vince su quella derivata. */
 import { useId } from "react";
 import { FotoShop } from "@/components/shop/FotoShop";
 import { AzioneCard, NomeCard, PrezzoCard } from "@/components/shop/CardProdotto";
@@ -14,22 +14,25 @@ import type { CardLeggera } from "@/shop/cms/vetrina-card";
 
 export type Correlato = NonNullable<ProdottoPubblico["correlato"]>;
 
-/** La card di ciò che si sa del correlato: niente SKU, niente «un clic» (porta alla scheda), niente «Da» (non sappiamo se i prezzi differiscono). */
+/** La card da ciò che il server sa del correlato (T88b): `sku`, `prezziDiversi` e `aggiungibile` (si compra con un clic). `aggiungibile` conta solo con uno SKU
+ *  vero e un prezzo (mai uno SKU inventato); un `correlato` del server di prima, senza le tre chiavi, dà una card che porta alla scheda («Scegli»). */
 function cardDaCorrelato(c: Correlato): CardLeggera {
+  const sku = typeof c.sku === "string" && c.sku !== "" ? c.sku : null;
+  const aggiungibile = c.aggiungibile === true && sku !== null && c.prezzoDaCent !== null;
   return {
     slug: c.slug,
     nome: c.nome,
     riga: null,
     prezzoCent: c.prezzoDaCent,
-    prezziDiversi: false,
+    prezziDiversi: c.prezziDiversi === true,
     foto: c.foto ? { w480: c.foto.w480, w960: c.foto.w960 } : null,
     fotoAlt: c.foto ? "" : null, // il nome è lì accanto: la foto è decorativa
     nColori: 0,
-    conVarianti: false,
-    aggiungibile: false,
-    disponibile: false,
+    conVarianti: !aggiungibile,
+    aggiungibile,
+    disponibile: aggiungibile,
     senzaPrezzo: false,
-    skuVarianti: [],
+    skuVarianti: aggiungibile && sku ? [sku] : [],
   };
 }
 
