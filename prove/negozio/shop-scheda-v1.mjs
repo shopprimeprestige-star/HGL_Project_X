@@ -340,8 +340,8 @@ export async function prove(_mod, { c, gruppo, radice }) {
     c("nessuna ombra, sfocatura o gradiente scritti qui (colori e bordi, non effetti)", false, /shadow-|backdrop-|blur-|bg-gradient/.test(codice));
     const html = [htmlA, htmlAn, htmlDm, k.html(), conPop.html()].join("\n");
     c("nessuna parola vietata, segnaposto, stella né scarsità in nessuno stato disegnato", [[], false], [D.trovaParoleVietate(leggibile(html)), /\{\{|da confermare|Scipioni|ultim[io] pezz|\bstell/i.test(html)]);
-    c("la pagina è montata dalla rotta di T97a, non ancora: nessuna rotta la importa (e `routeTree.gen.ts` nemmeno)", [], camminaSrc(join(radice, "src/routes")).filter((f) => /PaginaScheda/.test(readFileSync(f, "utf8"))).map((f) => f.slice(radice.length + 1)));
-    c("il solo file di `src/` che importa `PaginaScheda` è lei stessa (nessuno dei pezzi la richiama)", [], camminaSrc(join(radice, "src")).filter((f) => !f.endsWith("PaginaScheda.tsx") && /pagine\/PaginaScheda/.test(readFileSync(f, "utf8"))).map((f) => f.slice(radice.length + 1)));
+    c("la pagina la monta solo la rotta della scheda (T97a; `routeTree.gen.ts` no)", ["src/routes/shop.prodotto.$slug.tsx"], camminaSrc(join(radice, "src/routes")).filter((f) => /PaginaScheda/.test(readFileSync(f, "utf8"))).map((f) => f.slice(radice.length + 1)));
+    c("l'unico file di `src/` che importa `PaginaScheda` è la rotta della scheda (nessuno dei pezzi la richiama)", ["src/routes/shop.prodotto.$slug.tsx"], camminaSrc(join(radice, "src")).filter((f) => !f.endsWith("PaginaScheda.tsx") && /pagine\/PaginaScheda/.test(readFileSync(f, "utf8"))).map((f) => f.slice(radice.length + 1)));
   } finally {
     for (const p of pagine.reverse()) p.smonta();
   }
