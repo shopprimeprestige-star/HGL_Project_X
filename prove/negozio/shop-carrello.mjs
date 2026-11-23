@@ -130,9 +130,10 @@ export async function prove(mod, { c, gruppo, radice }) {
   const car = await rendi(radice, FILE_CARR, { loaderData: { modo: "cms" }, carrello: carrelloFinto(ricche, 57.8), rivalida: rivFinto() });
   c("CARRELLO CMS, marchio reso: nome, variante, prezzo di riga (57,80 €), nessuna stella/recensione/barrato; niente «spedizione gratuita» (la cifra non è più vera)", [true, true, true, NIENTE], [car.html.includes("Prodotto di prova"), car.html.includes("Variante X"), /57,80\s€/.test(car.html), vietato(car.html)]);
   const carAvviso = await rendi(radice, FILE_CARR, { loaderData: { modo: "cms" }, carrello: carrelloFinto(ricche, 57.8), rivalida: rivFinto({ avviso: K.MSG_RIMOSSE }) });
-  c("CARRELLO: il messaggio «Alcuni prodotti non sono più disponibili» si vede (`role=status`)", true, /role="status"[^>]*>Alcuni prodotti non sono più disponibili/.test(carAvviso.html));
+  //  T98: il riquadro ambra ha un'icona prima del testo (`AvvisoCarrello`); la regione `role=status` resta quella
+  c("CARRELLO: il messaggio «Alcuni prodotti non sono più disponibili» si vede (`role=status`)", true, /role="status"[^>]*><p[^>]*>(?:<svg[^]*?<\/svg>)?Alcuni prodotti non sono più disponibili/.test(carAvviso.html));
   const carGuasto = await rendi(radice, FILE_CARR, { loaderData: { modo: "cms" }, carrello: carrelloFinto(ricche, 57.8), rivalida: rivFinto({ stato: "non_verificabile" }) });
-  c("CARRELLO con il server che non risponde: le righe restano e un avviso (`role=alert`) dice di riprovare", [true, true], [carGuasto.html.includes("Prodotto di prova"), /role="alert"[^>]*>Non riusciamo a controllare il carrello/.test(carGuasto.html)]);
+  c("CARRELLO con il server che non risponde: le righe restano e un avviso (`role=alert`) dice di riprovare", [true, true], [carGuasto.html.includes("Prodotto di prova"), /role="alert"[^>]*>(?:<svg[^]*?<\/svg>)?Non riusciamo a controllare il carrello/.test(carGuasto.html)]);
   const carCodice = await rendi(radice, FILE_CARR, { loaderData: { modo: "codice" }, carrello: carrelloFinto([ok], 57.8), rivalida: rivFinto() });
   c("CARRELLO `codice` con una riga CMS rimasta: non si disegna (e il cliente non vede un prodotto fantasma)", false, carCodice.html.includes("Prodotto di prova") || carCodice.html.includes("Nome vecchio"));
   const chk = await rendi(radice, FILE_CASSA, { loaderData: { modo: "cms" }, carrello: carrelloFinto(ricche, 57.8), rivalida: rivFinto() });
@@ -223,7 +224,7 @@ export async function prove(mod, { c, gruppo, radice }) {
     const car = await rendi(radice, FILE_CARR, { loaderData: { modo: "cms" }, carrello: carrelloFinto(lines, sub), rivalida: rivFinto(), tariffa: { stato: "ok", costoCent: 490, chiusa: false } });
     const [o] = await invia({ modo: "cms" }, lines, sub, () => K.rivalida(porte(catalogoDi()), lines));
     c(`D37 CMS, ${nome}: CARRELLO con spedizione 4,90 € (mai «Gratuita», mai «Aggiungi … per la spedizione»), totale ${String(tot).replace(".", ",")}0 €; CASSA con shipping 4.9 e total ${tot}`, [true, false, false, 4.9, tot], [
-      /Spedizione<\/span><span[^>]*>4,90\s€/.test(car.html) && new RegExp(`${String(tot).replace(".", ",")}0\\s€`).test(car.html), /gratuit/i.test(car.html), /per la spedizione/.test(car.html), o?.shipping, o?.total]);
+      /<dt>Spedizione<\/dt><dd[^>]*>4,90\s€/.test(car.html) && new RegExp(`${String(tot).replace(".", ",")}0\\s€`).test(car.html), /gratuit/i.test(car.html), /per la spedizione/.test(car.html), o?.shipping, o?.total]);
   }
   c("D37 sorgente: l'invio della cassa CMS prende le spese dalla costante unica (nessuna soglia né tariffa scritte a mano nel ramo CMS)", [true, false], [
     submitSrc.includes("SPEDIZIONE_CMS_CENT"), /SHIPPING_THRESHOLD|SHIPPING_COST/.test(submitSrc)]);

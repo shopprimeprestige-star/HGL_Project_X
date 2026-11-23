@@ -9,12 +9,19 @@ import { MSG_NON_VERIFICABILE, datiEventoRighe } from "@/shop/cms/cassa";
 import { useRivalidaCarrello } from "@/shop/useRivalidaCarrello";
 import { useTariffa } from "@/shop/useTariffa";
 import { emettiEvento } from "@/lib/tracciamento/api";
+import { PaginaCarrello } from "@/components/shop/pagine/PaginaCarrello";
 
 export const Route = createFileRoute("/shop/carrello")({
   //  Il catalogo del sito: se non risponde si pensa `codice`, cioè il carrello di oggi.
   loader: async () => ({ modo: await modalitaCatalogo().catch(() => "codice" as const) }),
-  component: CartPage,
+  component: Carrello,
 });
+
+//  Smistatore (D70): con `cms` la pagina nuova, con `codice` il carrello di oggi, che qui sotto non cambia.
+function Carrello() {
+  const { modo } = Route.useLoaderData();
+  return modo === "cms" ? <PaginaCarrello /> : <CartPage />;
+}
 
 const prezzoCodice = (id: string) => PRODUCTS.find((pr) => pr.id === id)?.price;
 

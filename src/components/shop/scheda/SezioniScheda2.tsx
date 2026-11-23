@@ -6,7 +6,7 @@
  *  · FAQ: `FaqAccordion` con `voci` (righe da 56 px). Una domanda senza testo, o non ancora pronta (segnaposto, testo provvisorio del CRM), non si mostra; se non ne
  *    resta nessuna non c'è nemmeno il titolo.
  *  · Box: quello della landing con `variante="chiara"` (card chiara, bottone di contorno); il blocco `box` c'è solo su una patch in vendita.
- *  · «Ti serve anche»: `TiServeAnche` (T85) con la card fatta da `correlato`, che porta lo SKU e «si compra con un clic» (T88b, `pubblico.ts`).
+ *  · «Ti serve anche»: `TiServeAnche` (T85), che da `correlato` (SKU e «si compra con un clic», T88b, `pubblico.ts`) fa da sé la card.
  *    L'evento di aggiunta e il carrello sono della card: qui non si emette né si tocca niente.
  *  · «Cosa contiene» del kit (blocco `confezione`) è di `SezioniScheda1` (T88a): qui il blocco `confezione` non produce niente.
  *  · Sotto la piega (FAQ, box, «Ti serve anche»): `content-visibility:auto`, così il browser non disegna ciò che non si vede ancora.
@@ -14,12 +14,11 @@
 import { useId } from "react";
 import { FaqAccordion } from "@/components/landing/FaqAccordion";
 import { BoxProdottoGiusto } from "@/components/landing/consulenza/BoxProdottoGiusto";
-import { TiServeAnche, type Correlato } from "@/components/shop/TiServeAnche";
+import { TiServeAnche } from "@/components/shop/TiServeAnche";
 import { TESTI_SHOP } from "@/landing/testi-shop";
 import type { ProdottoPubblico } from "@/shop/cms/modello";
 import { eInvisibleDerm } from "@/shop/cms/pubblico";
 import type { Blocco } from "@/shop/cms/vetrina-scheda";
-import type { CardLeggera } from "@/shop/cms/vetrina-card";
 
 /** Un testo con un segnaposto o ancora in attesa del titolare non è pronto per il pubblico (stessa regola delle righe della scheda tecnica). */
 const NON_PRONTO = /da\s+confermare|\{\{/i;
@@ -30,28 +29,6 @@ const testoVero = (t: unknown): t is string =>
  *  `content-visibility:auto` ritaglia ciò che esce dal contenitore: i 4 px di spazio (`p-1`, compensati da `-m-1`) lasciano vedere l'anello del fuoco. */
 const SOTTO_LA_PIEGA = "-m-1 p-1 [content-visibility:auto] [contain-intrinsic-size:auto_480px]";
 const CLASSI_TITOLO = "text-lg font-bold text-[#0A1430]";
-
-/** La card di «Ti serve anche» da ciò che `correlato` sa. `aggiungibile` conta solo con uno SKU vero (mai uno inventato); un `correlato` del server
- *  di prima, senza le tre chiavi nuove, dà una card che porta alla scheda («Scegli»). */
-function cardDelCorrelato(c: Correlato): CardLeggera {
-  const sku = typeof c.sku === "string" && c.sku !== "" ? c.sku : null;
-  const aggiungibile = c.aggiungibile === true && sku !== null && c.prezzoDaCent !== null;
-  return {
-    slug: c.slug,
-    nome: c.nome,
-    riga: null,
-    prezzoCent: c.prezzoDaCent,
-    prezziDiversi: c.prezziDiversi === true,
-    foto: c.foto ? { w480: c.foto.w480, w960: c.foto.w960 } : null,
-    fotoAlt: c.foto ? "" : null, // il nome è lì accanto: la foto è decorativa
-    nColori: 0,
-    conVarianti: !aggiungibile,
-    aggiungibile,
-    disponibile: aggiungibile,
-    senzaPrezzo: false,
-    skuVarianti: aggiungibile && sku ? [sku] : [],
-  };
-}
 
 function Faq({ faq }: { faq: ProdottoPubblico["faq"] }) {
   const id = useId();
@@ -97,7 +74,7 @@ export function SezioniScheda2({
         if (!c || c.prezzoDaCent === null || eInvisibleDerm(c.nome, c.slug)) return [];
         return [
           <div key={i} className={SOTTO_LA_PIEGA}>
-            <TiServeAnche correlato={c} card={cardDelCorrelato(c)} />
+            <TiServeAnche correlato={c} />
           </div>,
         ];
       }

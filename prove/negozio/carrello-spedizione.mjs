@@ -113,8 +113,11 @@ export async function prove(mod, { c, gruppo, radice }) {
   const carrelloFinto = (sub) => ({ lines: [riga1], subtotal: sub, count: 2, setQty() {}, remove() {}, clear() {}, replaceLines() {}, add() {} });
   const rivFinto = { stato: "ok", avviso: null, controlla: async () => ({ stato: "non_verificabile" }) };
   const rendiCon = (tariffa, modo = "cms", sub = 57.8) => rendi(radice, FILE, { loaderData: { modo }, carrello: carrelloFinto(sub), rivalida: rivFinto, tariffa });
-  const spedizione = (h) => /Spedizione<\/span><span[^>]*>([^<]*)</.exec(h)?.[1];
-  const totale = (h) => /Totale<\/span><span[^>]*>([^<]*)</.exec(h)?.[1];
+  //  T98: il riepilogo nuovo è una lista di definizioni (`RiepilogoOrdine`): «Spedizione» e «Totale (IVA inclusa)» con la cifra accanto
+  const spedizione = (h) => /<dt>Spedizione<\/dt><dd[^>]*>([^<]*)</.exec(h)?.[1];
+  const totale = (h) => /<dt[^>]*>Totale <span[^>]*>\(IVA inclusa\)<\/span><\/dt><dd[^>]*>([^<]*)</.exec(h)?.[1];
+  //  il carrello di `codice` è quello di oggi: le sue cifre stanno ancora in due `<span>`
+  const spedizioneOggi = (h) => /Spedizione<\/span><span[^>]*>([^<]*)</.exec(h)?.[1];
   const sp = (s) => s?.replace(/\s/g, " ");
 
   for (const [nome, costo, spesa, tot] of [["4,90", 490, "4,90 €", "62,70 €"], ["5,90 (il titolare l'ha cambiata)", 590, "5,90 €", "63,70 €"], ["12,00", 1200, "12,00 €", "69,80 €"]]) {
@@ -122,25 +125,27 @@ export async function prove(mod, { c, gruppo, radice }) {
     c(`CARRELLO CMS con la tariffa del server a ${nome}: spedizione e totale seguono quella cifra`, [spesa, tot], [sp(spedizione(r.html)), sp(totale(r.html))]);
   }
   const gratis = await rendiCon({ stato: "ok", costoCent: 0, chiusa: false });
-  c("CARRELLO CMS con la tariffa a 0 decisa dal titolare: «Gratuita» e totale = subtotale", ["Gratuita", "57,80 €"], [spedizione(gratis.html), sp(totale(gratis.html))]);
+  c("CARRELLO CMS con la tariffa a 0 decisa dal titolare: una cifra vera (0,00 €, senza parole di soglia) e totale = subtotale", ["0,00 €", "57,80 €", false], [sp(spedizione(gratis.html)), sp(totale(gratis.html)), /gratuit/i.test(gratis.html)]);
   const sopra = await rendiCon({ stato: "ok", costoCent: 490, chiusa: false }, "cms", 86.7);
   c("CARRELLO CMS sopra i 59 €: la spedizione non diventa gratis (nessuna soglia nel ramo cms)", ["4,90 €", /per la spedizione/.test(sopra.html)], [sp(spedizione(sopra.html)), false]);
-  for (const [nome, t] of [["in attesa", { stato: "attesa", costoCent: null, chiusa: false }], ["assente con cassa vecchia", { stato: "assente", costoCent: null, chiusa: false }], ["assente con cassa stripe", { stato: "assente", costoCent: null, chiusa: true }], ["guasto", { stato: "guasto", costoCent: null, chiusa: false }]]) {
+  //  T79/T89: in attesa della tariffa spedizione e totale sono «…» (si sta controllando), se la cifra non c'è e non arriverà sono «—»
+  for (const [nome, t, segno] of [["in attesa", { stato: "attesa", costoCent: null, chiusa: false }, "…"], ["assente con cassa vecchia", { stato: "assente", costoCent: null, chiusa: false }, "—"], ["assente con cassa stripe", { stato: "assente", costoCent: null, chiusa: true }, "—"], ["guasto", { stato: "guasto", costoCent: null, chiusa: false }, "—"]]) {
     const r = await rendiCon(t);
     const vietato = /4,90|5,90|62,70|\bGratuita\b/.test(spedizione(r.html) + totale(r.html));
-    c(`CARRELLO CMS con la tariffa ${nome}: spedizione e totale «—», nessuna cifra inventata né «Gratuita»`, ["—", "—", false], [spedizione(r.html), totale(r.html), vietato]);
+    c(`CARRELLO CMS con la tariffa ${nome}: spedizione e totale «${segno}», nessuna cifra inventata né «Gratuita»`, [segno, segno, false], [spedizione(r.html), totale(r.html), vietato]);
   }
   const chiusa = await rendiCon({ stato: "assente", costoCent: null, chiusa: true });
   const aperta = await rendiCon({ stato: "assente", costoCent: null, chiusa: false });
   const normale = await rendiCon({ stato: "ok", costoCent: 490, chiusa: false });
-  c("pulsante: tariffa assente con cassa `stripe` dice «Il negozio sta per aprire»; negli altri casi «Procedi al checkout»", [true, false, false, true, true], [
-    /Il negozio sta per aprire/.test(chiusa.html), /Procedi al checkout/.test(chiusa.html), /Il negozio sta per aprire/.test(aperta.html), /Procedi al checkout/.test(aperta.html), /Procedi al checkout/.test(normale.html)]);
-  c("…resta un collegamento verso la cassa (la pagina della cassa dice lei stessa che il negozio sta per aprire)", true, /<a href="\/shop\/checkout"[^>]*>[^<]*Il negozio sta per aprire/.test(chiusa.html));
+  //  T98: il bottone del carrello nuovo è sempre «Vai alla cassa» verso la cassa di oggi (che dice lei, se il negozio sta per aprire): mai spento, mai le parole di prima
+  c("pulsante: con la cassa chiusa, aperta o normale è sempre «Vai alla cassa» verso `/shop/checkout`; mai «Procedi al checkout»", [true, true, true, false], [
+    [chiusa, aperta, normale].every((r) => /<a [^>]*href="\/shop\/checkout"[^>]*>Vai alla cassa<\/a>/.test(r.html)), [chiusa, aperta, normale].every((r) => !/<a [^>]*href="\/shop\/checkout"[^>]*disabled/.test(r.html)), /<a data-barra-nascondi="vista" href="\/shop\/checkout"/.test(chiusa.html),
+    [chiusa, aperta, normale].some((r) => /Procedi al checkout/.test(r.html))]);
 
   const codice = await rendi(radice, FILE, { loaderData: { modo: "codice" }, carrello: { ...carrelloFinto(57.8), lines: [] , count: 0 }, rivalida: rivFinto, tariffa: { stato: "ok", costoCent: 999, chiusa: true } });
   c("CARRELLO `codice`: il gancio è chiamato con `false` (non legge) e la cifra del server non si vede mai", [[false], false], [codice.pagina.tariffaChiesta, /9,99/.test(codice.html)]);
   const codicePieno = await rendi(radice, FILE, { loaderData: { modo: "codice" }, carrello: { ...carrelloFinto(30), lines: [{ productId: "t01", qty: 1, key: "t01" }] }, rivalida: rivFinto, tariffa: { stato: "ok", costoCent: 999, chiusa: true } });
-  c("CARRELLO `codice` con una riga: spedizione 4,90 € come oggi (sotto i 59 €), pulsante normale, anche se il finto del server dice altro", ["4,90 €", true, false], [sp(spedizione(codicePieno.html)), /Procedi al checkout/.test(codicePieno.html), /sta per aprire/.test(codicePieno.html)]);
+  c("CARRELLO `codice` con una riga: spedizione 4,90 € come oggi (sotto i 59 €), pulsante normale, anche se il finto del server dice altro", ["4,90 €", true, false], [sp(spedizioneOggi(codicePieno.html)), /Procedi al checkout/.test(codicePieno.html), /sta per aprire/.test(codicePieno.html)]);
   const tre = await rendi(radice, FILE, { loaderData: { modo: "codice" }, carrello: { ...carrelloFinto(86.7), lines: [{ productId: "t01", qty: 3, key: "t01" }] }, rivalida: rivFinto });
-  c("CARRELLO `codice` da 59 € in su: «Gratuita» come oggi", "Gratuita", spedizione(tre.html));
+  c("CARRELLO `codice` da 59 € in su: «Gratuita» come oggi", "Gratuita", spedizioneOggi(tre.html));
 }
