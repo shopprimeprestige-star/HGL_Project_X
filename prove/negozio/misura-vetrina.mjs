@@ -13,7 +13,13 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 const RADICE = join(fileURLToPath(import.meta.url), "..", "..", "..");
 const FILE = join(RADICE, "strumenti", "misura-vetrina.mjs");
 
-export async function prove(_mod, { c, gruppo }) {
+/** Una prova che lancia un errore di Node farebbe cadere tutta `prove.mjs` senza riepilogo: qui diventa un rosso pulito e le altre prove continuano. */
+export async function prove(mod, ctx) {
+  try { await provePure(mod, ctx); }
+  catch (e) { ctx.c("la prova di misura-vetrina non deve crollare con un errore", null, String(e?.message ?? e).split("\n")[0]); }
+}
+
+async function provePure(_mod, { c, gruppo }) {
   const M = await import(pathToFileURL(FILE).href);
   const sandbox = mkdtempSync(join(tmpdir(), "misura-vetrina-"));
   const lancia = (...a) => { try { return { ok: true, v: M.verificaIndirizzoLocale(...a) }; } catch (e) { return { ok: false, m: String(e.message) }; } };
@@ -32,7 +38,7 @@ export async function prove(_mod, { c, gruppo }) {
     ];
     for (const u of rifiutati) c(`rifiuta «${u}»`, false, ok(lancia(u)));
     c("il rifiuto dice cosa si può usare e non ripete una password", [true, false], [
-      /127\.0\.0\.1|localhost/.test(lancia("http://sito.example").m), lancia("http://utente:segreto@127.0.0.1:5199").m.includes("segreto"),
+      /127\.0\.0\.1|localhost/.test(lancia("http://sito.example").m), lancia("http://utente:segreto@127.0.0.1:5199").m?.includes("segreto"),
     ]);
     const base = "http://127.0.0.1:5199";
     const percorso = (p) => { try { return M.verificaPercorso(p, base); } catch (e) { return null; } };
@@ -43,6 +49,10 @@ export async function prove(_mod, { c, gruppo }) {
     c("rifiuta le quattro rotte con un indirizzo vero scritto nel codice", [null, null, null, null], [
       percorso("/api/og/anteprima"), percorso("/media/abc"), percorso("/prova-anteprima-a"), percorso("/prova-anteprima/caso"),
     ]);
+    c("le quattro rotte si rifiutano anche con le maiuscole e codificate", [null, null, null, null, null], [
+      percorso("/MEDIA/abc"), percorso("/Api/OG/Anteprima?x=1"), percorso("/Prova-Anteprima-a"), percorso("/%6Dedia/abc"), percorso("/media"),
+    ]);
+    c("rottaVietata dice lo stesso su un percorso", [true, true, false, false], [M.rottaVietata("/media/x"), M.rottaVietata("/MEDIA/X"), M.rottaVietata("/shop"), M.rottaVietata("/mediateca")]);
 
     /* ══ 2 · GLI ARGOMENTI ═══════════════════════════════════════════════════════════════════════════════ */
     gruppo("VETRINA V1 · T92 · ARGOMENTI E AMBIENTE");
@@ -145,8 +155,13 @@ export async function prove(_mod, { c, gruppo }) {
     c("19 px grassetto conta come grande", [true, false], [k([voce({ fg: "rgb(124, 134, 149)", px: 19, peso: 700 })]).ok, k([voce({ fg: "rgb(124, 134, 149)", px: 19, peso: 400 })]).ok]);
     c("gli sfondi si compongono dal più vicino alla radice (un velo sul blu notte)", true, k([voce({ fg: "rgb(255, 255, 255)", sfondi: ["rgba(0, 0, 0, 0)", "rgba(10, 20, 48, 0.9)", "rgb(255, 255, 255)"] })]).ok);
     const conFoto = k([voce({ conImmagineSfondo: true, fg: "rgb(170, 170, 170)" })]);
-    c("sotto una foto o un gradiente non si misura: lo dice, non lo conta né verde né rosso", [true, 0, 1], [conFoto.ok, conFoto.controllati, conFoto.nonMisurati]);
-    c("un colore che non so leggere non si misura (ma si conta)", [true, 1], [(() => { const r = k([voce({ fg: "oklch(0.2 0.1 200)" })]); return r.ok; })(), k([voce({ fg: "oklch(0.2 0.1 200)" })]).nonMisurati]);
+    c("sotto una foto o un gradiente non si misura: lo conta a parte; se non c'è altro non è verde", [false, 0, 1], [conFoto.ok, conFoto.controllati, conFoto.nonMisurati]);
+    const oklch = k([voce({ fg: "oklch(0.55 0.16 252)" })]);
+    c("oklch non ancora portato a sRGB: non si misura, non è verde (mai verde a vuoto)", [false, 0, 1], [oklch.ok, oklch.controllati, oklch.illeggibili]);
+    const mista = k([voce(), voce({ fg: "oklch(0.55 0.16 252)", sel: "p.brand" })]);
+    c("un testo misurato e uno illeggibile: né verde né rosso (null), nominando l'illeggibile", [null, 1, 1, true], [mista.ok, mista.controllati, mista.illeggibili, /p\.brand/.test(mista.dettaglio)]);
+    c("uno sfondo illeggibile conta come illeggibile", 1, k([voce(), voce({ sfondi: ["oklch(0.2 0.1 200)"] })]).illeggibili);
+    c("una violazione vince sull'illeggibile (rosso)", false, k([voce({ fg: "rgb(170, 170, 170)" }), voce({ fg: "oklch(0.55 0.16 252)" })]).ok);
     c("senza voci non c'è niente da dire: non è verde", false, k([]).ok);
     c("le violazioni nominano elemento, testo e rapporto", true, (() => { const r = k([voce({ fg: "rgb(170, 170, 170)", testo: "Prezzo" })]); return r.violazioni[0].sel === "p.x" && r.violazioni[0].testo === "Prezzo" && r.violazioni[0].rapporto < 4.5 && /Prezzo/.test(r.dettaglio); })());
 
@@ -183,11 +198,18 @@ export async function prove(_mod, { c, gruppo }) {
     /* ══ 7 · IMMAGINI, VIDEO, RICHIESTE ══════════════════════════════════════════════════════════════════ */
     gruppo("VETRINA V1 · T92 · IMMAGINI, VIDEO, TERZE PARTI");
     const im = (o) => ({ sel: "img.f", src: "http://127.0.0.1:5199/storage/v1/object/public/shop-media/prodotti/P/principale-960.svg", naturalW: 960, w: 480, loading: "eager", dentroFascia: false, ...o });
-    c("larghezza servita: il suffisso del nome (-960) o, senza, la naturale", [960, 1600, 700], [M.larghezzaServita(im()), M.larghezzaServita(im({ src: "http://x/a-1600.webp" })), M.larghezzaServita(im({ src: "http://x/a.jpg", naturalW: 700 }))]);
+    c("larghezza servita: il suffisso solo per gli SVG di prova, per le foto vere la larghezza naturale", [960, 1600, 4000, 700], [M.larghezzaServita(im()), M.larghezzaServita(im({ src: "http://x/a-1600.svg" })), M.larghezzaServita(im({ src: "http://x/a-960.jpg", naturalW: 4000 })), M.larghezzaServita(im({ src: "http://x/a.jpg", naturalW: 700 }))]);
     c("960 in un riquadro da 480: ok; 961: rosso", [true, false], [M.controllaImmagini([im()]).ok, M.controllaImmagini([im({ naturalW: 961, src: "http://x/a.jpg" })]).ok]);
-    c("1600 in un riquadro da 390: rosso", false, M.controllaImmagini([im({ src: "http://x/a-1600.jpg", w: 390 })]).ok);
-    c("eccezione D99: il ritratto (riquadro ≤ 72, file ≤ 240) passa e si conta", [true, 1], (() => { const r = M.controllaImmagini([im({ src: "http://x/r-240.jpg", w: 56 })]); return [r.ok, r.eccezioni]; })());
-    c("l'eccezione non copre un ritratto da 480", false, M.controllaImmagini([im({ src: "http://x/r-480.jpg", w: 56 })]).ok);
+    c("1600 in un riquadro da 390: rosso", false, M.controllaImmagini([im({ src: "http://x/a.jpg", naturalW: 1600, w: 390 })]).ok);
+    c("eccezione D99: il ritratto (riquadro ≤ 72, file ≤ 240) passa e si conta", [true, 1], (() => { const r = M.controllaImmagini([im({ src: "http://x/r.jpg", naturalW: 240, w: 56 })]); return [r.ok, r.eccezioni]; })());
+    c("l'eccezione non copre un ritratto da 480", false, M.controllaImmagini([im({ src: "http://x/r.jpg", naturalW: 480, w: 56 })]).ok);
+    c("eccezione miniature (carrello, tendina): 480 su 96 passa, 480 su 120 e 960 su 96 no", [true, false, false], [
+      M.controllaImmagini([im({ src: "http://x/m.jpg", naturalW: 480, w: 96 })]).ok, M.controllaImmagini([im({ src: "http://x/m.jpg", naturalW: 480, w: 120 })]).ok, M.controllaImmagini([im({ src: "http://x/m.jpg", naturalW: 960, w: 96 })]).ok,
+    ]);
+    c("eccezione card: 960 su 300 passa, 960 su 330 e 1600 su 300 no", [true, true, false], [
+      M.controllaImmagini([im({ src: "http://x/c.jpg", naturalW: 960, w: 300 })]).ok, M.controllaImmagini([im({ src: "http://x/c.jpg", naturalW: 960, w: 480 })]).ok, M.controllaImmagini([im({ src: "http://x/c.jpg", naturalW: 1600, w: 300 })]).ok,
+    ]);
+    c("le eccezioni si scrivono nel dettaglio, per tipo", true, /ritratto/.test(M.controllaImmagini([im({ src: "http://x/r.jpg", naturalW: 240, w: 56 })]).dettaglio) && /miniatur/.test(M.controllaImmagini([im({ src: "http://x/m.jpg", naturalW: 480, w: 96 })]).dettaglio) && /card/.test(M.controllaImmagini([im({ src: "http://x/c.jpg", naturalW: 960, w: 300 })]).dettaglio));
     c("immagini non ancora caricate (larghezza 0) o senza riquadro si saltano", true, M.controllaImmagini([im({ naturalW: 0, src: "" }), im({ w: 0 })]).ok);
     c("solo la prima foto è eager (fuori da testata e piè): una ok, due rosso, le lazy non contano", [true, false, true], [
       M.controllaEager([im(), im({ loading: "lazy" })]).ok, M.controllaEager([im(), im()]).ok, M.controllaEager([im({ loading: "lazy" })]).ok,
@@ -236,14 +258,17 @@ export async function prove(_mod, { c, gruppo }) {
     /* ══ 9 · SIMULAZIONI ═════════════════════════════════════════════════════════════════════════════════ */
     gruppo("VETRINA V1 · T92 · SIMULAZIONI (offline, banner, finestre, attese)");
     const barra = { sel: "div.barra", x: 0, y: 760, w: 390, h: 84 };
-    c("banner e barra: il banner sopra la barra, una sola barra, pagina scorrevole = ok", true, M.controllaImpilamento({ banner: { x: 0, y: 600, w: 390, h: 156 }, barre: [barra], paginaScorribile: true }).ok);
-    c("banner che copre la barra = rosso", false, M.controllaImpilamento({ banner: { x: 0, y: 700, w: 390, h: 144 }, barre: [barra], paginaScorribile: true }).ok);
-    c("due barre = rosso; banner assente = rosso (la prova non è valida); pagina bloccata = rosso", [false, false, false], [
-      M.controllaImpilamento({ banner: { x: 0, y: 600, w: 390, h: 150 }, barre: [barra, { ...barra, sel: "div.altra" }], paginaScorribile: true }).ok,
-      M.controllaImpilamento({ banner: null, barre: [barra], paginaScorribile: true }).ok,
-      M.controllaImpilamento({ banner: { x: 0, y: 600, w: 390, h: 150 }, barre: [barra], paginaScorribile: false }).ok,
+    const banner = { x: 0, y: 600, w: 390, h: 156 };
+    const imp = (o) => M.controllaImpilamento({ banner, posizioni: [[barra]], paginaScorribile: true, barraAttesa: false, ...o });
+    c("banner e barra: il banner sopra la barra, una sola barra, pagina scorrevole = ok", true, imp().ok);
+    c("banner che copre la barra, in una qualunque posizione di scorrimento = rosso", [false, false], [imp({ banner: { x: 0, y: 700, w: 390, h: 144 } }).ok, imp({ posizioni: [[], [barra]], banner: { x: 0, y: 700, w: 390, h: 144 } }).ok]);
+    c("due barre nella stessa posizione = rosso; una per posizione (consulenza a metà, acquisto in fondo) = ok", [false, true], [
+      imp({ posizioni: [[barra, { ...barra, sel: "div.altra" }]] }).ok, imp({ posizioni: [[barra], [{ ...barra, sel: "div.altra" }]] }).ok,
     ]);
-    c("banner senza barra visibile: ok se il resto va", true, M.controllaImpilamento({ banner: { x: 0, y: 600, w: 390, h: 150 }, barre: [], paginaScorribile: true }).ok);
+    c("banner assente = rosso (la prova non è valida); pagina bloccata = rosso", [false, false], [imp({ banner: null }).ok, imp({ paginaScorribile: false }).ok]);
+    c("nessuna barra in nessuna posizione: non è verde, è null (misura non valida)", [null, true], (() => { const r = imp({ posizioni: [[], [], []] }); return [r.ok, /non valida|nessuna barra/i.test(r.dettaglio)]; })());
+    c("nessuna barra dove la barra è attesa (scheda, carrello) = rosso", false, imp({ posizioni: [[], []], barraAttesa: true }).ok);
+    c("la barra visibile in una sola delle posizioni basta", true, imp({ posizioni: [[], [barra], []], barraAttesa: true }).ok);
     c("finestra modale: si apre, il fuoco resta dentro con Tab, Esc chiude, il fuoco torna a chi l'ha aperta", true, M.controllaFinestra({ aperta: true, modale: true, fuocoDentro: [true, true, true], chiusaConEsc: true, fuocoRestituito: true }).ok);
     c("finestra: fuoco che esce con Tab (se modale) = rosso; Esc che non chiude = rosso; fuoco perso = rosso; mai aperta = rosso", [false, false, false, false], [
       M.controllaFinestra({ aperta: true, modale: true, fuocoDentro: [true, false], chiusaConEsc: true, fuocoRestituito: true }).ok,
@@ -251,6 +276,8 @@ export async function prove(_mod, { c, gruppo }) {
       M.controllaFinestra({ aperta: true, modale: true, fuocoDentro: [true], chiusaConEsc: true, fuocoRestituito: false }).ok,
       M.controllaFinestra({ aperta: false, modale: true, fuocoDentro: [], chiusaConEsc: false, fuocoRestituito: false }).ok,
     ]);
+    c("modale: ogni finestra aperta lo è, salvo aria-modal=\"false\" (Radix non scrive aria-modal)", [true, true, false, true], [M.eFinestraModale(null), M.eFinestraModale("true"), M.eFinestraModale("false"), M.eFinestraModale("")]);
+    c("una finestra senza aria-modal che lascia uscire il fuoco con Tab = rosso", false, M.controllaFinestra({ aperta: true, modale: M.eFinestraModale(null), fuocoDentro: [true, false], chiusaConEsc: true, fuocoRestituito: true }).ok);
     c("finestra non modale: il fuoco può uscire con Tab", true, M.controllaFinestra({ aperta: true, modale: false, fuocoDentro: [true, false], chiusaConEsc: true, fuocoRestituito: true }).ok);
     c("«Aggiunto» dura 2 s: 2000 ms ok, 1500 e 3500 rosso, mai visto rosso", [true, false, false, false], [
       M.controllaAggiunto({ visto: true, durataMs: 2000 }).ok, M.controllaAggiunto({ visto: true, durataMs: 1500 }).ok, M.controllaAggiunto({ visto: true, durataMs: 3500 }).ok, M.controllaAggiunto({ visto: false, durataMs: 0 }).ok,
@@ -267,6 +294,7 @@ export async function prove(_mod, { c, gruppo }) {
     c("peso della ricerca: 60 KB ok, 60 KB + 1 rosso (D105); lo dice con i KB", [true, false, true], [
       M.controllaPeso(60 * 1024).ok, M.controllaPeso(60 * 1024 + 1).ok, /\d+ KB/.test(M.controllaPeso(80_000).dettaglio),
     ]);
+    c("peso della ricerca: l'HTML della pagina si dice a parte e non conta", [true, true], (() => { const r = M.controllaPeso(10_000, undefined, 500_000); return [r.ok, /HTML.*488 KB|488 KB.*HTML/.test(r.dettaglio)]; })());
     c("un solo h1: 1 ok, 0 e 2 rosso", [true, false, false], [M.controllaH1(1).ok, M.controllaH1(0).ok, M.controllaH1(2).ok]);
 
     /* ══ 10 · L'USCITA IN JSON ═══════════════════════════════════════════════════════════════════════════ */
@@ -277,6 +305,7 @@ export async function prove(_mod, { c, gruppo }) {
       { id: "T15-offline", criteri: ["V1-T15"], ok: null, dettaglio: "saltato: nessuna scheda" },
     ];
     const r = M.riassumi(punti);
+    c("più misure insieme: un no vince, poi un null, vuoto non è verde", [true, null, false, false, false], [M.unisciEsiti([true, true]), M.unisciEsiti([true, null]), M.unisciEsiti([null, false, true]), M.unisciEsiti([]), M.unisciEsiti([false])]);
     c("riassunto: un rosso = non ok; conta ok, no e saltati", [false, { ok: 1, no: 1, saltati: 1 }], [r.ok, r.totali]);
     c("riassunto: tutti ok o saltati = ok; nessun punto = non ok", [true, false], [M.riassumi(punti.filter((x) => x.ok !== false)).ok, M.riassumi([]).ok]);
     c("il JSON ha per punto id, criteri, ok (true/false/null) e dettaglio", true, r.punti.every((x) => typeof x.id === "string" && Array.isArray(x.criteri) && [true, false, null].includes(x.ok) && typeof x.dettaglio === "string"));
@@ -310,12 +339,24 @@ export async function prove(_mod, { c, gruppo }) {
     const opz = M.leggiArgomenti(["--solo", "T11", "--canale", "chrome"], {}).opzioni;
     const esito = await M.misura(pwFinto, opz);
     c("anche se ogni controllo lancia, il browser si chiude e i punti sono rossi con un messaggio", [true, true, true], [finto.chiuso, esito.punti.length > 0 && esito.punti.every((x) => x.ok === false || x.ok === null), esito.punti.every((x) => !/\n\s+at /.test(x.dettaglio))]);
+    const lancio = eventi.find((e) => e.startsWith("launch")) ?? "";
+    c("il browser parte con la regola del resolver: tutto NOTFOUND tranne il loopback (copre redirect, WebSocket e preconnect)", [true, true, true, true], [
+      lancio.includes("--host-resolver-rules=MAP * ~NOTFOUND"), lancio.includes("EXCLUDE localhost"), lancio.includes("EXCLUDE 127.0.0.1"), lancio.includes("EXCLUDE [::1]"),
+    ]);
     c("il browser parte in sola lettura sul canale chiesto, senza chiavi", [true, true], [eventi.some((e) => e.startsWith("launch") && e.includes('"channel":"chrome"') && e.includes('"headless":true')), !eventi.join("").match(/key|token|secret/i)]);
     c("ogni contesto riceve il filtro che ferma le richieste non locali", true, eventi.some((e) => e.startsWith("route")));
     const instrada = async (url) => { const r = { ab: false, cont: false }; await finto.ultimo.instradamento({ request: () => ({ url: () => url }), abort: async () => { r.ab = true; }, continue: async () => { r.cont = true; } }); return r; };
     c("il filtro: locale passa, Meta/Stripe/qualunque altro host viene abortito", [true, true, true, true], [
       (await instrada("http://127.0.0.1:5199/shop")).cont, (await instrada("https://connect.facebook.net/x.js")).ab, (await instrada("https://js.stripe.com/v3")).ab, (await instrada("https://abcd.supabase.co/rest/v1/x")).ab,
     ]);
+    c("il filtro porta l'origine di --base: lo stesso indirizzo passa, un'altra porta di loopback e localhost no", [true, true, true], [
+      (await instrada("http://127.0.0.1:5199/assets/a.js")).cont, (await instrada("http://127.0.0.1:3000/shop")).ab, (await instrada("http://localhost:5199/shop")).ab,
+    ]);
+    c("il filtro abortisce le quattro rotte vietate anche da sottorisorsa e con le maiuscole", [true, true, true, true, true], [
+      (await instrada("http://127.0.0.1:5199/media/abc")).ab, (await instrada("http://127.0.0.1:5199/MEDIA/abc")).ab, (await instrada("http://127.0.0.1:5199/api/og/anteprima?x=1")).ab,
+      (await instrada("http://127.0.0.1:5199/prova-anteprima-a")).ab, (await instrada("http://127.0.0.1:5199/prova-anteprima/x")).ab,
+    ]);
+    c("un indirizzo storto o con utente nel filtro viene abortito", [true, true], [(await instrada("not a url")).ab, (await instrada("http://utente@127.0.0.1:5199/")).ab]);
     c("la cartella del repository non ha file nuovi dopo la prova", true, !existsSync(join(RADICE, "misura-vetrina.json")) && !readFileSync(FILE, "utf8").includes("writeFileSync"));
     c("lo strumento non nomina né legge .env, .dev.vars, process.env a tappeto", [false, false], [/\.env|dev\.vars/.test(readFileSync(FILE, "utf8").replace(/process\.env/g, "")), /Object\.(keys|entries|assign)\(process\.env\)|\.\.\.process\.env/.test(readFileSync(FILE, "utf8"))]);
     c("Playwright, axe e Lighthouse non sono in package.json", [false, false, false], (() => { const pj = readFileSync(join(RADICE, "package.json"), "utf8"); return [/"playwright/.test(pj), /axe-core|@axe-core/.test(pj), /lighthouse/.test(pj)]; })());

@@ -4,8 +4,11 @@
  *
  *  ⚠️ Playwright NON è una dipendenza del progetto (decisione del titolare, D92): si scarica FUORI dal repository, in una cartella `mktemp -d`,
  *     e si passa con `--playwright <cartella>` (o `MISURA_PLAYWRIGHT`). `axe` e Lighthouse non li usa questo strumento: si lanciano a parte (T103c).
- *  ⚠️ Mai il sito vero né il database vero: accetta solo http://127.0.0.1, http://localhost o http://[::1]; ogni richiesta del browser verso un altro
- *     indirizzo viene fermata PRIMA di uscire dal computer (e annotata, per i punti sui terzi). Legge dall'ambiente solo `MISURA_*`.
+ *  ⚠️ Mai il sito vero né il database vero: accetta solo http://127.0.0.1, http://localhost o http://[::1]. Due difese insieme:
+ *     (1) il browser parte con `--host-resolver-rules="MAP * ~NOTFOUND, EXCLUDE localhost, EXCLUDE 127.0.0.1, EXCLUDE [::1]"`: ogni nome esterno non si risolve,
+ *         comunque ci si arrivi (redirect, WebSocket, preconnect, sottorisorse); (2) un filtro di Playwright su ogni richiesta fa passare SOLO l'origine di
+ *         `--base` e abortisce le quattro rotte con un indirizzo vero scritto nel codice. Il filtro da solo NON basterebbe: Playwright non lo chiama sui
+ *         redirect, né sui WebSocket. Legge dall'ambiente solo `MISURA_*`.
  *  ⚠️ Non scrive file: l'esito va su stdout; il browser gira in un contesto senza profilo e si chiude in un `finally`.
  *
  *  Uso:  node strumenti/misura-vetrina.mjs --playwright <cartella> [--base http://127.0.0.1:5199] [--pagine /shop,/shop/cerca,/shop/carrello]
@@ -24,6 +27,14 @@ export class ErroreMisura extends Error {}
 const LOCALI = new Set(["127.0.0.1", "localhost", "[::1]"]);
 /** Le quattro rotte con un indirizzo Supabase vero scritto nel codice (LEGGIMI della vetrina finta): mai visitate. */
 const ROTTE_VIETATE = ["/api/og/anteprima", "/media", "/prova-anteprima"];
+
+/** Un percorso è una delle quattro rotte vietate? Senza badare alle maiuscole né alla codifica `%xx`; `/prova-anteprima-a` compreso. */
+export function rottaVietata(percorso) {
+  let p = String(percorso).split(/[?#]/)[0];
+  for (let i = 0; i < 2; i++) { try { p = decodeURIComponent(p); } catch { break; } }
+  p = p.toLowerCase();
+  return p.startsWith("/prova-anteprima-") || ROTTE_VIETATE.some((r) => p === r || p.startsWith(`${r}/`));
+}
 const COME_SI_USA = "Uso: node strumenti/misura-vetrina.mjs --playwright <cartella> [--base http://127.0.0.1:5199] (solo 127.0.0.1, localhost o [::1])";
 
 /** Restituisce l'origine (`http://127.0.0.1:5199`) o lancia. Il messaggio non ripete mai utente e password. */
@@ -42,9 +53,7 @@ export function verificaPercorso(p, base) {
   if (typeof p !== "string" || !p.startsWith("/") || p.startsWith("//") || p.includes("\\")) throw new ErroreMisura(`percorso «${String(p).slice(0, 40)}»: deve cominciare con una sola «/»`);
   const u = new URL(p, base);
   if (u.origin !== new URL(base).origin) throw new ErroreMisura(`percorso «${p.slice(0, 40)}»: esce dall'origine`);
-  if (ROTTE_VIETATE.some((r) => u.pathname === r || u.pathname.startsWith(`${r}/`) || (r === "/prova-anteprima" && u.pathname.startsWith("/prova-anteprima-")))) {
-    throw new ErroreMisura(`percorso «${u.pathname}»: ha un indirizzo vero scritto nel codice, non si visita`);
-  }
+  if (rottaVietata(u.pathname)) throw new ErroreMisura(`percorso «${u.pathname}»: ha un indirizzo vero scritto nel codice, non si visita`);
   return u.href;
 }
 
@@ -209,17 +218,20 @@ const BIANCO = { r: 255, g: 255, b: 255, a: 1 };
 const distanza = (a, b) => Math.hypot(a.r - b.r, a.g - b.g, a.b - b.b);
 const BLU_MARCHIO = leggiColore("#0F90FE");
 
-/** Voci della pagina `{sel, testo, fg, sfondi (dal più vicino alla radice), px, peso, conImmagineSfondo}`. ≥ 4,5:1 (3:1 se grande); mai bianco su blu pieno del marchio. */
+/** Voci della pagina `{sel, testo, fg, sfondi (dal più vicino alla radice), px, peso, conImmagineSfondo}` (colori già portati a sRGB dal browser).
+ *  ≥ 4,5:1 (3:1 se grande); mai bianco su blu pieno del marchio. Non è mai verde a vuoto: zero testi misurati = rosso; colori illeggibili = `null`. */
 export function controllaContrasti(voci) {
   const violazioni = [];
+  const illeggibili = [];
   let controllati = 0;
   let nonMisurati = 0;
   for (const v of voci) {
+    if (v.conImmagineSfondo) { nonMisurati++; continue; }
     const fg = leggiColore(v.fg);
     const strati = (v.sfondi ?? []).map(leggiColore);
-    if (v.conImmagineSfondo || !fg || strati.some((s) => !s)) { nonMisurati++; continue; }
+    if (!fg || strati.some((x) => !x)) { illeggibili.push(v.sel); continue; }
     let fondo = BIANCO;
-    for (const s of [...strati].reverse()) fondo = componi(s, fondo);
+    for (const x of [...strati].reverse()) fondo = componi(x, fondo);
     const testo = componi(fg, fondo);
     const rapporto = rapportoContrasto(testo, fondo);
     const grande = v.px >= 24 || (v.px >= 18.66 && v.peso >= 700);
@@ -228,9 +240,10 @@ export function controllaContrasti(voci) {
     controllati++;
     if (rapporto < soglia || biancoSuBlu) violazioni.push({ sel: v.sel, testo: String(v.testo ?? "").slice(0, 40), rapporto: Math.round(rapporto * 100) / 100, soglia, motivo: biancoSuBlu ? "bianco su blu pieno" : undefined });
   }
-  const ok = violazioni.length === 0 && controllati + nonMisurati > 0;
+  const ok = violazioni.length ? false : controllati === 0 ? false : illeggibili.length ? null : true;
   const elenco = violazioni.slice(0, 8).map((x) => `${x.sel} «${x.testo}» ${x.rapporto}:1 (serve ${x.soglia}:1${x.motivo ? `, ${x.motivo}` : ""})`).join("; ");
-  return { ok, controllati, nonMisurati, violazioni, dettaglio: `${controllati} testi misurati, ${nonMisurati} non misurabili (foto, gradienti, colori non letti)${violazioni.length ? `; sotto soglia: ${elenco}` : ""}` };
+  const dettaglio = `${controllati} testi misurati, ${nonMisurati} sopra foto o gradienti (non misurabili), ${illeggibili.length} con colore illeggibile${illeggibili.length ? ` (${[...new Set(illeggibili)].slice(0, 5).join(", ")}): misura incompleta` : ""}${violazioni.length ? `; sotto soglia: ${elenco}` : ""}${controllati === 0 ? "; nessun testo misurato: la misura non vale" : ""}`;
+  return { ok, controllati, nonMisurati, illeggibili: illeggibili.length, violazioni, dettaglio };
 }
 
 /* ══ 5 · TELEFONO: BERSAGLI, CAMPI, BARRE, BOTTONI PIENI ═════════════════════════════════════════════════════════ */
@@ -292,15 +305,24 @@ export function controllaPieni(voci) {
 
 /* ══ 6 · IMMAGINI, VIDEO, TERZE PARTI ═════════════════════════════════════════════════════════════════════════════ */
 
-/** La larghezza che il file serve: il suffisso del nome (`…-960.jpg`, come li fa la riduzione di D99) o, senza, la larghezza naturale. */
+/** La larghezza che il file serve: la larghezza naturale; solo per gli SVG di prova (che non hanno una larghezza vera) il suffisso del nome (`…-960.svg`). */
 export function larghezzaServita(img) {
-  const m = /-(\d{2,4})\.(?:svg|jpe?g|png|webp|avif|gif)(?:\?.*)?$/i.exec(img.src ?? "");
+  const m = /-(\d{2,4})\.svg(?:\?.*)?$/i.exec(img.src ?? "");
   return m ? Number(m[1]) : img.naturalW || 0;
 }
 
-/** Voci `{sel, src, naturalW, w}`: nessuna immagine servita più larga del doppio del suo riquadro. Eccezione dichiarata di D99: il ritratto (riquadro ≤ 72 px, file ≤ 240 px). */
+/** Scostamenti dichiarati dal doppio del riquadro (D99 e nota di T74), con limiti stretti: il ritratto (240 px in 56-72), la miniatura del carrello e della
+ *  tendina (480 px in 80-112), la card prodotto (960 px in 200-320). Qualunque altro caso resta soggetto al doppio. */
+const ECCEZIONI_IMMAGINI = [
+  { nome: "ritratto", da: 0, a: 72, serviteMax: 240 },
+  { nome: "miniatura", da: 80, a: 112, serviteMax: 480 },
+  { nome: "card", da: 200, a: 320, serviteMax: 960 },
+];
+
+/** Voci `{sel, src, naturalW, w}`: nessuna immagine servita più larga del doppio del suo riquadro, salvo le eccezioni dichiarate. */
 export function controllaImmagini(voci) {
   const violazioni = [];
+  const usate = {};
   let misurate = 0;
   let eccezioni = 0;
   for (const v of voci) {
@@ -309,10 +331,12 @@ export function controllaImmagini(voci) {
     if (!servita || !riquadro) continue;
     misurate++;
     if (servita <= 2 * riquadro) continue;
-    if (riquadro <= 72 && servita <= 240) eccezioni++;
+    const e = ECCEZIONI_IMMAGINI.find((x) => riquadro >= x.da && riquadro <= x.a && servita <= x.serviteMax);
+    if (e) { eccezioni++; usate[e.nome] = (usate[e.nome] ?? 0) + 1; }
     else violazioni.push({ sel: v.sel, motivo: `servita a ${servita} px in un riquadro da ${riquadro} (massimo ${2 * riquadro})` });
   }
-  return { ok: violazioni.length === 0, violazioni, misurate, eccezioni, dettaglio: riassunto(violazioni, misurate, "immagini misurate", `nessuna oltre il doppio del riquadro (${eccezioni} con l'eccezione D99 del ritratto)`) };
+  const dichiarate = Object.entries(usate).map(([n, q]) => `${n} ${q}`).join(", ");
+  return { ok: violazioni.length === 0, violazioni, misurate, eccezioni, dettaglio: riassunto(violazioni, misurate, "immagini misurate", `nessuna oltre il doppio del riquadro${eccezioni ? ` (scostamenti dichiarati D99: ${dichiarate})` : ""}`) };
 }
 
 /** Voci `{sel, loading, dentroFascia}`: fuori da testata e piè, solo la prima foto è caricata subito. */
@@ -401,15 +425,27 @@ export function controllaRifiuta(richieste, eventi) {
 
 const secca = (a, b) => Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x) > 0 && Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y) > 0;
 
-/** Banner aperto con barra visibile (V1-H5): `{banner, barre: [{sel,x,y,w,h}], paginaScorribile}`. Il banner non copre la barra, mai due barre, la pagina non si blocca. */
-export function controllaImpilamento({ banner, barre, paginaScorribile }) {
+/** Banner aperto con barra visibile (V1-H5): `{banner, posizioni: [[{sel,x,y,w,h}]] (le barre viste a ogni posizione di scorrimento), paginaScorribile, barraAttesa}`.
+ *  Il banner non copre la barra, mai due barre insieme, la pagina non si blocca. Nessuna barra in nessuna posizione: `null` (misura non valida), rosso se la barra era attesa. */
+export function controllaImpilamento({ banner, posizioni, paginaScorribile, barraAttesa = false }) {
   if (!banner) return { ok: false, dettaglio: "il banner non è comparso: la misura non vale (pagina non ammessa? scelta già salvata?)" };
-  const guasti = [];
-  for (const b of barre) if (secca(banner, b)) guasti.push(`il banner copre ${b.sel}`);
-  if (barre.length > 1) guasti.push(`${barre.length} barre fisse insieme (${barre.map((b) => b.sel).join(", ")})`);
-  if (!paginaScorribile) guasti.push("la pagina non scorre con il banner aperto");
-  return { ok: guasti.length === 0, dettaglio: guasti.length ? guasti.join("; ") : `banner sopra ${barre.length ? "la barra" : "la pagina (nessuna barra visibile)"}, la pagina scorre` };
+  const guasti = new Set();
+  for (const barre of posizioni) {
+    for (const b of barre) if (secca(banner, b)) guasti.add(`il banner copre ${b.sel}`);
+    if (barre.length > 1) guasti.add(`${barre.length} barre fisse insieme (${barre.map((b) => b.sel).join(", ")})`);
+  }
+  if (!paginaScorribile) guasti.add("la pagina non scorre con il banner aperto");
+  if (guasti.size) return { ok: false, dettaglio: [...guasti].join("; ") };
+  if (!posizioni.some((b) => b.length)) {
+    return barraAttesa
+      ? { ok: false, dettaglio: `la barra attesa non si vede in nessuna delle ${posizioni.length} posizioni di scorrimento` }
+      : { ok: null, dettaglio: `misura non valida: nessuna barra visibile in nessuna delle ${posizioni.length} posizioni di scorrimento (la condizione «banner e barra insieme» non è stata provata)` };
+  }
+  return { ok: true, dettaglio: "banner sopra la barra a ogni posizione di scorrimento, la pagina scorre" };
 }
+
+/** Ogni finestra aperta è modale (Radix non scrive `aria-modal`), salvo `aria-modal="false"`. */
+export const eFinestraModale = (ariaModal) => ariaModal !== "false";
 
 /** Finestra: `{aperta, modale, fuocoDentro: [bool], chiusaConEsc, fuocoRestituito}`. */
 export function controllaFinestra({ aperta, modale, fuocoDentro, chiusaConEsc, fuocoRestituito }) {
@@ -448,8 +484,8 @@ export function controllaOffline({ avvisoVisibile, avvisoSparito, carrelloIntatt
 }
 
 /** Peso della ricerca (D105): più di 60 KB = serve `elencoLeggero()`. */
-export function controllaPeso(byte, soglia = 60 * 1024) {
-  return { ok: byte <= soglia, dettaglio: `${Math.round(byte / 1024)} KB scaricati (soglia ${Math.round(soglia / 1024)} KB)` };
+export function controllaPeso(byte, soglia = 60 * 1024, htmlByte = 0) {
+  return { ok: byte <= soglia, dettaglio: `${Math.round(byte / 1024)} KB di chiamate dati (soglia ${Math.round(soglia / 1024)} KB)${htmlByte ? `; HTML della pagina ${Math.round(htmlByte / 1024)} KB, non conteggiato (se l'elenco arriva già nell'HTML lo guarda T103c)` : ""}` };
 }
 
 export function controllaH1(n) {
@@ -508,6 +544,20 @@ function inPaginaBarre() {
 }
 
 function inPaginaTesti() {
+  // il browser dà `oklch()`, `color-mix()` ecc. come li ha scritti il CSS: una tela 1×1 li porta tutti a sRGB (se non li legge restano come sono e il Node li conta «illeggibili»)
+  const tela = document.createElement("canvas");
+  tela.width = tela.height = 1;
+  const g = tela.getContext("2d", { willReadFrequently: true });
+  const sRGB = (c) => {
+    if (/^rgba?\(/.test(c)) return c;
+    g.clearRect(0, 0, 1, 1);
+    g.fillStyle = "#010203";
+    g.fillStyle = c;
+    if (g.fillStyle === "#010203" && c.trim().toLowerCase() !== "#010203") return c;
+    g.fillRect(0, 0, 1, 1);
+    const [r, v, b, a] = g.getImageData(0, 0, 1, 1).data;
+    return `rgba(${r}, ${v}, ${b}, ${Math.round((a / 255) * 1000) / 1000})`;
+  };
   const voci = [];
   const visti = new Set();
   const camminatore = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
@@ -523,16 +573,31 @@ function inPaginaTesti() {
     let conImmagineSfondo = false;
     for (let p = el; p; p = p.parentElement) {
       const s = getComputedStyle(p);
-      sfondi.push(s.backgroundColor);
+      const sf = sRGB(s.backgroundColor);
+      sfondi.push(sf);
       if (s.backgroundImage !== "none") { conImmagineSfondo = true; break; }
-      if (/^rgb\(/.test(s.backgroundColor) || /,\s*1\)$/.test(s.backgroundColor)) break;
+      if (/^rgb\(/.test(sf) || /,\s*1\)$/.test(sf)) break;
     }
-    voci.push({ sel: `${el.tagName.toLowerCase()}${typeof el.className === "string" && el.className.trim() ? `.${el.className.trim().split(/\s+/).slice(0, 2).join(".")}` : ""}`, testo: n.textContent.trim().slice(0, 40), fg: stile.color, sfondi, px: Number.parseFloat(stile.fontSize), peso: Number.parseInt(stile.fontWeight, 10) || 400, conImmagineSfondo });
+    voci.push({ sel: `${el.tagName.toLowerCase()}${typeof el.className === "string" && el.className.trim() ? `.${el.className.trim().split(/\s+/).slice(0, 2).join(".")}` : ""}`, testo: n.textContent.trim().slice(0, 40), fg: sRGB(stile.color), sfondi, px: Number.parseFloat(stile.fontSize), peso: Number.parseInt(stile.fontWeight, 10) || 400, conImmagineSfondo });
   }
   return voci;
 }
 
 function inPaginaPieni() {
+  // il browser dà `oklch()`, `color-mix()` ecc. come li ha scritti il CSS: una tela 1×1 li porta tutti a sRGB (se non li legge restano come sono e il Node li conta «illeggibili»)
+  const tela = document.createElement("canvas");
+  tela.width = tela.height = 1;
+  const g = tela.getContext("2d", { willReadFrequently: true });
+  const sRGB = (c) => {
+    if (/^rgba?\(/.test(c)) return c;
+    g.clearRect(0, 0, 1, 1);
+    g.fillStyle = "#010203";
+    g.fillStyle = c;
+    if (g.fillStyle === "#010203" && c.trim().toLowerCase() !== "#010203") return c;
+    g.fillRect(0, 0, 1, 1);
+    const [r, v, b, a] = g.getImageData(0, 0, 1, 1).data;
+    return `rgba(${r}, ${v}, ${b}, ${Math.round((a / 255) * 1000) / 1000})`;
+  };
   const voci = [];
   for (const el of document.querySelectorAll('button, a, [role="button"], input[type="submit"]')) {
     if (el.closest("[inert]") || !(el.checkVisibility?.({ checkOpacity: true, checkVisibilityCSS: true }) ?? true)) continue;
@@ -540,14 +605,14 @@ function inPaginaPieni() {
     if (r.width < 44 || r.height < 30 || r.height > 80 || r.bottom <= 0 || r.top >= innerHeight || r.right <= 0 || r.left >= innerWidth) continue;
     const testo = (el.textContent || el.value || "").trim();
     if (!testo || testo.length > 60) continue;
-    const sfondo = getComputedStyle(el).backgroundColor;
+    const sfondo = sRGB(getComputedStyle(el).backgroundColor);
     const m = /^rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)$/.exec(sfondo);
     if (!m || (m[4] !== undefined && Number(m[4]) < 0.95)) continue;
     const sopra = document.elementFromPoint(Math.min(Math.max(r.left + r.width / 2, 0), innerWidth - 1), Math.min(Math.max(r.top + r.height / 2, 0), innerHeight - 1));
     if (!sopra || !(el.contains(sopra) || sopra.contains(el))) continue;
     let padre = el.parentElement;
-    while (padre && /^rgba\(.*,\s*0\)$/.test(getComputedStyle(padre).backgroundColor)) padre = padre.parentElement;
-    if (padre && getComputedStyle(padre).backgroundColor === sfondo) continue;
+    while (padre && /^rgba\(.*,\s*0\)$/.test(sRGB(getComputedStyle(padre).backgroundColor))) padre = padre.parentElement;
+    if (padre && sRGB(getComputedStyle(padre).backgroundColor) === sfondo) continue;
     voci.push({ sel: `${el.tagName.toLowerCase()}${typeof el.className === "string" && el.className.trim() ? `.${el.className.trim().split(/\s+/).slice(0, 2).join(".")}` : ""}`, testo: testo.slice(0, 40), sfondo, w: r.width, h: r.height });
   }
   return voci;
@@ -557,20 +622,32 @@ function inPaginaImmagini() {
   return [...document.images].filter((i) => i.currentSrc && i.checkVisibility?.()).map((i) => ({ sel: `img${i.id ? `#${i.id}` : ""}${i.className ? `.${String(i.className).trim().split(/\s+/)[0]}` : ""}`, src: i.currentSrc, naturalW: i.naturalWidth, w: i.getBoundingClientRect().width, loading: i.getAttribute("loading") || "eager", dentroFascia: !!i.closest("header, footer, nav") }));
 }
 
-function inPaginaBanner() {
+async function inPaginaBanner() {
   const banner = document.querySelector("[data-banner-cookie]");
   const rett = (el) => { const r = el.getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height }; };
-  const elementi = [];
-  const barre = [];
-  for (const el of document.body.querySelectorAll("*")) {
-    if (banner?.contains(el) || el.closest("[inert]") || elementi.some((e) => e.contains(el))) continue;
-    if (getComputedStyle(el).position !== "fixed" || !(el.checkVisibility?.({ checkOpacity: true, checkVisibilityCSS: true }) ?? true)) continue;
-    const r = el.getBoundingClientRect();
-    if (r.height > 200 || r.height < 30 || r.width < innerWidth * 0.3 || r.bottom < innerHeight / 2 || r.top >= innerHeight) continue;
-    elementi.push(el);
-    barre.push({ sel: `${el.tagName.toLowerCase()}${typeof el.className === "string" && el.className.trim() ? `.${el.className.trim().split(/\s+/).slice(0, 2).join(".")}` : ""}`, ...rett(el) });
+  const barreOra = () => {
+    const elementi = [];
+    const barre = [];
+    for (const el of document.body.querySelectorAll("*")) {
+      if (banner?.contains(el) || el.closest("[inert]") || elementi.some((e) => e.contains(el))) continue;
+      if (getComputedStyle(el).position !== "fixed" || !(el.checkVisibility?.({ checkOpacity: true, checkVisibilityCSS: true }) ?? true)) continue;
+      const r = el.getBoundingClientRect();
+      if (r.height > 200 || r.height < 30 || r.width < innerWidth * 0.3 || r.bottom < innerHeight / 2 || r.top >= innerHeight) continue;
+      elementi.push(el);
+      barre.push({ sel: `${el.tagName.toLowerCase()}${typeof el.className === "string" && el.className.trim() ? `.${el.className.trim().split(/\s+/).slice(0, 2).join(".")}` : ""}`, ...rett(el) });
+    }
+    return barre;
+  };
+  // la barra d'acquisto è nascosta finché il suo bottone è a schermo e quella della consulenza compare dopo l'hero: si guarda a più posizioni di scorrimento
+  const fondo = Math.max(0, document.documentElement.scrollHeight - innerHeight);
+  const posizioni = [];
+  for (const y of new Set([0, innerHeight * 0.75, innerHeight * 1.5, innerHeight * 3, fondo].map((v) => Math.round(Math.min(Math.max(v, 0), fondo))))) {
+    scrollTo(0, y);
+    await new Promise((r) => setTimeout(r, 450));
+    posizioni.push(barreOra());
   }
-  return { banner: banner && banner.checkVisibility?.() ? rett(banner) : null, barre, scorribile: ![document.documentElement, document.body].some((e) => /^(hidden|clip)$/.test(getComputedStyle(e).overflowY)) && getComputedStyle(document.body).position !== "fixed" };
+  scrollTo(0, 0);
+  return { banner: banner && banner.checkVisibility?.() ? rett(banner) : null, posizioni, scorribile: ![document.documentElement, document.body].some((e) => /^(hidden|clip)$/.test(getComputedStyle(e).overflowY)) && getComputedStyle(document.body).position !== "fixed" };
 }
 
 function inPaginaCodeEventi() {
@@ -586,17 +663,29 @@ const PICCOLO = { width: 320, height: 640 };
 const COMPUTER = { width: 1280, height: 800 };
 const TABLET = { width: 700, height: 900 };
 
-/** Il filtro di ogni contesto: passa solo ciò che è locale; tutto il resto è fermato prima di uscire dal computer. */
-export async function instrada(route) {
-  if (classificaHost(route.request().url()) === "locale") await route.continue();
-  else await route.abort("blockedbyclient");
+/** Il filtro di ogni contesto: passa SOLO l'origine di `--base` (mai un'altra porta di loopback, mai `localhost` se la base è 127.0.0.1) e mai le quattro rotte vietate.
+ *  Tutto il resto è fermato. Non vede i redirect né i WebSocket: per quelli c'è la regola del resolver nel `launch`. */
+export function instradaPer(base) {
+  const origine = new URL(base).origin;
+  return async (route) => {
+    let passa = false;
+    try {
+      const u = new URL(route.request().url());
+      passa = u.origin === origine && !u.username && !u.password && !rottaVietata(u.pathname);
+    } catch { /* indirizzo storto: si ferma */ }
+    if (passa) await route.continue();
+    else await route.abort("blockedbyclient");
+  };
 }
+
+/** I nomi esterni non si risolvono (redirect, WebSocket e preconnect compresi): solo il loopback. */
+export const ARGOMENTI_BROWSER = ["--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE localhost, EXCLUDE 127.0.0.1, EXCLUDE [::1]"];
 
 async function conPagina(browser, viewport, fn, { dopoRichieste } = {}) {
   const contesto = await browser.newContext({ viewport, deviceScaleFactor: 1, isMobile: viewport.width <= 500, hasTouch: viewport.width <= 500, serviceWorkers: "block", locale: "it-IT" });
   const richieste = [];
   try {
-    await contesto.route("**/*", instrada);
+    await contesto.route("**/*", instradaPer(browser.base));
     contesto.setDefaultTimeout(15_000);
     contesto.on("request", (r) => richieste.push({ url: r.url(), tipo: r.resourceType() }));
     const pagina = await contesto.newPage();
@@ -620,23 +709,27 @@ async function scorri(pagina) {
   await pausa(400);
 }
 
+/** Più esiti (true, false, null = misura incompleta) → uno: un no vince, poi un null; vuoto = no (mai verde a vuoto). */
+export function unisciEsiti(esiti) {
+  if (!esiti.length || esiti.includes(false)) return false;
+  return esiti.includes(null) ? null : true;
+}
+
 /** Per ogni pagina e larghezza: raccoglie dentro la pagina, valuta con la funzione pura; il punto è ok solo se lo sono tutte. */
 async function perPagine(browser, o, larghezze, { id, criteri, raccogli, valuta, prima }) {
   const dettagli = [];
-  let ok = true;
   for (const percorso of o.pagine) {
     for (const larghezza of larghezze) {
       const r = await conPagina(browser, larghezza, async (pagina, contesto, richieste) => {
         await vai(pagina, o.base, percorso);
         if (prima) await prima(pagina);
-        return valuta(await pagina.evaluate(raccogli), richieste, pagina);
+        return valuta(await pagina.evaluate(raccogli), richieste, pagina, percorso);
       });
-      if (!r.ok) ok = false;
-      dettagli.push({ ok: r.ok, testo: `${percorso} @${larghezza.width}: ${r.dettaglio}` });
+      dettagli.push({ ok: r.ok === true, esito: r.ok, testo: `${percorso} @${larghezza.width}: ${r.dettaglio}` });
     }
   }
   const guasti = dettagli.filter((d) => !d.ok).map((d) => d.testo);
-  return { id, criteri, ok: ok && dettagli.length > 0, dettaglio: guasti.length ? guasti.join(" | ") : `${dettagli.length} misure, tutte ok (${dettagli[0]?.testo ?? "nessuna"})` };
+  return { id, criteri, ok: unisciEsiti(dettagli.map((d) => d.esito)), dettaglio: guasti.length ? guasti.join(" | ") : `${dettagli.length} misure, tutte ok (${dettagli[0]?.testo ?? "nessuna"})` };
 }
 
 const saltato = (id, criteri, perche) => ({ id, criteri, ok: null, dettaglio: `saltato: ${perche}` });
@@ -691,7 +784,7 @@ const PUNTI = [
   {
     // shortcut: il testo al 200 % si approssima con `font-size: 200%` sulla radice (cambiano le misure in rem, non lo zoom vero del browser); lo zoom vero si guarda a mano in T103c.
     id: "T11-testo200", criteri: ["V1-T11"],
-    esegui: (b, o) => perPagine(b, o, [TELEFONO], { id: "T11-testo200", criteri: ["V1-T11"], prima: async (p) => { await p.addStyleTag({ content: "html{font-size:200% !important}" }); await pausa(300); }, raccogli: inPaginaBarre, valuta: controllaBarre }),
+    esegui: (b, o) => perPagine(b, o, [TELEFONO], { id: "T11-testo200", criteri: ["V1-T11"], prima: async (p) => { await p.addStyleTag({ content: "html{font-size:200% !important}" }); await pausa(300); }, raccogli: inPaginaBarre, valuta: (d) => { const r = controllaBarre(d); return { ...r, dettaglio: `${r.dettaglio} [approssimazione: font-size 200% sulla radice, non lo zoom vero del testo; testo tagliato e sovrapposizioni a mano in T103c]` }; } }),
   },
   { id: "T12-h1", criteri: ["V1-T12"], esegui: (b, o) => perPagine(b, o, [TELEFONO], { id: "T12-h1", criteri: ["V1-T12"], raccogli: () => [...document.querySelectorAll("h1")].filter((h) => h.checkVisibility?.() ?? true).length, valuta: controllaH1 }) },
   {
@@ -703,7 +796,7 @@ const PUNTI = [
         const apre = pagina.locator(o.finestra).first();
         await apre.click();
         await pausa(500);
-        const nelleFinestre = () => pagina.evaluate(() => { const f = document.querySelector('[role="dialog"]:not([data-banner-cookie]), dialog[open], [aria-modal="true"]'); return { aperta: !!f && (f.checkVisibility?.() ?? true), modale: !!f && (f.getAttribute("aria-modal") === "true" || (f.tagName === "DIALOG" && f.matches(":modal"))), dentro: !!f && f.contains(document.activeElement) }; });
+        const nelleFinestre = () => pagina.evaluate(() => { const f = document.querySelector('[role="dialog"]:not([data-banner-cookie]), dialog[open], [aria-modal="true"]'); return { aperta: !!f && (f.checkVisibility?.() ?? true), ariaModal: f ? f.getAttribute("aria-modal") : null, dentro: !!f && f.contains(document.activeElement) }; });
         const iniziale = await nelleFinestre();
         const fuocoDentro = [];
         for (let i = 0; i < 6 && iniziale.aperta; i++) { await pagina.keyboard.press("Tab"); fuocoDentro.push((await nelleFinestre()).dentro); }
@@ -711,7 +804,7 @@ const PUNTI = [
         await pausa(500);
         const chiusa = !(await nelleFinestre()).aperta;
         const restituito = await apre.evaluate((el) => el === document.activeElement || el.contains(document.activeElement));
-        const r = controllaFinestra({ aperta: iniziale.aperta, modale: iniziale.modale, fuocoDentro, chiusaConEsc: chiusa, fuocoRestituito: restituito });
+        const r = controllaFinestra({ aperta: iniziale.aperta, modale: eFinestraModale(iniziale.ariaModal), fuocoDentro, chiusaConEsc: chiusa, fuocoRestituito: restituito });
         return { id: "T12-finestra", criteri: ["V1-T12"], ok: r.ok, dettaglio: r.dettaglio };
       });
     },
@@ -725,7 +818,7 @@ const PUNTI = [
     esegui: (b, o) => perPagine(b, { ...o, pagine: o.scheda ? [...o.pagine, o.scheda] : o.pagine }, [TELEFONO, TABLET], {
       id: "H5-impilamento", criteri: ["V1-H5"], raccogli: inPaginaBanner,
       // shortcut: «la pagina non si blocca» = né `html` né `body` hanno `overflow: hidden`/`clip` e il `body` non è `fixed` (non si prova una rotellina vera: il telefono con la tastiera in T103c)
-      valuta: (d) => controllaImpilamento({ banner: d.banner, barre: d.barre, paginaScorribile: d.scorribile }),
+      valuta: (d, _r, _p, percorso) => controllaImpilamento({ banner: d.banner, posizioni: d.posizioni, paginaScorribile: d.scorribile, barraAttesa: percorso === o.scheda || /carrello|prodotto/.test(percorso) }),
     }),
   },
   {
@@ -795,14 +888,19 @@ const PUNTI = [
     esegui: async (b, o) => {
       if (o.scenario !== "stress") return saltato("D105-ricerca", ["D105", "V1-T14"], "serve la vetrina finta con lo scenario stress e --scenario stress");
       return conPagina(b, TELEFONO, async (pagina, contesto) => {
-        const pesi = [];
-        contesto.on("response", (r) => { if (["document", "fetch", "xhr"].includes(r.request().resourceType())) pesi.push(r.request().sizes().then((s) => s.responseBodySize, () => r.body().then((x) => x.length, () => 0))); });
+        const dati = [];
+        const html = [];
+        contesto.on("response", (r) => {
+          const tipo = r.request().resourceType();
+          if (!["document", "fetch", "xhr"].includes(tipo)) return;
+          (tipo === "document" ? html : dati).push(r.request().sizes().then((s) => s.responseBodySize, () => r.body().then((x) => x.length, () => 0)));
+        });
         await vai(pagina, o.base, o.pagine.find((p) => p.includes("cerca")) ?? "/shop/cerca");
         const campo = pagina.locator('input[type="search"], input[name="q"], [role="searchbox"], [role="combobox"]').first();
         if (await campo.count()) { await campo.fill("a"); await pausa(1000); }
-        const byte = (await Promise.all(pesi)).reduce((s, x) => s + x, 0);
-        const r = controllaPeso(byte);
-        return { id: "D105-ricerca", criteri: ["D105", "V1-T14"], ok: r.ok, dettaglio: `${r.dettaglio} (pagina e chiamate dati; con 50 prodotti)` };
+        const somma = async (l) => (await Promise.all(l)).reduce((s, x) => s + x, 0);
+        const r = controllaPeso(await somma(dati), undefined, await somma(html));
+        return { id: "D105-ricerca", criteri: ["D105", "V1-T14"], ok: r.ok, dettaglio: `${r.dettaglio}; scenario stress dichiarato a mano (--scenario), 50 prodotti da verificare` };
       });
     },
   },
@@ -811,13 +909,14 @@ const PUNTI = [
 /** Lancia i punti scelti. Il browser si chiude sempre; un punto che lancia diventa un punto no col messaggio. Playwright viene passato da fuori. */
 export async function misura(pw, opzioni) {
   let browser;
-  try { browser = await pw.chromium.launch({ channel: opzioni.canale, headless: true }); }
+  try { browser = await pw.chromium.launch({ channel: opzioni.canale, headless: true, args: ARGOMENTI_BROWSER }); }
   catch { throw new ErroreMisura(messaggioBrowserMancante(opzioni.canale)); }
   const punti = [];
+  const ambiente = { newContext: (o) => browser.newContext(o), base: opzioni.base };
   try {
     for (const p of PUNTI) {
       if (opzioni.solo.length && !opzioni.solo.includes(p.id.split("-")[0])) continue;
-      try { punti.push(await p.esegui(browser, opzioni)); }
+      try { punti.push(await p.esegui(ambiente, opzioni)); }
       catch (e) { punti.push(puntoDaErrore(p.id, p.criteri, e)); }
     }
   } finally {
