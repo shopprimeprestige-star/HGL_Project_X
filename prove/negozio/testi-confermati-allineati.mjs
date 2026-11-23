@@ -38,6 +38,7 @@ export function differenze(campi, chiavi) {
 
 const FINTI = {
   "@tanstack/react-start": `
+    export const createServerOnlyFn = (f) => f; // T107: catalogo.functions legge il cookie con createServerOnlyFn
     export const createServerFn = () => {
       let v = (d) => d;
       const b = { inputValidator(f) { v = f; return b; }, handler(h) { return async (arg) => h({ data: v(arg && arg.data) }); } };
