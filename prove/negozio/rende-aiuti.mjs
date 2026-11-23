@@ -44,9 +44,17 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("Invisible Derm: nessun prezzo (`prezzoDaCent` e di ogni variante `null`), non acquistabile, nessuna variante disponibile", [null, false, true, true], [
     D.INVISIBLE_DERM.prezzoDaCent, D.INVISIBLE_DERM.acquistabile, D.INVISIBLE_DERM.varianti.every((v) => v.prezzoCent === null), D.INVISIBLE_DERM.varianti.every((v) => !v.disponibile),
   ]);
-  c("Invisible Derm: nel suo JSON non c'è nessun numero oltre ai fissi dell'aggiornamento e dell'ordine delle foto", [], (() => {
-    const { aggiornatoIl, media, ...resto } = D.INVISIBLE_DERM;
-    return (JSON.stringify(resto).match(/:\s*-?\d+(\.\d+)?/g) ?? []).filter((n) => !/:\s*0$/.test(n));
+  c("Invisible Derm: nessuna cifra in nessuna stringa del record (esclusi `sku`, `slug`, `id`, `slot`, indirizzi https e data: sono identificatori)", [], (() => {
+    const ESCLUSE = new Set(["sku", "slug", "id", "slot", "aggiornatoIl"]);
+    const trovate = [];
+    const visita = (x, chiave, percorso) => {
+      if (typeof x === "string") { if (!ESCLUSE.has(chiave) && !x.startsWith("https://") && /\d/.test(x)) trovate.push(`${percorso}: ${x}`); }
+      else if (typeof x === "number" && !ESCLUSE.has(chiave) && chiave !== "ordine") trovate.push(`${percorso}: ${x}`);
+      else if (Array.isArray(x)) x.forEach((v, i) => visita(v, chiave, `${percorso}[${i}]`));
+      else if (x && typeof x === "object") for (const [k, v] of Object.entries(x)) visita(v, k, `${percorso}.${k}`);
+    };
+    visita(D.INVISIBLE_DERM, "", "invisibleDerm");
+    return trovate;
   })());
 
   // ── i media ──
@@ -150,6 +158,30 @@ export async function prove(mod, { c, gruppo, radice }) {
     c("…e `rendiComponente` su un file vero passa le props e disegna il componente (il file nominato non si finge mai)", [true, true], [diretto.html.includes("<button"), vero.html === `<section>${diretto.html}</section>`]);
   } finally {
     rmSync(dir, { recursive: true });
+  }
+
+  // ── ogni disegno ha le sue chiamate: il `loader` del primo, chiamato dopo il secondo, resta sul primo ──
+  {
+    const R0 = "src/routes/shop.carrello.tsx";
+    const a = await rendi(radice, R0, { loaderData: { modo: "codice" }, server: { modalitaCatalogo: "cms" } });
+    const b = await rendi(radice, R0, { loaderData: { modo: "codice" }, server: { modalitaCatalogo: "codice" } });
+    const daA = await a.route.loader();
+    c("due disegni, poi il `loader` del primo: le chiamate stanno nel primo (non sull'ultimo disegnato) e rispondono col suo `stato.server`", [["modalitaCatalogo"], [], { modo: "cms" }], [a.pagina.chiamate, b.pagina.chiamate, daA]);
+    const daB = await b.route.loader();
+    c("…e il secondo resta il suo: il suo `loader` registra e risponde col suo stato", [["modalitaCatalogo"], ["modalitaCatalogo"], { modo: "codice" }], [a.pagina.chiamate, b.pagina.chiamate, daB]);
+  }
+  {
+    const dirA = mkdtempSync(join(tmpdir(), "prova-aiuti-"));
+    try {
+      const file = join(dirA, "Argomenti.tsx");
+      writeFileSync(file, `import { elencoProdotti } from "@/shop/cms/catalogo.functions";\nexport function Argomenti() { globalThis.__arg = { categoria: "x" }; globalThis.__prova = elencoProdotti(globalThis.__arg); return <b>a</b>; }\n`);
+      const r = await rendiComponente(radice, file, "Argomenti", {}, { server: { elencoProdotti: [] } });
+      await globalThis.__prova;
+      globalThis.__arg.categoria = "cambiata dopo";
+      c("`chiamateArgs` tiene una COPIA degli argomenti: se la pagina li cambia dopo, l'oro vede quelli della chiamata", [[{ categoria: "x" }]], r.pagina.chiamateArgs);
+    } finally {
+      rmSync(dirA, { recursive: true });
+    }
   }
 
   // ── le cinque pagine dello shop con gli aiuti ──

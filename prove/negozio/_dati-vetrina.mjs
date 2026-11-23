@@ -133,6 +133,8 @@ function invisibleDerm({ media = "piena" } = {}) {
     varianti: p.varianti.map((v) => ({ ...v, prezzoCent: null, disponibile: false })),
     prezzoDaCent: null,
     acquistabile: false,
+    // nessuna cifra da nessuna parte (V1-T6): le caratteristiche di `prodotto()` portano una misura, qui si riscrivono senza numeri
+    caratteristiche: [{ etichetta: "Materiale di prova", valore: "Valore di prova" }],
     reso: { consentito: null, giorni: null },
     boxConsulenza: false,
   };

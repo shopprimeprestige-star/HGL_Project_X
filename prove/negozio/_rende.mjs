@@ -104,7 +104,14 @@ async function impacchetta(radice, entrata, stato) {
   const esbuild = requireQui("esbuild");
   const dir = mkdtempSync(join(tmpdir(), "prova-pagina-"));
   const file_entrata = join(dir, "entrata.tsx");
-  writeFileSync(file_entrata, entrata);
+  //  Ogni disegno ha la SUA pagina: nel codice del pacchetto `globalThis.__pagina` diventa `globalThis.__pagine[N]` (N scritto qui, al momento
+  //  dell'impacchettamento). Così il `loader` o il `beforeLoad` di un disegno, chiamati dopo un disegno successivo, registrano e rispondono
+  //  ancora col suo stato (`globalThis.__pagina` resta l'ultimo disegno, per chi lo legge da fuori).
+  const pagine = (globalThis.__pagine ??= []);
+  const numeroPagina = pagine.length;
+  pagine.push(null);
+  const suaPagina = (codice) => codice.replaceAll("globalThis.__pagina", `globalThis.__pagine[${numeroPagina}]`);
+  writeFileSync(file_entrata, suaPagina(entrata));
   //  i finti di base, più quelli della prova (`stato.finti`), meno quelli che la prova vuole VERI (`stato.senzaFinti`)
   const finti = { ...FINTI, ...(stato.finti ?? {}) };
   for (const modulo of stato.senzaFinti ?? []) delete finti[modulo];
@@ -125,8 +132,8 @@ async function impacchetta(radice, entrata, stato) {
         name: "finti",
         setup(b) {
           b.onResolve({ filter: /.*/ }, (a) => (finti[a.path] !== undefined ? { path: a.path, namespace: "finto" } : a.path === "react/jsx-runtime" ? { path: a.path, namespace: "jsx-avvolto" } : null));
-          b.onLoad({ filter: /.*/, namespace: "finto" }, (a) => ({ contents: finti[a.path], loader: "tsx", resolveDir: radice }));
-          b.onLoad({ filter: /.*/, namespace: "jsx-avvolto" }, () => ({ contents: JSX_AVVOLTO(requireQui.resolve("react/jsx-runtime", { paths: [radice] })), loader: "js", resolveDir: radice }));
+          b.onLoad({ filter: /.*/, namespace: "finto" }, (a) => ({ contents: suaPagina(finti[a.path]), loader: "tsx", resolveDir: radice }));
+          b.onLoad({ filter: /.*/, namespace: "jsx-avvolto" }, () => ({ contents: suaPagina(JSX_AVVOLTO(requireQui.resolve("react/jsx-runtime", { paths: [radice] }))), loader: "js", resolveDir: radice }));
         },
       },
     ],
@@ -139,7 +146,8 @@ async function impacchetta(radice, entrata, stato) {
   //  ogni funzione del server finta passa di qui: registra, poi risponde (o lancia) secondo la modalità
   pagina.chiamaServer = async (nome, args) => {
     pagina.chiamate.push(nome);
-    pagina.chiamateArgs.push(args);
+    //  una copia: se la pagina cambia gli argomenti dopo la chiamata, il registro conserva quelli di allora (non clonabili, p.es. funzioni: il riferimento)
+    try { pagina.chiamateArgs.push(structuredClone(args)); } catch { pagina.chiamateArgs.push(args); }
     const risposte = pagina.server ? { ...RISPOSTE_OGGI(pagina), ...pagina.server } : null;
     if (risposte) {
       if (!Object.hasOwn(risposte, nome)) throw new Error(`chiamata al server NON prevista: ${nome}`);
@@ -149,6 +157,7 @@ async function impacchetta(radice, entrata, stato) {
     if (Object.hasOwn(RISPOSTE_PRIMA, nome)) return RISPOSTE_PRIMA[nome];
     throw new Error("server finto");
   };
+  pagine[numeroPagina] = pagina;
   globalThis.__pagina = pagina;
   const m = requireQui(file_);
   return { m, pagina };
