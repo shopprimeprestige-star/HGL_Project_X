@@ -63,6 +63,8 @@ export async function prove(mod, { c, gruppo }) {
   c("l'ordine dell'ingresso non conta nemmeno oltre il tetto", true, JSON.stringify(H.scegliVetrina([...molte].reverse())) === JSON.stringify(H.scegliVetrina(molte)));
   const gemelle = [patchCon("Stessa", "z-ultima"), patchCon("Stessa", "a-prima"), patchCon("Stessa", "m-meta")];
   c("due nomi uguali: decide l'indirizzo, sempre lo stesso ordine", ["a-prima", "m-meta", "z-ultima"], H.scegliVetrina(gemelle).map((k) => k.slug));
+  const stessoNome = [patchCon("alfa", "z-minuscola"), patchCon("Alfa", "a-maiuscola"), patchCon("Àlfa", "m-accento")];
+  c("nomi uguali a parte maiuscole e accenti: sono pari, decide l'indirizzo", ["a-maiuscola", "m-accento", "z-minuscola"], H.scegliVetrina(stessoNome).map((k) => k.slug));
   c("…anche con l'ingresso girato", ["a-prima", "m-meta", "z-ultima"], H.scegliVetrina([...gemelle].reverse()).map((k) => k.slug));
 
   // ── ingressi storti ──
