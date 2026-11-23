@@ -92,11 +92,17 @@ export const portaBrowser: Porta = {
   },
 };
 
-/** Il file da caricare per il campo `chiave`: ridotto se è una foto di `shop.*`, lo STESSO file in ogni altro caso
- *  (altra chiave, video, GIF, SVG: non sono foto da ridurre). */
+/** Video, GIF e SVG non sono foto da ridurre: nei campi `shop.*` passano come sono. */
+const SENZA_RIDUZIONE = (tipo: string) => tipo.startsWith("video/") || tipo === "image/gif" || tipo === "image/svg+xml";
+export const FORMATO_NON_RIDUCIBILE = "Questo formato non si può ridurre: salva la foto in JPG o PNG e riprova.";
+
+/** Il file da caricare per il campo `chiave`: ridotto se è una foto di `shop.*`, lo STESSO file se la chiave non ha un lato
+ *  (altra chiave) o se è un video, una GIF, un SVG. Un formato che il browser non sa ridurre (HEIC, file senza tipo…) lancia:
+ *  caricarlo intero vanificherebbe la riduzione. */
 export async function riduciFotoShop(file: File, chiave: string, porta: Porta = portaBrowser): Promise<File> {
   const limite = latoMassimo(chiave);
-  if (!limite || !(MIME_FOTO as readonly string[]).includes(file.type)) return file;
+  if (!limite || SENZA_RIDUZIONE(file.type)) return file;
+  if (!(MIME_FOTO as readonly string[]).includes(file.type)) throw new Error(FORMATO_NON_RIDUCIBILE);
   const foto = await porta.leggi(file);
   try {
     const blob = await porta.disegna(foto.sorgente, pianoRiduzione(limite, foto.larghezza, foto.altezza), SFONDO, TIPO_USCITA, QUALITA);

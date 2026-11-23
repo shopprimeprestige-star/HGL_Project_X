@@ -115,10 +115,28 @@ export async function prove(mod, { c, gruppo, radice }) {
     c(`${nome}: lo STESSO file, la porta non si tocca`, [true, 0, 0], [out === file, p.s.lette, p.s.disegni.length]);
   }
 
+  // ── formati che il browser non sa ridurre: rifiutati, non caricati interi ──
+  const FRASE = "Questo formato non si può ridurre: salva la foto in JPG o PNG e riprova.";
+  for (const [nome, tipo, file] of [["HEIC", "image/heic", "a.heic"], ["HEIF", "image/heif", "a.heif"], ["file senza tipo", "", "a.heic"], ["tipo qualunque", "application/pdf", "a.pdf"]]) {
+    const p = portaFinta({ larghezza: 3000, altezza: 2000 });
+    c(`${nome} su un campo shop con lato → errore chiaro, la porta non si tocca`, [FRASE, 0], [await lancia(() => R.riduciFotoShop(new File([new Uint8Array(3)], file, { type: tipo }), "shop.heroFoto", p)), p.s.lette]);
+  }
+  const pHeic = portaFinta({ larghezza: 3000, altezza: 2000 });
+  c("HEIC su un campo senza lato (liberatoria) o non shop: lo STESSO file, nessun errore", [true, true], [
+    await R.riduciFotoShop(new File([new Uint8Array(3)], "a.heic", { type: "image/heic" }), "shop.clienti.liberatoria", pHeic).then((o) => o.name === "a.heic", () => false),
+    await R.riduciFotoShop(new File([new Uint8Array(3)], "a.heic", { type: "" }), "id.hero", pHeic).then((o) => o.name === "a.heic", () => false),
+  ]);
+
   const vuota = portaFinta({ larghezza: 3000, altezza: 2000, blob: null });
   c("se il browser non riesce a scrivere il JPEG → errore in italiano, e la foto si chiude lo stesso", [true, 1], [/provane un'altra/.test(await lancia(() => R.riduciFotoShop(png, "shop.heroFoto", vuota))), vuota.s.chiuse]);
   const illeggibile = { leggi: async () => { throw new Error("Non riesco a leggere la foto: provane un'altra."); }, disegna: async () => { throw new Error("mai"); } };
   c("se la foto non si legge l'errore sale (niente caricamento dell'originale)", "Non riesco a leggere la foto: provane un'altra.", await lancia(() => R.riduciFotoShop(png, "shop.heroFoto", illeggibile)));
+
+  // ── lo sfondo bianco sta DAVVERO nel disegno: il riempimento viene prima della foto ──
+  const sorgenteModulo = readFileSync(join(radice, "src/landing/ridimensiona-shop.ts"), "utf8");
+  const iStile = sorgenteModulo.indexOf("ctx.fillStyle = sfondo"), iRiempi = sorgenteModulo.indexOf("ctx.fillRect(0, 0, u.larghezza, u.altezza)"), iFoto = sorgenteModulo.indexOf("ctx.drawImage(");
+  c("nel disegno vero: fillStyle = sfondo, poi fillRect su tutta l'uscita, POI drawImage (altrimenti un PNG trasparente diventa nero)", true, iStile > 0 && iStile < iRiempi && iRiempi < iFoto);
+  c("…e lo sfondo che la funzione passa al disegno è il bianco (`SFONDO`, `#ffffff`)", [true, true], [/porta\.disegna\([^;]*, SFONDO, TIPO_USCITA, QUALITA\)/.test(sorgenteModulo), /SFONDO = "#ffffff"/.test(sorgenteModulo)]);
 
   // ── il testo d'aiuto ──
   const aiuto = (k) => R.aiutoFotoShop(k);
