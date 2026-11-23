@@ -248,7 +248,8 @@ export async function prove(mod, { c, gruppo, radice }) {
 
   // la riga con due pezzi: «−» chiede 1
   const beta = vista().righe[1];
-  const { pagina: pB, a: aB } = await disegnaRiga(beta);
+  const { html: hB, pagina: pB, a: aB } = await disegnaRiga(beta);
+  c("riga con 2 pezzi: il prezzo mostrato è quello di RIGA (pezzo × 2), non quello del pezzo", [true, false, true], [leggibile(hB).includes(formatta(beta.riga.cent)), leggibile(hB).includes(formatta(beta.unitario.cent)), beta.riga.cent === beta.unitario.cent * 2]);
   clic(pB, "Diminuisci")();
   c("riga con 2 pezzi: «−» chiede 1 per la sua chiave", [[beta.key, beta.qty - 1]], aB.quantita);
   // la chiave della riga non è lo SKU: i gestori devono usare la CHIAVE (è quella che il carrello conosce)
