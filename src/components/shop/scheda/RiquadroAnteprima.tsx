@@ -18,8 +18,9 @@ export function RiquadroAnteprima({ nascosti }: PropsRiquadroAnteprima) {
       <details className="rounded-md border border-amber-300 bg-amber-50 text-amber-950">
         <summary className="shop-anello min-h-11 cursor-pointer rounded-md px-4 py-3 text-sm font-semibold">{TESTI_PROVVISORI.scheda.anteprimaRiquadro}</summary>
         <ul className="list-disc space-y-1 px-4 pb-4 pl-9 pr-4 text-sm">
-          {motivi.map((n) => (
-            <li key={`${n.blocco}-${n.motivo}`}>{n.motivo}</li>
+          {motivi.map((n, i) => (
+            //  l'indice rende unica la chiave: due blocchi con lo stesso motivo (o lo stesso blocco due volte) sono righe diverse
+            <li key={`${i}-${n.blocco}`}>{n.motivo}</li>
           ))}
         </ul>
       </details>

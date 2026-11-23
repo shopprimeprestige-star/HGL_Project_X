@@ -2,7 +2,8 @@
  *  Esiste solo con il catalogo CMS (con `codice` è 404, come oggi) e non si indicizza. Il caricamento scarica l'elenco SENZA il testo cercato
  *  (`q` non va mai al server, né nei suoi log) e non dipende da `q` (`loaderDeps`): il filtro lo fa la pagina. `Search` non lo emette né la
  *  rotta né la pagina: lo emette l'header (D90). */
-import { createFileRoute, notFound, useRouter } from "@tanstack/react-router";
+import { createFileRoute, notFound, useRouter, type ErrorComponentProps } from "@tanstack/react-router";
+import { ErroreRottaShop } from "@/components/shop/guscio/GuscioShop";
 import { PaginaCerca, testoDaIndirizzo } from "@/components/shop/pagine/PaginaCerca";
 import { TESTI_PROVVISORI } from "@/landing/testi-shop";
 import { elencoProdotti } from "@/shop/cms/catalogo.functions";
@@ -34,8 +35,14 @@ export const Route = createFileRoute("/shop/cerca")({
       { name: "robots", content: "noindex, follow" },
     ],
   }),
+  errorComponent: ErroreCerca,
   component: CercaShop,
 });
+
+//  500: con `cms` quello del guscio nuovo (senza barra), con `codice` quello di sempre. Il 404 resta della radice: con `cms` la rotta non lo lancia mai.
+function ErroreCerca(props: ErrorComponentProps) {
+  return <ErroreRottaShop {...props} cms={Route.useRouteContext().modalita === "cms"} />;
+}
 
 function CercaShop() {
   const { q } = Route.useSearch();

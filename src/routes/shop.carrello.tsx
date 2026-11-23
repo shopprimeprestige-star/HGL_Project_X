@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, type ErrorComponentProps } from "@tanstack/react-router";
 import { useEffect, useRef } from "react";
 import { Minus, Plus, Trash2, ShoppingBag, ArrowRight } from "lucide-react";
 import { PRODUCTS, formatPrice } from "@/shop/catalog";
@@ -7,15 +7,21 @@ import { useCart, type CartLine } from "@/shop/CartContext";
 import { modalitaCatalogo } from "@/shop/cms/catalogo.functions";
 import { MSG_NON_VERIFICABILE, datiEventoRighe } from "@/shop/cms/cassa";
 import { useRivalidaCarrello } from "@/shop/useRivalidaCarrello";
-import { useTariffa } from "@/shop/useTariffa";
 import { emettiEvento } from "@/lib/tracciamento/api";
+import { ErroreRottaShop } from "@/components/shop/guscio/GuscioShop";
 import { PaginaCarrello } from "@/components/shop/pagine/PaginaCarrello";
 
 export const Route = createFileRoute("/shop/carrello")({
   //  Il catalogo del sito: se non risponde si pensa `codice`, cioè il carrello di oggi.
   loader: async () => ({ modo: await modalitaCatalogo().catch(() => "codice" as const) }),
+  errorComponent: ErroreCarrello,
   component: Carrello,
 });
+
+//  500: con `cms` quello del guscio nuovo (senza barra), con `codice` quello di sempre. Il carrello non lancia mai un 404.
+function ErroreCarrello(props: ErrorComponentProps) {
+  return <ErroreRottaShop {...props} cms={Route.useRouteContext().modalita === "cms"} />;
+}
 
 //  Smistatore (D70): con `cms` la pagina nuova, con `codice` il carrello di oggi, che qui sotto non cambia.
 function Carrello() {
@@ -25,12 +31,6 @@ function Carrello() {
 
 const prezzoCodice = (id: string) => PRODUCTS.find((pr) => pr.id === id)?.price;
 
-/** La foto di una riga CMS (la 480 dello `snap`); senza foto un riquadro vuoto. */
-function FotoRigaCms({ line, className }: { line: CartLine; className: string }) {
-  const src = line.snap?.foto?.w480;
-  return src ? <img src={src} alt={line.snap?.nome ?? ""} className={`${className} rounded-xl object-cover`} loading="lazy" /> : <div className={`${className} rounded-xl bg-white/5`} />;
-}
-
 const SHIPPING_THRESHOLD = 59;
 const SHIPPING_COST = 4.9;
 
@@ -38,11 +38,8 @@ function CartPage() {
   const { lines, setQty, remove, subtotal, count } = useCart();
   const { modo } = Route.useLoaderData();
   const { stato, avviso } = useRivalidaCarrello(modo);
-  const cms = modo === "cms";
-  //  CMS: la tariffa del server (la stessa della cassa), nessuna soglia; senza cifra niente totale. `codice`: come oggi (gratis da 59 €).
-  const tariffa = useTariffa(cms);
-  const senzaCifra = cms && tariffa.costoCent === null;
-  const shipping = cms ? (tariffa.costoCent ?? 0) / 100 : subtotal >= SHIPPING_THRESHOLD || subtotal === 0 ? 0 : SHIPPING_COST;
+  //  Questo è il carrello di `codice` (gratis da 59 €): con `cms` la pagina è `PaginaCarrello` (la cifra viene dal server, nessuna soglia).
+  const shipping = subtotal >= SHIPPING_THRESHOLD || subtotal === 0 ? 0 : SHIPPING_COST;
   const total = subtotal + shipping;
 
   //  ViewCart: una volta per apertura, a controllo finito (il valore è quello del server)
@@ -94,42 +91,8 @@ function CartPage() {
         {/* righe */}
         <div className="space-y-3">
           {lines.map((line) => {
-            //  riga del catalogo CMS (ha lo SKU): si disegna da ciò che il server ha detto (`snap`); solo per MOSTRARE, la cassa ricalcola
-            if (line.sku) {
-              if (!cms || !line.snap) return null;
-              return (
-                <div key={line.key} className="flex gap-4 rounded-2xl border border-white/10 bg-white/[0.03] p-3">
-                  <Link to="/shop/prodotto/$slug" params={{ slug: line.snap.slug }} className="shrink-0">
-                    <FotoRigaCms line={line} className="h-24 w-24" />
-                  </Link>
-                  <div className="flex flex-1 flex-col">
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <Link to="/shop/prodotto/$slug" params={{ slug: line.snap.slug }} className="font-medium text-white hover:text-brand">
-                          {line.snap.nome}
-                        </Link>
-                        {line.snap.varianteNome && <p className="mt-0.5 text-xs text-white/45">{line.snap.varianteNome}</p>}
-                      </div>
-                      <button onClick={() => togli(line)} aria-label={`Togli ${line.snap.nome}`} className="text-white/40 transition hover:text-destructive">
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
-                    <div className="mt-auto flex items-center justify-between pt-2">
-                      <div className="flex items-center rounded-lg border border-white/15 bg-white/5">
-                        <button onClick={() => setQty(line.key, line.qty - 1)} className="px-2.5 py-2 text-white/70 hover:text-white">
-                          <Minus className="h-3.5 w-3.5" />
-                        </button>
-                        <span className="w-7 text-center text-sm">{line.qty}</span>
-                        <button onClick={() => setQty(line.key, line.qty + 1)} className="px-2.5 py-2 text-white/70 hover:text-white">
-                          <Plus className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                      <span className="font-semibold">{formatPrice((line.snap.prezzoCent * line.qty) / 100)}</span>
-                    </div>
-                  </div>
-                </div>
-              );
-            }
+            //  una riga CMS (ha lo SKU) qui non si disegna: con `cms` il carrello è `PaginaCarrello`
+            if (line.sku) return null;
             const p = PRODUCTS.find((pr) => pr.id === line.productId);
             if (!p) return null;
             return (
@@ -181,11 +144,11 @@ function CartPage() {
             </div>
             <div className="flex justify-between text-white/70">
               <span>Spedizione</span>
-              <span className={shipping === 0 && !senzaCifra ? "text-emerald-300" : "text-white"}>
-                {senzaCifra ? "—" : shipping === 0 ? "Gratuita" : formatPrice(shipping)}
+              <span className={shipping === 0 ? "text-emerald-300" : "text-white"}>
+                {shipping === 0 ? "Gratuita" : formatPrice(shipping)}
               </span>
             </div>
-            {shipping > 0 && !cms && (
+            {shipping > 0 && (
               <p className="text-xs text-white/45">
                 Aggiungi {formatPrice(SHIPPING_THRESHOLD - subtotal)} per la spedizione gratuita.
               </p>
@@ -193,14 +156,14 @@ function CartPage() {
             <div className="my-3 border-t border-white/10" />
             <div className="flex justify-between text-base font-bold">
               <span>Totale</span>
-              <span>{senzaCifra ? "—" : formatPrice(total)}</span>
+              <span>{formatPrice(total)}</span>
             </div>
           </div>
           <Link
             to="/shop/checkout"
             className="mt-5 flex items-center justify-center gap-2 rounded-lg bg-brand py-3 font-semibold text-white transition hover:brightness-110"
           >
-            {tariffa.chiusa ? "Il negozio sta per aprire" : "Procedi al checkout"} <ArrowRight className="h-4 w-4" />
+            {"Procedi al checkout"} <ArrowRight className="h-4 w-4" />
           </Link>
           <Link to="/shop" className="mt-3 block text-center text-sm text-white/50 hover:text-white">
             Continua lo shopping

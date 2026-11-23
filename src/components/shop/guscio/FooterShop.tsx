@@ -8,15 +8,17 @@ import { Link } from "@tanstack/react-router";
 import logo from "@/assets/logo-hair-genius.png";
 import { GestisciCookie } from "@/components/tracciamento/GestisciCookie";
 import { TESTI_PROVVISORI, TESTI_SHOP, riempi } from "@/landing/testi-shop";
+import type { CategoriaPubblica } from "@/shop/cms/modello";
 import { HREF_CURA, HREF_PATCH_PRONTE } from "@/shop/cms/vetrina-carrello";
+import { vociCura } from "./voci";
 
 const LINK =
   "inline-flex min-h-11 items-center underline underline-offset-4 hover:text-white shop-anello-scuro";
 
-/** I link, in un elenco chiuso: ogni voce è una rotta che esiste (la prova `shop-footer-stati` lo controlla sulle rotte vere). */
-const COLONNA_SHOP = [
+/** I link, in un elenco chiuso: ogni voce è una rotta che esiste (la prova `shop-footer-stati` lo controlla sulle rotte vere). «Cura» solo se la sua categoria ha prodotti. */
+const linkShop = (categorie: FooterShopProps["categorie"]) => [
   { testo: TESTI_SHOP.header.patch, href: HREF_PATCH_PRONTE },
-  { testo: TESTI_SHOP.header.cura, href: HREF_CURA },
+  ...(vociCura(categorie).some((v) => v.href === HREF_CURA) ? [{ testo: TESTI_SHOP.header.cura, href: HREF_CURA }] : []),
 ];
 const COLONNA_LEGALE = [
   { testo: TESTI_SHOP.footer.termini, href: "/termini-e-condizioni" },
@@ -53,11 +55,13 @@ function Colonna({ id, titolo, link, azione }: { id: string; titolo: string; lin
 export interface FooterShopProps {
   /** Apre la consulenza (lo stesso gesto della voce nell'header). Senza, la voce non c'è. */
   consulenza?: () => void;
+  /** Le categorie con quanti prodotti pubblicati hanno (come per l'header). Mancanti o senza prodotti = il link «Cura» non c'è. */
+  categorie?: readonly Pick<CategoriaPubblica, "slug" | "quanti">[] | null;
   /** L'anno del diritto d'autore; di norma quello di oggi. */
   anno?: number;
 }
 
-export function FooterShop({ consulenza, anno = new Date().getFullYear() }: FooterShopProps) {
+export function FooterShop({ consulenza, categorie, anno = new Date().getFullYear() }: FooterShopProps) {
   return (
     <footer className="bg-footer border-t border-white/10 text-white/75">
       <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-10">
@@ -68,7 +72,7 @@ export function FooterShop({ consulenza, anno = new Date().getFullYear() }: Foot
             <p className="mt-1 text-sm">{TESTI_SHOP.footer.ragioneSociale}</p>
           </div>
           <div className="grid grid-cols-2 gap-x-8 gap-y-8 sm:gap-x-16">
-            <Colonna id="footer-lo-shop" titolo={TESTI_SHOP.footer.colonnaShop} link={COLONNA_SHOP} azione={consulenza && { testo: TESTI_SHOP.header.consulenza, fai: consulenza }} />
+            <Colonna id="footer-lo-shop" titolo={TESTI_SHOP.footer.colonnaShop} link={linkShop(categorie)} azione={consulenza && { testo: TESTI_SHOP.header.consulenza, fai: consulenza }} />
             <Colonna id="footer-legale" titolo={TESTI_SHOP.footer.colonnaLegale} link={COLONNA_LEGALE} />
           </div>
         </div>
