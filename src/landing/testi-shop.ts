@@ -4,7 +4,7 @@
  *  legge da qui (prova V1-T16: `prove/negozio/testi-shop.mjs`, confronto con `_testi-documento.json`).
  *  Si modificano dal CRM solo i testi di PAGINA (`CAMPI_TESTO_SHOP`); bottoni, etichette, errori e testi per chi non vede
  *  restano costanti (decisione del capo progetto, domanda 4).
- *  ⚠️ Le frasi con `{{da confermare}}` del documento NON stanno qui: la riga di rischio e il contatto del 500 diventano
+ *  ⚠️ Le frasi che il documento lascia con un segnaposto aperto NON stanno qui: la riga di rischio e il contatto del 500 diventano
  *  voci di fiducia vere (D87) o i testi confermati `shop.conf.*`. Non si aggiungono qui finché il titolare non risponde.
  *  ⚠️ Mai: indirizzo dello studio, cifre di Invisible Derm, parole vietate (SPEC §12.4.1 n. 11).
  *  `{campo}` = valore messo da chi usa il testo (`riempi`). `[a]…[/a]` = la sola parola in accento (RichText). */
@@ -16,8 +16,11 @@ import type { SlotId } from "@/landing/testi-invisible-derm";
 export { liberatoriaOk } from "@/landing/testi-invisible-derm";
 
 /** Mette i valori al posto dei segnaposto `{nome}`; uno senza valore resta com'è (si vede, mai «undefined»). */
-export function riempi(testo: string, valori: Record<string, string | number>): string {
-  return testo.replace(/\{(\w+)\}/g, (tutto, k: string) => (Object.hasOwn(valori, k) ? String(valori[k]) : tutto));
+export function riempi(testo: string, valori: Record<string, string | number | null | undefined>): string {
+  return testo.replace(/\{(\w+)\}/g, (tutto, k: string) => {
+    const v = Object.hasOwn(valori, k) ? valori[k] : undefined;
+    return v === undefined || v === null ? tutto : String(v);
+  });
 }
 
 export type CategoriaTesti = {
@@ -114,7 +117,7 @@ export const TESTI_SHOP = {
     bottone: "Patch pronte",
     link: "Cura",
   },
-  // Il contatto del documento è da confermare: la pagina lo mostra solo se `assistenza` è un testo confermato (D87).
+  // Il contatto del documento non è ancora deciso: la pagina lo mostra solo se `assistenza` è un testo confermato (D87).
   err500: {
     titolo: "C'è un problema da parte nostra.",
     testo: "Il carrello è al sicuro. Riprova tra poco.",

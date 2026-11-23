@@ -4,9 +4,13 @@
  *  POST, così la chiave `t` non finisce in un indirizzo, in un log o in un referrer. Intestazioni su OGNI risposta, rifiuto compreso:
  *  `Cache-Control: private, no-store`, `Referrer-Policy: no-referrer`, `X-Robots-Tag: noindex`.
  *  Mai un errore verso il pubblico: ogni guasto è il rifiuto `{ok:false}` di sempre.
- *  I testi confermati: la fonte (l'editor dei testi) è di V1(b); finché non c'è, la porta risponde `{}` e la pagina nasconde le righe. */
+ *  I testi confermati (V1 · T80, D77): la porta legge il contenuto dello shop (`contenutoDelServer`, la stessa lettura di `contenutoShop` ma SENZA
+ *  toccare le intestazioni: la risposta di un ordine resta `no-store`), prende le chiavi `shop.conf.*` e passa per `confermatiDa` → `filtraConfermati`.
+ *  Vuoto, `{{…}}` o guasto = la riga non compare. */
 import { createServerFn } from "@tanstack/react-start";
 import { getRequestHeader, setResponseHeader } from "@tanstack/react-start/server";
+import { contenutoDelServer } from "../cms/contenuto-shop.functions";
+import { confermatiDa } from "../cms/vetrina-contenuto";
 import {
   ordinePubblico as leggiOrdine,
   type DbOrdinePubblico,
@@ -49,7 +53,7 @@ export const ordinePubblico = createServerFn({ method: "POST" })
           adesso: () => Date.now(),
           ip: indirizzo(),
           log: (codice) => console.warn("shop-ordine", codice),
-          testiConfermati: async () => ({}),
+          testiConfermati: async () => confermatiDa((await contenutoDelServer()).contenuto),
         },
         data,
       );

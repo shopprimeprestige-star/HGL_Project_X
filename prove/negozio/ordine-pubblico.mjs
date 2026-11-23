@@ -6,7 +6,7 @@
  *   · nella risposta nessun indirizzo, telefono, email, CF, nome, id interno, id di Stripe: solo CAP e città (prova ricorsiva);
  *   · `in_attesa` = fase `verifica` (mai `pagato`, `ref` nullo); il tracking ha il link solo se `https://`;
  *   · limite per indirizzo (120 letture/ora, l'indirizzo solo come HMAC), consumato PRIMA di guardare la chiave;
- *   · nel log solo codici; `testiConfermati()` è la porta dei testi (di partenza `{}`).
+ *   · nel log solo codici; `testiConfermati()` è la porta dei testi (V1 · T80: legge il contenuto dello shop, `shop.conf.*`, e passa per `confermatiDa`).
  *  Dati inventati: nessuna chiave vera, nessun cliente vero. */
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -320,5 +320,5 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("…esporta `ordinePubblico` (il nome del contratto, §3.3)", true, /export const ordinePubblico\b/.test(fn));
   c("…l'indirizzo viene da `cf-connecting-ip` (poi `x-forwarded-for`) e va alla porta, non si scrive nel log", [true, false], [/cf-connecting-ip/.test(fn), /log:[^)]*ip/.test(fn)]);
   c("…nessun errore verso il pubblico (try/catch), nessun `console.log` con dati", [true, false], [fn.includes("catch"), /console\.log/.test(fn)]);
-  c("…la porta dei testi è collegata, di partenza vuota (la fonte è di V1(b))", true, fn.includes("testiConfermati"));
+  c("…la porta dei testi è collegata al contenuto dello shop (V1 · T80): `confermatiDa` sopra la lettura senza intestazioni, mai `{}` scritto a mano", [true, true, true, false], [fn.includes("testiConfermati"), fn.includes("confermatiDa("), fn.includes("contenutoDelServer("), /testiConfermati\s*:\s*async\s*\(\)\s*=>\s*\(\{\}\)/.test(fn)]);
 }
