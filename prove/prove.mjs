@@ -13017,6 +13017,8 @@ function proveDeiMessaggiConNome() {
     "da_chiamare",
     "appuntamento_fissato", "appuntamento_rifissato", "link_consulenza", "promemoria",
     "da_ricontattare", "fissa_meet_dopo", "gestire_in_chat", "sta_valutando",
+    //  «già cliente» (23/11/2026): a chi ha già comprato non si manda la raccolta dei lavori.
+    "gia_cliente",
   ];
   const senzaLink = chiavi.filter((k) => !MODELLI_ORIGINALI[k].includes("/media/"));
   c("il link dei risultati manca solo dove c'è quello della consulenza",
@@ -16215,7 +16217,8 @@ function proveDelGestoPerStato() {
   const stati = TY.ALL_LEAD_STATUSES;
   //  Gli stati chiusi non hanno un gesto, e non devono averlo: quelli sono
   //  archivio davvero.
-  const chiusi = new Set(["concluso", "annullato", "perdi_tempo", "ripensamento"]);
+  //  «gia_cliente» (23/11/2026): fase chiusa, nessuna cosa da fare su una scheda già nostra.
+  const chiusi = new Set(["concluso", "annullato", "perdi_tempo", "ripensamento", "gia_cliente"]);
   for (const s of stati) {
     if (chiusi.has(s)) {
       c(`${s}: nessun gesto, ed e' giusto`, undefined, UI.AZIONE_PER_STATO[s]);

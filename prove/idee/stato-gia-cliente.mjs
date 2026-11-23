@@ -153,8 +153,10 @@ export function proveStatoGiaCliente(mod, { c, gruppo, radice }) {
   ]);
 
   gruppo("GIÀ CLIENTE · LA RETE DEI KPI: nessun calcolo legge lo stato a mano");
+  //  kpi-calcoli.ts ha `eClienteNostro` (solo elenchi, non conta): si guarda che non scriva lo stato a mano.
+  c("kpi-calcoli non nomina lo stato a mano: eClienteNostro serve agli elenchi, non ai conti", false, /["']gia_cliente["']/.test(leggi("src/crm/kpi-calcoli.ts")));
   c("nessun calcolo legge «gia_cliente» a mano (solo la porta unica)", [], [
-    "src/crm/kpi-calcoli.ts", "src/crm/kpi-setter.ts", "src/crm/kpi-netto.ts", "src/crm/kpi/aios-feed.ts", "src/crm/ConsultantsPerformance.tsx", "src/crm/ads-financials.functions.ts",
+    "src/crm/kpi-setter.ts", "src/crm/kpi-netto.ts", "src/crm/kpi/aios-feed.ts", "src/crm/ConsultantsPerformance.tsx", "src/crm/ads-financials.functions.ts",
   ].filter((f) => /gia_cliente|eGiaCliente/.test(leggi(f))));
   c("la rete dei file che contano (prova «solo blocco») resta in piedi e usa la stessa porta", true, /soloNeiKpi\(/.test(leggi("src/crm/kpi-calcoli.ts")) && /contaNeiKpi/.test(leggi("src/crm/conta-nei-kpi.ts")));
 
