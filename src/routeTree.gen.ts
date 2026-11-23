@@ -42,6 +42,7 @@ import { Route as WebinarCodeRouteImport } from './routes/webinar_.$code'
 import { Route as VideochiamataCodeRouteImport } from './routes/videochiamata_.$code'
 import { Route as ShopCollaudoRouteImport } from './routes/shop.collaudo'
 import { Route as ShopCheckoutRouteImport } from './routes/shop.checkout'
+import { Route as ShopCercaRouteImport } from './routes/shop.cerca'
 import { Route as ShopCarrelloRouteImport } from './routes/shop.carrello'
 import { Route as RegiaCodiceRouteImport } from './routes/regia_.$codice'
 import { Route as ProvaAnteprimaCasoRouteImport } from './routes/prova-anteprima.$caso'
@@ -412,6 +413,11 @@ const ShopCollaudoRoute = ShopCollaudoRouteImport.update({
 const ShopCheckoutRoute = ShopCheckoutRouteImport.update({
   id: '/checkout',
   path: '/checkout',
+  getParentRoute: () => ShopRoute,
+} as any)
+const ShopCercaRoute = ShopCercaRouteImport.update({
+  id: '/cerca',
+  path: '/cerca',
   getParentRoute: () => ShopRoute,
 } as any)
 const ShopCarrelloRoute = ShopCarrelloRouteImport.update({
@@ -1561,6 +1567,7 @@ export interface FileRoutesByFullPath {
   '/prova-anteprima/$caso': typeof ProvaAnteprimaCasoRoute
   '/regia/$codice': typeof RegiaCodiceRoute
   '/shop/carrello': typeof ShopCarrelloRoute
+  '/shop/cerca': typeof ShopCercaRoute
   '/shop/checkout': typeof ShopCheckoutRoute
   '/shop/collaudo': typeof ShopCollaudoRoute
   '/videochiamata/$code': typeof VideochiamataCodeRoute
@@ -1797,6 +1804,7 @@ export interface FileRoutesByTo {
   '/prova-anteprima/$caso': typeof ProvaAnteprimaCasoRoute
   '/regia/$codice': typeof RegiaCodiceRoute
   '/shop/carrello': typeof ShopCarrelloRoute
+  '/shop/cerca': typeof ShopCercaRoute
   '/shop/checkout': typeof ShopCheckoutRoute
   '/shop/collaudo': typeof ShopCollaudoRoute
   '/videochiamata/$code': typeof VideochiamataCodeRoute
@@ -2039,6 +2047,7 @@ export interface FileRoutesById {
   '/prova-anteprima/$caso': typeof ProvaAnteprimaCasoRoute
   '/regia_/$codice': typeof RegiaCodiceRoute
   '/shop/carrello': typeof ShopCarrelloRoute
+  '/shop/cerca': typeof ShopCercaRoute
   '/shop/checkout': typeof ShopCheckoutRoute
   '/shop/collaudo': typeof ShopCollaudoRoute
   '/videochiamata_/$code': typeof VideochiamataCodeRoute
@@ -2282,6 +2291,7 @@ export interface FileRouteTypes {
     | '/prova-anteprima/$caso'
     | '/regia/$codice'
     | '/shop/carrello'
+    | '/shop/cerca'
     | '/shop/checkout'
     | '/shop/collaudo'
     | '/videochiamata/$code'
@@ -2518,6 +2528,7 @@ export interface FileRouteTypes {
     | '/prova-anteprima/$caso'
     | '/regia/$codice'
     | '/shop/carrello'
+    | '/shop/cerca'
     | '/shop/checkout'
     | '/shop/collaudo'
     | '/videochiamata/$code'
@@ -2759,6 +2770,7 @@ export interface FileRouteTypes {
     | '/prova-anteprima/$caso'
     | '/regia_/$codice'
     | '/shop/carrello'
+    | '/shop/cerca'
     | '/shop/checkout'
     | '/shop/collaudo'
     | '/videochiamata_/$code'
@@ -3325,6 +3337,13 @@ declare module '@tanstack/react-router' {
       path: '/checkout'
       fullPath: '/shop/checkout'
       preLoaderRoute: typeof ShopCheckoutRouteImport
+      parentRoute: typeof ShopRoute
+    }
+    '/shop/cerca': {
+      id: '/shop/cerca'
+      path: '/cerca'
+      fullPath: '/shop/cerca'
+      preLoaderRoute: typeof ShopCercaRouteImport
       parentRoute: typeof ShopRoute
     }
     '/shop/carrello': {
@@ -4896,6 +4915,7 @@ const ConsulenteRouteWithChildren = ConsulenteRoute._addFileChildren(
 
 interface ShopRouteChildren {
   ShopCarrelloRoute: typeof ShopCarrelloRoute
+  ShopCercaRoute: typeof ShopCercaRoute
   ShopCheckoutRoute: typeof ShopCheckoutRoute
   ShopCollaudoRoute: typeof ShopCollaudoRoute
   ShopIndexRoute: typeof ShopIndexRoute
@@ -4906,6 +4926,7 @@ interface ShopRouteChildren {
 
 const ShopRouteChildren: ShopRouteChildren = {
   ShopCarrelloRoute: ShopCarrelloRoute,
+  ShopCercaRoute: ShopCercaRoute,
   ShopCheckoutRoute: ShopCheckoutRoute,
   ShopCollaudoRoute: ShopCollaudoRoute,
   ShopIndexRoute: ShopIndexRoute,
@@ -5121,6 +5142,7 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
 
 import type { getRouter } from './router.tsx'
 import type { createStart } from '@tanstack/react-start'
