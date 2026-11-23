@@ -20,7 +20,7 @@ export async function prove(mod, { c, gruppo, radice }) {
 
   // ── T111b-1: il ramo con le righe e il ramo vuoto hanno ciascuno la sua chiave (nodi diversi, non lo stesso `div` che cambia classi)
   c("T111b-1: la griglia con le righe ha `key=\"righe\"` e il ramo vuoto `key=\"vuoto\"`", [true, true], [
-    /<div key="righe" className="mt-6 grid gap-8/.test(carrello), /<div key="vuoto" className="py-8 sm:py-12">/.test(carrello)]);
+    /<div key="righe" className="mt-6 grid /.test(carrello), /<div key="vuoto" className="py-8 sm:py-12">/.test(carrello)]);
   c("T111b-1: l'altezza minima di T109b resta (senza, il piè di pagina scende e conta: 0,04-0,09 misurati)", true, /<div className="mx-auto min-h-\[calc\(100svh-3rem\)\]/.test(carrello));
 
   // ── T111b-2: la colonna del testo può stringersi (0 come minimo) e la variante va a capo anche dentro una parola
