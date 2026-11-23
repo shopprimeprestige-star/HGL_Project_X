@@ -170,6 +170,7 @@ export function PaginaCarrello() {
 
   // `min-h`: le righe arrivano da `localStorage` dopo il primo disegno (vuoto). Con l'altezza di uno schermo (meno 3 rem, sempre meno dell'header) il piè di pagina sta
   // sotto la piega prima e dopo e non scende (CLS 0,27 a 320). shortcut: il carrello vuoto ha più spazio sotto; si cambia se il Design chiede il piè visibile nel vuoto.
+  // `key` per ramo (T111b): vuoto e righe stanno nello stesso posto; senza chiave React riusa il `div` del vuoto per la griglia e Chrome conta il salto (0,078-0,129 a 390 e 320).
   return (
     <div className="mx-auto min-h-[calc(100svh-3rem)] w-full max-w-6xl px-4 py-8 min-[360px]:px-6 lg:py-12">
       {conRighe && (
@@ -188,7 +189,7 @@ export function PaginaCarrello() {
       )}
 
       {conRighe ? (
-        <div className="mt-6 grid gap-8 lg:grid-cols-[minmax(0,1fr)_380px] lg:items-start lg:gap-12">
+        <div key="righe" className="mt-6 grid gap-8 lg:grid-cols-[minmax(0,1fr)_380px] lg:items-start lg:gap-12">
           <div className="flex flex-col gap-8">
             <ul role="list" className="border-t border-ink/10">
               {vista.righe.map((riga) => (
@@ -205,7 +206,7 @@ export function PaginaCarrello() {
           </div>
         </div>
       ) : (
-        <div className="py-8 sm:py-12">
+        <div key="vuoto" className="py-8 sm:py-12">
           <StatoVuoto
             livello="h1"
             icona={ShoppingBag}
