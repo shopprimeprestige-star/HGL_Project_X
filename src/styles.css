@@ -2135,8 +2135,11 @@ video:not([controls])::-internal-media-controls-overlay-cast-button {
    pagine V1 non cambia niente. I @keyframes hanno nomi `shop-*` e non fanno nulla finché nessuno li usa.
    Niente nuovi fondi, nessun'altra animazione: gli altri compiti usano queste classi e le utilità Tailwind. */
 
-/* Il fuoco non finisce mai sotto l'header (72 px) né sotto una barra fissa (`--barra-h` + 16 px). */
+/* Il fuoco non finisce mai sotto l'header (72 px) né sotto una barra fissa (`--barra-h` + 16 px).
+   `--barra-h` di partenza è il banner dei cookie (`--banner-h`): con il banner aperto e nessuna barra il fuoco sta sopra il banner.
+   Le barre (acquisto, consulenza) la riscrivono sulla radice con la propria altezza più il banner (T103a-1, T103b-3). */
 [data-shop-v1] {
+  --barra-h: var(--banner-h, 0px);
   scroll-padding-top: 72px;
   scroll-padding-bottom: calc(var(--barra-h, 0px) + 16px);
 }

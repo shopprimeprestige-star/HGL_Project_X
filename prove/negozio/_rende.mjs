@@ -52,7 +52,7 @@ const FINTI = {
     export const Outlet = () => S().outlet ?? null;
     //  il percorso e la ricerca: pathname e searchStr (come in _pagine.mjs); search è l'oggetto
     export const useRouterState = (o) => {
-      const stato = { location: { pathname: S().pathname ?? "/shop", searchStr: S().searchStr ?? "", search: S().search ?? {} } };
+      const stato = { location: { pathname: S().pathname ?? "/shop", searchStr: S().searchStr ?? "", search: S().search ?? {} }, matches: S().matches ?? [] };
       return o && o.select ? o.select(stato) : stato;
     };
     export const useSearch = () => S().search ?? {};
@@ -60,6 +60,9 @@ const FINTI = {
     export const useNavigate = () => (o) => { (S().navigazioni ??= []).push(o); };
     export const useRouter = () => ({ invalidate: () => {}, options: { defaultErrorComponent: S().erroreDelRouter } });
     export const notFound = () => new Error("notFound");
+    export const rootRouteId = "__root__";
+    //  il 404 predefinito del router (T109a: lo usa shop.tsx con codice): lo stesso markup
+    export const DefaultGlobalNotFound = () => React.createElement("p", null, "Not Found");
     export const redirect = (o) => Object.assign(new Error("redirect"), { redirect: o });
   `,
   "@/shop/CartContext": `export const useCart = () => globalThis.__pagina.carrello; export const CartProvider = ({ children }) => children;`,

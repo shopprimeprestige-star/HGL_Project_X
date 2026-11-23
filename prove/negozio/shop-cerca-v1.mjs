@@ -96,7 +96,7 @@ export async function prove(mod, { c, gruppo, radice }) {
   ]);
   c("la pagina legge i testi da `testi-shop`", true, /@\/landing\/testi-shop/.test(codice.pagina));
   c("la rotta: `noindex` nella testata e nell'intestazione, `notFound` con `codice`, nessun `loaderDeps`", [true, true, true, false], [
-    /name:\s*"robots"[^}]*noindex/.test(codice.rotta), /"X-Robots-Tag":\s*"noindex/.test(codice.rotta), /notFound\(\)/.test(codice.rotta), /loaderDeps/.test(codice.rotta),
+    /name:\s*"robots"[^}]*noindex/.test(codice.rotta), /"X-Robots-Tag":\s*"noindex/.test(codice.rotta), /notFound\(\{ routeId: rootRouteId \}\)/.test(codice.rotta), /loaderDeps/.test(codice.rotta),
   ]);
   c("l'indirizzo non si costruisce a mano (lo codifica il router): niente `?q=`, `encodeURI*`, `href:` verso la ricerca", [], [/\?q=/, /encodeURI/, /href:\s*[`"']\/shop\/cerca/].filter((re) => re.test(codice.pagina + codice.rotta)).map(String));
   c("design: niente sfocature, grigi di Tailwind, testo bianco spento, bordi laterali colorati, ombre", [], [

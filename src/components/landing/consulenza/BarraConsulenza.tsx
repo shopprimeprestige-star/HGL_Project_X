@@ -29,7 +29,7 @@ interface Props {
   provenienza: Provenienza;
   /** Protesi guardata, se la pagina è la scheda di una protesi. */
   prodotto?: string;
-  /** Sul telefono la barra sta sopra il banner dei cookie (`--banner-h`, scritta dallo shop). Di partenza no: la landing resta com'è. */
+  /** La barra sta sopra il banner dei cookie a ogni larghezza (`--banner-h`, scritta dallo shop; da 640 px il banner è una card a sinistra e la coprirebbe). Di partenza no: la landing resta com'è. */
   sopraAlBanner?: boolean;
   /** Hover del bottone più scuro (contrasto con il bianco ≥ 4,5:1; quello di oggi, più chiaro, arriva a 4,2:1). Di partenza no. */
   hoverScuro?: boolean;
@@ -43,8 +43,9 @@ export function classiBarra({ visibile, sopraAlBanner = false, hoverScuro = fals
   const bottone =
     "h-11 shrink-0 rounded-lg bg-brand-scuro px-3.5 text-[13px] font-semibold text-white transition-colors hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#081634] sm:px-5 sm:text-sm";
   return {
-    //  `max-sm:` vince su `bottom-0` sotto i 640 px; da lì in su il banner è una card a sinistra e la barra resta in fondo.
-    contenitore: sopraAlBanner ? `${contenitore} max-sm:bottom-[var(--banner-h,0px)]` : contenitore,
+    //  `max-sm:` e `sm:` (due varianti, così vincono entrambe su `bottom-0`): la barra sta sopra il banner sotto E da 640 px, dove il banner è una card
+    //  a sinistra larga fino a 448 px che altrimenti la coprirebbe (T103c-1).
+    contenitore: sopraAlBanner ? `${contenitore} max-sm:bottom-[var(--banner-h,0px)] sm:bottom-[var(--banner-h,0px)]` : contenitore,
     bottone: hoverScuro ? bottone.replace("hover:brightness-110", "hover:brightness-90") : bottone,
   };
 }
@@ -57,6 +58,8 @@ export function BarraConsulenza({ provenienza, prodotto, sopraAlBanner = false, 
   //  delle posizioni, fatto prima del disegno. Mai un fotogramma sopra un modulo.
   const [nascosta, setNascosta] = useState(true);
   const barra = useRef<HTMLDivElement | null>(null);
+  //  Il bottone che apre il pannello: alla chiusura il fuoco torna lì (mentre il pannello è aperto la barra è `inert` e lo perde) (T103a-6, T103c-4).
+  const bottoneApri = useRef<HTMLButtonElement | null>(null);
   const [pannelloMontato, setPannelloMontato] = useState(false);
   const [pannelloAperto, setPannelloAperto] = useState(false);
   const t = TESTI_CONSULENZA.barra;
@@ -106,6 +109,17 @@ export function BarraConsulenza({ provenienza, prodotto, sopraAlBanner = false, 
     };
   }, [presente, pathname]);
 
+  //  Nello shop il fuoco non deve finire sotto la barra: `--barra-h` (letta da `scroll-padding-bottom`) = banner + altezza vera della barra (T103a-1).
+  useEffect(() => {
+    const el = barra.current;
+    if (!sopraAlBanner || !visibile || !el) return;
+    const radice = document.documentElement;
+    radice.style.setProperty("--barra-h", `calc(var(--banner-h, 0px) + ${el.offsetHeight}px)`);
+    return () => {
+      radice.style.removeProperty("--barra-h");
+    };
+  }, [sopraAlBanner, visibile]);
+
   useEffect(() => {
     if (visibile) traccia("consulenza_barra_vista", { provenienza }, { dedupKey: "barra" });
   }, [visibile, provenienza]);
@@ -146,6 +160,7 @@ export function BarraConsulenza({ provenienza, prodotto, sopraAlBanner = false, 
             </p>
             <button
               type="button"
+              ref={bottoneApri}
               onClick={apri}
               className={classi.bottone}
             >
@@ -172,6 +187,7 @@ export function BarraConsulenza({ provenienza, prodotto, sopraAlBanner = false, 
             //  passa dal pannello (le due diciture servono a Vendite).
             punto={provenienza === "stock" ? "barra" : "pannello"}
             prodotto={prodotto}
+            fuocoA={() => bottoneApri.current}
           />
         </Suspense>
       )}

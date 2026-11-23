@@ -15,6 +15,7 @@ import { traccia } from "@/landing/consulenza/eventi";
 import { salvaScelta, segnaPannelloAperto } from "@/landing/consulenza/scelta";
 import type { Provenienza, PuntoIngresso } from "@/landing/consulenza/regole";
 import { LINK_CONSULENZA, PROBLEMI, TESTI_CONSULENZA, type IdProblema } from "@/landing/testi-sito";
+import { chiHaAperto, restituisciFuoco } from "@/components/landing/consulenza/fuoco";
 import { VociProblema } from "./VociProblema";
 
 const BookingFunnel = lazy(() =>
@@ -30,6 +31,8 @@ export interface PannelloProps {
   prodotto?: string;
   /** Problema già scelto altrove (box, pop-up): si va dritti al modulo. */
   problemaIniziale?: IdProblema | null;
+  /** Chi ha aperto il pannello, se chi lo apre lo sa (la barra: ha già perso il fuoco quando il pannello arriva). Senza, si usa chi aveva il fuoco all'apertura. */
+  fuocoA?: () => HTMLElement | null;
 }
 
 /** Scende al modulo della pagina; se la pagina non ne ha uno, ci va. */
@@ -50,11 +53,20 @@ export function PannelloProblemi({
   punto,
   prodotto,
   problemaIniziale = null,
+  fuocoA,
 }: PannelloProps) {
   const [fase, setFase] = useState<"voci" | "modulo">("voci");
   const t = TESTI_CONSULENZA.pannello;
   const eraAperto = useRef(false);
   const foglio = useRef<HTMLDivElement | null>(null);
+  //  Chi aveva il fuoco quando il pannello si è aperto: letto durante il disegno, prima che la barra dietro diventi `inert` e glielo tolga.
+  const apertoVisto = useRef(false);
+  const chiHaApertoRef = useRef<HTMLElement | null>(null);
+  if (aperto !== apertoVisto.current) {
+    apertoVisto.current = aperto;
+    const a = aperto && typeof document !== "undefined" ? chiHaAperto(document) : null;
+    if (aperto) chiHaApertoRef.current = a instanceof HTMLElement ? a : null;
+  }
 
   const scegli = (id: IdProblema) => {
     const voce = PROBLEMI.find((p) => p.id === id);
@@ -93,6 +105,8 @@ export function PannelloProblemi({
             e.preventDefault();
             foglio.current?.focus();
           }}
+          //  Dopo Esc (o la X) il fuoco torna a chi aveva aperto il pannello, non al `body` (T103a-6).
+          onCloseAutoFocus={(e) => restituisciFuoco(e, fuocoA?.() ?? chiHaApertoRef.current)}
           data-consulenza-foglio=""
           className="fixed inset-x-0 bottom-0 z-[60] mx-auto flex max-h-[92dvh] w-full max-w-xl flex-col rounded-t-2xl border border-b-0 border-white/15 bg-[#0a1a3a] text-white shadow-[0_-12px_40px_rgba(0,0,0,0.45)] focus:outline-none data-[state=open]:animate-in data-[state=open]:slide-in-from-bottom data-[state=closed]:animate-out data-[state=closed]:slide-out-to-bottom motion-reduce:animate-none"
         >

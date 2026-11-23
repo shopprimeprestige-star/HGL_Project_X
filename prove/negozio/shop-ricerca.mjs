@@ -279,7 +279,7 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("il 5, il 2 e il secondo di pausa non sono scritti a mano (vengono da `MAX_SUGGERIMENTI`, `MIN_CARATTERI_RICERCA`, `PAUSA_RICERCA_MS`)", [false, false, false], [/slice\(0, ?5\)|\b5\b(?!\d)/.test(senzaCommenti.replace(/h-5|w-5|-5\b|\b5\)/g, "")), /length (?:>=|<) ?2\b/.test(senzaCommenti), /\b1000\b/.test(senzaCommenti)]);
   c("design: nessun bordo laterale colorato sulle voci (`border-l-`/`border-r-` oltre 1 px), nessuna ombra sotto un bordo (un'elevazione sola)", [false, false], [/border-[lr]-(?:\[|[2-9])/.test(src), /border[^"]*shadow-galleggiante|shadow-galleggiante[^"]*\bborder\b/.test(src)]);
   c("la voce evidenziata si vede anche senza il colore: anello interno (`ring-2 ring-inset`)", true, /ring-2 ring-inset/.test(src));
-  c("il campo è da 48 px (`h-12`) col testo da 16 px (`text-base`); i tasti da 44 px (`h-11 w-11`)", [true, true, true], [/h-12/.test(src), /text-base/.test(src), /h-11 w-11/.test(src)]);
+  c("il campo è da 48 px (`h-12`) col testo da 16 px (`text-base`); i tasti da 44 px (`h-[44px] w-[44px]`, in px: T109a)", [true, true, true], [/h-12/.test(src), /text-base/.test(src), /h-\[44px\] w-\[44px\]/.test(src)]);
   c("l'elenco si scarica in una funzione sola (`elencoProdotti` chiamato una volta nel sorgente), non nel corpo del componente", 1, conta(senzaCommenti, "elencoProdotti({"));
   c("niente `window`, `document` o `localStorage` mentre si disegna (il server disegna l'header)", [false, false, false], [/\bwindow\b/.test(senzaCommenti), /\bdocument\b/.test(senzaCommenti), /localStorage/.test(senzaCommenti)]);
   c("gli ascolti si tolgono: la pausa si ferma allo smontaggio (`useEffect(() => ricerca.ferma`)", true, /useEffect\(\(\) => ricerca\.ferma, \[ricerca\]\)/.test(senzaCommenti));
@@ -297,9 +297,9 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("il campo ha il suo nome (`guscio.cerca`) e il suggerimento del documento (`header.ricerca`)", [GUSCIO.cerca, T.TESTI_SHOP.header.ricerca], [attr(input, "aria-label"), attr(input, "placeholder")]);
   c("il campo è alto 48 px e scrive a 16 px (V1-T11: mai lo zoom del telefono)", [true, true], [classi(input).includes("h-12"), classi(input).includes("text-base")]);
   const lente = tag(h, `aria-label="${GUSCIO.cerca}" aria-expanded`);
-  c("sul telefono c'è il tasto della ricerca: 44 × 44, `type=button`, visibile solo sotto il computer, chiuso", [true, true, true, "button", "false"], [classi(lente).includes("h-11"), classi(lente).includes("w-11"), classi(lente).includes("lg:hidden"), attr(lente, "type"), attr(lente, "aria-expanded")]);
+  c("sul telefono c'è il tasto della ricerca: 44 × 44, `type=button`, visibile solo sotto il computer, chiuso", [true, true, true, "button", "false"], [classi(lente).includes("h-[44px]"), classi(lente).includes("w-[44px]"), classi(lente).includes("lg:hidden"), attr(lente, "type"), attr(lente, "aria-expanded")]);
   const chiudi = tag(h, `aria-label="${RICERCA.chiudi}"`);
-  c("c'è il tasto per chiudere il campo sul telefono: 44 × 44, solo sul telefono", [true, true, true], [classi(chiudi).includes("h-11"), classi(chiudi).includes("w-11"), classi(chiudi).includes("lg:hidden")]);
+  c("c'è il tasto per chiudere il campo sul telefono: 44 × 44, solo sul telefono", [true, true, true], [classi(chiudi).includes("h-[44px]"), classi(chiudi).includes("w-[44px]"), classi(chiudi).includes("lg:hidden")]);
   const ricercaTag = tag(h, 'role="search"');
   c("il blocco è una regione di ricerca; chiuso, sul telefono non si vede (`hidden`), sul computer sì (`lg:block`)", [true, true, true], [ricercaTag !== "", classi(ricercaTag).includes("hidden"), classi(ricercaTag).includes("lg:block")]);
   c("la regione che dice a voce quanti risultati ci sono c'è sempre, anche vuota (una regione nuova non verrebbe letta)", true, /<[^>]*role="status"[^>]*aria-live="polite"[^>]*><\/[a-z]+>|<[^>]*aria-live="polite"[^>]*role="status"[^>]*><\/[a-z]+>/.test(h));

@@ -50,7 +50,7 @@ const abbastanza = (t: string): boolean => pulito(t).length >= MIN_CARATTERI_RIC
 
 /** Tasto da 44 × 44 senza fondo (come nell'header); l'anello di fuoco è quello bianco di D100. */
 const TASTO =
-  "shop-anello-scuro inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-white hover:bg-white/10";
+  "shop-anello-scuro inline-flex h-[44px] w-[44px] shrink-0 items-center justify-center rounded-md text-white hover:bg-white/10";
 
 /** Le voci della tendina. Solo disegno: non ha stato (la logica è tutta in `RicercaShop`). Ogni voce è UN SOLO elemento: il link alla scheda
  *  con il ruolo di opzione (nessun elemento interattivo dentro un'opzione), fuori dalla tabulazione: il punto di tabulazione è il campo, e
@@ -232,7 +232,7 @@ export function RicercaShop({ categorie }: RicercaShopProps) {
         onClick={() => setAperta(true)}
         className={`${TASTO} lg:hidden`}
       >
-        <Search className="h-6 w-6" aria-hidden="true" />
+        <Search className="h-[24px] w-[24px]" aria-hidden="true" />
       </button>
       <div
         role="search"
@@ -280,7 +280,7 @@ export function RicercaShop({ categorie }: RicercaShopProps) {
           onClick={chiudiCampo}
           className={`${TASTO} lg:hidden`}
         >
-          <X className="h-6 w-6" aria-hidden="true" />
+          <X className="h-[24px] w-[24px]" aria-hidden="true" />
         </button>
         <VociRicerca
           id={idLista}

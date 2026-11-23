@@ -159,7 +159,7 @@ export async function prove(mod, { c, gruppo, radice }) {
   /* ── il sorgente ── */
   c("la pagina non monta il guscio (header, piè di pagina, barre: T93) e non legge il server da sé", [false, false], [/ShopHeader|FooterShop|BarreFisse|BarraConsulenza|GuscioShop/.test(pagina), /createServerFn|\.functions"/.test(pagina)]);
   c("la fascia di fiducia viene solo da `vociDellaFascia` (mai `vociFiducia` con `fascia:` a mano)", [true, false], [/vociDellaFascia\(/.test(pagina), /vociFiducia\(|fascia:\s*\{/.test(pagina + rotta)]);
-  c("la rotta ha `notFound()` con `codice` e `redirect({ to: \"/shop\" })`", [true, true], [/notFound\(\)/.test(rotta), /redirect\(\{\s*to:\s*"\/shop"/.test(rotta)]);
+  c("la rotta ha `notFound({ routeId: rootRouteId })` con `codice` (il 404 resta della radice, T109a) e `redirect({ to: \"/shop\" })`", [true, true], [/notFound\(\{ routeId: rootRouteId \}\)/.test(rotta), /redirect\(\{\s*to:\s*"\/shop"/.test(rotta)]);
   c("`ViewContent` di lista: `product_group`, una volta per visita (`emettiUnaVolta`), riprova dopo la scelta sul banner (`suScelta`) e la pulizia è restituita", [true, true, true, true], [/emettiEvento\(\s*"ViewContent",\s*\{\s*contentType:\s*"product_group"/.test(pagina), /emettiUnaVolta\(/.test(pagina), /suScelta\(window, EVENTO_CONSENSO/.test(pagina), /return\s+suScelta\(/.test(pagina)]);
   // gli SKU dell'evento = quelli di `eventoListaCategoria` (T79) sugli stessi prodotti
   const voci = mod["shop/cms/elenco"].vociDaPubblici(patch);

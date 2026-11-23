@@ -1,4 +1,4 @@
-import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
+import { createFileRoute, DefaultGlobalNotFound, Link, Outlet, useRouterState } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { ShoppingBag, Menu } from "lucide-react";
 import { CartProvider, useCart } from "@/shop/CartContext";
@@ -8,7 +8,7 @@ import { collaudoDellaVisita } from "@/shop/cms/cassa-sito.functions";
 import { CACHE_COLLAUDO } from "@/shop/cms/collaudo";
 import { nomeProtesiPerBarra } from "@/shop/cms/guscio";
 import type { CategoriaPubblica } from "@/shop/cms/modello";
-import { GuscioShop, guscioNuovo } from "@/components/shop/guscio/GuscioShop";
+import { GuscioShop, guscioNuovo, NonTrovataShop } from "@/components/shop/guscio/GuscioShop";
 import { TESTI_PROVVISORI, TESTI_SHOP } from "@/landing/testi-shop";
 import { BarraConsulenza } from "@/components/landing/consulenza/BarraConsulenza";
 import { GestisciCookie } from "@/components/tracciamento/GestisciCookie";
@@ -80,7 +80,15 @@ export const Route = createFileRoute("/shop")({
     };
   },
   component: ShopLayout,
+  //  Un percorso sotto `/shop` che non esiste (T103a-4): con `cms` la card 404 del guscio nuovo (la stessa di scheda e categoria); con `codice` com'è oggi.
+  notFoundComponent: NonTrovataLayout,
 });
+
+/** Il 404 di `/shop/<percorso che non esiste>`. Con `codice` resta il predefinito del router, che oggi si vede in quel punto. */
+function NonTrovataLayout() {
+  const { modalita } = Route.useRouteContext();
+  return modalita === "cms" ? <NonTrovataShop /> : <DefaultGlobalNotFound />;
+}
 
 function CartButton() {
   const { count } = useCart();
@@ -222,11 +230,14 @@ function ShopLayout() {
   //  La pagina arrivata dal server non ripassa da `beforeLoad` nel browser: la sua modalità diventa quella della visita.
   if (typeof window !== "undefined") modalitaVisita ??= modalita;
   const pagina = useRouterState({ select: (s) => s.location.pathname });
-  //  D72: il guscio nuovo vale solo con `cms` E sulle cinque pagine V1 (`guscioNuovo`); tutto il resto resta com'è oggi.
+  //  Un percorso che nessuna rotta riconosce: il router lo segna (`globalNotFound`) sulla rotta `/shop`, che disegna il suo `notFoundComponent` nell'`Outlet`.
+  const nonTrovata = useRouterState({ select: (s) => s.matches?.some((m) => m.routeId === "/shop" && m.globalNotFound === true) === true });
+  //  D72: il guscio nuovo vale solo con `cms` E sulle cinque pagine V1 (`guscioNuovo`) o sulla loro 404; tutto il resto resta com'è oggi.
+  //  shortcut: sulla 404 il loader non chiede le categorie (non sa che il percorso non esiste): la testata non ha «Cura»; chiederle lì se serve.
   //  `CartProvider` è la radice in entrambi i casi: passando da una pagina V1 alla cassa il carrello non si rimonta.
   return (
     <CartProvider>
-      {modalita === "cms" && guscioNuovo(pagina) ? <GuscioNuovo /> : <GuscioDiOggi modalita={modalita} />}
+      {modalita === "cms" && (guscioNuovo(pagina) || nonTrovata) ? <GuscioNuovo /> : <GuscioDiOggi modalita={modalita} />}
     </CartProvider>
   );
 }

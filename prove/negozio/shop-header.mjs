@@ -149,7 +149,7 @@ export async function prove(mod, { c, gruppo, radice }) {
     c("il posto della ricerca è prima del carrello e del menu (ricerca, carrello, menu)", true, conRicerca.html.indexOf("&lt;RICERCA&gt;") > 0 && conRicerca.html.indexOf("&lt;RICERCA&gt;") < conRicerca.html.indexOf('href="/shop/carrello"') && conRicerca.html.indexOf('href="/shop/carrello"') < conRicerca.html.indexOf(`aria-label="${GUSCIO.apriMenu}"`));
     const tagCarrello = tag(h, 'href="/shop/carrello"');
     const tagMenu = tag(h, `aria-label="${GUSCIO.apriMenu}"`);
-    c("carrello e menu: 44 × 44 px sul telefono (`h-11 w-11`), con il fuoco bianco", [true, true, true, true], [classi(tagCarrello).includes("h-11"), classi(tagCarrello).includes("w-11"), classi(tagMenu).includes("h-11") && classi(tagMenu).includes("w-11"), /shop-anello-scuro/.test(tagCarrello) && /shop-anello-scuro/.test(tagMenu)]);
+    c("carrello e menu: 44 × 44 px sul telefono (`h-[44px] w-[44px]`, in px: a testo al 200 % non diventano 88; T109a), con il fuoco bianco", [true, true, true, true], [classi(tagCarrello).includes("h-[44px]"), classi(tagCarrello).includes("w-[44px]"), classi(tagMenu).includes("h-[44px]") && classi(tagMenu).includes("w-[44px]"), /shop-anello-scuro/.test(tagCarrello) && /shop-anello-scuro/.test(tagMenu)]);
     c("tasto menu: sparisce sul computer, è un bottone che apre un dialogo, chiuso di partenza", ["lg:hidden", "button", "dialog", "false", true], [classi(tagMenu).find((x) => x === "lg:hidden"), tagMenu.match(/^<(\w+)/)?.[1], attr(tagMenu, "aria-haspopup"), attr(tagMenu, "aria-expanded"), attr(tagMenu, "type") === "button"]);
     c("tasto menu: l'etichetta è quella di `testi-shop` (nessun testo scritto nel componente)", GUSCIO.apriMenu, attr(tagMenu, "aria-label"));
 
