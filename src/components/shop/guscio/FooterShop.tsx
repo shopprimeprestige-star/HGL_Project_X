@@ -13,7 +13,7 @@ import { HREF_CURA, HREF_PATCH_PRONTE } from "@/shop/cms/vetrina-carrello";
 import { vociCura } from "./voci";
 
 const LINK =
-  "inline-flex min-h-11 items-center underline underline-offset-4 hover:text-white shop-anello-scuro";
+  "inline-flex min-h-11 min-w-11 items-center underline underline-offset-4 hover:text-white shop-anello-scuro";
 
 /** I link, in un elenco chiuso: ogni voce è una rotta che esiste (la prova `shop-footer-stati` lo controlla sulle rotte vere). «Cura» solo se la sua categoria ha prodotti. */
 const linkShop = (categorie: FooterShopProps["categorie"]) => [

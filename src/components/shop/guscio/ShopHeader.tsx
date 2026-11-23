@@ -52,8 +52,9 @@ const PAROLA_CARRELLO = T.header.carrello.replace(/\s*\(\{n\}\)\s*$/, "");
 
 /* ── stile ─────────────────────────────────────────────────────────────────────────────────────────────────── */
 
-/** Tasto da 44 × 44 px, senza fondo: il fuoco è l'anello bianco di D100. */
-const TASTO = "shop-anello-scuro inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-white hover:bg-white/10";
+/** Tasto da 44 × 44 px, senza fondo: il fuoco è l'anello bianco di D100. In px e non in rem (`h-11 w-11`): con il testo ingrandito al 200 % i
+ *  tre tasti non diventano 88 px e la testata sta nello schermo (T103a-3, T103b-1); il logo cede il posto (`min-w-0 shrink`). */
+const TASTO = "shop-anello-scuro inline-flex h-[44px] w-[44px] shrink-0 items-center justify-center rounded-md text-white hover:bg-white/10";
 /** Una voce della riga sul computer. */
 const VOCE = "shop-anello-scuro inline-flex min-h-11 items-center border-b-2 border-transparent text-[15px] font-medium text-white/85 hover:text-white aria-[current=page]:border-white aria-[current=page]:text-white";
 
@@ -137,10 +138,10 @@ export function ShopHeader({ categorie, ricerca }: ShopHeaderProps) {
       </a>
       <header className="sticky top-0 z-30 border-b border-white/10 bg-[#081634]/95">
         <div className="mx-auto flex h-14 max-w-7xl items-center gap-2 px-4 min-[360px]:px-6 lg:h-[72px] lg:gap-8 lg:px-10">
-          <Link to="/shop" className="brackets shop-anello-scuro inline-flex shrink-0 items-center justify-center px-3 py-2.5 lg:px-4">
+          <Link to="/shop" className="brackets shop-anello-scuro inline-flex min-w-0 shrink items-center justify-center px-[12px] py-[10px] lg:px-4 lg:py-2.5">
             <span className="br-tr" aria-hidden="true" />
             <span className="br-bl" aria-hidden="true" />
-            <img src={logo} alt={GUSCIO.logoAlt} width={1920} height={453} className="h-6 w-auto select-none lg:h-9" draggable={false} />
+            <img src={logo} alt={GUSCIO.logoAlt} width={1920} height={453} className="h-6 min-w-0 w-auto select-none object-contain lg:h-9" draggable={false} />
           </Link>
 
           <nav aria-label={TESTI_HEADER_PROVVISORI.navPrincipale} className="hidden items-center gap-8 lg:flex">
@@ -211,7 +212,7 @@ export function ShopHeader({ categorie, ricerca }: ShopHeaderProps) {
               aria-label={fraseCarrello}
               className={`${TASTO} relative xl:w-auto xl:gap-2 xl:px-3`}
             >
-              <ShoppingBag className="h-6 w-6" aria-hidden="true" />
+              <ShoppingBag className="h-[24px] w-[24px]" aria-hidden="true" />
               <span className="hidden text-[15px] font-medium xl:inline">{PAROLA_CARRELLO}</span>
               {numerino && (
                 <span
@@ -236,7 +237,7 @@ export function ShopHeader({ categorie, ricerca }: ShopHeaderProps) {
               onClick={apriMenu}
               className={`${TASTO} lg:hidden`}
             >
-              <Menu className="h-6 w-6" aria-hidden="true" />
+              <Menu className="h-[24px] w-[24px]" aria-hidden="true" />
             </button>
           </div>
         </div>
