@@ -260,7 +260,7 @@ export const TESTI_PROVVISORI = {
     anteprimaStriscia: "Anteprima: questo prodotto non è in vendita.",
     anteprimaRiquadro: "Mostra cosa è nascosto", // titolo del riquadro ambra (D94)
     // Messaggio accanto alla scelta mancante quando si preme «Aggiungi» (V1-S3). Il documento lo lascia al copywriter («tipo "Scegli il colore."»):
-    // provvisorio, da confermare QUI. La chiave `scheda.scegli.<opzione>` è quella che dà `messaggioMancante` (T78).
+    // provvisorio: il copywriter lo sostituisce QUI. La chiave `scheda.scegli.<opzione>` è quella che dà `messaggioMancante` (T78).
     scegli: {
       colore: "Scegli il colore.",
       misura: "Scegli la misura.",
