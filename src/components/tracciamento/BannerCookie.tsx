@@ -67,6 +67,7 @@ export function BannerCookie({ attuale, onScelta, onChiudi, esito = null, vistaI
     <div
       ref={scheda}
       role="dialog"
+      data-banner-cookie=""
       aria-modal="false"
       {...(conferma ? { "aria-label": TESTI.ariaDialogo } : { "aria-labelledby": idTitolo, "aria-describedby": idCorpo })}
       tabIndex={-1}
