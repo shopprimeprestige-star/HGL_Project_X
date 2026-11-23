@@ -14,7 +14,7 @@ export interface CartLine {
 
 interface CartContextValue {
   lines: CartLine[];
-  add: (product: Product, qty: number, variant?: Record<string, string>, cms?: { sku: string; snap: SnapRiga }) => void;
+  add: (product: Pick<Product, "id">, qty: number, variant?: Record<string, string>, cms?: { sku: string; snap: SnapRiga }) => void;
   /** Sostituisce le righe (dopo `ripulisciRighe`, quando il server dice che qualcosa non c'è più). */
   replaceLines: (lines: CartLine[]) => void;
   setQty: (key: string, qty: number) => void;

@@ -230,6 +230,7 @@ export const TESTI_PROVVISORI = {
   card: {
     scopri: "Scopri", // bottone di contorno di Invisible Derm in card e ricerca: nessuna cifra, nessun «Aggiungi»
     nColori: "{n} colori",
+    da: "Da {prezzo}", // davanti al prezzo quando le varianti costano cifre diverse («Da 289,00 €»): provvisoria, per il copywriter
   },
   guscio: {
     vaiAlContenuto: "Vai al contenuto",

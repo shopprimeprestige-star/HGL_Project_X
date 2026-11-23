@@ -14,7 +14,6 @@ import { FotoShop } from "@/components/shop/FotoShop";
 import { TESTI_PROVVISORI, TESTI_SHOP, riempi } from "@/landing/testi-shop";
 import { emettiEvento } from "@/lib/tracciamento/api";
 import { useCart } from "@/shop/CartContext";
-import type { Product } from "@/shop/catalog";
 import {
   azioneCard,
   badgeProntaConsegna,
@@ -24,11 +23,7 @@ import {
 } from "@/shop/cms/vetrina-card";
 import { DURATA_AGGIUNTO_MS, statoAggiunta } from "@/shop/cms/vetrina-interazioni";
 
-/** Testi che il documento non dà: provvisori, senza parole vietate, per il copywriter (si cambiano qui, in un punto solo). */
-export const TESTI_CARD_PROVVISORI = {
-  /** Davanti al prezzo quando le varianti costano cifre diverse: «Da 289,00 €». */
-  da: "Da {prezzo}",
-};
+const CLASSI_BADGE = "rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-[#0A1430]";
 
 const EURO = new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" });
 
@@ -46,7 +41,7 @@ export function PrezzoCard({
   const prezzo = EURO.format(card.prezzoCent / 100);
   return (
     <p className="text-lg font-semibold tabular-nums text-[#0A1430]">
-      {card.prezziDiversi ? riempi(TESTI_CARD_PROVVISORI.da, { prezzo }) : prezzo}
+      {card.prezziDiversi ? riempi(TESTI_PROVVISORI.card.da, { prezzo }) : prezzo}
     </p>
   );
 }
@@ -97,8 +92,7 @@ function BottoneAggiungi({ card }: { card: CardLeggera }) {
     const sku = card.skuVarianti[0];
     // Solo ciò che `azioneCard` ha già verificato, ricontrollato: mai un prezzo o uno SKU inventato.
     if (!sku || card.prezzoCent === null) return;
-    // shortcut: `add` vuole un `Product` del vecchio catalogo anche se con `cms` non lo legge; qui ne passiamo l'identità, non uno finto completo. Quando `add` lo renderà facoltativo, si toglie.
-    add({ id: sku } as Product, 1, undefined, {
+    add({ id: sku }, 1, undefined, {
       sku,
       snap: {
         nome: card.nome,
@@ -189,13 +183,15 @@ export function CardProdotto({ card, testi, prima = false, livello = "h3" }: Pro
           prima={prima}
           className="rounded-t-[13px] [&_img]:transition-transform [&_img]:duration-200 group-hover:[&_img]:scale-[1.03]"
         />
-        {badge && (
-          <span className="absolute left-2 top-2 rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-[#0A1430]">
-            {badge}
-          </span>
+        {badge && card.foto && (
+          <span className={`absolute left-2 top-2 ${CLASSI_BADGE}`}>{badge}</span>
         )}
       </div>
       <div className="flex flex-1 flex-col gap-1 p-3 sm:p-4">
+        {/* Senza foto il badge non ha dove posarsi: sta nel flusso, sopra il nome, e non lo copre. */}
+        {badge && !card.foto && (
+          <span className={`self-start border border-ink/15 ${CLASSI_BADGE}`}>{badge}</span>
+        )}
         <Titolo className="line-clamp-2 text-[15px] font-semibold leading-tight text-[#0A1430]">
           <NomeCard card={card} />
         </Titolo>

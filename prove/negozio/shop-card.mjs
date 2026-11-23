@@ -130,6 +130,10 @@ async function componenti(mod, { c, gruppo, radice }) {
   // ── foto assente, prima foto, livello del titolo ──
   const hSenzaFoto = await disegnaCard(KC.cardDaPubblico(per("balsamo-prova", CATALOGO_SENZA_FOTO)));
   c("senza foto: nessun <img>, nessun riquadro vuoto di sfondo", [0, false], [conta(hSenzaFoto, /<img\b/g), /brand-velo-10/.test(hSenzaFoto)]);
+  const senzaFotoCard = KC.cardDaPubblico(per("balsamo-prova", CATALOGO_SENZA_FOTO));
+  const hBadgeSenzaFoto = await disegnaCard(senzaFotoCard, { testi: TESTI_CONFERMATI_PIENI });
+  c("senza foto con il badge vero: «Pronta consegna» nel flusso, prima del nome, non posato in assoluto sopra il nome", [1, false, true], [conta(hBadgeSenzaFoto, /Pronta consegna/g), /absolute left-2/.test(hBadgeSenzaFoto), hBadgeSenzaFoto.indexOf("Pronta consegna") < hBadgeSenzaFoto.indexOf(senzaFotoCard.nome)]);
+  c("con la foto il badge resta posato sulla foto, una volta sola", [1, true], [conta(hBadge, /Pronta consegna/g), /absolute left-2/.test(hBadge)]);
   const hPrima = await disegnaCard(alfa, { prima: true });
   c("`prima`: la foto è eager con priorità alta (sopra la piega); le altre no", [["eager", "high"], [undefined]], [[attr(hPrima, "loading"), attr(hPrima, "fetchpriority")], [attr(hAlfa, "fetchpriority")]]);
   c("`livello=\"h2\"`: il titolo è un h2 (sotto l'H1 della pagina)", [true, false], [/<h2\b/.test(await disegnaCard(alfa, { livello: "h2" })), /<h3\b/.test(await disegnaCard(alfa, { livello: "h2" }))]);
@@ -208,5 +212,8 @@ async function componenti(mod, { c, gruppo, radice }) {
   c("sorgente: nessun segnaposto di illustrazione (V1-T4) e nessun toast; la card vecchia non c'è", false, /PlaceholderBox|HairSystemVisual|ShopVisual|sonner|toast|GrigliaProdotti|ProductCard/.test(tutto));
   c("sorgente: nessun bottone pieno nelle card (V1-T3: né notte né blu pieni)", false, /\bbg-(brand|\[#0A1430\]|primary|ink)\b(?!\/)/.test(tutto));
   c("sorgente: le card non tracciano con fbq/ttq/gtag (solo `emettiEvento`, D90)", [false, true], [/fbq|ttq|gtag/.test(tutto), /emettiEvento\("AddToCart"/.test(tutto)]);
+  c("sorgente: nessun cast del prodotto (`add` vuole solo l'identità) e «Da» in `TESTI_PROVVISORI.card`", [false, true, false], [/as Product/.test(tutto), /TESTI_PROVVISORI\.card\.da/.test(tutto), /TESTI_CARD_PROVVISORI/.test(tutto)]);
+  c("sorgente: `CartContext.add` prende `Pick<Product, \"id\">`", true, /add: \(product: Pick<Product, "id">, qty/.test(readFileSync(join(radice, "src/shop/CartContext.tsx"), "utf8")));
+  c("sorgente: la «Da» provvisoria è in `testi-shop.ts`", true, /da: "Da \{prezzo\}"/.test(readFileSync(join(radice, "src/landing/testi-shop.ts"), "utf8")));
   c("sorgente: la foto è sempre `FotoShop` (nessun <img> scritto a mano)", [false, true], [/<img\b/.test(tutto), /from "@\/components\/shop\/FotoShop"/.test(tutto)]);
 }
