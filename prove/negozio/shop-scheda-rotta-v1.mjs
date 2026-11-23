@@ -217,15 +217,20 @@ async function corpo(mod, { c, gruppo, radice }) {
   // ── gli eventi: gli effetti girano davvero ──
   const reale = requireQui.resolve("react", { paths: [radice] });
   const REACT_CHE_RICORDA = `import * as R from ${JSON.stringify(reale)}; export * from ${JSON.stringify(reale)}; export default R.default; export const useEffect = (f) => { (globalThis.__pagina.effetti ??= []).push(f); };`;
-  const conEffetti = async (p, { storage = new Map(), nome } = {}) => {
+  const conEffetti = async (p, { storage = new Map(), nome, bloccato = false } = {}) => {
     const r = await pagina(p.slug, datiCms(p), { finti: { react: REACT_CHE_RICORDA } });
     const vecchi = [globalThis.window, globalThis.document];
-    globalThis.window = { sessionStorage: { getItem: (k) => storage.get(k) ?? null, setItem: (k, v) => storage.set(k, v) } };
+    //  `bloccato`: cookie bloccati, già NOMINARE `window.sessionStorage` lancia (SecurityError)
+    globalThis.window = bloccato
+      ? Object.defineProperty({}, "sessionStorage", { get() { throw new Error("SecurityError: cookie bloccati"); } })
+      : { sessionStorage: { getItem: (k) => storage.get(k) ?? null, setItem: (k, v) => storage.set(k, v) } };
     globalThis.document = { querySelector: () => null };
+    const lanciati = [];
     try {
-      for (const f of r.pagina.effetti ?? []) { try { f(); } catch { /* gli effetti degli altri pezzi vogliono un browser vero */ } }
+      for (const f of r.pagina.effetti ?? []) { try { f(); } catch (e) { lanciati.push(String(e?.message ?? e)); /* gli effetti degli altri pezzi vogliono un browser vero */ } }
     } finally { [globalThis.window, globalThis.document] = vecchi; if (vecchi[0] === undefined) delete globalThis.window; if (vecchi[1] === undefined) delete globalThis.document; }
     void nome;
+    r.pagina.lanciati = lanciati;
     return r.pagina;
   };
   await blocco("blocco 9", async () => {
@@ -236,6 +241,9 @@ async function corpo(mod, { c, gruppo, radice }) {
     const seconda = await conEffetti(patch, { storage });
     c("ViewContent: la seconda visita della stessa scheda nella sessione non lo rimanda", 0, seconda.eventi.filter(([n]) => n === "ViewContent").length);
     c("ViewContent: un altro prodotto nella stessa sessione sì", 1, (await conEffetti(patch2, { storage })).eventi.filter(([n]) => n === "ViewContent").length);
+    //  Cookie bloccati: nessuna eccezione negli effetti (sarebbe un 500 della scheda) e l'evento parte comunque, una volta
+    const senzaCookie = await conEffetti(patch, { bloccato: true });
+    c("cookie bloccati (`window.sessionStorage` lancia): nessun effetto della scheda lancia, `ViewContent` parte una volta", [[], 1], [senzaCookie.lanciati.filter((m) => /SecurityError/.test(m)), senzaCookie.eventi.filter(([n]) => n === "ViewContent").length]);
     c("`AddToCart` non parte dalla visita (parte solo dal clic, da `useAcquisto`)", 0, prima.eventi.filter(([n]) => n === "AddToCart").length);
     c("conteggio interno «scheda vista» una volta, col solo slug; l'anteprima non lo conta", [1, ["stock_vista_scheda", { prodotto: patch.slug }], 0], [prima.tracce.length, prima.tracce[0]?.slice(0, 2), (await conEffetti(bozza)).tracce?.length ?? 0]);
     c("anteprima: nessun `ViewContent`", 0, (await conEffetti(bozza)).eventi.filter(([n]) => n === "ViewContent").length);
@@ -244,6 +252,7 @@ async function corpo(mod, { c, gruppo, radice }) {
   });
   await blocco("blocco 10", async () => {
     const corpoNuovo = codice.slice(codice.indexOf("function SchedaNuova("), codice.indexOf("function SchedaVista("));
+    c("sorgente: nella pagina nuova `window.sessionStorage` si legge solo dentro un `try` (cookie bloccati = nessun 500)", [1, 1], [(corpoNuovo.match(/window\.sessionStorage/g) ?? []).length, (corpoNuovo.match(/try \{\s*archivio = window\.sessionStorage;\s*\} catch/g) ?? []).length]);
     c("sorgente: la pagina nuova emette solo `ViewContent` (mai `AddToCart`, mai un pixel a mano, mai `useCart`)", [true, false, false, false], [/emettiEvento\("ViewContent"/.test(corpoNuovo), /AddToCart/.test(corpoNuovo), /fbq|ttq|gtag|fireCapi|firePixel/.test(src), /useCart|\badd\(/.test(corpoNuovo)]);
   });
 
