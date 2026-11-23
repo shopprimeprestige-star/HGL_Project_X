@@ -104,6 +104,8 @@ Espandi la sezione **Variables and Secrets** e aggiungi:
 I passi «a mano» per il titolare, scritti in frasi brevi, stanno in `RILASCIO-2-PASSI-DEL-TITOLARE.md` (cartella della commessa).
 Qui sotto c'è la parte tecnica.
 
+**Vetrina V1 (pagine nuove di `/shop`): nessuna migrazione del database e nessuna variabile nuova o cambiata.** Per le sue pagine vedi `RILASCIO-V1-PASSI-DEL-TITOLARE.md`.
+
 ### Migrazioni dello shop (Supabase → SQL Editor, una alla volta, in quest'ordine)
 **Non `supabase db push`.** Copia ogni file nel SQL Editor, premi «Run», controlla che non ci siano errori e passa al successivo.
 

@@ -14,7 +14,8 @@
  *  (elenco in MODULI di prove.mjs; i `*.functions.ts` restano fuori: sono solo
  *  l'involucro delle funzioni del server).
  *  ⚠️ Un file senza `prove` è un errore, non un salto: una prova che non gira
- *  non deve sembrare una prova che passa. */
+ *  non deve sembrare una prova che passa. Per questo un file che lancia (o che non si carica, o senza `prove`) diventa un controllo
+ *  ROSSO col nome del file e il messaggio, e la suite va avanti con i file dopo (T100b). */
 import { readdirSync, realpathSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
@@ -47,16 +48,22 @@ function liberaDopoProva(giaCaricati) {
   delete globalThis.__PROVA_PAGINA__;
 }
 
-export async function proveNegozio(mod, ctx) {
-  const file = readdirSync(cartella)
+/** `dir` si cambia solo nella prova di questo aggregatore (una cartella di file finti, fuori dal repo): la suite vera non lo passa. */
+export async function proveNegozio(mod, ctx, dir = cartella) {
+  const file = readdirSync(dir)
     .filter((f) => f.endsWith(".mjs") && !AIUTI.has(f) && !f.startsWith("_"))
     .sort();
   for (const f of file) {
-    const m = await import(pathToFileURL(join(cartella, f)).href);
-    if (typeof m.prove !== "function") throw new Error(`prove/negozio/${f}: manca «export async function prove»`);
     const giaCaricati = new Set(Object.keys(require_.cache));
     try {
+      const m = await import(pathToFileURL(join(dir, f)).href);
+      if (typeof m.prove !== "function") throw new Error("manca «export async function prove»");
       await m.prove(mod, ctx);
+    } catch (e) {
+      // Un file che lancia (o che non si carica, o senza `prove`) è UN rosso con il suo nome: la suite non si ferma e i file dopo girano.
+      // Il controllo in più compare solo qui: una suite verde ha lo stesso totale di prima.
+      const messaggio = String(e instanceof Error ? e.message : e).replace(/\s+/g, " ").trim();
+      ctx.c(`prove/negozio/${f}: la prova ha lanciato un'eccezione`, "nessuna eccezione", messaggio);
     } finally {
       liberaDopoProva(giaCaricati);
     }
