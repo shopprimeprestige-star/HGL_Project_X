@@ -92,7 +92,8 @@ export function PaginaCerca({ carte, suggeriti, q, guasto = false, riprova }: Pa
         />
         <button
           type="submit"
-          className="shop-anello inline-flex min-h-12 shrink-0 items-center justify-center rounded-md bg-[#0A1430] px-6 text-sm font-semibold text-white transition-colors hover:bg-[#1B2A4E]"
+          // con il guasto l'unico pieno dello schermo è «Riprova» (StatoErrore): qui «Cerca» passa a contorno
+          className={`shop-anello inline-flex min-h-12 shrink-0 items-center justify-center rounded-md px-6 text-sm font-semibold transition-colors ${guasto ? "border-2 border-[#0A1430] text-[#0A1430] hover:bg-ink/5" : "bg-[#0A1430] text-white hover:bg-[#1B2A4E]"}`}
         >
           {TESTI_PROVVISORI.guscio.cerca}
         </button>
