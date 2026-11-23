@@ -344,7 +344,7 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("nessun rosso, nessuna ombra, nessun barrato nelle classi", false, /\b(bg|text|border)-(red|rose)-|\bshadow-|line-through/.test(Object.values(sorgenti).join("\n")));
   c("la riga usa FotoShop (D98), non un <img> a mano", [true, false], [/<FotoShop\b/.test(sorgenti.RigaCarrelloShop), /<img\b/.test(sorgenti.RigaCarrelloShop)]);
   c("la riga e il riepilogo usano `testoPrezzo` di T79 (una cifra solo con «ok»)", [true, true], [/testoPrezzo\(/.test(sorgenti.RigaCarrelloShop), /testoPrezzo\(/.test(sorgenti.RiepilogoOrdine)]);
-  c("nessun componente è montato in una rotta (li monta T98)", [], ["src/routes", "src/components"].flatMap((d) => grep(radice, d, /carrello\/(RigaCarrelloShop|StepperQuantita|RiepilogoOrdine)/)));
+  c("li monta solo `PaginaCarrello` (T98), nessuna route li nomina direttamente", ["src/components/shop/pagine/PaginaCarrello.tsx"], ["src/routes", "src/components"].flatMap((d) => grep(radice, d, /carrello\/(RigaCarrelloShop|StepperQuantita|RiepilogoOrdine)/)));
 }
 
 /** I file di `cartella` (dentro `radice`, ricorsivo) il cui testo contiene `re`: solo i nomi, per una prova «nessuno lo importa ancora». */
