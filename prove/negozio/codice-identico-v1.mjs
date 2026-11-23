@@ -9,16 +9,21 @@
  *       (e i suoi due componenti di riserva: «non trovato» ed «errore temporaneo»), carrello vuoto, carrello con due righe. La categoria con `codice` è `notFound` (il suo `loader` lancia: nessun HTML della rotta;
  *       il 404 è quello della radice, che l'aiuto non sa disegnare: si fotografa il valore del `loader`).
  *   (b) il valore di `head()` e `headers()` di `shop.tsx` e di ogni rotta `shop.*` (anche con `collaudo` falso e con `collaudo` vero);
- *   (c) il valore di `loader()` e `beforeLoad()` di ogni rotta (`null`, `{modo}`, `{scheda:{tipo:"codice"},anteprima}`, `notFound`…);
+ *   (c) il valore di `loader()` e `beforeLoad()` di ogni rotta (`null`, `{modo}`, `{scheda:{tipo:"codice"},anteprima}`, `notFound`…), e quello di
+ *       `validateSearch()` e `loaderDeps()` (`?anteprima=` della scheda con il taglio a 300 caratteri, `?annullato=` della cassa);
  *   (d) l'ELENCO ESATTO delle chiamate al server (nome, ordine e argomenti) di ogni funzione e di ogni scenario. «Zero chiamate» non è la
  *       regola: l'oro registra quello che il codice di oggi fa davvero (es. `modalitaCatalogo` e `collaudoDellaVisita` da `beforeLoad`).
  *  Una funzione che la rotta non ha (es. `head` della home) vale `«undefined»`: aggiungerne una che restituisce `{}` è una differenza.
+ *
+ *  ── come si lancia da sola ──
+ *      SUPABASE_URL=http://127.0.0.1:9 VITE_SUPABASE_URL=http://127.0.0.1:9 node prove/negozio/codice-identico-v1.mjs [--verifica]
+ *  Senza argomenti (o con `--verifica`) lancia la sola prova dell'oro e esce con codice 1 se c'è anche un solo rosso, 0 se è tutta verde.
  *
  *  ── come si rifà l'oro ──
  *  Mai per far tornare verde: serve solo se una decisione dell'architetto CAMBIA il sito di `codice` (D73: Inter e `lang="it"` sulle cinque pagine
  *  portano differenze di HTML volute; le scrive il compito che le introduce, dichiarandole in lavagna). Dal base pulito (`src/` senza modifiche):
  *      SUPABASE_URL=http://127.0.0.1:9 VITE_SUPABASE_URL=http://127.0.0.1:9 node prove/negozio/codice-identico-v1.mjs --scrivi
- *  Rifiuta di scrivere se `src/` ha modifiche non salvate (l'oro non si prende da un albero sporco).
+ *  Rifiuta di scrivere se `src/` o `prove/negozio/` (a parte il file dell'oro) hanno modifiche non salvate (l'oro non si prende da un albero sporco).
  *  Dati inventati (`_dati-vetrina.mjs`), nessuna rete, nessun database, la data è fissa (il piè di pagina scrive l'anno). */
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -58,12 +63,15 @@ const CURA = "shampoo-delicato-lace"; // cura del catalogo del codice (s1)
 const RIGHE_CARRELLO = [{ productId: "t01", qty: 1, key: "t01" }, { productId: "s1", qty: 2, key: "s1" }]; // 289 + 2 × 24 = 337 €
 const CARRELLO_2_RIGHE = D.carrelloFinto(RIGHE_CARRELLO, { subtotal: 337, count: 3 });
 const PRODOTTO_CMS_FINTO = { slug: "prodotto-solo-cms", nome: "Prodotto di prova solo CMS" };
+const lungo = (n) => "a".repeat(n);
 const RETE = () => { throw new Error("rete"); };
 
 /** I disegni (HTML): nome → [file, stato]. Ogni stato dichiara il server vuoto: ogni chiamata al server lancia. */
 const DISEGNI = {
   "guscio · carrello vuoto": [R("shop"), { server: {}, pathname: "/shop", outlet: null }],
   "guscio · carrello con 2 righe": [R("shop"), { server: {}, pathname: "/shop", outlet: null, carrello: CARRELLO_2_RIGHE }],
+  //  il ramo «link non attivo» dell'header (`text-white/60 hover:text-white`): il percorso non è `/shop`
+  "guscio · /shop/carrello": [R("shop"), { server: {}, pathname: "/shop/carrello", outlet: null }],
   "home": [R("shop.index"), { server: {}, pathname: "/shop", loaderData: null, context: { modalita: "codice" } }],
   "scheda patch": [R("shop.prodotto.$slug"), { server: {}, pathname: `/shop/prodotto/${PATCH}`, params: { slug: PATCH }, loaderData: { scheda: { tipo: "codice" }, anteprima: false }, carrello: { add() {}, lines: [] } }],
   "scheda cura": [R("shop.prodotto.$slug"), { server: {}, pathname: `/shop/prodotto/${CURA}`, params: { slug: CURA }, loaderData: { scheda: { tipo: "codice" }, anteprima: false }, carrello: { add() {}, lines: [] } }],
@@ -79,6 +87,7 @@ const CTX = { modalita: "codice" };
 const ARG_PREDEFINITO = {
   beforeLoad: { context: {} },
   loader: { params: {}, context: CTX, deps: { anteprima: "" } },
+  loaderDeps: { search: {} },
   head: { match: { context: CTX, status: "success" }, loaderData: undefined, params: {} },
   headers: { matches: [{ context: CTX }], match: { status: "success" }, loaderData: undefined },
 };
@@ -137,6 +146,23 @@ const ROTTE = {
     file: R("shop.prodotto.$slug"),
     stato: { params: { slug: PATCH }, loaderData: { scheda: { tipo: "codice" }, anteprima: false }, carrello: { add() {}, lines: [] } },
     beforeLoad: [come()],
+    validateSearch: [
+      ["senza ricerca", {}, {}, {}],
+      ["?anteprima=chiave", { anteprima: "chiave-di-prova" }, {}, {}],
+      ["?anteprima= vuota", { anteprima: "" }, {}, {}],
+      ["anteprima non testo (numero)", { anteprima: 5 }, {}, {}],
+      ["anteprima non testo (elenco)", { anteprima: ["a"] }, {}, {}],
+      ["anteprima di 299 caratteri", { anteprima: lungo(299) }, {}, {}],
+      ["anteprima di 300 caratteri", { anteprima: lungo(300) }, {}, {}],
+      ["anteprima di 301 caratteri: tagliata a 300", { anteprima: lungo(301) }, {}, {}],
+      ["anteprima di 400 caratteri: tagliata a 300", { anteprima: lungo(400) }, {}, {}],
+      ["altre chiavi: scartate", { anteprima: "x", altro: 1, utm_source: "y" }, {}, {}],
+    ],
+    loaderDeps: [
+      ["senza anteprima", { search: {} }, {}, {}],
+      ["anteprima non definita", { search: { anteprima: undefined } }, {}, {}],
+      ["anteprima presente", { search: { anteprima: "chiave-di-prova" } }, {}, {}],
+    ],
     loader: [
       ["patch del codice", { params: { slug: PATCH }, deps: { anteprima: "" } }, {}, {}],
       ["cura del codice", { params: { slug: CURA }, deps: { anteprima: "" } }, {}, {}],
@@ -178,6 +204,17 @@ const ROTTE = {
     file: R("shop.checkout"),
     stato: { loaderData: { modo: "codice", cassa: "vecchia" } },
     beforeLoad: [come()],
+    validateSearch: [
+      ["senza ricerca", {}, {}, {}],
+      ["annullato=\"1\" (testo)", { annullato: "1" }, {}, {}],
+      ["annullato=1 (numero)", { annullato: 1 }, {}, {}],
+      ["annullato=\"0\"", { annullato: "0" }, {}, {}],
+      ["annullato=0 (numero)", { annullato: 0 }, {}, {}],
+      ["annullato=true", { annullato: true }, {}, {}],
+      ["annullato=2", { annullato: 2 }, {}, {}],
+      ["annullato vuoto", { annullato: "" }, {}, {}],
+      ["altre chiavi: scartate", { annullato: "1", altro: 1 }, {}, {}],
+    ],
     loader: [
       ["codice: cassa di oggi, senza chiedere la cassa nuova", undefined, {}, {}],
       ["la modalità non si legge (rete)", undefined, { modalitaCatalogo: RETE }, {}],
@@ -202,14 +239,15 @@ const ROTTE = {
     headers: [come()],
   },
 };
-const FUNZIONI = ["beforeLoad", "loader", "head", "headers"];
+const FUNZIONI = ["beforeLoad", "validateSearch", "loaderDeps", "loader", "head", "headers"];
 
 /** Chiama `route[funzione]` con gli argomenti dello scenario; restituisce `{ valore | lancia, chiamate, argomenti }` (ogni chiamata al server registrata dall'aiuto). */
 async function esegui(pagina, route, funzione, arg, server, extra) {
   Object.assign(pagina, { server, collaudo: undefined, modalita: undefined, modalitaCerta: undefined, ...extra });
   pagina.chiamate.length = 0;
   pagina.chiamateArgs.length = 0;
-  const argomenti = { ...ARG_PREDEFINITO[funzione], ...(arg ?? {}) };
+  //  `validateSearch` riceve la ricerca grezza così com'è; le altre un oggetto con i loro campi
+  const argomenti = funzione === "validateSearch" ? (arg ?? {}) : { ...ARG_PREDEFINITO[funzione], ...(arg ?? {}) };
   const esito = {};
   try {
     const v = typeof route[funzione] === "function" ? await route[funzione](argomenti) : undefined;
@@ -234,7 +272,7 @@ export async function fotografa(radice) {
       rotte[nome] = {};
       for (const f of FUNZIONI) {
         rotte[nome][f] = {};
-        for (const [scenario, arg, server, extra] of def[f]) rotte[nome][f][scenario] = await esegui(pagina, route, f, arg, server, extra);
+        for (const [scenario, arg, server, extra] of def[f] ?? [come()]) rotte[nome][f][scenario] = await esegui(pagina, route, f, arg, server, extra);
       }
     }
     return { html, rotte };
@@ -267,6 +305,7 @@ export async function prove(mod, { c, gruppo, radice }) {
   for (const [nome, funzioni] of Object.entries(oro.rotte)) {
     for (const f of FUNZIONI) {
       const scenariOro = Object.keys(funzioni[f] ?? {});
+      c(`${nome} · ${f}: l'oro ha almeno uno scenario`, true, scenariOro.length > 0);
       c(`${nome} · ${f}: gli stessi scenari nell'oro e nella prova`, scenariOro, Object.keys(ora.rotte[nome]?.[f] ?? {}));
       for (const scenario of scenariOro) {
         const a = funzioni[f][scenario], b = ora.rotte[nome]?.[f]?.[scenario];
@@ -302,12 +341,28 @@ export async function prove(mod, { c, gruppo, radice }) {
 /** Riscrive l'oro dal base pulito (vedi sopra). */
 async function scrivi() {
   const radice = join(QUI, "..", "..");
-  const sporco = execFileSync("git", ["status", "--porcelain", "--", "src"], { cwd: radice, encoding: "utf8" }).trim();
-  if (sporco) throw new Error(`l'oro si prende dal base pulito: src/ ha modifiche non salvate:\n${sporco}`);
+  //  `src/` e `prove/negozio/` (l'oro è fatto dalle rotte e dagli aiuti di prova), meno il file dell'oro stesso
+  const sporco = execFileSync("git", ["status", "--porcelain", "--", "src", "prove/negozio"], { cwd: radice, encoding: "utf8" })
+    .split("\n").filter((r) => r.trim() && !r.trimEnd().endsWith("prove/negozio/_oro-codice-v1.json")).join("\n");
+  if (sporco) throw new Error(`l'oro si prende dal base pulito: src/ o prove/negozio/ hanno modifiche non salvate:\n${sporco}`);
   const commit = execFileSync("git", ["rev-parse", "--short", "HEAD"], { cwd: radice, encoding: "utf8" }).trim();
   const foto = await fotografa(radice);
   writeFileSync(FILE_ORO, JSON.stringify({ _nota: "Fotografia del sito `codice` di oggi (T70b). NON si modifica a mano e non si rifà per far tornare verde la prova: vedi la testa di codice-identico-v1.mjs.", commit, ...foto }, null, 1) + "\n");
   console.log(`oro scritto: ${FILE_ORO} (commit ${commit}, ${Object.keys(foto.html).length} disegni, ${Object.keys(foto.rotte).length} rotte)`);
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url) && process.argv.includes("--scrivi")) await scrivi();
+/** Da sola: lancia la prova e esce con 1 se c'è un rosso (nessuno si accorge di un rosso se la prova non si può lanciare da sola). */
+async function verifica() {
+  let fatti = 0, rotti = 0;
+  const c = (nome, atteso, letto) => {
+    fatti++;
+    const bene = canon(atteso) === canon(letto);
+    if (!bene) rotti++;
+    console.log((bene ? "  ok  " : "  NO  ") + nome + (bene ? "" : ` · atteso ${canon(atteso).slice(0, 300)}, letto ${canon(letto).slice(0, 600)}`));
+  };
+  await prove({}, { c, gruppo: (t) => console.log(`\n── ${t}`), radice: join(QUI, "..", "..") });
+  console.log(`\n${rotti ? "✖" : "✔"} ${rotti} rossi su ${fatti} controlli`);
+  process.exitCode = rotti ? 1 : 0;
+}
+
+if (process.argv[1] === fileURLToPath(import.meta.url)) await (process.argv.includes("--scrivi") ? scrivi() : verifica());
