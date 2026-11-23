@@ -300,7 +300,7 @@ export async function prove(mod, { c, gruppo, radice }) {
     c("ordine spedito senza tracking: lo dice", true, /senza tracking/i.test(testo(ts(stripe({ status: "spedito", spedito_il: "2026-11-21T15:00:00.000Z", senza_tracking: true })))));
     const ann = ts(stripe({ status: "annullato", annullo_motivo: "Il cliente ha cambiato idea", annullato_il: "2026-11-21T16:00:00.000Z" }));
     c("ordine annullato: il motivo si legge e «Correggi lo stato» offre la riattivazione; niente «Spedisci»", [true, 1, 0], [/Il cliente ha cambiato idea/.test(testo(ann)), conTesto(ann, /Correggi lo stato/).length, conTesto(ann, /^\s*Spedisci/).length]);
-    const inAttesa = ts(stripe({ stato_pagamento: "in_attesa", pagato_il: null, pagato_importo: null, scade_il: "2026-11-23T10:00:00.000Z" }));
+    const inAttesa = ts(stripe({ stato_pagamento: "in_attesa", pagato_il: null, pagato_importo: null, scade_il: "2099-01-01T10:00:00.000Z" }));
     c("ordine in attesa di pagamento: lo dice, nessun «Rimborsa», nessun «Spedisci»; «Controlla con Stripe» c'è", [true, 0, 0, 1], [/In attesa di pagamento/.test(testo(inAttesa)), conTesto(inAttesa, /^\s*Rimborsa\s*$/).length, conTesto(inAttesa, /^\s*Spedisci/).length, conTesto(inAttesa, /Controlla con Stripe/).length]);
     const senzaFattura = ts(stripe({ fattura_richiesta: false }));
     c("senza fattura richiesta: lo dice, niente tasto «Segna fattura emessa»", [true, 0], [/non ha chiesto la fattura/i.test(testo(senzaFattura)), conTesto(senzaFattura, /Segna fattura emessa/).length]);
