@@ -240,6 +240,12 @@ export const TESTI_PROVVISORI = {
     carrelloAriaUno: "Carrello, 1 prodotto", // il documento dà solo il plurale («Carrello, {n} prodotti»)
     logoAlt: "Hair Genius Labs", // il nome del marchio, come nella landing
   },
+  // La ricerca dell'header (T82b): il campo usa «Cerca…» del documento (`header.ricerca`) e «Cerca» (`guscio.cerca`) per il tasto.
+  ricerca: {
+    chiudi: "Chiudi la ricerca",
+    risultati: "{n} risultati", // detto a chi usa lo schermo parlato quando la tendina si apre
+    unRisultato: "1 risultato",
+  },
   cerca: {
     titolo: "Risultati per “{testo}”",
     metaTitolo: "Cerca | Hair Genius Shop",
