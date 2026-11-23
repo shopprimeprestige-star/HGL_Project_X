@@ -54,10 +54,11 @@ async function pagineConFintiDellaHome(radice) {
   const filtro = "/^@\\/shop\\/cms\\/(catalogo|cassa-sito)\\.functions$/";
   const aggiunte = 'export const cassaDelSito = async () => "vecchia";';
   const sorgente = readFileSync(join(radice, "prove/negozio/_pagine.mjs"), "utf8");
-  for (const pezzo of [filtro, aggiunte, "createRequire(import.meta.url)"]) if (!sorgente.includes(pezzo)) throw new Error(`_pagine.mjs è cambiato: manca «${pezzo}»`);
+  for (const pezzo of [filtro, aggiunte, "useParams: () => S().params ?? {},", "createRequire(import.meta.url)"]) if (!sorgente.includes(pezzo)) throw new Error(`_pagine.mjs è cambiato: manca «${pezzo}»`);
   const nuovo = sorgente
     .replace(filtro, "/^@\\/shop\\/(cms\\/(catalogo|cassa-sito|contenuto-shop)|cassa\\/tariffe)\\.functions$/")
     .replace(aggiunte, `${aggiunte}\nexport const contenutoShop = async () => ({ testi: {}, media: {} });\nexport const tariffaSpedizione = async () => ({ stato: "assente" });`)
+    .replace("useParams: () => S().params ?? {},", "useParams: () => S().params ?? {}, useSearch: () => S().search ?? {},")
     .replace("createRequire(import.meta.url)", `createRequire(${JSON.stringify(join(radice, "package.json"))})`);
   return import(`data:text/javascript;base64,${Buffer.from(nuovo).toString("base64")}`);
 }
@@ -66,7 +67,7 @@ export async function prove(mod, { c, gruppo, radice }) {
   gruppo("SHOP R1 · T19 · ELENCO, CATEGORIA E RICERCA DELLO SHOP (20/11/2026)");
   const leggi = (f) => (existsSync(join(radice, f)) ? readFileSync(join(radice, f), "utf8") : "");
   const senzaCommenti = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:"'`])\/\/.*$/gm, "$1");
-  const F = { indice: "src/routes/shop.index.tsx", categoria: "src/routes/shop.c.$slug.tsx", griglia: "src/shop/cms/GrigliaProdotti.tsx", elenco: "src/shop/cms/elenco.ts" };
+  const F = { indice: "src/routes/shop.index.tsx", categoria: "src/routes/shop.c.$slug.tsx", paginaCategoria: "src/components/shop/pagine/PaginaCategoria.tsx", griglia: "src/shop/cms/GrigliaProdotti.tsx", elenco: "src/shop/cms/elenco.ts" };
   const src = Object.fromEntries(Object.entries(F).map(([k, f]) => [k, senzaCommenti(leggi(f))]));
   const E = mod["shop/cms/elenco"];
   const PUB = mod["shop/cms/pubblico"];
@@ -153,10 +154,10 @@ export async function prove(mod, { c, gruppo, radice }) {
   }
 
   /* ───────────────── 2 · IL SORGENTE ───────────────── */
-  c("i quattro file ci sono", [true, true, true, true], Object.values(F).map((f) => existsSync(join(radice, f))));
+  c("i cinque file ci sono", [true, true, true, true, true], Object.values(F).map((f) => existsSync(join(radice, f))));
   const tutto = Object.values(src).join("\n");
   c("le stelle e «N recensioni» stanno dietro la guardia `reviews > 0` (la scheda di oggi non ne ha più)", true, /reviews\s*>\s*0/.test(src.griglia));
-  c("`ViewContent` della lista passa da `emettiEvento` con `datiListaVisualizzata` (product_group), dentro `useListaVista`, usato da entrambe le pagine", [true, true, true], [/emettiEvento\(\s*"ViewContent"/.test(src.griglia) && /datiListaVisualizzata/.test(src.griglia), /useListaVista\(/.test(src.indice), /useListaVista\(/.test(src.categoria)]);
+  c("`ViewContent` della lista passa da `emettiEvento` (product_group): l'elenco di `codice` con `datiListaVisualizzata` dentro `useListaVista`, la categoria V1 con il suo hook (`emettiUnaVolta`, product_group); la home V1 non lo emette (decisione del capo)", [true, true, true], [/emettiEvento\(\s*"ViewContent"/.test(src.griglia) && /datiListaVisualizzata/.test(src.griglia), /useListaVista\(/.test(src.indice), /emettiEvento\(\s*"ViewContent"/.test(src.paginaCategoria) && /emettiUnaVolta\(/.test(src.paginaCategoria) && /product_group/.test(src.paginaCategoria)]);
   c("`Search` passa da `emettiEvento` con il SOLO `searchString`, e parte da `creaEmettitoreRicerca` (pausa o Invio)", [true, true, false], [/emettiEvento\(\s*"Search"\s*,\s*\{\s*searchString:\s*\w+\s*\}\s*\)/.test(src.indice), /creaEmettitoreRicerca/.test(src.indice), /emettiEvento\(\s*"Search"[^)]*(contentIds|categoria|valueCent)/.test(src.indice)]);
   c("il testo cercato NON entra nell'indirizzo: la pagina non ha `validateSearch`, `useSearch`, né `search:`", false, /validateSearch|useSearch|search\s*:|history\.|replaceState|pushState/.test(src.indice));
   c("nessun nome di tabella e nessun client del database nelle pagine (solo le funzioni del server)", false, /\bshop_[a-z_]+|supabase|catalogo\.server/.test(tutto));
@@ -167,7 +168,7 @@ export async function prove(mod, { c, gruppo, radice }) {
   //   La pulizia: l'effetto RESTITUISCE ciò che `suScelta` dà (la funzione che stacca l'ascolto da `window`). Senza `return` l'ascolto resta
   //   attaccato dopo lo smontaggio (mutazione del revisore: `return suScelta(` → `suScelta(` restava verde).
   c("`useListaVista` restituisce la pulizia di `suScelta` (nessun ascolto resta attaccato a `window`)", true, /return\s+suScelta\(/.test(src.griglia));
-  c("il conteggio degli articoli passa da `etichettaArticoli` (singolare «1 articolo») in entrambe le pagine", [true, true, false], [/etichettaArticoli\(/.test(src.indice), /etichettaArticoli\(/.test(src.categoria), /articoli<\/span>|\} articoli/.test(src.indice + src.categoria)]);
+  c("il conteggio degli articoli dell'elenco di `codice` passa da `etichettaArticoli` (singolare «1 articolo»); la categoria V1 non lo scrive (il numero è di `FiltriCategoria`)", [true, false, false], [/etichettaArticoli\(/.test(src.indice), /etichettaArticoli\(/.test(src.categoria + src.paginaCategoria), /articoli<\/span>|\} articoli/.test(src.indice)]);
   c("la categoria: codice → `notFound()`; CMS senza categoria o senza prodotti → `redirect` a /shop", [true, true], [/notFound\(\)/.test(src.categoria), /redirect\(\{\s*to:\s*"\/shop"/.test(src.categoria)]);
 
   /* ───────────────── 3 · IL MARKUP: CODICE E CMS ───────────────── */
@@ -192,11 +193,12 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("la pagina dell'elenco e quella della categoria si impacchettano", [true, true], [typeof M?.Indice?.options?.component === "function", typeof M?.Categoria?.options?.component === "function"]);
   if (typeof M?.Indice?.options?.component !== "function") return;
   const norm = (h) => h.replace(/data:image\/[a-z]+;base64,[A-Za-z0-9+/=]+/g, "DATA");
-  const schede = (h) => [...h.matchAll(/<div class="group relative flex flex-col[\s\S]*?(?=<div class="group relative flex flex-col|<\/section><\/div>$)/g)].map((m) => m[0]);
+  const schede = (h) => h.split("<article").slice(1);
 
   /* ── codice: identico a oggi ── */
   impostaPagina({ pathname: "/shop", searchStr: "", context: { modalita: "codice" }, loaderData: null });
   const hCodice = norm(M.disegna(M.Indice.options.component));
+  c("codice: il titolo e il sottotitolo di oggi restano (premium, indistinguibili): l'impronta lo prova, qui il testo", [true, true], [/Toupee\s*indistinguibili\s*e tutto per curarli/.test(testoVisibile(hCodice)), /grado premium/.test(testoVisibile(hCodice))]);
   c("codice: il markup di /shop è IDENTICO a oggi (impronta sha256; unica differenza ammessa: l'`aria-label` del campo di ricerca)", IMPRONTA_DI_OGGI, createHash("sha256").update(hCodice.replace(' aria-label="Cerca nel negozio"', "")).digest("hex"));
   c("codice: il campo di ricerca ha un nome per chi usa il lettore di schermo", true, /<input[^>]*aria-label="Cerca nel negozio"/.test(hCodice));
   const nomiOggi = [...hCodice.matchAll(/class="line-clamp-1 font-semibold text-white transition hover:text-brand">([^<]*)</g)].map((m) => m[1].replace(/&#x27;/g, "'").replace(/&amp;/g, "&"));
@@ -204,60 +206,56 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("codice: le stelle e «N recensioni» ci sono su ogni scheda (33), come oggi", [33, true], [(hCodice.match(/ recensioni</g) ?? []).length, /4\.8\/5 · 1\.500\+ clienti/.test(testoVisibile(hCodice).replace(/&gt;/g, ">"))]);
   c("codice: la riga «Spedizione gratis > €59» del titolo c'è, come oggi", true, /Spedizione gratis > €59/.test(testoVisibile(hCodice)));
 
-  /* ── cms: la GRIGLIA dell'elenco ──
-   *  T94 (passo 1): con `cms` `/shop` non è più questa pagina (la home nuova la prova `shop-home-v1.mjs`); la griglia di questo elenco (`GrigliaProdotti`,
-   *  `ChipCategorie`) vive ancora nella pagina della categoria, e i controlli sul suo markup passano di lì (stessa forza). Sono rimasti fuori quelli
-   *  che parlavano dell'hero e del titolo della vecchia home cms (D38: titolo, sottotitolo): li sostituisce `shop-home-blocchi.mjs` (H1, sottotitolo, parole vietate). */
+  /* ── cms: la GRIGLIA dei prodotti (T94 passo 2) ──
+   *  Con `cms` `/shop` è la home nuova (`shop-home-v1.mjs`) e la categoria è `PaginaCategoria` con le card di T85: i controlli sul markup dei prodotti si disegnano
+   *  sulla categoria V1, con la forma V1 del loader (righe `{ sku, card, varianti, opzioni }`, `meta`, `contenuto`, `tariffa`). */
   const PUBBLICI = catalogoProva(PUB);
   c("(prova stessa) il catalogo inventato dà 5 prodotti pubblici", 5, PUBBLICI.length);
+  const CARD = mod["shop/cms/vetrina-card"];
+  const leggero = (p) => ({ sku: p.sku, card: CARD.cardDaPubblico(p), varianti: p.varianti, opzioni: p.opzioni });
   const disegnaCms = (extra = {}) => {
-    impostaPagina({ pathname: "/shop/c/patch-pronte", searchStr: "", params: { slug: "patch-pronte" }, context: { modalita: "cms" }, loaderData: { categoria: categorieProva[0], categorie: categorieProva, prodotti: PUBBLICI, ...extra } });
+    const { prodotti = PUBBLICI, ...resto } = extra;
+    impostaPagina({ pathname: "/shop/c/patch-pronte", searchStr: "", search: {}, params: { slug: "patch-pronte" }, context: { modalita: "cms" },
+      loaderData: { categoria: categorieProva[0], meta: { titolo: "Titolo di prova", descrizione: "Descrizione di prova." }, prodotti: prodotti.map(leggero), contenuto: { testi: {}, media: {} }, tariffa: { stato: "assente" }, ...resto } });
     return norm(M.disegna(M.Categoria.options.component));
   };
   const hCms = disegnaCms();
   const tCms = testoVisibile(hCms);
   const cardCms = schede(hCms);
-  c("cms: 5 schede, una per prodotto pubblico, nell'ordine ricevuto", [5, ["Shampoo di prova", "Patch di prova", "Colla di prova", "Invisible Derm Protocol®", "Kit di prova"]],
-    [cardCms.length, [...hCms.matchAll(/class="line-clamp-1 font-semibold text-white transition hover:text-brand">([^<]*)</g)].map((m) => m[1].replace(/&amp;/g, "&").replace(/&#x27;/g, "'"))]);
+  const nomiCard = (h) => [...h.matchAll(/<h2 class="line-clamp-2[^>]*>([\s\S]*?)<\/h2>/g)].map((m) => testoVisibile(m[1]));
+  c("cms: 5 schede, una per prodotto pubblico, nell'ordine ricevuto", [5, ["Shampoo di prova", "Patch di prova", "Colla di prova", "Invisible Derm Protocol®", "Kit di prova"]], [cardCms.length, nomiCard(hCms)]);
   c("cms: NIENTE stelle (nessuna icona stella), NIENTE «recensioni», nessun voto in nessuna parte della pagina", [0, false, false, false],
     [(hCms.match(/lucide-star/g) ?? []).length, /recension/i.test(tCms), /\b4[.,]8\b|1\.500|clienti/i.test(tCms), /text-amber-300/.test(hCms)]);
-  c("cms: niente prezzo barrato, niente badge, niente «sconto», «risparmi», «ultimi»", [false, false, false],
-    [/line-through|<del|<s>/.test(hCms), /border-brand\/40|rounded-full border border-brand/.test(hCms), /sconto|risparmi|ultimi|best seller|top rated/i.test(tCms)]);
-  c("cms: niente soglia di spedizione gratuita (la cifra non è più vera) né il «Remy» non provato", [false, false], [/59|Spedizione gratis/i.test(tCms), /Remy/.test(tCms)]);
+  c("cms: niente prezzo barrato, niente «sconto», «risparmi», «ultimi»", [false, false],
+    [/line-through|<del|<s>/.test(hCms), /sconto|risparmi|ultimi|best seller|top rated/i.test(tCms)]);
+  c("cms: niente soglia di spedizione gratuita (la cifra non è più vera) né il «Remy» non provato", [false, false], [/\b59\b|Spedizione gratis/i.test(tCms), /Remy/.test(tCms)]);
   c("cms: nessun indirizzo dello studio", false, /Scipioni|Via degli/i.test(tCms));
   const prezzo = (h) => (testoVisibile(h).match(/€\s?[\d.]+,\d{2}|[\d.]+,\d{2}\s?€/g) ?? []);
+  const cifre = (l) => l.map((x) => x.replace(/[^\d,]/g, ""));
   //  D38: le parole vietate non ci sono
   const PAROLE_VIETATE = /premium|indistinguibil|\bRemy\b|grado/i;
-  c("cms: nel titolo, nel sottotitolo e in tutta la pagina niente «premium», «indistinguibil…», «Remy», «grado»", false, PAROLE_VIETATE.test(tCms));
-  c("codice: il titolo e il sottotitolo di oggi restano (premium, indistinguibili): l'impronta lo prova, qui il testo", [true, true], [/Toupee\s*indistinguibili\s*e tutto per curarli/.test(testoVisibile(hCodice)), /grado premium/.test(testoVisibile(hCodice))]);
-  c("cms: «1 articolo» al singolare, mai «1 articoli»", [false], [/\b1 articoli\b/.test(tCms)]);
-  //  Note 5: una categoria senza prodotti (`quanti: 0`) non è un chip (il suo indirizzo rimanda a /shop)
-  const categorieConVuota = [...categorieProva, { slug: "vuota", nome: "Categoria senza prodotti", tipo: "categoria", frase: null, foto: null, seo: { titolo: null, descrizione: null }, ordine: 9, quanti: 0 }];
-  const hVuota = disegnaCms({ categorie: categorieConVuota });
-  c("cms: la categoria con 0 prodotti non è un chip; le altre tre sì", [false, false, 3], [/href="\/shop\/c\/vuota"/.test(hVuota), /Categoria senza prodotti/.test(hVuota), (hVuota.match(/href="\/shop\/c\//g) ?? []).length]);
-  c("cms: tutte le categorie a 0 → nessuna riga di chip (non un «Tutti» da solo)", [false, false], (() => { const h = disegnaCms({ categorie: [categorieConVuota.at(-1)] }); return [/>Tutti</.test(h), /href="\/shop\/c\/(?!patch-pronte)/.test(h)]; })());
+  c("cms: in tutta la pagina niente «premium», «indistinguibil…», «Remy», «grado»", false, PAROLE_VIETATE.test(tCms));
   //  D39: il server dà Invisible Derm con `prezzoCent` e `prezzoDaCent` nulli; un prodotto qualunque senza prezzo non si compra
   const senzaPrezzi = PUBBLICI.map((p) => (/Invisible Derm/.test(p.nome) ? { ...p, prezzoDaCent: null, varianti: p.varianti.map((v) => ({ ...v, prezzoCent: null })) } : p));
   const stranoSenzaPrezzo = { ...PUBBLICI[0], sku: "PROVA-SP", slug: "senza-prezzo", nome: "Un prodotto senza prezzo", prezzoDaCent: null, varianti: PUBBLICI[0].varianti.map((v) => ({ ...v, prezzoCent: null })) };
   const hNull = (() => { try { return disegnaCms({ prodotti: [...senzaPrezzi, stranoSenzaPrezzo] }); } catch (e) { return `LANCIA ${String(e).slice(0, 80)}`; } })();
   const cNull = schede(hNull);
   c("D39: con i prezzi nulli la pagina si disegna (6 schede) e non lancia", [6, false], [cNull.length, /^LANCIA/.test(hNull)]);
-  c("D39: Invisible Derm senza prezzo dal server: nessuna cifra, nessun «NaN», nessun «Aggiungi», frase e link alla scheda", [[], false, false, true, true],
-    [prezzo(cNull[3]), /NaN|null|undefined/.test(cNull[3]), /Aggiungi/.test(cNull[3]), /Il costo lo vedi in consulenza\./.test(testoVisibile(cNull[3])), /href="\/shop\/prodotto\/invisible-derm-protocol"/.test(cNull[3])]);
-  c("D39: un prodotto qualunque senza prezzo non mostra «0,00», né «Aggiungi», e manda alla scheda", [[], false, false, true], [prezzo(cNull[5]), /0,00/.test(cNull[5]), /<button|Aggiungi/.test(cNull[5]), /href="\/shop\/prodotto\/senza-prezzo"/.test(cNull[5])]);
-  c("D39: gli altri prodotti restano come prima (prezzi e bottoni)", [["18,90"], ["24,00"], ["45,00"]], [prezzo(cNull[0]), prezzo(cNull[2]), prezzo(cNull[4])].map((l) => l.map((x) => x.replace(/[^\d,]/g, ""))));
+  c("D39: Invisible Derm senza prezzo dal server: nessuna cifra, nessun «NaN», nessun «Aggiungi», «Scopri» e link alla scheda", [[], false, false, true, true],
+    [prezzo(cNull[3]), /NaN|null|undefined/.test(cNull[3]), /Aggiungi/.test(cNull[3]), /Scopri/.test(cNull[3]), /href="\/shop\/prodotto\/invisible-derm-protocol"/.test(cNull[3])]);
+  c("D39: un prodotto qualunque senza prezzo non mostra «0,00», né «Aggiungi», e manda alla scheda", [[], false, false, true], [prezzo(cNull[5]), /0,00/.test(cNull[5]), /Aggiungi/.test(cNull[5]), /href="\/shop\/prodotto\/senza-prezzo"/.test(cNull[5])]);
+  c("D39: gli altri prodotti restano come prima (prezzi)", [["18,90"], ["24,00"], ["45,00"]], [cifre(prezzo(cNull[0])), cifre(prezzo(cNull[2])), cifre(prezzo(cNull[4]))]);
   const [cShampoo, cPatch, cColla, cDerm, cKit] = cardCms;
-  c("cms: i prezzi sono quelli del server (centesimi → euro), con «Da» se le varianti costano diverso", [["18,90"], true, ["24,00"], ["45,00"]],
-    [prezzo(cShampoo).map((x) => x.replace(/[^\d,]/g, "")), /Da\s/.test(testoVisibile(cPatch)) && /120,00/.test(testoVisibile(cPatch)), prezzo(cColla).map((x) => x.replace(/[^\d,]/g, "")), prezzo(cKit).map((x) => x.replace(/[^\d,]/g, ""))]);
-  c("cms: Invisible Derm SENZA prezzo: nessuna cifra, nessun «€», nessun «Aggiungi»; c'è la frase «Il costo lo vedi in consulenza.» e il link alla scheda", [[], false, false, true, true],
-    [prezzo(cDerm), /€/.test(cDerm), /Aggiungi/.test(cDerm), /Il costo lo vedi in consulenza\./.test(testoVisibile(cDerm)), /href="\/shop\/prodotto\/invisible-derm-protocol"/.test(cDerm)]);
+  c("cms: i prezzi sono quelli del server (centesimi → euro), con «da» se le varianti costano diverso", [["18,90"], true, ["24,00"], ["45,00"]],
+    [cifre(prezzo(cShampoo)), /\bda\b/i.test(testoVisibile(cPatch)) && /120,00/.test(testoVisibile(cPatch)), cifre(prezzo(cColla)), cifre(prezzo(cKit))]);
+  c("cms: Invisible Derm SENZA prezzo: nessuna cifra, nessun «€», nessun «Aggiungi»; «Scopri» e il link alla scheda", [[], false, false, true, true],
+    [prezzo(cDerm), /€/.test(cDerm), /Aggiungi/.test(cDerm), /Scopri/.test(cDerm), /href="\/shop\/prodotto\/invisible-derm-protocol"/.test(cDerm)]);
   c("cms: Invisible Derm non lascia cifre da nessuna parte nel suo pezzo di pagina (nemmeno 3.900, 3900, 390000)", false, /3[.]?900|390000/.test(cDerm));
-  c("cms: un solo prodotto, una sola variante, disponibile → «Aggiungi»; con opzioni → «Scegli» (link alla scheda); esaurito → «Esaurito» e nessun bottone", [true, true, true, false],
-    [/<button[^>]*>[\s\S]*?Aggiungi/.test(cShampoo) && !/Scegli/.test(cShampoo), /Scegli/.test(cPatch) && !/<button/.test(cPatch), /Esaurito/.test(cColla) && !/<button/.test(cColla) && !/Aggiungi/.test(cColla), /Esaurito/.test(cKit)]);
-  c("cms: le foto sono quelle del server (misura 960) con il testo alternativo", [true, true], [/src="https:\/\/media\.prova\.test\/shop\/prova\/p0-960\.webp"/.test(cShampoo), /alt="Shampoo di prova"/.test(cShampoo)]);
-  c("cms: i nomi delle categorie sono link a /shop/c/<slug> (non pulsanti che cambiano lo stato)", [true, true, true], ["patch-pronte", "shampoo-e-balsami", "colle-e-remover"].map((s) => new RegExp(`<a [^>]*href="/shop/c/${s}"`).test(hCms)));
-  c("cms: «Tutti» è un link a /shop e la categoria aperta è quella evidenziata (aria-current)", true, /<a [^>]*href="\/shop"[^>]*>Tutti<\/a>/.test(hCms) && /<a [^>]*aria-current="page"[^>]*>Patch pronte<\/a>/.test(hCms));
-  c("cms: il conteggio dice quanti articoli (5)", true, /5 articoli/.test(tCms));
+  //  l'«Esaurito» lo dice la scheda (la card non lo scrive): una card non aggiungibile manda alla scheda con «Scegli»
+  c("cms: un solo prodotto, una sola variante, disponibile → «Aggiungi» (bottone); con opzioni → «Scegli» (senza bottone); non aggiungibile (esaurito) → «Scegli» alla scheda e mai «Aggiungi»", [true, true, true, true, true],
+    [/<button[^>]*>[\s\S]*?Aggiungi/.test(cShampoo) && !/Scegli/.test(cShampoo), /Scegli/.test(cPatch) && !/Aggiungi/.test(cPatch) && !/<button/.test(cPatch),
+      /Scegli/.test(cColla) && !/Aggiungi/.test(cColla) && !/<button/.test(cColla), /href="\/shop\/prodotto\/colla-di-prova"/.test(cColla), /Aggiungi/.test(cKit)]);
+  c("cms: le foto sono quelle del server (misura 960) con il testo alternativo", [true, true], [/https:\/\/media\.prova\.test\/shop\/prova\/p0-960\.webp/.test(cShampoo), /alt="Foto Shampoo di prova"/.test(cShampoo)]);
 
   /* ── il caricamento dell'elenco ──
    *  T94 (passo 1): il `loader` di `/shop` con `cms` dà ora i dati leggeri della home (contenuto, tariffa, categorie piene, vetrina) e il suo guasto è una home valida:
@@ -266,51 +264,14 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("l'elenco ha un `loader`: con il codice non chiede niente al server (null)", ["function", null], [typeof caric, typeof caric === "function" ? await (async () => { impostaPagina({ server: { elenco: () => { throw new Error("no"); }, categorie: () => { throw new Error("no"); } } }); return caric({ context: { modalita: "codice" } }); })() : "assente"]);
 
   /* ───────────────── 4 · LA CATEGORIA ───────────────── */
+  //  T94 (passo 2): la categoria V1 (`PaginaCategoria`, T95) è provata da `shop-categoria-v1.mjs` (loader, `head`, disegno, sorgente): i controlli che stavano qui
+  //  (loader notFound/redirect, titolo e descrizione SEO, canonical, ItemList e `</script>`, solo i prodotti della categoria, un H1, sentiero, nessun indirizzo,
+  //  parole vietate) sono tolti e SOSTITUITI da quelli; l'elenco riga per riga è in LAVAGNA. Qui restano solo la forma V1 disegnata (sopra) e il sorgente (sezione 2).
   const K = M.Categoria;
-  const ctx = (modalita) => ({ modalita });
-  const dati = (slug) => ({ elenco: ({ categoria }) => PUBBLICI.filter((p) => p.categorie.some((x) => x.slug === categoria)), categorie: categorieProva });
-  impostaPagina({ server: dati() });
-  const carica = (slug, modalita = "cms") => Promise.resolve(K.options.loader({ params: { slug }, context: ctx(modalita) })).then((r) => ({ r }), (e) => ({ e }));
-  const ok = await carica("patch-pronte");
-  c("categoria: esiste, visibile, con prodotti → dati con la categoria e i suoi 2 prodotti", [true, 2, "Patch pronte"], [!!ok.r, ok.r?.prodotti?.length, ok.r?.categoria?.nome]);
-  c("categoria: con il catalogo del codice la pagina non esiste (404 come oggi): `notFound`", true, (await carica("patch-pronte", "codice")).e?.__notFound === true);
-  c("categoria: che non esiste → rimanda a /shop", "/shop", (await carica("non-esiste")).e?.__redirect?.to);
-  impostaPagina({ server: { elenco: () => [], categorie: categorieProva } });
-  c("categoria: esiste ma senza prodotti pubblicati (o guasto) → rimanda a /shop", "/shop", (await carica("patch-pronte")).e?.__redirect?.to);
-  impostaPagina({ server: { elenco: () => { throw new Error("giù"); }, categorie: () => { throw new Error("giù"); } } });
-  c("categoria: se il server non risponde non è un errore al pubblico: rimanda a /shop", "/shop", (await carica("patch-pronte")).e?.__redirect?.to);
-  impostaPagina({ server: dati() });
-
-  const caricati = (await carica("patch-pronte")).r;
-  const testa = K.options.head?.({ loaderData: caricati, params: { slug: "patch-pronte" } });
-  const meta = (n) => testa?.meta?.find((m) => m.name === n || m.property === n)?.content;
-  c("categoria: titolo e descrizione della pagina sono quelli SEO della categoria (e il nome del sito)", [true, "Patch pronte da uno studio di Roma."], [/^Patch pronte, scegli colore e misura \| /.test(testa?.meta?.find((m) => m.title)?.title ?? ""), meta("description")]);
-  c("categoria: indirizzo canonico /shop/c/<slug> sul dominio del sito", true, /^https:\/\/[^/]+\/shop\/c\/patch-pronte$/.test(testa?.links?.find((l) => l.rel === "canonical")?.href ?? ""));
-  c("categoria: i dati strutturati sono un'ItemList con i prodotti, scritti senza `<` (non chiudono il tag)", [true, false], (() => { const t = testa?.scripts?.[0]?.children ?? ""; return [/"ItemList"/.test(t) && /patch-di-prova/.test(t), /</.test(t)]; })());
-  //  Nota 2: un nome con `</script>` NON chiude il tag. Se si scrivesse `JSON.stringify` al posto di `serializzaJsonLd`, questa prova diventa rossa.
-  const NOME_OSTILE = "</script><script>alert(1)</script>";
-  const ostile = { ...caricati, prodotti: caricati.prodotti.map((p, i) => (i === 0 ? { ...p, nome: NOME_OSTILE } : p)) };
-  const testaOstile = K.options.head?.({ loaderData: ostile, params: { slug: "patch-pronte" } });
-  const jsonOstile = testaOstile?.scripts?.[0]?.children ?? "";
-  c("categoria: un nome con `</script>` non apre né chiude un tag nel JSON-LD (nessun `<`, e si rilegge identico con JSON.parse)", [false, NOME_OSTILE], (() => { try { return [/</.test(jsonOstile), JSON.parse(jsonOstile).itemListElement[0].name]; } catch { return ["non si rilegge", null]; } })());
-  const sc = (await carica("shampoo-e-balsami")).r;
-  const testa2 = K.options.head?.({ loaderData: sc, params: { slug: "shampoo-e-balsami" } });
-  c("categoria: senza testi SEO il titolo è il nome della categoria", true, /^Shampoo e balsami \| /.test(testa2?.meta?.find((m) => m.title)?.title ?? ""));
-
-  impostaPagina({ pathname: "/shop/c/patch-pronte", searchStr: "", params: { slug: "patch-pronte" }, context: ctx("cms"), loaderData: caricati });
-  const hCat = norm(M.disegna(K.options.component));
-  const tCat = testoVisibile(hCat);
-  c("categoria: un solo titolo (h1) col nome della categoria, e la sua frase", [1, true, true], [(hCat.match(/<h1\b/g) ?? []).length, /<h1[^>]*>Patch pronte<\/h1>/.test(hCat), tCat.includes("Per chi ha già deciso.")]);
-  c("categoria: mostra SOLO i prodotti della categoria (Patch di prova e Invisible Derm), nell'ordine ricevuto", ["Patch di prova", "Invisible Derm Protocol®"], [...hCat.matchAll(/class="line-clamp-1 font-semibold text-white transition hover:text-brand">([^<]*)</g)].map((m) => m[1].replace(/&amp;/g, "&")));
-  c("categoria: niente stelle, recensioni, badge, barrato; Invisible Derm senza prezzo", [0, false, false, false, []],
-    [(hCat.match(/lucide-star/g) ?? []).length, /recension/i.test(tCat), /line-through/.test(hCat), /border-brand\/40/.test(hCat), prezzo(schede(hCat)[1] ?? "")]);
-  c("categoria: un sentiero per tornare (Shop › nome) e le altre categorie come link; quella aperta è evidenziata", [true, true, true], [/href="\/shop"[^>]*>Shop<\/a>/.test(hCat), /href="\/shop\/c\/colle-e-remover"/.test(hCat), /<a [^>]*aria-current="page"[^>]*>Patch pronte<\/a>/.test(hCat)]);
-  c("categoria: nessun indirizzo dello studio", false, /Scipioni|Via degli/i.test(tCat));
-  c("categoria: niente «premium», «indistinguibil…», «Remy», «grado» (D38)", false, PAROLE_VIETATE.test(tCat));
-  c("categoria: «2 articoli» (plurale) e una sola con «1 articolo»", [true, true], (() => {
-    impostaPagina({ pathname: "/shop/c/patch-pronte", searchStr: "", params: { slug: "patch-pronte" }, context: ctx("cms"), loaderData: { ...caricati, prodotti: caricati.prodotti.slice(0, 1) } });
-    return [/2 articoli/.test(tCat), />1 articolo</.test(M.disegna(K.options.component))];
-  })());
-  impostaPagina({ pathname: "/shop/c/patch-pronte", searchStr: "", params: { slug: "patch-pronte" }, context: ctx("cms"), loaderData: { ...caricati, categorie: categorieConVuota } });
-  c("categoria: la categoria con 0 prodotti non è un chip nemmeno qui", false, /href="\/shop\/c\/vuota"/.test(M.disegna(K.options.component)));
+  c("categoria V1: la rotta ha `validateSearch` (i filtri passano dall'indirizzo) e un `loader` che con `codice` fa `notFound` senza chiamare il server", ["function", "function", "notFound", []],
+    await (async () => {
+      impostaPagina({ server: { elenco: () => { throw new Error("no"); }, categorie: () => { throw new Error("no"); } } });
+      const e = await Promise.resolve(K.options.loader({ params: { slug: "patch-pronte" }, context: { modalita: "codice" } })).then(() => "nessun errore", (x) => (x?.__notFound ? "notFound" : String(x)));
+      return [typeof K.options.validateSearch, typeof K.options.loader, e, []];
+    })());
 }

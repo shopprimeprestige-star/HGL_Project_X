@@ -306,7 +306,7 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("niente `window`, `document` o `localStorage` (il server disegna la categoria)", [false, false, false], [/\bwindow\b/.test(sc + scFoglio), /\bdocument\b/.test(sc + scFoglio), /localStorage/.test(sc + scFoglio)]);
   c("i bersagli sono da 44 px (`min-h-11` / `size-11`) e ogni controllo ha l'anello di fuoco (`shop-anello`)", [true, true], [conta(sc, "min-h-11") + conta(sc, "size-11") >= 4, conta(sc, "shop-anello") >= 4]);
   c("design: nessun bordo laterale colorato (`border-l-`/`border-r-` oltre 1 px), nessuna `shadow` di decorazione sulle pillole", [false, false], [/border-[lr]-(?:\[|[2-9])/.test(sc + scFoglio), /shadow-(?:md|lg|xl)/.test(sc + scFoglio)]);
-  c("non è montato in nessuna route né componente (lo monta T95)", [], chiImporta(radice, "src", /categoria\/(?:FiltriCategoria|FoglioFiltri)/, [FILE, FILE_FOGLIO]));
+  c("lo monta solo `PaginaCategoria` (T95), nessuna route lo nomina direttamente", ["src/components/shop/pagine/PaginaCategoria.tsx"], chiImporta(radice, "src", /categoria\/(?:FiltriCategoria|FoglioFiltri)/, [FILE, FILE_FOGLIO]));
 
   // ════ 3 · IL MARCHIO ════════════════════════════════════════════════════════════════════════════════════
   const PATCH = PRODOTTI.filter((p) => p.tipo === "patch");
