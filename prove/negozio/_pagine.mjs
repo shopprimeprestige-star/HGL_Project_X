@@ -35,6 +35,7 @@ export const useRouterState = (o) => {
   return o && o.select ? o.select(stato) : stato;
 };
 export const useNavigate = () => () => {};
+export const useRouter = () => ({ invalidate() {}, options: {} });
 export const notFound = () => ({ __notFound: true });
 export const redirect = (o) => ({ __redirect: o });
 `;

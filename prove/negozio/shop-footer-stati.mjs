@@ -105,7 +105,10 @@ export async function prove(mod, { c, gruppo, radice }) {
   const slugCategorie = TESTI_SHOP.categorie.map((x) => x.slug);
 
   // ═════════════ PIÈ DI PAGINA ═════════════
-  const f = await rendiComponente(radice, FILE.footer, "FooterShop", { anno: 2031 });
+  //  T100a: «Cura» c'è solo se la sua categoria ha prodotti: il piè di pagina riceve le categorie dal guscio (come l'header)
+  const SLUG_CURA = HREF.HREF_CURA.replace("/shop/c/", "");
+  const CON_PRODOTTI = [{ slug: slugCategorie[0], quanti: 2 }, { slug: SLUG_CURA, quanti: 3 }];
+  const f = await rendiComponente(radice, FILE.footer, "FooterShop", { anno: 2031, categorie: CON_PRODOTTI });
   const F = f.html;
   const TF = testo(F);
   c("piè di pagina: un solo <footer>, fondo `bg-footer`, testo `white/75`", [1, true, true], [conta(F, /<footer\b/g), /class="[^"]*\bbg-footer\b/.test(F), /\btext-white\/75\b/.test(F)]);
@@ -117,6 +120,12 @@ export async function prove(mod, { c, gruppo, radice }) {
   // V1-H4: l'elenco dei link è chiuso, e ognuno porta a una rotta che esiste
   const LINK_ATTESI = [HREF.HREF_PATCH_PRONTE, HREF.HREF_CURA, "/termini-e-condizioni", "/privacy-policy", "/cookie-policy"];
   c("piè di pagina: i link sono ESATTAMENTE questi cinque (elenco chiuso, V1-H4)", [...LINK_ATTESI].sort(), hrefs(F).sort());
+  const hCura = async (categorie) => hrefs((await rendiComponente(radice, FILE.footer, "FooterShop", { anno: 2031, categorie })).html).includes(HREF.HREF_CURA);
+  c("piè di pagina: «Cura» compare solo se la sua categoria ha prodotti (con prodotti sì; senza proprietà, `null`, elenco vuoto, `quanti` 0, categoria assente o elenco rotto no)", [true, false, false, false, false, false, false], [
+    await hCura(CON_PRODOTTI), await hCura(undefined), await hCura(null), await hCura([]), await hCura([{ slug: SLUG_CURA, quanti: 0 }]), await hCura([{ slug: slugCategorie[0], quanti: 4 }]), await hCura("rotto"),
+  ]);
+  const senzaCura = hrefs((await rendiComponente(radice, FILE.footer, "FooterShop", { anno: 2031 })).html).sort();
+  c("piè di pagina: senza prodotti restano gli altri quattro link («Patch pronte» e i tre legali), nessun link rotto", [...LINK_ATTESI.filter((h) => h !== HREF.HREF_CURA)].sort(), senzaCura);
   c("piè di pagina: ogni link porta a una rotta che esiste nel progetto", [], hrefs(F).filter((h) => !esiste(h)));
   c("piè di pagina: i due link di categoria hanno uno slug del documento (§3.4)", [true, true], [HREF.HREF_PATCH_PRONTE, HREF.HREF_CURA].map((h) => slugCategorie.includes(h.replace("/shop/c/", ""))));
   c("piè di pagina: le rotte legali sono quelle vere di Termini, Privacy e Cookie", [true, true, true], ["termini-e-condizioni", "privacy-policy", "cookie-policy"].map((n) => readFileSync(join(radice, `src/routes/${n}.tsx`), "utf8").includes(`createFileRoute("/${n}")`)));
@@ -129,7 +138,7 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("piè di pagina: il comando che riapre i cookie c'è (`GestisciCookie`, quello che esiste)", [1], [conta(F, /\sdata-gestisci-cookie\b/g)]);
   c("piè di pagina: ogni link ha l'area da 44 px (`min-h-11`)", [], tagA(F).filter((a) => !/\bmin-h-11\b/.test(a)));
   c("piè di pagina: senza `consulenza` la voce «Consulenza gratuita» non c'è (non è una pagina)", [false], [TF.includes(TESTI_SHOP.header.consulenza)]);
-  const fc = await rendiComponente(radice, FILE.footer, "FooterShop", { anno: 2031, consulenza: () => { fc.chiamato = true; } });
+  const fc = await rendiComponente(radice, FILE.footer, "FooterShop", { anno: 2031, categorie: CON_PRODOTTI, consulenza: () => { fc.chiamato = true; } });
   c("piè di pagina: con `consulenza` la voce è un bottone (non un link) e lo scatto chiama chi l'ha data", [true, hrefs(fc.html).length, true], (() => {
     const bottone = gestore(fc.pagina, "button", TESTI_SHOP.header.consulenza);
     bottone();

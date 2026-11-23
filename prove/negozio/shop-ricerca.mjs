@@ -421,7 +421,7 @@ export async function prove(mod, { c, gruppo, radice }) {
     c("per codice (SKU) in maiuscolo: trova la patch Beta", [1, true], [v.voci().length, testoDi(v.voci()[0]).includes("Beta")]);
     v.scrivi("zzzz");
     c("nessun risultato: la tendina resta chiusa e la regione tace", [false, 0, ""], [v.aperta(), v.voci().length, testoDi(v.stato())]);
-    c("Invio sul testo che non trova niente porta comunque alla pagina dei risultati (là c'è lo stato vuoto con 4 prodotti)", [{ href: "/shop/cerca?q=zzzz" }], (v.tasto("Enter"), p.navigazioni));
+    c("Invio sul testo che non trova niente porta comunque alla pagina dei risultati (là c'è lo stato vuoto con 4 prodotti)", [{ to: "/shop/cerca", search: { q: "zzzz" } }], (v.tasto("Enter"), p.navigazioni));
     app.smonta();
   }
 
@@ -468,11 +468,17 @@ export async function prove(mod, { c, gruppo, radice }) {
     p.navigazioni.length = 0;
     v.scrivi("prova");
     v.tasto("Enter");
-    c("Invio senza voce evidenziata: `/shop/cerca` con il solo testo", [{ href: "/shop/cerca?q=prova" }], p.navigazioni);
+    c("Invio senza voce evidenziata: `/shop/cerca` con il solo testo", [{ to: "/shop/cerca", search: { q: "prova" } }], p.navigazioni);
     p.navigazioni.length = 0;
     v.scrivi("  prova   alfa ");
     v.tasto("Enter");
-    c("il testo nell'indirizzo è pulito: spazi ridotti, senza spazi ai bordi", [{ href: "/shop/cerca?q=prova+alfa" }], p.navigazioni);
+    c("il testo nell'indirizzo è pulito: spazi ridotti, senza spazi ai bordi", [{ to: "/shop/cerca", search: { q: "prova alfa" } }], p.navigazioni);
+    //  T100a: `to` e `search` tipati. Con un indirizzo scritto a mano «1e3» veniva riletto come il numero 1000: ora la ricerca porta il testo com'è, come stringa
+    p.navigazioni.length = 0;
+    v.scrivi("1e3");
+    v.tasto("Enter");
+    c("«1e3» (e simili) va a `/shop/cerca` come testo, in `search` (stringa), mai in un indirizzo scritto a mano", [[{ to: "/shop/cerca", search: { q: "1e3" } }], "string"], [p.navigazioni, typeof p.navigazioni[0]?.search?.q]);
+    for (const q of ["0x10", "12345", "true"]) { p.navigazioni.length = 0; v.scrivi(q); v.tasto("Enter"); c(`«${q}» resta la stringa «${q}» nella ricerca`, [q, "string"], [p.navigazioni[0]?.search?.q, typeof p.navigazioni[0]?.search?.q]); }
     // minimo 2 caratteri
     p.navigazioni.length = 0;
     v.scrivi("a");
@@ -516,7 +522,7 @@ export async function prove(mod, { c, gruppo, radice }) {
     v.scrivi("prova alfa");
     p.navigazioni.length = 0;
     v.tasto("Enter");
-    c("Invio sul telefono: va ai risultati, richiude la riga e riporta il fuoco alla lente", [[{ href: "/shop/cerca?q=prova+alfa" }], true, "lente"], [p.navigazioni, v.regione().props.className.split(/\s+/).includes("hidden"), v.fuoco()]);
+    c("Invio sul telefono: va ai risultati, richiude la riga e riporta il fuoco alla lente", [[{ to: "/shop/cerca", search: { q: "prova alfa" } }], true, "lente"], [p.navigazioni, v.regione().props.className.split(/\s+/).includes("hidden"), v.fuoco()]);
     app.esegui(() => v.lente().props.onClick(evento()));
     v.scrivi("prova");
     v.tasto("ArrowDown");
@@ -558,7 +564,7 @@ export async function prove(mod, { c, gruppo, radice }) {
     v.suFuoco();
     v.scrivi("prova");
     c("con l'elenco ancora in arrivo: nessuna voce, e non si rompe niente", 0, v.voci().length);
-    c("Invio intanto porta comunque alla pagina dei risultati", [{ href: "/shop/cerca?q=prova" }], (v.tasto("Enter"), p.navigazioni));
+    c("Invio intanto porta comunque alla pagina dei risultati", [{ to: "/shop/cerca", search: { q: "prova" } }], (v.tasto("Enter"), p.navigazioni));
     v.scrivi("prova");
     sblocca();
     await attimo();
@@ -577,7 +583,7 @@ export async function prove(mod, { c, gruppo, radice }) {
     v.suFuoco();
     await attimo();
     v.scrivi("prova");
-    c("elenco non scaricato (errore): nessuna voce, nessun errore a schermo, Invio funziona", [0, [{ href: "/shop/cerca?q=prova" }]], [v.voci().length, (v.tasto("Enter"), p.navigazioni)]);
+    c("elenco non scaricato (errore): nessuna voce, nessun errore a schermo, Invio funziona", [0, [{ to: "/shop/cerca", search: { q: "prova" } }]], [v.voci().length, (v.tasto("Enter"), p.navigazioni)]);
     v.suFuoco();
     c("al fuoco dopo si riprova (seconda chiamata)", 2, p.chiamate);
     p.elencoProdotti = async () => (p.chiamate++, []);
@@ -701,7 +707,8 @@ export async function prove(mod, { c, gruppo, radice }) {
       v.scrivi(t);
       v.tasto("Enter");
     }
-    c("tutte le navigazioni da Invio senza voce vanno a `/shop/cerca`, mai altrove", true, p.navigazioni.every((n) => typeof n.href === "string" && /^\/shop\/cerca\?q=[^&]*$/.test(n.href)));
+    c("sorgente: `RicercaShop` naviga con `to` e `search` tipati, mai con `href` (T100a)", [true, false], [/navigate\(\{ to: "\/shop\/cerca", search: \{ q: pulito\(testo\) \} \}\)/.test(readFileSync(file, "utf8")), /navigate\(\{\s*href/.test(readFileSync(file, "utf8"))]);
+    c("tutte le navigazioni da Invio senza voce vanno a `/shop/cerca`, mai altrove", true, p.navigazioni.every((n) => n.to === "/shop/cerca" && n.href === undefined && Object.keys(n.search ?? {}).join() === "q" && typeof n.search.q === "string"));
     app.smonta();
   }
 }

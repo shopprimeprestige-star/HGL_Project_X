@@ -231,8 +231,16 @@ export async function prove(mod, { c, gruppo, radice }) {
   // la spedizione MOSTRATA (riepilogo di carrello e di cassa) parte dal ramo CMS: con `cms` mai la soglia dei 59 €, mai «Gratuita» per soglia
   const carrSrc = nudo(readFileSync(join(radice, FILE_CARR), "utf8"));
   const cassaSrc = nudo(cassa);
-  c("D37 sorgente: la spedizione mostrata nel carrello (T59: dal server, `tariffa.costoCent`) e nella cassa (`SPEDIZIONE_CMS_CENT / 100`) è del ramo `cms`, e «Aggiungi … per la spedizione gratuita» sta solo fuori da `cms`", [true, true, true], [
-    /const shipping = cms \? \(tariffa\.costoCent \?\? 0\) \/ 100 :/.test(carrSrc), /const shipping = cms \? SPEDIZIONE_CMS_CENT \/ 100 :/.test(cassaSrc), /shipping > 0 && !cms && \(\s*<p[^>]*>\s*Aggiungi/.test(carrSrc)]);
+  //  T100a: il ramo `cms` di `CartPage` non c'è più (era morto: con `cms` il carrello è `PaginaCarrello`). Le stesse regole, sul carrello vero di `cms` e su quello di oggi.
+  const nuovoSrc = nudo(readFileSync(join(radice, "src/components/shop/pagine/PaginaCarrello.tsx"), "utf8"));
+  const riepSrc = nudo(readFileSync(join(radice, "src/components/shop/carrello/RiepilogoOrdine.tsx"), "utf8"));
+  const venditaSrc = nudo(readFileSync(join(radice, "src/shop/cms/vetrina-carrello.ts"), "utf8"));
+  const cartPageSrc = carrSrc.slice(carrSrc.indexOf("function CartPage()"));
+  c("D37 sorgente: la spedizione mostrata nel carrello `cms` (`PaginaCarrello`) è la cifra del server (`useTariffa(true)` → `riepilogo(vista, tariffa)`), nella cassa è `SPEDIZIONE_CMS_CENT / 100` del ramo `cms`; né soglia né «Aggiungi … per la spedizione gratuita» nel carrello `cms`", [true, true, true, false, false], [
+    /const tariffa = useTariffa\(true\)/.test(nuovoSrc) && /riepilogo\(vista, tariffa\)/.test(nuovoSrc), /riepilogo\(vista: VistaCarrello, tariffa: Pick<TariffaCarrello, "stato" \| "costoCent"> \| null \| undefined\)/.test(venditaSrc), /const shipping = cms \? SPEDIZIONE_CMS_CENT \/ 100 :/.test(cassaSrc),
+    /SPEDIZIONE_CMS_CENT|SHIPPING_COST|SHIPPING_THRESHOLD|\b490\b|\b59\b/.test(nuovoSrc + riepSrc), /per la spedizione gratuita|Aggiungi \{?formatPrice/.test(nuovoSrc + riepSrc)]);
+  c("D37 sorgente: il carrello di oggi (`CartPage`) non ha più il ramo `cms`: nessuna tariffa del server, nessun `cms`, e la nota «Aggiungi … per la spedizione gratuita» c'è solo qui (soglia 59 €)", [false, false, true], [
+    /\bcms\b|useTariffa|tariffa\b|SPEDIZIONE_CMS_CENT/.test(cartPageSrc), /senzaCifra|FotoRigaCms|line\.snap/.test(cartPageSrc), /shipping > 0 && \(\s*<p[^>]*>\s*Aggiungi/.test(cartPageSrc)]);
   // con `codice` non cambia niente: sotto soglia 4,90, da 59 in su gratis (la cassa vera)
   const catalogoCodice = readFileSync(join(radice, "src/shop/catalog.ts"), "utf8");
   const prezziCodice = [...catalogoCodice.matchAll(/\bid: "(\w+)",[\s\S]*?\bprice: (\d+(?:\.\d+)?)/g)].map((m) => [m[1], Number(m[2])]);

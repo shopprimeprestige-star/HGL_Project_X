@@ -50,6 +50,19 @@ const SMISTATORI = [
 const ECCEZIONI_TIPO = {
   "src/routes/shop.prodotto.$slug.tsx": { Caricato: "T97a: con `cms` il loader porta in più tariffa, testi e cassa (facoltativi); con `codice` il valore è quello di oggi (l'oro lo prova)" },
 };
+/** T100a: le sole CANCELLAZIONI ammesse nel codice di oggi, a elenco chiuso. `shop.carrello.tsx` aveva in `CartPage` un ramo `cms` morto (con `cms` il carrello è
+ *  `PaginaCarrello`, un'altra funzione): tolto, con `FotoRigaCms` (la sua foto) e l'import `useTariffa` (il suo gancio). Vale solo se `CartPage` di adesso è il `CartPage`
+ *  del base MENO alcuni pezzi (ogni suo segno sta anche nel base, nello stesso ordine: niente di cambiato, niente di aggiunto), se le due dichiarazioni sparite non
+ *  ricompaiono sotto altra forma e se tutto il resto del file resta identico al base. Che il disegno di `codice` sia lo stesso lo dice l'oro (`codice-identico-v1`, HTML byte per byte). */
+const CANCELLAZIONI_DI_OGGI = {
+  "src/routes/shop.carrello.tsx": {
+    ridotte: { CartPage: "T100a: tolto il ramo `cms` morto (`cms`, tariffa del server, `senzaCifra`, riga con SKU disegnata)" },
+    sparite: { FotoRigaCms: "T100a: serviva solo al ramo `cms` morto di `CartPage`" },
+    importSpariti: { "@/shop/useTariffa::useTariffa": "T100a: il gancio della tariffa serviva solo al ramo `cms` morto" },
+  },
+};
+/** I testi di oggi nelle funzioni di oggi riscritte (regola 6): una stringa che il base aveva GIÀ in quella funzione non è un testo nuovo anche se la riga è cambiata. */
+const RISCRITTE_DI_OGGI = { "src/routes/shop.carrello.tsx": ["CartPage"] };
 const KEYFRAMES_D100 = new Set(["shop-respiro", "shop-foglio", "shop-dissolvi", "shop-pop"]);
 const ALLEGATI_PREZZO = new Set(["prezzo", "prezzi", "price", "prices", "cent", "cents", "centesimi", "importo", "totale", "subtotale", "amount"]);
 const IMPORT_TRACCIA_AMMESSI = new Set(["emettiEvento", "emettiSoloContatore", "traccia", "GestisciCookie"]);
@@ -164,6 +177,17 @@ async function corpo(mod, { c, radice, lavoro }) {
       if (d) f.esclusi.push([riga(f.sf, d), rigaDi(f.sf, d.getEnd())]);
     }
     f.gettoni = gettoni(f.sf);
+    //  funzioni di oggi riscritte: le righe e le stringhe che il base aveva già lì dentro
+    f.testiDiOggi = [];
+    const baseTesto = daBase(f.rel);
+    for (const nome of RISCRITTE_DI_OGGI[f.rel] ?? []) {
+      const ora = f.sf.statements.find((x) => ts.isFunctionDeclaration(x) && x.name?.text === nome);
+      const sfBase = baseTesto === null ? null : albero(baseTesto, f.rel);
+      const prima = sfBase?.statements.find((x) => ts.isFunctionDeclaration(x) && x.name?.text === nome);
+      if (!ora || !prima) continue;
+      const stringhe = new Set(nodi(prima, eStringa).map((n) => n.text));
+      f.testiDiOggi.push({ da: riga(f.sf, ora), a: rigaDi(f.sf, ora.getEnd()), stringhe });
+    }
   }
   /** Vale come «nuovo»: nei file nuovi sempre, nei modificati solo se la riga è fra quelle aggiunte e non nel codice di oggi spostato. */
   const nuovo = (f, r) => (f.nuove === null || f.nuove.has(r)) && !f.esclusi.some(([a, b]) => r >= a && r <= b);
@@ -275,7 +299,7 @@ async function corpo(mod, { c, radice, lavoro }) {
           testi = i && eStringa(i) ? [i.text] : i && ts.isJsxExpression(i) ? testiDi(i.expression) : [];
           r = riga(f.sf, n);
         } else if (ts.isJsxExpression(n) && (ts.isJsxElement(n.parent) || ts.isJsxFragment(n.parent))) { testi = testiDi(n.expression); r = riga(f.sf, n); }
-        for (const testo of testi) if (LETTERE.test(testo) && nuovo(f, r)) scritti.push(`${f.rel}:${r} «${norma(testo).slice(0, 40)}»`);
+        for (const testo of testi) if (LETTERE.test(testo) && nuovo(f, r) && !f.testiDiOggi.some((o) => r >= o.da && r <= o.a && o.stringhe.has(testo))) scritti.push(`${f.rel}:${r} «${norma(testo).slice(0, 40)}»`);
       });
     }
     c("6 · nessun testo scritto a mano nei componenti (JsxText, aria-label, placeholder, alt, title, anche in modelli e rami di ?: e &&: solo simboli e numeri)", [], scritti);
@@ -381,13 +405,26 @@ async function corpo(mod, { c, radice, lavoro }) {
         return !!b && !!o && b.every((m) => o.some((x) => x.testo === m.testo)) && o.filter((x) => !b.some((m) => m.testo === x.testo)).every((x) => x.facoltativo);
       };
       const ammesse = ECCEZIONI_TIPO[s.file] ?? {};
-      const cambiate = [...dBase.keys()].filter((k) => k !== "Route" && k !== s.sostituita && dBase.get(k) !== dOra.get(k) && !(k in ammesse && soloAllargata(k)));
+      //  T100a: le sole cancellazioni ammesse (elenco chiuso): `CartPage` è il base meno alcuni pezzi; due dichiarazioni sono sparite per intero
+      const canc = CANCELLAZIONI_DI_OGGI[s.file] ?? { ridotte: {}, sparite: {}, importSpariti: {} };
+      const foglie = (sf, nome) => {
+        const d = sf.statements.find((x) => (ts.isFunctionDeclaration(x) && x.name?.text === nome) || (ts.isVariableStatement(x) && x.declarationList.declarations.some((y) => y.name.getText(sf) === nome)));
+        const r = [];
+        if (d) cammina(d, (n) => { if (n.getChildCount(sf) === 0 && n.kind !== ts.SyntaxKind.EndOfFileToken) { const t = norma(n.getText(sf)); if (t) r.push(t); } });
+        return r;
+      };
+      /** `ora` è `prima` con dei pezzi tolti: ogni segno di `ora` ritrova il suo posto in `prima`, nello stesso ordine, e qualcosa è stato tolto davvero. */
+      const soloTolti = (prima, ora) => { let i = 0; for (const t of ora) { while (i < prima.length && prima[i] !== t) i++; if (i === prima.length) return false; i++; } return ora.length > 0 && ora.length < prima.length; };
+      const soloCancellazioni = (k) => (k in canc.ridotte && dOra.has(k) && soloTolti(foglie(sfBase, k), foglie(sfOra, k))) || (k in canc.sparite && !dOra.has(k));
+      const cambiate = [...dBase.keys()].filter((k) => k !== "Route" && k !== s.sostituita && dBase.get(k) !== dOra.get(k) && !(k in ammesse && soloAllargata(k)) && !soloCancellazioni(k));
+      for (const k of Object.keys(canc.ridotte)) c(`9 · ${s.file}: cancellazione ammessa in «${k}» (${canc.ridotte[k].split(":")[0]}): il corpo è quello del base MENO alcuni pezzi, niente cambiato né aggiunto`, true, dOra.has(k) && soloTolti(foglie(sfBase, k), foglie(sfOra, k)));
+      for (const k of Object.keys(canc.sparite)) c(`9 · ${s.file}: «${k}» è sparita per intero (${canc.sparite[k].split(":")[0]}) e non ricompare`, true, dBase.has(k) && !dOra.has(k));
       for (const k of Object.keys(ammesse)) c(`9 · ${s.file}: eccezione nominata «${k}» (${ammesse[k].split(":")[0]}): il tipo di oggi è solo allargato con membri facoltativi`, true, soloAllargata(k));
       c(`9 · ${s.file}: ogni funzione, costante e tipo di oggi è identico al base (testo del corpo)`, [], cambiate);
       c(`9 · ${s.file}: le funzioni di oggi sono molte (la regola guarda qualcosa)`, true, dBase.size >= 3);
       // le sole differenze ammesse nelle importazioni: righe nuove. Una voce del base che sparisce cambia il codice di oggi.
       const ora = new Set(importi(sfOra));
-      c(`9 · ${s.file}: nessuna importazione del base è sparita (le righe di import nuove sono ammesse)`, [], importi(sfBase).filter((i) => !ora.has(i)));
+      c(`9 · ${s.file}: nessuna importazione del base è sparita (le righe di import nuove sono ammesse)`, [], importi(sfBase).filter((i) => !ora.has(i) && !(i in canc.importSpariti)));
       if (s.sostituita) {
         const cerca1 = (sf, dove, apertura) => {
           const fn = sf.statements.find((x) => ts.isFunctionDeclaration(x) && x.name?.text === dove);

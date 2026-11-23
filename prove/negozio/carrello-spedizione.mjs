@@ -101,12 +101,14 @@ export async function prove(mod, { c, gruppo, radice }) {
   // ── il sorgente del carrello ──
   const FILE = "src/routes/shop.carrello.tsx";
   const carr = nudo(readFileSync(join(radice, FILE), "utf8"));
-  c("carrello: importa `useTariffa` e non importa più `SPEDIZIONE_CMS_CENT`", [true, false], [/import \{ useTariffa \} from "@\/shop\/useTariffa"/.test(carr), /SPEDIZIONE_CMS_CENT/.test(carr)]);
-  c("carrello: il gancio si chiama sempre (regola degli hook) e legge solo con `cms`", true, /const tariffa = useTariffa\(cms\)/.test(carr));
-  const ramoCms = /const shipping = cms \? ([^:]+) : /.exec(carr)?.[1] ?? "";
-  c("carrello: nel ramo `cms` la spedizione è la cifra del server, senza `SPEDIZIONE_CMS_CENT`, `SHIPPING_COST` né `SHIPPING_THRESHOLD`", [true, false], [ramoCms.includes("tariffa.costoCent"), /SPEDIZIONE_CMS_CENT|SHIPPING_COST|SHIPPING_THRESHOLD/.test(ramoCms)]);
-  c("carrello: il ramo `codice` è quello di oggi (soglia 59 € e 4,90 € nella stessa riga, la nota «Aggiungi … per la spedizione gratuita» solo fuori da `cms`)", [true, true], [
-    /const shipping = cms \? [^:]+ : subtotal >= SHIPPING_THRESHOLD \|\| subtotal === 0 \? 0 : SHIPPING_COST;/.test(carr), /shipping > 0 && !cms && \(\s*<p[^>]*>\s*Aggiungi/.test(carr)]);
+  //  T100a: il ramo `cms` di `CartPage` è stato tolto (era morto): il carrello `cms` è `PaginaCarrello`, quello di oggi non legge più la tariffa.
+  const carrelloNuovo = nudo(readFileSync(join(radice, "src/components/shop/pagine/PaginaCarrello.tsx"), "utf8"));
+  const cartPage = carr.slice(carr.indexOf("function CartPage()"));
+  c("carrello `cms` (`PaginaCarrello`): importa `useTariffa` e non importa `SPEDIZIONE_CMS_CENT`; `CartPage` di oggi non importa più `useTariffa`", [true, false, false], [/import \{ useTariffa \} from "@\/shop\/useTariffa"/.test(carrelloNuovo), /SPEDIZIONE_CMS_CENT/.test(carrelloNuovo), /useTariffa/.test(carr)]);
+  c("carrello `cms`: il gancio si chiama sempre e legge sempre (`useTariffa(true)`), una volta sola; `CartPage` di oggi non lo chiama", [true, 1, false], [/const tariffa = useTariffa\(true\)/.test(carrelloNuovo), (carrelloNuovo.match(/useTariffa\(/g) ?? []).length, /useTariffa\(/.test(cartPage)]);
+  c("carrello `cms`: la spedizione è la cifra del server (`riepilogo(vista, tariffa)`), senza `SPEDIZIONE_CMS_CENT`, `SHIPPING_COST` né `SHIPPING_THRESHOLD`", [true, false], [/riepilogo\(vista, tariffa\)/.test(carrelloNuovo), /SPEDIZIONE_CMS_CENT|SHIPPING_COST|SHIPPING_THRESHOLD/.test(carrelloNuovo)]);
+  c("carrello di oggi (`CartPage`): è quello di oggi (soglia 59 € e 4,90 € nella stessa riga, la nota «Aggiungi … per la spedizione gratuita»), senza più il ramo `cms`", [true, true, false], [
+    /const shipping = subtotal >= SHIPPING_THRESHOLD \|\| subtotal === 0 \? 0 : SHIPPING_COST;/.test(cartPage), /shipping > 0 && \(\s*<p[^>]*>\s*Aggiungi/.test(cartPage), /\bcms\b|tariffa\b/.test(cartPage)]);
 
   // ── il marchio reso ──
   const riga1 = { productId: "PROVA-001-A", qty: 2, key: "PROVA-001-A", sku: "PROVA-001-A", snap: { nome: "Prodotto di prova", slug: "prodotto-di-prova", prezzoCent: 2890, foto: null, varianteNome: "Variante X" } };
@@ -143,7 +145,7 @@ export async function prove(mod, { c, gruppo, radice }) {
     [chiusa, aperta, normale].some((r) => /Procedi al checkout/.test(r.html))]);
 
   const codice = await rendi(radice, FILE, { loaderData: { modo: "codice" }, carrello: { ...carrelloFinto(57.8), lines: [] , count: 0 }, rivalida: rivFinto, tariffa: { stato: "ok", costoCent: 999, chiusa: true } });
-  c("CARRELLO `codice`: il gancio è chiamato con `false` (non legge) e la cifra del server non si vede mai", [[false], false], [codice.pagina.tariffaChiesta, /9,99/.test(codice.html)]);
+  c("CARRELLO `codice`: il gancio della tariffa non viene chiamato affatto (T100a: tolto il ramo `cms` morto; prima era chiamato con `false`) e la cifra del server non si vede mai", [[], false], [codice.pagina.tariffaChiesta ?? [], /9,99/.test(codice.html)]);
   const codicePieno = await rendi(radice, FILE, { loaderData: { modo: "codice" }, carrello: { ...carrelloFinto(30), lines: [{ productId: "t01", qty: 1, key: "t01" }] }, rivalida: rivFinto, tariffa: { stato: "ok", costoCent: 999, chiusa: true } });
   c("CARRELLO `codice` con una riga: spedizione 4,90 € come oggi (sotto i 59 €), pulsante normale, anche se il finto del server dice altro", ["4,90 €", true, false], [sp(spedizioneOggi(codicePieno.html)), /Procedi al checkout/.test(codicePieno.html), /sta per aprire/.test(codicePieno.html)]);
   const tre = await rendi(radice, FILE, { loaderData: { modo: "codice" }, carrello: { ...carrelloFinto(86.7), lines: [{ productId: "t01", qty: 3, key: "t01" }] }, rivalida: rivFinto });

@@ -87,7 +87,9 @@ export async function prove(mod, { c, gruppo, radice }) {
     ].filter(([re]) => re.test(s)).map(([, n]) => n));
     c(`${nome}: né «{{» né «da confermare»`, [], trovaParoleVietate(s));
   }
-  c("la pagina non monta il guscio (è di T93): niente header, piè, barre, ricerca dell'header", [], [/guscio\//, /GuscioShop|ShopHeader|FooterShop|BarreFisse|BarraConsulenza|RicercaShop/].filter((re) => re.test(codice.pagina + codice.rotta)).map(String));
+  //  T100a: l'unica cosa che la rotta prende dal guscio è `ErroreRottaShop` (il suo `errorComponent`); qualunque altra cosa del guscio resta un rosso
+  const IMPORT_ERRORE_GUSCIO = /import \{ ErroreRottaShop \} from "@\/components\/shop\/guscio\/GuscioShop";/;
+  c("la pagina non monta il guscio (è di T93): niente header, piè, barre, ricerca dell'header", [], [/guscio\//, /GuscioShop|ShopHeader|FooterShop|BarreFisse|BarraConsulenza|RicercaShop/].filter((re) => re.test(codice.pagina + codice.rotta.replace(IMPORT_ERRORE_GUSCIO, "").replaceAll("ErroreRottaShop", ""))).map(String));
   c("nessun testo scritto a mano: né fra i marcatori né negli attributi (tutto da `testi-shop.ts`)", [], [
     ...(codice.pagina.match(/>\s*[A-Za-zÀ-ÿ][^<>{}=;()]*</g) ?? []),
     ...(codice.pagina.match(/(?:aria-label|placeholder|title|alt)="[^"{]*[A-Za-zÀ-ÿ]{3}[^"]*"/g) ?? []),
