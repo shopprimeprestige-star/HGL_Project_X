@@ -3,10 +3,13 @@ import { useEffect, useState } from "react";
 import { ShoppingBag, Menu } from "lucide-react";
 import { CartProvider, useCart } from "@/shop/CartContext";
 import { getProduct } from "@/shop/catalog";
-import { modalitaCatalogo, schedaProdotto } from "@/shop/cms/catalogo.functions";
+import { elencoCategorie, modalitaCatalogo, schedaProdotto } from "@/shop/cms/catalogo.functions";
 import { collaudoDellaVisita } from "@/shop/cms/cassa-sito.functions";
 import { CACHE_COLLAUDO } from "@/shop/cms/collaudo";
 import { nomeProtesiPerBarra } from "@/shop/cms/guscio";
+import type { CategoriaPubblica } from "@/shop/cms/modello";
+import { GuscioShop, guscioNuovo } from "@/components/shop/guscio/GuscioShop";
+import { TESTI_PROVVISORI, TESTI_SHOP } from "@/landing/testi-shop";
 import { BarraConsulenza } from "@/components/landing/consulenza/BarraConsulenza";
 import { GestisciCookie } from "@/components/tracciamento/GestisciCookie";
 import { Toaster } from "@/components/ui/sonner";
@@ -41,20 +44,40 @@ export const Route = createFileRoute("/shop")({
   //  cache condivisa). Senza collaudo non si dichiara niente: resta `no-cache, must-revalidate` della radice.
   headers: ({ matches }): Record<string, string> =>
     matches.some((m) => (m.context as { collaudo?: boolean } | undefined)?.collaudo === true) ? { "Cache-Control": CACHE_COLLAUDO } : {},
+  //  Il guscio nuovo (D72) ha bisogno delle categorie per «Cura» e per la ricerca: si chiedono qui, SOLO con `cms` e sulle cinque pagine V1.
+  //  Con `codice` (e per cassa, ordine, collaudo) non si chiama niente e il valore è `undefined`, come oggi che il layout non ha un loader.
+  //  Un guasto non è mai un errore al pubblico: elenco vuoto e l'header non ha «Cura».
+  loader: async ({ context, location }): Promise<{ categorie: Pick<CategoriaPubblica, "slug" | "nome" | "quanti">[] } | undefined> => {
+    if (context.modalita !== "cms" || !guscioNuovo(location?.pathname)) return undefined;
+    const elenco: unknown = await elencoCategorie().catch(() => null);
+    return {
+      categorie: Array.isArray(elenco) ? elenco.map(({ slug, nome, quanti }: CategoriaPubblica) => ({ slug, nome, quanti })) : [],
+    };
+  },
   //  `head` gira dopo `beforeLoad`: la modalità la trova nel contesto del match. Con il catalogo CMS la descrizione non promette
-  //  niente (D38); senza contesto (lettura fallita) resta quella di oggi.
-  head: ({ match }) => ({
-    meta: [
-      { title: "Hair Genius Shop — Toupee e prodotti per la cura" },
-      {
-        name: "description",
-        content:
-          (match?.context as { modalita?: Modalita } | undefined)?.modalita === "cms"
-            ? "Patch e prodotti per la cura, scelti in studio."
-            : "Protesi lace e skin indistinguibili, shampoo, balsami, districanti, solventi e adesivi. Tutto per chi indossa un toupee.",
-      },
-    ],
-  }),
+  //  niente (D38); senza contesto (lettura fallita) resta quella di oggi. Sulle cinque pagine V1 con `cms` titolo e descrizione sono del
+  //  copy (D72). ⚠️ Il percorso si legge dalla FOGLIA delle `matches`: `match.pathname` di questo layout è sempre `/shop`. Se la foglia è il layout
+  //  stesso (percorso sconosciuto) o mancano le `matches`, resta tutto com'è oggi.
+  head: ({ match, matches }) => {
+    const cms = (match?.context as { modalita?: Modalita } | undefined)?.modalita === "cms";
+    const foglia = matches?.[matches.length - 1];
+    const v1 = cms && foglia && foglia.routeId !== match?.routeId && guscioNuovo(foglia.pathname) ? foglia.pathname.toLowerCase().replace(/\/+$/, "") : null;
+    //  shortcut: scheda e categoria non hanno un titolo qui (lo mettono le loro pagine): sotto, quello della home. Quando le pagine hanno il loro `head`, nessun cambio.
+    const titolo = v1 === "/shop/carrello" ? TESTI_SHOP.meta.carrello.titolo : v1 === "/shop/cerca" ? TESTI_PROVVISORI.cerca.metaTitolo : TESTI_SHOP.meta.home.titolo;
+    return {
+      meta: [
+        { title: v1 ? titolo : "Hair Genius Shop — Toupee e prodotti per la cura" },
+        {
+          name: "description",
+          content: v1
+            ? TESTI_SHOP.meta.home.descrizione
+            : cms
+              ? "Patch e prodotti per la cura, scelti in studio."
+              : "Protesi lace e skin indistinguibili, shampoo, balsami, districanti, solventi e adesivi. Tutto per chi indossa un toupee.",
+        },
+      ],
+    };
+  },
   component: ShopLayout,
 });
 
@@ -167,22 +190,43 @@ function BarraShop({ modalita }: { modalita: Modalita }) {
   return <BarraConsulenza provenienza="stock" prodotto={modalita === "cms" ? nomeCms : prodotto?.category === "toupee" ? prodotto.name : undefined} />;
 }
 
+/** Il guscio di oggi (testata, piè di pagina e barra di R2), com'è stato sempre: tutto con `codice`, e con `cms` per cassa, ordine, collaudo e percorsi sconosciuti. */
+function GuscioDiOggi({ modalita }: { modalita: Modalita }) {
+  return (
+    <div className="bg-blueprint min-h-screen text-white">
+      <Header />
+      <main className="mx-auto max-w-6xl px-4 py-8">
+        <Outlet />
+      </main>
+      <ShopFooter modalita={modalita} />
+      {/* Dopo il piè di pagina: lo spazio che la barra riserva sta qui, sotto tutto. */}
+      <BarraShop modalita={modalita} />
+      <Toaster />
+    </div>
+  );
+}
+
+/** Il guscio nuovo (T93): le categorie vengono dal loader di questa rotta. */
+function GuscioNuovo() {
+  //  shortcut: `tsc` legge il tipo del loader come `undefined` (non ho trovato perché: gli altri layout con loader non lo fanno); il tipo si dice a mano, da togliere se la deduzione torna.
+  const dati = Route.useLoaderData() as { categorie?: Pick<CategoriaPubblica, "slug" | "nome" | "quanti">[] } | undefined;
+  return (
+    <GuscioShop categorie={dati?.categorie}>
+      <Outlet />
+    </GuscioShop>
+  );
+}
+
 function ShopLayout() {
   const { modalita } = Route.useRouteContext();
   //  La pagina arrivata dal server non ripassa da `beforeLoad` nel browser: la sua modalità diventa quella della visita.
   if (typeof window !== "undefined") modalitaVisita ??= modalita;
+  const pagina = useRouterState({ select: (s) => s.location.pathname });
+  //  D72: il guscio nuovo vale solo con `cms` E sulle cinque pagine V1 (`guscioNuovo`); tutto il resto resta com'è oggi.
+  //  `CartProvider` è la radice in entrambi i casi: passando da una pagina V1 alla cassa il carrello non si rimonta.
   return (
     <CartProvider>
-      <div className="bg-blueprint min-h-screen text-white">
-        <Header />
-        <main className="mx-auto max-w-6xl px-4 py-8">
-          <Outlet />
-        </main>
-        <ShopFooter modalita={modalita} />
-        {/* Dopo il piè di pagina: lo spazio che la barra riserva sta qui, sotto tutto. */}
-        <BarraShop modalita={modalita} />
-        <Toaster />
-      </div>
+      {modalita === "cms" && guscioNuovo(pagina) ? <GuscioNuovo /> : <GuscioDiOggi modalita={modalita} />}
     </CartProvider>
   );
 }
