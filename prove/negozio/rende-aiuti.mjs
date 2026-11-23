@@ -208,7 +208,9 @@ export async function prove(mod, { c, gruppo, radice }) {
   scheda.pagina.chiamate.length = 0;
   await scheda.route.loader({ params: { slug: "slug-che-non-e-del-codice" }, deps: { anteprima: "" } }).catch(() => {});
   c("…`loader` con `codice` e uno slug che il vecchio catalogo non conosce: `modalitaCatalogo` poi `schedaProdotto`", ["modalitaCatalogo", "schedaProdotto"], scheda.pagina.chiamate);
-  const cat = await rendi(radice, R("shop.c.$slug"), { ...vuotoLoader, params: { slug: "patch-pronte" }, loaderData: { categoria: D.CATEGORIE[0], categorie: D.CATEGORIE, prodotti: D.CATALOGO.slice(0, 3) }, context: { modalita: "cms" } });
+  const cat = await rendi(radice, R("shop.c.$slug"), { ...vuotoLoader, params: { slug: "patch-pronte" }, loaderData: { categoria: D.CATEGORIE[0], meta: { titolo: "Titolo di prova", descrizione: "Descrizione di prova." }, contenuto: { testi: {}, media: {} }, tariffa: D.TARIFFA_ASSENTE,
+    //  la forma di V1 (T95): righe leggere con la card
+    prodotti: D.CATALOGO.slice(0, 3).map((p) => ({ sku: p.sku, varianti: [], opzioni: [], card: { slug: p.slug, nome: p.nome, riga: null, prezzoCent: null, prezziDiversi: false, foto: null, fotoAlt: null, nColori: 0, conVarianti: false, aggiungibile: false, disponibile: false, senzaPrezzo: true, skuVarianti: [] } })) }, context: { modalita: "cms" } });
   c("`shop.c.$slug` con la categoria inventata si disegna", true, cat.html.includes("Patch di prova Alfa") || cat.html.includes(D.CATEGORIE[0].nome));
   const esitoCat = await cat.route.loader({ params: { slug: "patch-pronte" }, context: { modalita: "codice" } }).then(() => "nessun errore", (e) => String(e.message));
   c("…`loader` con `codice` fa `notFound` senza chiamare il server", ["notFound", []], [esitoCat, cat.pagina.chiamate]);
