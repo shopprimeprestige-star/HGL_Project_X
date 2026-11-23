@@ -226,8 +226,8 @@ async function corpo(mod, { c, gruppo, radice }) {
     const vecchi = [globalThis.window, globalThis.document];
     //  `bloccato`: cookie bloccati, già NOMINARE `window.sessionStorage` lancia (SecurityError)
     globalThis.window = bloccato
-      ? Object.defineProperty({}, "sessionStorage", { get() { throw new Error("SecurityError: cookie bloccati"); } })
-      : { sessionStorage: { getItem: (k) => storage.get(k) ?? null, setItem: (k, v) => storage.set(k, v) } };
+      ? Object.defineProperty({ addEventListener() {}, removeEventListener() {} }, "sessionStorage", { get() { throw new Error("SecurityError: cookie bloccati"); } })
+      : { addEventListener() {}, removeEventListener() {}, sessionStorage: { getItem: (k) => storage.get(k) ?? null, setItem: (k, v) => storage.set(k, v) } };
     globalThis.document = { querySelector: () => null };
     const lanciati = [];
     try {
@@ -253,6 +253,73 @@ async function corpo(mod, { c, gruppo, radice }) {
     c("anteprima: nessun `ViewContent`", 0, (await conEffetti(bozza)).eventi.filter(([n]) => n === "ViewContent").length);
     c("Invisible Derm (nessuna cifra, non acquistabile): nessun `ViewContent`", 0, (await conEffetti(invisible)).eventi.filter(([n]) => n === "ViewContent").length);
     c("prodotto senza prezzo (D39: non acquistabile, prezzi `null`): nessun `ViewContent`", 0, (await conEffetti({ ...COPIA(patch), acquistabile: false, prezzoDaCent: null, varianti: patch.varianti.map((v) => ({ ...v, prezzoCent: null })) })).eventi.filter(([n]) => n === "ViewContent").length);
+  });
+  //  T109c · T103c-2: `emettiEvento` VERO non parte (e non segna) senza consenso: il finto lo imita (`null` finché `consenso` è falso). Il banner si accetta
+  //  DOPO l'apertura della scheda: l'evento deve partire alla scelta (come home e categoria, `suScelta`), una volta sola, e nel ramo `codice` niente cambia.
+  await blocco("blocco 9b · ViewContent dopo il consenso", async () => {
+    const API_CON_CONSENSO = `export const emettiEvento = (n, d) => { const p = globalThis.__pagina; if (!p.consenso) return null; p.eventi.push([n, d]); return "id"; }; export const emettiSoloContatore = () => {}; export const scaricaEventi = async () => {};`;
+    /** Apre la scheda (gli effetti girano), dà il consenso quando serve e fa scattare l'attesa di `suScelta` (orologio finto). */
+    const apri = async (p, { consensoSubito = false, storage = new Map(), bloccato = false } = {}) => {
+      const r = await pagina(p.slug, datiCms(p), { finti: { react: REACT_CHE_RICORDA, "@/lib/tracciamento/api": API_CON_CONSENSO } });
+      const ascolti = new Map();
+      const attese = [];
+      const vecchi = [globalThis.window, globalThis.document, globalThis.setTimeout, globalThis.clearTimeout];
+      const archivio = bloccato ? null : { getItem: (k) => storage.get(k) ?? null, setItem: (k, v) => storage.set(k, v) };
+      globalThis.window = {
+        addEventListener: (n, f) => ascolti.set(n, [...(ascolti.get(n) ?? []), f]),
+        removeEventListener: (n, f) => ascolti.set(n, (ascolti.get(n) ?? []).filter((x) => x !== f)),
+      };
+      if (archivio) globalThis.window.sessionStorage = archivio;
+      else Object.defineProperty(globalThis.window, "sessionStorage", { get() { throw new Error("SecurityError: cookie bloccati"); } });
+      globalThis.document = { querySelector: () => null };
+      globalThis.setTimeout = (f) => { attese.push(f); return attese.length; };
+      globalThis.clearTimeout = (id) => { attese[id - 1] = null; };
+      r.pagina.consenso = consensoSubito;
+      const puliture = [];
+      const lanciati = [];
+      try {
+        for (const f of r.pagina.effetti ?? []) { try { const u = f(); if (typeof u === "function") puliture.push(u); } catch (e) { lanciati.push(String(e?.message ?? e)); } }
+      } catch (e) { lanciati.push(String(e?.message ?? e)); }
+      const scelta = () => { r.pagina.consenso = true; for (const f of ascolti.get("hgl:consenso") ?? []) f(new Event("x")); for (const f of attese.splice(0)) f?.(); };
+      const chiudi = () => { for (const u of puliture) u(); [globalThis.window, globalThis.document, globalThis.setTimeout, globalThis.clearTimeout] = vecchi; if (vecchi[0] === undefined) delete globalThis.window; if (vecchi[1] === undefined) delete globalThis.document; };
+      return { r, ascolti, scelta, chiudi, lanciati, vc: () => r.pagina.eventi.filter(([n]) => n === "ViewContent").length };
+    };
+    // 1. senza consenso: niente, poi la scelta → l'evento parte, con lo SKU della variante
+    const a = await apri(patch);
+    const prima = a.vc();
+    a.scelta();
+    const dopo = a.vc();
+    const sku = a.r.pagina.eventi.find(([n]) => n === "ViewContent")?.[1]?.contentIds;
+    a.scelta(); // una seconda scelta (cambia idea, «Gestisci cookie»): niente doppione
+    const dopoDue = a.vc();
+    a.chiudi();
+    c("ViewContent: senza consenso non parte; accettando sulla scheda parte (SKU della variante), una volta sola anche alla scelta dopo", [0, 1, [patch.varianti[0].sku], 1], [prima, dopo, sku, dopoDue]);
+    // 2. consenso già dato: una volta, e la scelta di dopo non lo rifà
+    const b = await apri(patch, { consensoSubito: true });
+    const subito = b.vc();
+    b.scelta();
+    const dopoB = b.vc();
+    b.chiudi();
+    c("ViewContent: con il consenso già dato parte subito, una volta; una scelta successiva non lo rifà", [1, 1], [subito, dopoB]);
+    // 3. sessione già segnata dopo il primo evento: riaprire la scheda e accettare non lo rimanda
+    const storage = new Map();
+    const c1 = await apri(patch, { storage }); c1.scelta(); c1.chiudi();
+    const c2 = await apri(patch, { storage, consensoSubito: true });
+    const rimandato = c2.vc(); c2.scelta(); const rimandato2 = c2.vc(); c2.chiudi();
+    c("ViewContent: la stessa scheda nella stessa sessione, già segnata, non lo rimanda (né subito né alla scelta)", [0, 0], [rimandato, rimandato2]);
+    // 4. cookie bloccati: nessun effetto lancia, l'evento parte una volta alla scelta e non si raddoppia
+    const d = await apri(patch, { bloccato: true });
+    d.scelta(); d.scelta();
+    const bloccatoVc = d.vc(); const bloccatoLanciati = d.lanciati.filter((m) => /SecurityError/.test(m)); d.chiudi();
+    c("ViewContent con cookie bloccati: nessun effetto lancia, parte una volta alla scelta e non si raddoppia", [[], 1], [bloccatoLanciati, bloccatoVc]);
+    // 5. nessun ascolto in anteprima né per Invisible Derm; l'ascolto si toglie con la pulizia
+    const e = await apri(bozza); e.scelta(); const anteprimaVc = e.vc(); e.chiudi();
+    const f = await apri(invisible); f.scelta(); const invisibileVc = f.vc(); f.chiudi();
+    c("ViewContent dopo la scelta: mai in anteprima, mai per Invisible Derm", [0, 0], [anteprimaVc, invisibileVc]);
+    const g = await apri(patch);
+    const prima2 = (g.ascolti.get("hgl:consenso") ?? []).length;
+    g.chiudi();
+    c("ViewContent: la pulizia dell'effetto toglie l'ascolto della scelta (nessun evento dopo aver lasciato la scheda)", [1, 0], [prima2, (g.ascolti.get("hgl:consenso") ?? []).length]);
   });
   await blocco("blocco 10", async () => {
     const corpoNuovo = codice.slice(codice.indexOf("function SchedaNuova("), codice.indexOf("function SchedaVista("));

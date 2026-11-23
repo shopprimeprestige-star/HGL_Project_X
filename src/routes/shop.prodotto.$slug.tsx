@@ -10,6 +10,7 @@ import { BoxProdottoGiusto } from "@/components/landing/consulenza/BoxProdottoGi
 import { PopupUscita } from "@/components/landing/consulenza/PopupUscita";
 import { SITO } from "@/seo/regole";
 import { emettiEvento } from "@/lib/tracciamento/api";
+import { EVENTO_CONSENSO } from "@/lib/consenso";
 import { modalitaCatalogo, schedaProdotto } from "@/shop/cms/catalogo.functions";
 import { ErroreShop, NonTrovataShop, useStatoPagina } from "@/components/shop/guscio/GuscioShop";
 import { PaginaScheda } from "@/components/shop/pagine/PaginaScheda";
@@ -22,6 +23,7 @@ import type { ProdottoPubblico } from "@/shop/cms/modello";
 import { contenutoVuoto, type ContenutoShop } from "@/shop/cms/vetrina-contenuto";
 import { modalitaCertaDelServer } from "@/shop/cms/modalita-certa.functions";
 import { daPubblicoAProdotto, varianteDaOpzioni } from "@/shop/cms/adattatore";
+import { emettiUnaVolta, suScelta } from "@/shop/cms/elenco";
 import { cercaScheda, datiEventoCodice, datiEventoScheda, intestazioniScheda, primaVolta, senzaPrezzo, testataScheda, type Scheda } from "@/shop/cms/scheda";
 
 /** Cosa ha deciso il caricamento (T20): la scheda e se l'indirizzo porta `?anteprima=`. Un guasto del database NON arriva qui: è un errore temporaneo; «non trovato» nemmeno: è `notFound()` (risposta 404).
@@ -158,7 +160,15 @@ function SchedaNuova({ dati, prodotto }: { dati: Caricato; prodotto: ProdottoPub
     } catch {
       /* cookie bloccati */
     }
-    if (evento && primaVolta(archivio, `hg_vc_${slug}`)) emettiEvento("ViewContent", evento);
+    if (!evento) return;
+    //  `emettiEvento` senza consenso non parte e non segna: `emettiUnaVolta` segna la visita solo se l'evento è partito davvero, e `suScelta` riprova
+    //  quando il visitatore sceglie sul banner (anche dopo l'apertura della scheda), come home e categoria. `fatto`: senza archivio non si raddoppia.
+    let fatto = false;
+    const prova = () => {
+      if (!fatto) emettiUnaVolta(archivio, `scheda:${slug}`, () => { const id = emettiEvento("ViewContent", evento); fatto = id !== null; return id; });
+    };
+    prova();
+    return suScelta(window, EVENTO_CONSENSO, prova);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- una volta per prodotto: la variante scelta dopo non rifà l'evento
   }, [slug, anteprima]);
   return (

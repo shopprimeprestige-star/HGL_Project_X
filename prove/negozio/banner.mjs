@@ -227,6 +227,8 @@ export async function prove(mod, { c, gruppo, radice }) {
     ["/shop", "?anteprima=1"], ["/shop", "?modifica"], ["/shop", "?embed=1"], ["/shop", "?t=1"], ["/shop/prodotto/x", "?anteprima=abc"], ["/invito/x", ""], ["/media/x", ""], ["/api/public/evento", ""], ["/non-esiste", ""],
   ];
   c("il banner NON compare su `?watch=`, preventivo, videochiamata, /CRM*, anteprima, modifica, ordine, link con codici e pagine non elencate", PAGINE_NO.map(() => false), PAGINE_NO.map(([p, q]) => vede(p, q)));
+  c("T109c: il banner compare anche sulla ricerca (`?q=`) e sulle categorie con i filtri; non con un codice (`?t=`) sulla stessa pagina", [true, true, true, false, false],
+    [vede("/shop/cerca", "?q=capelli"), vede("/shop/c/patch", "?colore=nero&lunghezza=30&misura=m&disp=1"), vede("/shop/c/patch", "?utm_source=ig&colore=nero"), vede("/shop/cerca", "?q=a&t=abc"), vede("/shop/c/patch", "?anteprima=1")]);
   c("dentro un iframe (anteprima 390/1440 del CMS) il banner non compare, nemmeno su una pagina ammessa", [false, false], [vede("/shop", "", { inCornice: true }), vede("/", "", { inCornice: true })]);
   c("un amministratore riconosciuto non vede il banner; finché non si sa chi è (null) nemmeno", [false, false], [vede("/shop", "", { admin: true }), vede("/shop", "", { admin: null })]);
   c("prima di aver letto la scelta (null) il banner non compare: niente lampo per chi ha già scelto", false, vede("/shop", "", { consenso: null }));
@@ -287,6 +289,13 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("gli script sono quelli giusti, con gli ID della configurazione", ["https://connect.facebook.net/en_US/fbevents.js", "https://www.googletagmanager.com/gtag/js?id=G-TEST1234"], [...b.scripts].sort());
   await b.ctl.valuta();
   c("valutare di nuovo la stessa pagina: niente script doppi, niente PageView doppio, configurazione chiesta una volta", [2, 1, 1], stato(b));
+
+  // T109c: dove il banner si vede ma i pixel no (testo cercato e filtri nell'indirizzo): né script, né configurazione, né PageView, anche col sì
+  for (const [path, search] of [["/shop/cerca", "?q=mario%20rossi"], ["/shop/c/patch", "?colore=nero&misura=m"]]) {
+    const q = nuovo({ consenso: MARKETING, path, search });
+    await q.ctl.valuta();
+    c(`${path}${search}: pur col marketing accettato, 0 script, nessuna configurazione chiesta, nessun PageView (l'indirizzo del browser lo leggerebbe il pixel)`, [0, 0, 0, 0], [...stato(q), q.adminChiamate]);
+  }
 
   // amministratore
   const d = nuovo({ consenso: MARKETING, eAdmin: true });
