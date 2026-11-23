@@ -63,14 +63,16 @@ export interface Acquisto {
   selettoreRef: RefObject<HTMLDivElement | null>;
 }
 
-/** Il clic senza aver finito la scelta: quale opzione mancava, se il fuoco non ha trovato il gruppo, e la scelta di allora. */
+/** Il clic senza aver finito la scelta: su quale prodotto, quale opzione mancava, se il fuoco non ha trovato il gruppo, e la scelta di allora. */
 interface Tentativo {
+  slug: string;
   opzione: string | null;
   senzaGruppo: boolean;
   chiave: string;
 }
 
-const prezzoValido = (n: unknown): n is number => typeof n === "number" && Number.isSafeInteger(n) && n > 0;
+const prezzoValido = (n: unknown): n is number =>
+  typeof n === "number" && Number.isSafeInteger(n) && n > 0;
 const chiaveDi = (scelta: Scelta) => JSON.stringify(Object.entries(scelta ?? {}).sort());
 
 export function useAcquisto(prodotto: ProdottoPubblico, scelta: Scelta): Acquisto {
@@ -88,25 +90,36 @@ export function useAcquisto(prodotto: ProdottoPubblico, scelta: Scelta): Acquist
   const chiave = chiaveDi(scelta);
 
   // il messaggio resta finché manca QUELLA scelta (non salta alla prossima senza un nuovo clic)
-  const mancante = tentativo?.opzione && !tentativo.senzaGruppo && manca?.opzione === tentativo.opzione ? manca : null;
+  const tentato = tentativo?.slug === prodotto.slug ? tentativo : null; // un clic su un altro prodotto non parla di questo
+  const mancante =
+    tentato?.opzione && !tentato.senzaGruppo && manca?.opzione === tentato.opzione ? manca : null;
   const nonDisponibile =
-    !!tentativo &&
-    (tentativo.senzaGruppo
-      ? manca?.opzione === tentativo.opzione
-      : tentativo.opzione === null && tentativo.chiave === chiave && !manca);
-  const frase: FraseBottone | null = nonDisponibile ? "nonDisponibile" : variante && !variante.disponibile ? "esaurita" : null;
+    !!tentato &&
+    (tentato.senzaGruppo
+      ? manca?.opzione === tentato.opzione
+      : tentato.opzione === null && tentato.chiave === chiave && !manca);
+  const frase: FraseBottone | null = nonDisponibile
+    ? "nonDisponibile"
+    : variante && !variante.disponibile
+      ? "esaurita"
+      : null;
 
   const aggiungi = () => {
     if (!vendibile || esaurito) return;
     if (manca) {
       // shortcut: se il fuoco non trova il gruppo (opzione senza valori disegnati) la frase accanto al bottone dice «scelta non disponibile»;
       // quando ogni opzione avrà per forza dei valori il ramo si può togliere.
-      setTentativo({ opzione: manca.opzione, senzaGruppo: !fuocoSullaScelta(selettoreRef.current, manca.opzione), chiave });
+      setTentativo({
+        slug: prodotto.slug,
+        opzione: manca.opzione,
+        senzaGruppo: !fuocoSullaScelta(selettoreRef.current, manca.opzione),
+        chiave,
+      });
       return;
     }
     // senza SKU (combinazione che non esiste) o senza un prezzo valido del server: mai una riga nel carrello
     if (!variante || !prezzoValido(variante.prezzoCent)) {
-      setTentativo({ opzione: null, senzaGruppo: false, chiave });
+      setTentativo({ slug: prodotto.slug, opzione: null, senzaGruppo: false, chiave });
       return;
     }
     add({ id: variante.sku }, 1, undefined, {
@@ -121,11 +134,13 @@ export function useAcquisto(prodotto: ProdottoPubblico, scelta: Scelta): Acquist
     });
     const evento = eventoAggiungi(prodotto, variante.sku, 1);
     if (evento) emettiEvento(evento.nome, evento.dati);
-    setTentativo(null);
     setAggiunta({ slug: prodotto.slug, il: Date.now() });
     // il timer CAMBIA lo stato (T105): rileggere soltanto l'ora potrebbe lasciare «Aggiunto» se scatta 1 ms prima
     if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => setAggiunta((a) => a && { ...a, il: null }), DURATA_AGGIUNTO_MS);
+    timer.current = setTimeout(
+      () => setAggiunta((a) => a && { ...a, il: null }),
+      DURATA_AGGIUNTO_MS,
+    );
   };
 
   const questo = aggiunta?.slug === prodotto.slug;
@@ -158,7 +173,16 @@ interface Props {
   formatta: (cent: number) => string;
 }
 
-export function BloccoAcquisto({ prodotto, blocco, scelta, onScegli, acquisto, voci, testi, formatta }: Props) {
+export function BloccoAcquisto({
+  prodotto,
+  blocco,
+  scelta,
+  onScegli,
+  acquisto,
+  voci,
+  testi,
+  formatta,
+}: Props) {
   const t = TESTI_SHOP.scheda;
   const eyebrow = prodotto.categorie?.[0]?.nome?.trim();
   const riga = prodotto.rigaPresentazione?.trim();
@@ -166,12 +190,17 @@ export function BloccoAcquisto({ prodotto, blocco, scelta, onScegli, acquisto, v
 
   const testata = (
     <div className="flex flex-col gap-2">
-      {eyebrow && <p className="text-sm font-semibold uppercase tracking-wide text-ink-muted">{eyebrow}</p>}
-      <h1 className="text-balance text-2xl font-bold leading-tight text-[#0A1430] lg:text-4xl">{prodotto.nome}</h1>
+      {eyebrow && (
+        <p className="text-sm font-semibold uppercase tracking-wide text-ink-muted">{eyebrow}</p>
+      )}
+      <h1 className="text-balance break-words text-2xl font-bold leading-tight text-[#0A1430] lg:text-4xl">
+        {prodotto.nome}
+      </h1>
       {riga && <p className="text-base text-ink-muted">{riga}</p>}
     </div>
   );
-  const radice = "flex flex-col gap-5 lg:sticky lg:top-24 lg:self-start";
+  // niente `gap` sulla radice: le zone sotto il bottone sono spesso vuote e un `gap` lascerebbe uno spazio fantasma; i margini stanno sui pezzi che ci sono
+  const radice = "flex flex-col lg:sticky lg:top-24 lg:self-start";
 
   // Invisible Derm e simili: la scheda si mostra, non si compra (nessun prezzo, bottone, scelta, spedizione)
   if (!blocco.acquistabile) return <div className={radice}>{testata}</div>;
@@ -195,23 +224,28 @@ export function BloccoAcquisto({ prodotto, blocco, scelta, onScegli, acquisto, v
     return (
       <div className={radice}>
         {testata}
-        {prezzoRiga}
+        {prezzoRiga && <div className="mt-5">{prezzoRiga}</div>}
       </div>
     );
   }
 
   const spedizione = blocco.rigaSpedizione ? voci.find((v) => v.id === "spedizione")?.testo : null;
-  const pronta = badgeProntaConsegna(testi, variante ? variante.disponibile : prodotto.varianti.some((v) => v.disponibile));
+  const pronta = badgeProntaConsegna(
+    testi,
+    variante ? variante.disponibile : prodotto.varianti.some((v) => v.disponibile),
+  );
   const nome = (n: string) => riempi(t.nelCarrello, { nome: n });
 
   return (
     <div className={radice}>
       <div {...ATTRIBUTO_BLOCCO} className="flex flex-col gap-5">
         {testata}
-        <div className="flex flex-col gap-1.5">
-          {prezzoRiga}
-          {spedizione && <p className="text-sm text-ink-muted">{spedizione}</p>}
-        </div>
+        {(prezzoRiga || spedizione) && (
+          <div className="flex flex-col gap-1.5">
+            {prezzoRiga}
+            {spedizione && <p className="text-sm text-ink-muted">{spedizione}</p>}
+          </div>
+        )}
         {pronta && (
           <span className="self-start rounded-full border border-ink/15 bg-white px-2.5 py-1 text-xs font-semibold text-[#0A1430]">
             {pronta}
@@ -230,7 +264,7 @@ export function BloccoAcquisto({ prodotto, blocco, scelta, onScegli, acquisto, v
           disabled={esaurito}
           className={`shop-anello flex h-14 w-full items-center justify-center gap-2 rounded-md px-6 text-base font-semibold transition-colors ${
             esaurito
-              ? "cursor-not-allowed border-2 border-ink/25 bg-white text-ink-muted"
+              ? "cursor-not-allowed border-2 border-ink/40 bg-white text-ink-muted"
               : "bg-[#0A1430] text-white hover:bg-[#1B2A4E]"
           }`}
         >
@@ -249,24 +283,29 @@ export function BloccoAcquisto({ prodotto, blocco, scelta, onScegli, acquisto, v
       {/* Le due zone ci sono sempre, anche vuote: una regione `aria-live` che nasce con il testo dentro non viene letta. */}
       <div aria-live="polite">
         {acquisto.frase && (
-          <p className="text-sm text-ink-muted">
-            {acquisto.frase === "esaurita" ? TESTI_PROVVISORI.scheda.sceltaEsaurita : TESTI_PROVVISORI.scheda.sceltaNonDisponibile}
+          <p className="mt-3 text-sm text-ink-muted">
+            {acquisto.frase === "esaurita"
+              ? TESTI_PROVVISORI.scheda.sceltaEsaurita
+              : TESTI_PROVVISORI.scheda.sceltaNonDisponibile}
           </p>
         )}
       </div>
       <div role="status">
         {acquisto.nelCarrello && (
-          <p className="flex flex-wrap items-center gap-x-2 rounded-md border border-ink/10 bg-white px-4 text-sm text-[#0A1430]">
+          <p className="mt-3 flex flex-wrap items-center gap-x-2 rounded-md border border-ink/10 bg-white px-4 text-sm text-[#0A1430]">
             <span className="py-2">{nome(prodotto.nome)}</span>
             <span aria-hidden="true">·</span>
-            <Link to="/shop/carrello" className="shop-anello inline-flex min-h-11 items-center font-semibold underline underline-offset-4">
+            <Link
+              to="/shop/carrello"
+              className="shop-anello inline-flex min-h-11 items-center font-semibold underline underline-offset-4"
+            >
               {t.vaiAlCarrello}
             </Link>
           </p>
         )}
       </div>
-      {/* La spedizione è già in testata: qui non si ripete. */}
-      <BloccoFiducia voci={spedizione ? voci.filter((v) => v.id !== "spedizione") : voci} />
+      {/* La spedizione, quando c'è, sta già in testata (e la decide `blocco`): nella riga di fiducia non si ripete mai. */}
+      <BloccoFiducia className="mt-5" voci={voci.filter((v) => v.id !== "spedizione")} />
     </div>
   );
 }

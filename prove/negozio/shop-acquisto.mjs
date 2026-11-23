@@ -241,6 +241,11 @@ export async function prove(mod, { c, gruppo, radice }) {
     c("gamma con il solo colore: manca la Lunghezza (la prima non scelta, nell'ordine dei dati)", [{ opzione: "Lunghezza", chiave: "scheda.scegli.lunghezza" }, 0], [g.ris.mancante, g.aggiunte.length]);
     g.con(gamma, { Colore: "Nero", Misura: "Grande" });
     c("scelta un'altra opzione (la Misura) ma non la Lunghezza: il messaggio resta sulla Lunghezza", "Lunghezza", g.ris.mancante?.opzione);
+    g = montaGesto(M, gamma, { Colore: "Nero" });
+    g.ris.selettoreRef.current = radiceFinta(["Colore", "Lunghezza", "Misura"]).radice;
+    g.agisci(() => g.ris.aggiungi());
+    g.con(gamma, { Colore: "Nero", Lunghezza: "Media" });
+    c("scelta la Lunghezza (manca ancora la Misura): il messaggio sparisce e NON salta alla Misura senza un nuovo clic", null, g.ris.mancante);
     g.con(gamma, { Colore: "Nero", Misura: "Grande", Lunghezza: "Media" });
     c("completata la Lunghezza: via il messaggio, e non ne compare uno nuovo (non c'è altro da scegliere)", null, g.ris.mancante);
     g = montaGesto(M, gamma, { Colore: "Nero", Lunghezza: "Media" });
@@ -315,6 +320,17 @@ export async function prove(mod, { c, gruppo, radice }) {
     c("smontando il componente il timer si cancella", 0, ora.pendenti());
     ora.avanza(5000);
     c("…e dopo nessun cambio di stato (nessun disegno in più)", dopoClic, g.render);
+
+    // il messaggio di un clic su un prodotto non parla di un altro
+    g = montaGesto(M, alfa, {});
+    g.ris.selettoreRef.current = radiceFinta(["Colore"]).radice;
+    g.agisci(() => g.ris.aggiungi());
+    g.con(per("patch-prova-beta"), {});
+    c("dopo un clic senza scelta su un prodotto, passando a un altro (scelta azzerata) il messaggio non compare da solo", [null, null], [g.ris.mancante, g.ris.frase]);
+    g = montaGesto(M, alfa, { Colore: "Castano", Taglia: "XL" });
+    g.agisci(() => g.ris.aggiungi());
+    g.con(delta, { Misura: "Media", Taglia: "XL" });
+    c("…e lo stesso per «scelta non disponibile»", null, g.ris.frase);
 
     // la striscia è di QUEL prodotto: cambiando prodotto non resta lì
     g = montaGesto(M, alfa, { Colore: "Castano" });
@@ -419,6 +435,8 @@ export async function prove(mod, { c, gruppo, radice }) {
   const voceSped = vociDi(alfa).find((x) => x.id === "spedizione").testo.replace(/\u00a0/g, " ");
   c("la riga «Spedizione» c'è, con il testo della voce di fiducia (stessa frase: «Spedizione: {costo}, {tempi}.»)", [true, true], [testo.includes(voceSped), voceSped.startsWith("Spedizione: ")]);
   c("…compare UNA sola volta nella scheda (la riga di fiducia non la ripete)", 1, conta(testo, "Spedizione:"));
+  const senzaRiga0 = (await disegna(alfa, {}, { props: { blocco: { ...bloccoDi(alfa), rigaSpedizione: false } } })).html;
+  c("se il blocco non vuole la riga «Spedizione» non c'è da nessuna parte (nemmeno nella riga di fiducia), anche se la voce esiste", [true, 0], [vociDi(alfa).some((x) => x.id === "spedizione"), conta(leggibile(senzaRiga0), "Spedizione:")]);
   const senzaTariffa = (await disegna(alfa, {}, { tariffa: D.TARIFFA_ASSENTE })).html;
   c("senza tariffa: nessuna riga «Spedizione» (SPEC: solo con tariffa), e niente «da calcolare»", [0, false], [conta(leggibile(senzaTariffa), "Spedizione"), /da calcolare/i.test(senzaTariffa)]);
   c("…il resto resta: titolo, prezzo e bottone", [1, true, true], [conta(senzaTariffa, "<h1"), /IVA inclusa/.test(senzaTariffa), !!buttonDi(senzaTariffa, T.scheda.aggiungi)]);
@@ -525,6 +543,8 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("anteprima: la testata e il prezzo ci sono, ma il bottone d'acquisto MANCA (D94: non vende) e nessuna scelta, riga di fiducia né barra", [1, true, 0, false, 0, 0], [conta(anteprimaHtml, "<h1"), /IVA inclusa/.test(anteprimaHtml), conta(anteprimaHtml, "<button"), leggibile(anteprimaHtml).includes(T.scheda.aggiungi), conta(anteprimaHtml, '<ul role="list"'), conta(anteprimaHtml, "data-barra-nascondi")]);
   const shamp = (await disegna(shampoo, { Misura: "250 ml" })).html;
   c("una cura (shampoo, due misure): stessa struttura, senza eyebrow di patch ma con la sua categoria", [true, true], [leggibile(shamp).includes(shampoo.categorie[0].nome), !!buttonDi(shamp, T.scheda.aggiungi)]);
+  const dueCategorie = (await disegna({ ...copia(alfa), categorie: [{ slug: "a", nome: "Prima categoria" }, { slug: "b", nome: "Seconda categoria" }] })).html;
+  c("con due categorie l'eyebrow è la prima (una sola riga)", [true, false], [dueCategorie.includes("Prima categoria"), dueCategorie.includes("Seconda categoria")]);
   const senzaCategoria = (await disegna({ ...copia(alfa), categorie: [] })).html;
   c("senza categoria: nessun eyebrow vuoto (il disegno non ha un nodo senza testo davanti all'H1)", false, /<p[^>]*>\s*<\/p>/.test(senzaCategoria.slice(0, senzaCategoria.indexOf("<h1"))));
   c("un nome con marcatura non diventa marcatura (`<b>` nel nome è testo)", false, (await disegna({ ...copia(alfa), nome: "<b>x</b> Patch" })).html.includes("<b>x</b>"));
