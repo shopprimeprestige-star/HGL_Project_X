@@ -51,7 +51,7 @@ export function RigaCarrelloShop({ riga, avviso, formatta, onQuantita, onTogli }
         nascondiSeVuoto={false}
         className="h-[72px] w-[72px] shrink-0 rounded-lg sm:h-24 sm:w-24"
       />
-      <div className="grid min-w-0 grow basis-48 grid-cols-[1fr_auto] items-start gap-x-3 gap-y-1">
+      <div className="grid min-w-0 grow basis-48 grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 gap-y-1">
         <Link
           to="/shop/prodotto/$slug"
           params={params}
@@ -60,7 +60,7 @@ export function RigaCarrelloShop({ riga, avviso, formatta, onQuantita, onTogli }
           <span className="line-clamp-2">{riga.nome}</span>
         </Link>
         {riga.varianteNome && (
-          <p className="col-start-1 text-sm text-ink-muted">{riga.varianteNome}</p>
+          <p className="col-start-1 break-words text-sm text-ink-muted">{riga.varianteNome}</p>
         )}
         {/* Sta in alto a destra ma dopo il nome nella lettura (posto esplicito, ordine del documento intatto). */}
         <p className="col-start-2 row-start-1 flex min-h-11 min-w-20 items-center justify-end text-right text-base font-semibold tabular-nums text-[#0A1430]">

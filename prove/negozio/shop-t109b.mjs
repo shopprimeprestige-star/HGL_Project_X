@@ -19,7 +19,7 @@ export async function prove(mod, { c, gruppo, radice }) {
   const acquisto = leggi("scheda/BloccoAcquisto.tsx");
 
   c("T109b-1: la riga del carrello va a capo (`li` flex-wrap) e la colonna cresce da una base (`grow basis-48`), non da 0 (`flex-1`)", [true, true, false], [
-    /<li className="flex flex-wrap gap-3/.test(riga), /<div className="grid min-w-0 grow basis-48 grid-cols-\[1fr_auto\]/.test(riga), /<div className="grid min-w-0 flex-1/.test(riga)]);
+    /<li className="flex flex-wrap gap-3/.test(riga), /<div className="grid min-w-0 grow basis-48 grid-cols-\[minmax\(0,1fr\)_auto\]/.test(riga), /<div className="grid min-w-0 flex-1/.test(riga)]);
   c("T109b-1: lo stepper va a capo (flex-wrap) e i tasti restano da 44 px (h-11 w-11)", [true, true], [
     /<div className="flex flex-wrap items-center gap-2">/.test(stepper), /flex h-11 w-11 items-center justify-center/.test(stepper)]);
   c("T109b-1: la riga del totale del riepilogo va a capo (la cifra grande non spinge fuori la pagina)", true, /mt-1 flex flex-wrap items-baseline justify-between/.test(riepilogo));
