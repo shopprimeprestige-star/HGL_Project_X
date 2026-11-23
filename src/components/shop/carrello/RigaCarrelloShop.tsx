@@ -42,7 +42,7 @@ interface Props {
 export function RigaCarrelloShop({ riga, avviso, formatta, onQuantita, onTogli }: Props) {
   const params = { slug: riga.slug };
   return (
-    <li className="flex gap-3 border-b border-ink/10 py-4 sm:gap-4">
+    <li className="flex flex-wrap gap-3 border-b border-ink/10 py-4 sm:gap-4">
       {/* Il nome è lì accanto: la foto è decorazione (alt vuoto). Senza foto il riquadro tiene il posto. */}
       <FotoShop
         foto={riga.foto}
@@ -51,7 +51,7 @@ export function RigaCarrelloShop({ riga, avviso, formatta, onQuantita, onTogli }
         nascondiSeVuoto={false}
         className="h-[72px] w-[72px] shrink-0 rounded-lg sm:h-24 sm:w-24"
       />
-      <div className="grid min-w-0 flex-1 grid-cols-[1fr_auto] items-start gap-x-3 gap-y-1">
+      <div className="grid min-w-0 grow basis-48 grid-cols-[1fr_auto] items-start gap-x-3 gap-y-1">
         <Link
           to="/shop/prodotto/$slug"
           params={params}

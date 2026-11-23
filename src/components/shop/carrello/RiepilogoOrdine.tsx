@@ -36,7 +36,7 @@ export function RiepilogoOrdine({ riepilogo, formatta, refBottone }: Props) {
             {testoPrezzo(riepilogo.spedizione, formatta)}
           </dd>
         </div>
-        <div className="mt-1 flex items-baseline justify-between gap-3 border-t border-ink/10 pt-3 text-base text-[#0A1430]">
+        <div className="mt-1 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 border-t border-ink/10 pt-3 text-base text-[#0A1430]">
           <dt className="font-semibold">
             {t.totale} <span className="text-sm font-normal text-ink-muted">({t.ivaInclusa})</span>
           </dt>
