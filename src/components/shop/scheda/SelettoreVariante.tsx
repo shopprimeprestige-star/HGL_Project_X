@@ -13,7 +13,7 @@
 import { useId, type KeyboardEvent, type Ref } from "react";
 import { Check, CircleAlert } from "lucide-react";
 import { FotoShop } from "@/components/shop/FotoShop";
-import { TESTI_PROVVISORI, TESTI_SHOP } from "@/landing/testi-shop";
+import { TESTI_PROVVISORI } from "@/landing/testi-shop";
 import { emettiSoloContatore } from "@/lib/tracciamento/api";
 import type { ProdottoPubblico } from "@/shop/cms/modello";
 import { comandoDaTasto, stepGalleria } from "@/shop/cms/vetrina-interazioni";
@@ -172,6 +172,12 @@ function Gruppo({ prodotto, opzione, scelta, mancante, onScegli }: PropsGruppo) 
   const valori = opzione.valori.map((v) => v.valore);
   const scelto = valori.includes(scelta[opzione.nome]) ? scelta[opzione.nome] : null;
   const tappa = scelto ?? valori[0];
+  // le scelte che il prodotto ha ancora: un valore sparito (o di un altro prodotto) non deve rendere «Esaurito» il resto
+  const ancoraValide = Object.fromEntries(
+    Object.entries(scelta).filter(([nome, valore]) =>
+      prodotto.opzioni.some((o) => o.nome === nome && o.valori.some((v) => v.valore === valore)),
+    ),
+  );
   const messaggio = mancante?.opzione === opzione.nome ? testoScegli(mancante) : null;
 
   const scegli = (valore: string) => {
@@ -191,6 +197,8 @@ function Gruppo({ prodotto, opzione, scelta, mancante, onScegli }: PropsGruppo) 
     const prossimo = qui < 0 ? null : passoDaTasto(e.key, qui, radii.length);
     if (prossimo === null) return;
     e.preventDefault();
+    // un tasto che non sposta (bordo) non sceglie niente: con nulla scelto, ← sul primo valore non lo sceglie
+    if (prossimo === qui) return;
     radii[prossimo]?.focus();
     scegli(valori[prossimo]);
   };
@@ -214,7 +222,7 @@ function Gruppo({ prodotto, opzione, scelta, mancante, onScegli }: PropsGruppo) 
                 key={c.valore}
                 c={c}
                 scelto={c.valore === scelto}
-                esaurito={valoreEsaurito(prodotto, opzione.nome, c.valore, scelta)}
+                esaurito={valoreEsaurito(prodotto, opzione.nome, c.valore, ancoraValide)}
                 tappa={c.valore === tappa}
                 onScegli={() => scegli(c.valore)}
               />
@@ -224,7 +232,7 @@ function Gruppo({ prodotto, opzione, scelta, mancante, onScegli }: PropsGruppo) 
                 key={v}
                 valore={v}
                 scelto={v === scelto}
-                esaurito={valoreEsaurito(prodotto, opzione.nome, v, scelta)}
+                esaurito={valoreEsaurito(prodotto, opzione.nome, v, ancoraValide)}
                 tappa={v === tappa}
                 onScegli={() => scegli(v)}
               />

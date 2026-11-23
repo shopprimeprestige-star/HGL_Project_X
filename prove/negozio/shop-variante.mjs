@@ -175,7 +175,36 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("`fuocoSullaScelta`: porta il fuoco sul radio-tappa del gruppo dell'opzione mancante", [true, ["misura"]], [K.fuocoSullaScelta(radiceFinta, "Misura"), fuochi]);
   c("…un'opzione che non c'è, o nessuna radice: false e nessun fuoco", [false, false, 1], [K.fuocoSullaScelta(radiceFinta, "Lunghezza"), K.fuocoSullaScelta(null, "Colore"), fuochi.length]);
 
+  // ── ritocchi della revisione ──
+  // (1) un valore che non esiste più (CRM cambiato, scelta di un altro prodotto) non rende «Esaurito» tutto il resto
+  c("scelta con un valore sparito ({Lunghezza: «Fucsia»}): i colori restano come con nulla scelto, non tutti «Esaurito»", [["Nero", "Castano"], ["Nero", "Castano"]], [
+    radio((await disegna(gamma, { Lunghezza: "Fucsia" })).html).slice(0, 2).map((r) => r.attr["aria-label"]),
+    radio((await disegna(gamma, {})).html).slice(0, 2).map((r) => r.attr["aria-label"]),
+  ]);
+  c("…e un'opzione che il prodotto non ha ({Taglia: «XL»}) non pesa", ["Nero", "Castano"], radio((await disegna(gamma, { Taglia: "XL" })).html).slice(0, 2).map((r) => r.attr["aria-label"]));
+  c("…ma una scelta vera continua a pesare (Corta + Piccola: Nero è esaurito)", "Nero, Esaurito", radio((await disegna(gamma, { Lunghezza: "Corta", Misura: "Piccola", Taglia: "XL" })).html)[0].attr["aria-label"]);
+  // (2) la tastiera: il gestore vero, preso dal disegno con un jsx-runtime che registra `onKeyDown`
+  const tasto = async (p, scelta, gruppoN, qui, key) => {
+    const r = await rendiComponente(radice, FILE, "SelettoreVariante", { prodotto: p, scelta, onScegli: (x) => (r.pagina.scelte ??= []).push(x) }, { finti: { "react/jsx-runtime": JSX_TASTI(radice) } });
+    const fuochi = [];
+    const radii = Array.from({ length: p.opzioni[gruppoN].valori.length }, (_, i) => ({ focus: () => fuochi.push(i) }));
+    let fermato = false;
+    r.pagina.tasti[gruppoN]({ key, altKey: false, ctrlKey: false, metaKey: false, target: radii[qui], currentTarget: { querySelectorAll: () => radii }, preventDefault: () => (fermato = true) });
+    return { scelte: r.pagina.scelte, contatori: r.pagina.contatori, fuochi, fermato };
+  };
+  const g1 = await tasto(alfa, {}, 0, 0, "ArrowLeft");
+  c("niente scelto, ← sul primo valore: non si sposta, non sceglie e non conta (il tasto però è nostro: niente scorrimento)", [undefined, undefined, [], true], [g1.scelte, g1.contatori, g1.fuochi, g1.fermato]);
+  const g2 = await tasto(alfa, {}, 0, 0, "ArrowUp");
+  c("…lo stesso con ↑", [undefined, undefined], [g2.scelte, g2.contatori]);
+  const g3 = await tasto(alfa, {}, 0, 0, "ArrowRight");
+  c("niente scelto, → sul primo: il fuoco va sul secondo, lo sceglie e lo conta", [[{ Colore: "Castano" }], [1], [1]], [g3.scelte, [g3.contatori?.length], g3.fuochi]);
+  const g4 = await tasto(alfa, { Colore: "Biondo" }, 0, 2, "ArrowRight");
+  c("sull'ultimo, → non fa niente di nuovo (già scelto, nessun conteggio)", [undefined, undefined], [g4.scelte, g4.contatori]);
+  const g5 = await tasto(alfa, {}, 0, 0, "Tab");
+  c("Tab non è nostro: il browser lo gestisce (nessun preventDefault, nessuna scelta)", [false, undefined], [g5.fermato, g5.scelte]);
+
   // ── regole sul sorgente ──
+  c("nessun import non usato: `TESTI_SHOP` non serve al componente (la parola «Esaurito» passa da `etichettaCampione`)", false, /TESTI_SHOP/.test(readFileSync(join(radice, FILE), "utf8")));
   const src = readFileSync(join(radice, FILE), "utf8");
   c("`passoDaTasto` è una sola regola: riusa `comandoDaTasto` e `stepGalleria` di T105 (nessuna regola riscritta)", [true, true], [/comandoDaTasto/.test(src), /stepGalleria/.test(src)]);
   c("nessuna parola italiana scritta nel componente: i testi vengono da `testi-shop.ts` (niente «Esaurito», «Scegli», «Colore»)", [false, false, false], [/["'`]\s*Esaurito/.test(src), /["'`]\s*Scegli/.test(src), /["'`]\s*Colore\b/.test(src)]);
@@ -209,3 +238,12 @@ async function carica(radice, file) {
     rmSync(dir, { recursive: true, force: true });
   }
 }
+
+/** Un `react/jsx-runtime` per una sola prova: come quello vero, ma registra l'`onKeyDown` dei gruppi in `pagina.tasti` (in ordine di documento). */
+const JSX_TASTI = (radice) => `
+  import * as R from ${JSON.stringify(requireQui.resolve("react/jsx-runtime", { paths: [radice] }))};
+  const nota = (tipo, p) => { if (tipo === "div" && p && p.role === "radiogroup" && p.onKeyDown) (globalThis.__pagina.tasti ??= []).push(p.onKeyDown); };
+  export const Fragment = R.Fragment;
+  export const jsx = (t, p, k) => (nota(t, p), R.jsx(t, p, k));
+  export const jsxs = (t, p, k) => (nota(t, p), R.jsxs(t, p, k));
+`;
