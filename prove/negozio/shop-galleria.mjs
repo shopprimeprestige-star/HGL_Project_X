@@ -207,7 +207,7 @@ export async function prove(mod, { c, gruppo, radice }) {
     c("sei diapositive: ognuna è un gruppo con `aria-roledescription` e «Foto n di 6»", [6, true, [1, 2, 3, 4, 5, 6].map((n) => riempi(T.numero, { n, m: 6 }))], [gruppi.length, gruppi.every((g) => attr(g, "aria-roledescription") === T.diapositiva), gruppi.map((g) => attr(g, "aria-label"))]);
     const scorritore = tag(sei, "snap-x");
     c("scorrimento nativo: `snap-x snap-mandatory`, `overflow-x-auto`, `scroll-smooth`, barra nascosta, ogni diapositiva `snap-center` a tutta larghezza", [true, true, true, true, 6, 6], [classi(scorritore).includes("snap-mandatory"), classi(scorritore).includes("overflow-x-auto"), classi(scorritore).includes("scroll-smooth"), /scrollbar/.test(scorritore), conta(sei, "snap-center"), gruppi.filter((g) => classi(g).includes("w-full") && classi(g).includes("shrink-0")).length]);
-    c("il contatore è «1/6» ed è un `role=\"status\"` (lo annuncia a chi non vede)", true, /<p[^>]*role="status"[^>]*>1\/6<\/p>/.test(sei));
+    c("il contatore è «1/6» (nascosto a chi ascolta) più il testo «Foto 1 di 6» per i lettori di schermo, dentro un `role=\"status\"`", [true, true], [/<p[^>]*role="status"[^>]*><span class="sr-only">Foto 1 di 6<\/span><span aria-hidden="true">1\/6<\/span><\/p>/.test(sei), riempi(T.numero, { n: 1, m: 6 }) === "Foto 1 di 6"]);
 
     // le foto: una sola `eager`
     // nell'ordine del documento: prima le sei miniature (colonna a sinistra sul computer), poi le sei foto della galleria
@@ -224,6 +224,10 @@ export async function prove(mod, { c, gruppo, radice }) {
 
     // le frecce e le miniature
     const frecce = tutti(sei, "button").filter((t) => attr(t, "aria-label") === T.precedente || attr(t, "aria-label") === T.successiva);
+    // `hidden` vince solo se nessun'altra utilità `display` senza prefisso sta nello stesso `class` (in Tailwind 4 `inline-flex` batte `hidden`)
+    const DISPLAY = /^(block|inline-block|inline|flex|inline-flex|grid|inline-grid|table|contents|flow-root|list-item)$/;
+    const nascosti = [...sei.matchAll(/<[a-z]+\s[^>]*>/g)].map((m) => m[0]).filter((t) => classi(t).includes("hidden"));
+    c("ogni elemento `hidden` (frecce, miniature) non ha accanto un'altra utilità `display` senza prefisso: sul telefono sparisce davvero", [3, []], [nascosti.length, nascosti.filter((t) => classi(t).some((x) => DISPLAY.test(x)))]);
     c("frecce: due, da 44 px (`h-11 w-11`), nascoste sotto i 768 px (`hidden md:inline-flex`), con il nome da testi-shop", [2, true, true], [frecce.length, frecce.every((f) => classi(f).includes("h-11") && classi(f).includes("w-11")), frecce.every((f) => classi(f).includes("hidden") && classi(f).includes("md:inline-flex"))]);
     c("alla prima foto la freccia indietro è `aria-disabled=\"true\"` e la avanti `\"false\"` (il fuoco non si perde: non è `disabled`)", [["true", "false"], false], [[attr(frecce[0], "aria-disabled"), attr(frecce[1], "aria-disabled")], frecce.some((f) => /\sdisabled(=|\s|>)/.test(f))]);
     const miniature = tutti(sei, "button").filter((t) => /data-miniatura=/.test(t));
@@ -250,7 +254,7 @@ export async function prove(mod, { c, gruppo, radice }) {
     const apertaLb = await lightbox();
     const lb = apertaLb.html;
     /** Il contatore della lightbox (quello della galleria sta prima, fuori dal `Content`). */
-    const ctLb = (h) => (h.slice(Math.max(h.indexOf('data-radix="Content"'), 0)).match(/<p[^>]*role="status"[^>]*>([^<]*)<\/p>/) ?? [])[1];
+    const ctLb = (h) => (h.slice(Math.max(h.indexOf('data-radix="Content"'), 0)).match(/<p[^>]*role="status"[^>]*><span class="sr-only">[^<]*<\/span><span aria-hidden="true">([^<]*)<\/span><\/p>/) ?? [])[1];
     c("lightbox aperta: titolo (non si vede), bottone di chiusura da 44 px con il nome da testi-shop, contatore «1/5»", [T.titoloLightbox, true, "1/5"], [(lb.match(/<h2[^>]*>([^<]*)<\/h2>/) ?? [])[1], classi(tag(lb, `aria-label="${T.chiudi}"`)).includes("h-11") && classi(tag(lb, `aria-label="${T.chiudi}"`)).includes("w-11"), ctLb(lb)]);
     const imgLb = tutti(lb, "img");
     c("lightbox: UNA foto grande, la prima del giro, `eager`, con `srcset` fino a 1600 e `sizes` a tutta larghezza", [1, CINQUE[0].alt, true, true, true], [imgLb.length, attr(imgLb[0], "alt"), /1600w/.test(imgLb[0]), /sizes="100vw"/.test(imgLb[0]), /loading="eager"/.test(imgLb[0])]);
@@ -309,7 +313,7 @@ export async function prove(mod, { c, gruppo, radice }) {
       const { GalleriaProdotto, renderToStaticMarkup } = globalThis.__t86b;
       return inizializza(banco, GalleriaProdotto, { diapositive }, { renderToStaticMarkup });
     };
-    const contatore = (h) => (h.match(/<p[^>]*role="status"[^>]*>(\d\/\d)<\/p>/) ?? [])[1];
+    const contatore = (h) => (h.match(/<p[^>]*role="status"[^>]*><span class="sr-only">[^<]*<\/span><span aria-hidden="true">(\d\/\d)<\/span><\/p>/) ?? [])[1];
     const per = (g, domanda) => trova(g.el, domanda)[0];
     const scorr = (g) => per(g, (e) => e.props["data-scorritore"] !== undefined);
     const bottone = (g, etichetta) => per(g, (e) => e.type === "button" && e.props["aria-label"] === etichetta);

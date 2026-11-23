@@ -61,7 +61,8 @@ export function Lightbox({ aperto, onApertoChange, foto, indice, onVai, onRendiF
             <Dialog.Title className="sr-only">{G.titoloLightbox}</Dialog.Title>
             {mostra ? (
               <p role="status" className="text-sm font-medium tabular-nums">
-                {riempi(G.contatore, { n: attiva + 1, m: lista.length })}
+                <span className="sr-only">{riempi(G.numero, { n: attiva + 1, m: lista.length })}</span>
+                <span aria-hidden="true">{riempi(G.contatore, { n: attiva + 1, m: lista.length })}</span>
               </p>
             ) : (
               <span />

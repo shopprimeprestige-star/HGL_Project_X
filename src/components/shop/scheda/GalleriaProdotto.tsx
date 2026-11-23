@@ -35,7 +35,7 @@ const DIAPOSITIVA = "diapositiva-";
 
 /** Bottone tondo da 44 px sulla foto (bordo sottile, nessuna ombra); `aria-disabled` e non `disabled`: al bordo il fuoco non si perde. */
 const CLASSI_FRECCIA =
-  "shop-anello inline-flex h-11 w-11 items-center justify-center rounded-full border border-ink/15 bg-white text-[#0A1430] transition-colors hover:bg-ink/5 aria-disabled:cursor-default aria-disabled:opacity-40 aria-disabled:hover:bg-white";
+  "shop-anello h-11 w-11 items-center justify-center rounded-full border border-ink/15 bg-white text-[#0A1430] transition-colors hover:bg-ink/5 aria-disabled:cursor-default aria-disabled:opacity-40 aria-disabled:hover:bg-white";
 
 /** Il bottone della copertina sparisce quando il video parte: il fuoco passa al video (una funzione sola, così gira al montaggio e non a ogni disegno). */
 const fuocoAlVideo = (el: HTMLVideoElement | null) => el?.focus();
@@ -48,7 +48,6 @@ export interface GalleriaProdottoProps {
 export function GalleriaProdotto({ diapositive }: GalleriaProdottoProps) {
   const [indice, setIndice] = useState(0);
   const [lb, setLb] = useState<StatoLightbox>(LIGHTBOX_CHIUSA);
-  const [lbMontata, setLbMontata] = useState(false);
   const [videoAvviato, setVideoAvviato] = useState(false);
   const scorritore = useRef<HTMLDivElement | null>(null);
   const bottoni = useRef<(HTMLButtonElement | null)[]>([]);
@@ -94,7 +93,6 @@ export function GalleriaProdotto({ diapositive }: GalleriaProdottoProps) {
   const apri = (i: number) => {
     const posto = foto.findIndex((f) => f.id === lista[i].id);
     if (posto < 0) return;
-    setLbMontata(true);
     setLb((s) => lightbox(s, { tipo: "apri", da: `${DIAPOSITIVA}${i}`, indice: posto, totale: foto.length }));
   };
   /** Chiusura (X, Esc, tocco fuori): Radix ci avvisa; si chiude solo, mai si apre da qui. */
@@ -216,7 +214,8 @@ export function GalleriaProdotto({ diapositive }: GalleriaProdottoProps) {
             </button>
             {/* La regione c'è sempre (una regione nuova non verrebbe letta): annuncia la foto che cambia. */}
             <p role="status" className="absolute bottom-3 right-3 rounded-md bg-[#081634]/85 px-2.5 py-1 text-sm font-medium tabular-nums text-white">
-              {riempi(G.contatore, { n: attiva + 1, m: n })}
+              <span className="sr-only">{riempi(G.numero, { n: attiva + 1, m: n })}</span>
+              <span aria-hidden="true">{riempi(G.contatore, { n: attiva + 1, m: n })}</span>
             </p>
           </>
         )}
@@ -229,7 +228,7 @@ export function GalleriaProdotto({ diapositive }: GalleriaProdottoProps) {
         )}
       </div>
 
-      {lbMontata && (
+      {lb.totale > 0 && (
         <Suspense fallback={null}>
           <Lightbox aperto={lb.aperto} onApertoChange={chiudi} foto={foto} indice={lb.indice} onVai={(comando) => setLb((s) => lightbox(s, { tipo: "vai", comando }))} onRendiFuoco={rendiFuoco} />
         </Suspense>
@@ -237,5 +236,3 @@ export function GalleriaProdotto({ diapositive }: GalleriaProdottoProps) {
     </section>
   );
 }
-
-export default GalleriaProdotto;
