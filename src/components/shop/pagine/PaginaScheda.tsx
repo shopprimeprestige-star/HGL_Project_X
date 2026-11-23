@@ -172,7 +172,7 @@ function SchedaVista({
 
   return (
     // i titoli delle sezioni (h2) hanno tutti la stessa misura nei loro file: `text-xl md:text-2xl` (T102 A12)
-    <div className="mx-auto w-full max-w-6xl px-4 pb-16 pt-4 min-[360px]:px-6 lg:pt-10">
+    <div className="mx-auto w-full max-w-7xl px-4 pb-16 pt-4 min-[360px]:px-6 lg:px-10 lg:pt-10">
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] lg:gap-x-12 lg:gap-y-10">
         <div
           className="min-w-0 lg:col-start-1 lg:row-start-1"

@@ -172,7 +172,7 @@ export function PaginaCarrello() {
   // sotto la piega prima e dopo e non scende (CLS 0,27 a 320). shortcut: il carrello vuoto ha più spazio sotto; si cambia se il Design chiede il piè visibile nel vuoto.
   // `key` per ramo (T111b): vuoto e righe stanno nello stesso posto; senza chiave React riusa il `div` del vuoto per la griglia e Chrome conta il salto (0,078-0,129 a 390 e 320).
   return (
-    <div className="mx-auto min-h-[calc(100svh-3rem)] w-full max-w-6xl px-4 py-8 min-[360px]:px-6 lg:py-12">
+    <div className="mx-auto min-h-[calc(100svh-3rem)] w-full max-w-7xl px-4 py-8 min-[360px]:px-6 lg:px-10 lg:py-12">
       {conRighe && (
         <header>
           <h1 className="text-2xl font-bold leading-[1.1] tracking-tight text-[#0A1430] md:text-4xl">{t.titolo}</h1>
