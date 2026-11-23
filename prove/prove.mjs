@@ -19276,6 +19276,8 @@ export { PROBLEMI } from "@/landing/testi-sito";`,
   c("nessuna barra sul carrello", false, R.barraVisibile("/shop/carrello", false));
   c("nessuna barra sulla cassa", false, R.barraVisibile("/shop/checkout", false));
   c("nessuna barra sul carrello con la barra finale", false, R.barraVisibile("/shop/carrello/", false));
+  c("nessuna barra sulla pagina dell'ordine (T106)", false, R.barraVisibile("/shop/ordine/PROVA123", false));
+  c("la barra resta sulla scheda di un prodotto che si chiama «ordine…»", true, R.barraVisibile("/shop/prodotto/ordine-kit", false));
   for (const p of ["/CRM", "/CRM/nuovi-contatti", "/crm", "/meetly", "/meetly/ABC", "/preventivo", "/invito/XYZ"]) {
     c(`nessuna barra su ${p}`, false, R.barraVisibile(p, false));
   }

@@ -11,6 +11,8 @@ quadrati con la scritta «PROVA», nessuna foto vera.
 2. Dalla cartella del worktree: `node strumenti/vetrina-finta/avvia.mjs <scenario>`.
    Stampa l'indirizzo del finto, quello dell'app (`http://127.0.0.1:5199`, cambia con `--porta-app N`)
    e il numero del processo: per chiudere tutto, `kill <PID del lanciatore>` (chiude anche app e finto).
+   Aspetta la riga «App riscaldata»: con `vite dev` appena avviato, finché nessuno chiede l'entrata del client nella forma
+   `__x00__`, le pagine non si idratano (succede anche su main). Il lanciatore fa questa richiesta da solo.
 3. Apri `http://127.0.0.1:5199/shop`. Il lanciatore forza `SHOP_CATALOGO_FORZA=cms` e `SHOP_CASSA_FORZA=vecchia`
    **solo per quel processo**: in produzione quelle variabili non si impostano mai.
 4. Lighthouse: si lancia contro `vite dev` (come sopra). `--wrangler` avvia `wrangler dev --local` con lo stesso ambiente chiuso

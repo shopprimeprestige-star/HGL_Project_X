@@ -129,6 +129,18 @@ export async function avvia({
   }
 }
 
+/** Solo `vite dev`: finché nessuno chiede l'entrata del client nella forma `__x00__`, la forma che il server scrive nell'HTML
+ *  (`/@id/virtual:tanstack-start-client-entry`) risponde 404 e la pagina non si idrata (succede anche su main: è dell'ambiente,
+ *  non del ramo; trovato nel collaudo T106). Una richiesta di riscaldamento dopo l'avvio lo evita. Riprova per 60 s. */
+export async function riscalda(portaApp, { tentativi = 120, attesa = 500, prendi = fetch } = {}) {
+  const url = `http://127.0.0.1:${portaApp}/@id/__x00__virtual:tanstack-start-client-entry`;
+  for (let i = 0; i < tentativi; i++) {
+    try { const r = await prendi(url); if (r.ok) return true; } catch { /* non ancora in ascolto */ }
+    await new Promise((f) => setTimeout(f, attesa));
+  }
+  return false;
+}
+
 /* ── dalla riga di comando ──────────────────────────────────────────────────── */
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const argomenti = process.argv.slice(2);
@@ -147,6 +159,9 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     process.once("SIGINT", esci);
     process.once("SIGTERM", esci);
     figlio.once("exit", (codice) => process.exit(codice ?? 0));
+    if (!argomenti.includes("--wrangler")) {
+      console.log((await riscalda(portaApp)) ? "App riscaldata: le pagine si idratano." : "ATTENZIONE: riscaldamento non riuscito in 60 s, le pagine potrebbero non idratarsi.");
+    }
   } catch (e) {
     console.error(e instanceof ErroreSalvaguardia ? `RIFIUTATO: ${e.message}` : e);
     process.exit(1);
