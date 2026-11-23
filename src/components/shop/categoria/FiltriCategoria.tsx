@@ -85,7 +85,7 @@ function Valore({
       className={`shop-anello inline-flex min-h-11 items-center gap-2 rounded-full border px-4 text-sm font-medium transition-colors ${
         premuto
           ? "border-[#0A1430] bg-[#0A1430] text-white"
-          : "border-ink/25 bg-white text-ink hover:border-[#0A1430]"
+          : "border-[#7C8695] bg-white text-ink hover:border-[#0A1430]"
       }`}
     >
       {gruppo.tipo === "campioni" && <Campione v={v} premuto={premuto} />}
@@ -235,7 +235,7 @@ export function FiltriCategoria<P extends Filtrabile>({
   return (
     <div>
       {/* telefono: la barra sta sotto l'header (56 px) e occupa tutta la larghezza */}
-      <div className="sticky top-14 z-20 -mx-4 border-b border-ink/10 bg-white px-4 py-2 min-[360px]:-mx-6 min-[360px]:px-6 lg:hidden">
+      <div className="sticky top-14 z-20 -mx-4 flex items-center gap-3 border-b border-ink/10 bg-white px-4 py-2 min-[360px]:-mx-6 min-[360px]:px-6 lg:hidden">
         <button
           ref={tasto}
           type="button"
@@ -243,18 +243,22 @@ export function FiltriCategoria<P extends Filtrabile>({
           aria-haspopup="dialog"
           aria-expanded={statoFoglio.aperto}
           onClick={apri}
-          className="shop-anello inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md border border-[#0A1430]/30 bg-white px-4 text-sm font-semibold text-[#0A1430] hover:border-[#0A1430]"
+          className="shop-anello inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-md border border-[#7C8695] bg-white px-4 text-sm font-semibold text-[#0A1430] hover:border-[#0A1430]"
         >
           <SlidersHorizontal className="size-4" aria-hidden="true" />
           {riempi(FILTRI.filtra, { n: attivi })}
         </button>
+        {/* il numero a vista sul telefono (la regione `status` sotto lo dice già a chi usa lo schermo parlato) */}
+        <p aria-hidden="true" className="shrink-0 text-sm tabular-nums text-ink-muted">
+          {numero(visibili.length)}
+        </p>
       </div>
 
       <div className="mt-4 lg:mt-0 lg:grid lg:grid-cols-[14rem_minmax(0,1fr)] lg:items-start lg:gap-10 xl:grid-cols-[16rem_minmax(0,1fr)]">
         {/* computer: la colonna a sinistra */}
         <aside
           aria-label={TESTI.titolo}
-          className="hidden lg:sticky lg:top-24 lg:block lg:max-h-[calc(100dvh-7rem)] lg:overflow-y-auto"
+          className="-m-1 hidden p-1 lg:sticky lg:top-24 lg:block lg:max-h-[calc(100dvh-7rem)] lg:overflow-y-auto"
         >
           <h2 className="text-lg font-semibold tracking-tight text-ink">{TESTI.titolo}</h2>
           <div className="mt-5 space-y-6">{corpo}</div>

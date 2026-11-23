@@ -88,7 +88,7 @@ export function PaginaCerca({ carte, suggeriti, q, guasto = false, riprova }: Pa
           autoCapitalize="off"
           spellCheck={false}
           enterKeyHint="search"
-          className="shop-anello h-12 min-w-0 flex-1 appearance-none truncate rounded-md border border-ink/40 bg-white px-3 text-base text-ink placeholder:text-ink-muted"
+          className="shop-anello h-12 min-w-0 flex-1 appearance-none truncate rounded-md border border-[#7C8695] bg-white px-3 text-base text-ink placeholder:text-ink-muted"
         />
         <button
           type="submit"
