@@ -212,7 +212,7 @@ export interface IngressoVuoto {
 /** Dove portano i due ingressi, derivati dalle categorie del documento (`TESTI_SHOP.categorie`, §3.4): nessuno slug ripetuto qui.
  *  «Patch pronte» è la categoria che ha il nome del bottone. shortcut: «Cura e manutenzione» non ha una categoria sua nel documento (§3.4 ne ha sei):
  *  porta alla seconda, «Shampoo e balsami». Si cambia qui (e nel bottone della home, T91) quando il titolare dice dove deve andare. */
-const hrefCategoria = (c: { slug: string } | undefined): string => (c ? `/shop/c/${c.slug}` : "/shop");
+export const hrefCategoria = (c: { slug: string } | undefined): string => (c ? `/shop/c/${c.slug}` : "/shop");
 export const HREF_PATCH_PRONTE = hrefCategoria(TESTI_SHOP.categorie.find((c) => c.nome === TESTI_SHOP.carrello.vuotoBottone1));
 export const HREF_CURA = hrefCategoria(TESTI_SHOP.categorie[1]);
 

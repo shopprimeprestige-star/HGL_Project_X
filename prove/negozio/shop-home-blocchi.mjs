@@ -59,13 +59,20 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("bottoni: la categoria della cura vuota (non nell'elenco) → resta solo «Patch pronte»", [true, false, true, true], await bottoni([SLUG_PATCH]));
   c("bottoni: la categoria delle patch vuota → resta solo «Cura e manutenzione»", [false, true, true, true], await bottoni([SLUG_CURA]));
   c("bottoni: elenco vuoto o storto → nessun bottone, l'hero sta in piedi (H1, ritratto, fascia)", [[false, false, true, false], [false, false, true, false]], [await bottoni([]), await bottoni("patch-pronte")]);
-  // T102 A2: se lo slug delle patch pronte non combacia, il pieno ripiega sulla prima categoria con prodotti (non quella della cura, che ha già il suo bottone)
-  const hRipiego = await hero(CONTENUTO_PIENO, TARIFFA_OK, ["altra", "patch"]);
-  const ripiego = link(hRipiego, "Patch pronte");
-  c("bottoni: slug delle patch diverso → il pieno «Patch pronte» porta alla prima categoria con prodotti, nessun cura", ["/shop/c/altra", true, false], [attr(ripiego ?? "", "href"), classePiena(ripiego ?? "", "white"), !!link(hRipiego, "Cura e manutenzione")]);
-  const hRipiegoCura = await hero(CONTENUTO_PIENO, TARIFFA_OK, [SLUG_CURA, "altra"]);
-  c("bottoni: il ripiego salta la categoria della cura (niente due bottoni verso lo stesso posto)", ["/shop/c/altra", KC.HREF_CURA], [attr(link(hRipiegoCura, "Patch pronte") ?? "", "href"), attr(link(hRipiegoCura, "Cura e manutenzione") ?? "", "href")]);
-  c("bottoni: ripiego con slug storti (vuoto, non testo) → nessun pieno, nessun lancio", [false, false], [!!link(await hero(CONTENUTO_PIENO, TARIFFA_OK, ["", 7, null]), "Patch pronte"), !!link(await hero(CONTENUTO_PIENO, TARIFFA_OK, [SLUG_CURA]), "Patch pronte")]);
+  // T102 A2 (rifatta): se le patch pronte non hanno prodotti il pieno ripiega sulla prima categoria DOCUMENTATA con prodotti (non la cura) e dice il NOME di quella
+  // categoria (mai «Patch pronte» sopra un'altra destinazione); uno slug non documentato non dà nessun bottone. Gli indirizzi li dà `hrefCategoria`.
+  const SLUG_ALTRA = "districanti"; // documentata (§3.4): nome «Districanti»
+  const pieni = (html) => (html.match(/<a\b[^>]*>[\s\S]*?<\/a>/g) ?? []).filter((a) => classePiena(a, "white")); // i bottoni pieni dell'hero
+  const hAltra = await hero(CONTENUTO_PIENO, TARIFFA_OK, [SLUG_ALTRA]);
+  const pienoAltra = pieni(hAltra);
+  c("bottoni: patch senza prodotti, categoria documentata (districanti) → il pieno porta lì e porta il NOME di quella categoria, non «Patch pronte»", [1, KC.hrefCategoria({ slug: SLUG_ALTRA }), "Districanti", false], [pienoAltra.length, attr(pienoAltra[0] ?? "", "href"), leggibile(pienoAltra[0] ?? ""), !!link(hAltra, "Patch pronte")]);
+  c("bottoni: l'indirizzo del ripiego viene da `hrefCategoria` (una sola funzione per le categorie)", ["/shop/c/districanti", typeof KC.hrefCategoria], [KC.hrefCategoria({ slug: SLUG_ALTRA }), "function"]);
+  const hSconosciuta = await hero(CONTENUTO_PIENO, TARIFFA_OK, ["altra", "patch", "patch-prova"]);
+  c("bottoni: slug non documentati (altra, patch, patch-prova) → nessun bottone, come prima di T102", [0, false, true], [pieni(hSconosciuta).length, !!link(hSconosciuta, "Cura e manutenzione"), /<h1\b/.test(hSconosciuta)]);
+  const hSalta = await hero(CONTENUTO_PIENO, TARIFFA_OK, ["altra", SLUG_CURA, SLUG_ALTRA]);
+  c("bottoni: il ripiego salta gli slug non documentati e la categoria della cura (niente due bottoni verso lo stesso posto)", [KC.hrefCategoria({ slug: SLUG_ALTRA }), KC.HREF_CURA], [attr(pieni(hSalta)[0] ?? "", "href"), attr(link(hSalta, "Cura e manutenzione") ?? "", "href")]);
+  c("bottoni: con le patch piene il pieno resta «Patch pronte» anche se ci sono altre categorie", ["Patch pronte", KC.HREF_PATCH_PRONTE], [leggibile(pieni(await hero(CONTENUTO_PIENO, TARIFFA_OK, [SLUG_ALTRA, SLUG_PATCH]))[0] ?? ""), attr(pieni(await hero(CONTENUTO_PIENO, TARIFFA_OK, [SLUG_ALTRA, SLUG_PATCH]))[0] ?? "", "href")]);
+  c("bottoni: ripiego con slug storti (vuoto, numero, null) o solo la cura → nessun pieno, nessun lancio", [0, 0], [pieni(await hero(CONTENUTO_PIENO, TARIFFA_OK, ["", 7, null])).length, pieni(await hero(CONTENUTO_PIENO, TARIFFA_OK, [SLUG_CURA])).length]);
   c("bottoni: prop assente (default sicuro) → nessun bottone, mai un 404", [false, false, true, false], await bottoni("assente"));
   const hSenzaBottoni = await hero(CONTENUTO_PIENO, TARIFFA_OK, []);
   c("bottoni: senza bottoni restano il ritratto, la riga dello studio e la fascia, e non resta un contenitore vuoto", [true, true, false], [leggibile(hSenzaBottoni).includes("Applichiamo patch a Roma ogni giorno.") && /Studio a Roma/.test(hSenzaBottoni), imgs(hSenzaBottoni).length === 2, /sm:flex-row/.test(hSenzaBottoni)]);
