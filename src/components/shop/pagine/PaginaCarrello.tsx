@@ -189,7 +189,7 @@ export function PaginaCarrello() {
       )}
 
       {conRighe ? (
-        <div key="righe" className="mt-6 grid gap-8 lg:grid-cols-[minmax(0,1fr)_380px] lg:items-start lg:gap-12">
+        <div key="righe" className="mt-6 grid grid-cols-[minmax(0,1fr)] gap-8 lg:grid-cols-[minmax(0,1fr)_380px] lg:items-start lg:gap-12">
           <div className="flex flex-col gap-8">
             <ul role="list" className="border-t border-ink/10">
               {vista.righe.map((riga) => (
