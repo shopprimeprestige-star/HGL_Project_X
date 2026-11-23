@@ -113,6 +113,14 @@ export async function prove(mod, { c, gruppo, radice }) {
   const senzaAlt = dati({ testi: { "shop.coloriFoto.alt": "" }, media: SALVATI.media });
   c("una foto senza la sua descrizione non si disegna (il video non c'entra: ha la sua)", 0, conta(sezione(await html(alfa, { contenuto: senzaAlt }), T.colore).replace(/<button[\s\S]*?<\/button>/g, ""), /<img\b[^>]*colori-foto/g));
 
+  // ── testo parlato e descrizioni: senza vero non si disegna ──
+  const sParlato = async (parlato) => sezione(await html(alfa, { contenuto: { testi: { ...dati().testi, "shop.coloriTrascrizione": parlato }, media: dati().media } }), T.colore);
+  c("testo parlato «da confermare» o con segnaposto (passato com'è, senza `testiDi`): niente «Leggi il testo del video», il video resta", [false, false, 1], [/<details\b/.test(await sParlato("Da confermare: il parlato")), /<details\b/.test(await sParlato("Il parlato {{da scrivere}}")), conta(await sParlato("Da confermare"), /<button\b/g)]);
+  c("testo parlato vero: «Leggi il testo del video» c'è", true, /<details\b/.test(await sParlato("Il parlato vero.")));
+  const conAlt = async (chiave) => sezione(await html(alfa, { contenuto: { testi: { ...dati().testi, [chiave]: "" }, media: dati().media } }), T.colore);
+  c("copertina SENZA descrizione: il video non si disegna (né bottone né testo parlato); la foto resta", [0, false, true], [conta(await conAlt("shop.coloriPoster.alt"), /<button\b/g), /<details\b/.test(await conAlt("shop.coloriPoster.alt")), (await conAlt("shop.coloriPoster.alt")).includes(SALVATI.media["shop.coloriFoto"])]);
+  c("video SENZA descrizione: il video non si disegna (la descrizione dà il nome al bottone)", [0, false], [conta(await conAlt("shop.coloriVideo.alt"), /<button\b/g), /<details\b/.test(await conAlt("shop.coloriVideo.alt"))]);
+
   // ── la chiusura: un'azione solo se la pagina la dà ──
   c("colore: senza `onConsulenza` la chiusura è solo testo (nessun <button> oltre al video)", 1, conta(sColore, /<button\b/g));
   let chiamate = 0;
@@ -138,6 +146,17 @@ export async function prove(mod, { c, gruppo, radice }) {
   const sPacco = sezione(await html(senzaSua), T.confezione);
   const imgPacco = sPacco.match(/<img\b[^>]*>/g) ?? [];
   c("confezione: il prodotto senza la sua foto usa `shop.pacco` (foto globale, un solo file) con la descrizione dell'editor", [1, SALVATI.media["shop.pacco"], esc(dati().testi["shop.pacco.alt"])], [imgPacco.length, attr(imgPacco[0], "src"), attr(imgPacco[0], "alt")]);
+  // una foto «confezione» del prodotto senza nessuna misura usabile non conta: o `shop.pacco`, o niente (mai una seconda colonna vuota)
+  const sSenzaMisure = copia(alfa);
+  sSenzaMisure.media = sSenzaMisure.media.map((m) => (m.slot === "confezione" ? { ...m, src: null } : m));
+  const sSenzaMisureConPacco = sezione(await html(sSenzaMisure), T.confezione);
+  const sSenzaMisureVuoto = sezione(await html(sSenzaMisure, { contenuto: VUOTO }), T.confezione);
+  c("confezione: la foto del prodotto senza misure (`src` nullo) cade su `shop.pacco`", [1, SALVATI.media["shop.pacco"]], [conta(sSenzaMisureConPacco, /<img\b/g), attr(sSenzaMisureConPacco.match(/<img\b[^>]*>/)?.[0], "src")]);
+  c("confezione: né foto utilizzabile né `shop.pacco` = una colonna sola (nessuna griglia a due colonne vuota), l'elenco c'è", [false, 0, 2], [/@2xl:grid-cols-2/.test(sSenzaMisureVuoto), conta(sSenzaMisureVuoto, /<img\b/g), conta(sSenzaMisureVuoto, /<li\b/g)]);
+  const sSenzaMisure0 = copia(alfa);
+  sSenzaMisure0.media = sSenzaMisure0.media.map((m) => (m.slot === "confezione" ? { ...m, src: {} } : m));
+  c("confezione: anche una foto con l'oggetto `src` vuoto (nessuna misura) non apre la seconda colonna", false, /@2xl:grid-cols-2/.test(sezione(await html(sSenzaMisure0, { contenuto: VUOTO }), T.confezione)));
+  c("confezione: l'<ul> dichiara il suo ruolo (`role=\"list\"`, come i passi)", true, /<ul\b[^>]*role="list"/.test(sConf));
   const sNiente = sezione(await html(senzaSua, { contenuto: VUOTO }), T.confezione);
   c("confezione: né la sua foto né `shop.pacco` = nessuna <img>, resta l'elenco", [0, 2], [conta(sNiente, /<img\b/g), conta(sNiente, /<li\b/g)]);
   const hKit = await html(kit);

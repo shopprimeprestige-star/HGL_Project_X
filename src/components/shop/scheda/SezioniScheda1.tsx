@@ -100,7 +100,7 @@ function Colore({ testi, media, onConsulenza }: { testi: Contenuto; media: Conte
 function Confezione({ prodotto, titolo: chiave, voci, testi, media }: { prodotto: ProdottoPubblico; titolo: "confezione" | "cosaContiene"; voci: string[]; testi: Contenuto; media: Contenuto }) {
   const id = useId();
   // la foto del prodotto vince; senza, quella globale `shop.pacco`; senza nessuna resta l'elenco
-  const sua = prodotto.media.find((m) => m.slot === "confezione" && m.src);
+  const sua = prodotto.media.find((m) => m.slot === "confezione" && m.src?.w480);
   const globale = slotUsabile(media["shop.pacco"], testi["shop.pacco.alt"]);
   const foto = sua ? <FotoShop foto={sua.src} alt={sua.alt} uso="pacco" className="w-full rounded-md" /> : globale && <FotoShop src={globale.src} alt={globale.alt} uso="pacco" className="w-full rounded-md" />;
   return (
@@ -109,7 +109,7 @@ function Confezione({ prodotto, titolo: chiave, voci, testi, media }: { prodotto
         <h2 id={id} className={H2}>
           {chiave === "cosaContiene" ? titolo(TESTI_PROVVISORI.scheda.cosaContiene, "Cosa contiene") : TESTI_SHOP.scheda.confezione}
         </h2>
-        <ul className="mt-4 divide-y divide-ink/10 border-y border-ink/10 text-base text-[#0A1430]">
+        <ul role="list" className="mt-4 divide-y divide-ink/10 border-y border-ink/10 text-base text-[#0A1430]">
           {voci.map((v, i) => (
             <li key={i} className="py-3">
               {v}
