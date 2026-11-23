@@ -18,7 +18,7 @@ import type { TariffaCarrello } from "../cassa/tariffa-carrello";
 import { riempi, TESTI_SHOP } from "../../landing/testi-shop";
 import type { RigaCarrello, SnapRiga } from "./carrello";
 import { MSG_RIMOSSE } from "./cassa";
-import type { SrcFoto } from "./modello";
+import type { MisureFoto } from "./vetrina-foto";
 import { eInvisibleDerm } from "./pubblico";
 
 /* ── i prezzi: una cifra, o l'attesa, o niente ─────────────────────────── */
@@ -53,7 +53,7 @@ export interface RigaVista {
   nome: string;
   varianteNome: string | null;
   slug: string;
-  foto: SrcFoto | null;
+  foto: MisureFoto | null;
   qty: number;
   /** Prezzo di un pezzo. */
   unitario: PrezzoVista;

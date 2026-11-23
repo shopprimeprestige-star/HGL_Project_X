@@ -106,5 +106,5 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("CartContext: la chiave di memoria del carrello è la stessa (i carrelli già salvati si leggono)", true, /STORAGE_KEY = "hg_shop_cart_v1"/.test(ctx));
   c("CartContext: la riga guadagna `sku?` e `snap?` (facoltativi) e la chiave si fa come prima per le righe vecchie", [true, true, true], [/sku\?: string/.test(ctx), /snap\?: SnapRiga/.test(ctx), /cms \? cms\.sku : makeKey\(product\.id, variant\)/.test(ctx)]);
   c("CartContext: il subtotale passa da `subtotaleRighe`, con i prezzi di PRODUCTS per le righe vecchie", true, /subtotaleRighe\(lines, \(id\) => PRODUCTS\.find\(\(pr\) => pr\.id === id\)\?\.price\)/.test(ctx));
-  c("CartContext: `add` accetta una variante CMS come quarto argomento facoltativo", true, /add: \(product: Product, qty: number, variant\?: Record<string, string>, cms\?: \{ sku: string; snap: SnapRiga \}\) => void/.test(ctx));
+  c("CartContext: `add` accetta una variante CMS come quarto argomento facoltativo", true, /add: \(product: Pick<Product, "id">, qty: number, variant\?: Record<string, string>, cms\?: \{ sku: string; snap: SnapRiga \}\) => void/.test(ctx));
 }
