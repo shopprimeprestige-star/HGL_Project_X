@@ -13031,7 +13031,8 @@ function proveDeiMessaggiConNome() {
     //  Il primo messaggio al lead nuovo è senza link per scelta del titolare
     //  (20/10/2026): chiede solo «mattina o sera».
     //  Così anche «Da chiamare» (28/10/2026): chiede solo quando richiamarlo.
-    SENZA_RISULTATI.filter((k) => k !== "da_contattare" && k !== "attesa_whatsapp" && k !== "da_chiamare" && !/\{link|\{preventivi\}/.test(MODELLI_ORIGINALI[k])).join(","));
+    //  E «Già cliente nostro» (23/11/2026): un saluto, nessun link da toccare.
+    SENZA_RISULTATI.filter((k) => k !== "da_contattare" && k !== "attesa_whatsapp" && k !== "da_chiamare" && k !== "gia_cliente" && !/\{link|\{preventivi\}/.test(MODELLI_ORIGINALI[k])).join(","));
 
   //  Composto con i valori veri: niente graffe rimaste in giro, e il nome del
   //  consulente entra nella presentazione.
