@@ -109,13 +109,29 @@ const sha = (t) => createHash("sha256").update(t).digest("hex");
 const SCENARI = { vuoto: false, pieno: true };
 
 /** L'HTML di ogni pagina in ogni scenario, così com'è oggi. */
-async function fotografaHtml() {
-  const fuori = {};
-  for (const [nome, file] of Object.entries(PAGINE)) {
-    fuori[nome] = {};
-    for (const [scenario, pieno] of Object.entries(SCENARI)) fuori[nome][scenario] = await disegna(file, pieno);
+// Il calendario delle prenotazioni della landing disegna i giorni a partire da «oggi»: l'HTML cambia ogni giorno. Si disegna
+// sempre con l'orologio fermo a questo istante (l'istantanea risulta identica con questa data), poi l'orologio vero torna.
+export const DATA_FOTO = "2026-11-23T12:00:00Z";
+async function conOrologioFermo(fn) {
+  const Vero = globalThis.Date;
+  const fermo = new Vero(DATA_FOTO).getTime();
+  class Fermo extends Vero {
+    constructor(...a) { super(...(a.length ? a : [fermo])); }
+    static now() { return fermo; }
   }
-  return fuori;
+  globalThis.Date = Fermo;
+  try { return await fn(); } finally { globalThis.Date = Vero; }
+}
+
+async function fotografaHtml() {
+  return conOrologioFermo(async () => {
+    const fuori = {};
+    for (const [nome, file] of Object.entries(PAGINE)) {
+      fuori[nome] = {};
+      for (const [scenario, pieno] of Object.entries(SCENARI)) fuori[nome][scenario] = await disegna(file, pieno);
+    }
+    return fuori;
+  });
 }
 
 // ── scatto dell'istantanea: si lancia a mano, sul commit di base, prima di estrarre ──
