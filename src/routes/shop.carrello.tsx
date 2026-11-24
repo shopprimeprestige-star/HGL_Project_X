@@ -10,10 +10,28 @@ import { useRivalidaCarrello } from "@/shop/useRivalidaCarrello";
 import { emettiEvento } from "@/lib/tracciamento/api";
 import { ErroreRottaShop } from "@/components/shop/guscio/GuscioShop";
 import { PaginaCarrello } from "@/components/shop/pagine/PaginaCarrello";
+import type { SpedizionePubblica } from "@/shop/cassa/spedizione";
+import { tariffaSpedizione } from "@/shop/cassa/tariffe.functions";
+import { cassaPubblica, type CassaPubblica } from "@/shop/cms/cassa-pubblica.functions";
+import { contenutoShop } from "@/shop/cms/contenuto-shop.functions";
+import { confermatiDa, contenutoVuoto } from "@/shop/cms/vetrina-contenuto";
+import { vociFiducia, type VoceFiducia } from "@/shop/cms/vetrina-fiducia";
 
 export const Route = createFileRoute("/shop/carrello")({
   //  Il catalogo del sito: se non risponde si pensa `codice`, cioè il carrello di oggi.
-  loader: async () => ({ modo: await modalitaCatalogo().catch(() => "codice" as const) }),
+  //  Con `codice` esattamente come oggi (`{ modo }`, nessuna chiamata in più: è l'oro). Solo con `cms` le voci di fiducia vere sotto il totale (T114),
+  //  dalle stesse fonti della scheda; un guasto di una fonte non è un errore: quella voce non c'è. La spedizione c'è solo con i tempi confermati (il costo è già nel riepilogo).
+  loader: async (): Promise<{ modo: Awaited<ReturnType<typeof modalitaCatalogo>> | "codice"; voci?: VoceFiducia[] }> => {
+    const modo = await modalitaCatalogo().catch(() => "codice" as const);
+    if (modo !== "cms") return { modo };
+    const [tariffa, contenuto, cassa] = await Promise.all([
+      tariffaSpedizione().catch((): SpedizionePubblica | null => null),
+      contenutoShop().catch(contenutoVuoto),
+      cassaPubblica().catch((): CassaPubblica | null => null),
+    ]);
+    const conTempi = tariffa?.stato === "ok" && tariffa.confermata === true && typeof tariffa.frase === "string" && tariffa.frase.trim() !== "";
+    return { modo, voci: vociFiducia({ tariffa: conTempi ? tariffa : null, testi: confermatiDa(contenuto), cassa }) };
+  },
   errorComponent: ErroreCarrello,
   component: Carrello,
 });
@@ -25,8 +43,8 @@ function ErroreCarrello(props: ErrorComponentProps) {
 
 //  Smistatore (D70): con `cms` la pagina nuova, con `codice` il carrello di oggi, che qui sotto non cambia.
 function Carrello() {
-  const { modo } = Route.useLoaderData();
-  return modo === "cms" ? <PaginaCarrello /> : <CartPage />;
+  const { modo, voci } = Route.useLoaderData();
+  return modo === "cms" ? <PaginaCarrello voci={voci} /> : <CartPage />;
 }
 
 const prezzoCodice = (id: string) => PRODUCTS.find((pr) => pr.id === id)?.price;

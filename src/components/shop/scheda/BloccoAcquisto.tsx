@@ -30,6 +30,7 @@ import { emettiEvento } from "@/lib/tracciamento/api";
 import { useCart } from "@/shop/CartContext";
 import type { ProdottoPubblico } from "@/shop/cms/modello";
 import { cardDaPubblico, badgeProntaConsegna } from "@/shop/cms/vetrina-card";
+import { hrefCategoria } from "@/shop/cms/vetrina-carrello";
 import { eventoAggiungi } from "@/shop/cms/vetrina-eventi";
 import { DURATA_AGGIUNTO_MS, statoAggiunta } from "@/shop/cms/vetrina-interazioni";
 import type { Blocco } from "@/shop/cms/vetrina-scheda";
@@ -230,11 +231,12 @@ export function BloccoAcquisto({
     variante ? variante.disponibile : prodotto.varianti.some((v) => v.disponibile),
   );
   const nome = (n: string) => riempi(t.nelCarrello, { nome: n });
+  const tuttoEsaurito = !prodotto.varianti.some((v) => v.disponibile);
 
   return (
     <div className={radice}>
       {/* in anteprima non c'è bottone: la barra d'acquisto non ha niente da inseguire, quindi niente `ATTRIBUTO_BLOCCO` */}
-      <div {...(anteprima ? {} : ATTRIBUTO_BLOCCO)} className="flex flex-col gap-5">
+      <div {...(anteprima ? {} : ATTRIBUTO_BLOCCO)} className="flex flex-col gap-4">
         {testata}
         {(prezzoRiga || spedizione) && (
           <div className="flex flex-col gap-1.5">
@@ -280,6 +282,15 @@ export function BloccoAcquisto({
               t.aggiungi
             )}
           </button>
+        )}
+        {/* Prodotto tutto esaurito: il bottone è spento e la pagina non resta senza uscita (testo del documento: «Continua a guardare»; verso la categoria del prodotto, o lo shop) */}
+        {tuttoEsaurito && (
+          <Link
+            to={hrefCategoria(prodotto.categorie?.[0])}
+            className="shop-anello inline-flex min-h-11 items-center self-start font-semibold text-[#0A1430] underline underline-offset-4"
+          >
+            {TESTI_SHOP.carrello.continua}
+          </Link>
         )}
       </div>
       {/* Le due zone ci sono sempre, anche vuote: una regione `aria-live` che nasce con il testo dentro non viene letta. */}

@@ -556,7 +556,7 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("senza categoria: nessun eyebrow vuoto (il disegno non ha un nodo senza testo davanti all'H1)", false, /<p[^>]*>\s*<\/p>/.test(senzaCategoria.slice(0, senzaCategoria.indexOf("<h1"))));
   c("un nome con marcatura non diventa marcatura (`<b>` nel nome è testo)", false, (await disegna({ ...copia(alfa), nome: "<b>x</b> Patch" })).html.includes("<b>x</b>"));
   const senzaRiga = (await disegna({ ...copia(alfa), rigaPresentazione: null })).html;
-  c("la riga di presentazione mancante non lascia un paragrafo vuoto nella testata (il posto del nome del campione, più sotto, è un'altra cosa)", false, /<p[^>]*>\s*<\/p>/.test(senzaRiga.slice(0, senzaRiga.indexOf('role="radiogroup"'))));
+  c("la riga di presentazione mancante non lascia un paragrafo vuoto nella testata (il posto del nome del campione, `data-scelto`, ora sulla riga dell'etichetta, è un'altra cosa)", false, /<p(?![^>]*data-scelto)[^>]*>\s*<\/p>/.test(senzaRiga.slice(0, senzaRiga.indexOf('role="radiogroup"'))));
 
   // ── nessuna parola vietata, nessun segnaposto, nessun indirizzo ──
   const tuttiHtml = [base, esau, aggiunto.html, premuto.html, dermHtml, anteprimaHtml, senzaTariffa, tuttoEsaurito, shamp].join("\n");

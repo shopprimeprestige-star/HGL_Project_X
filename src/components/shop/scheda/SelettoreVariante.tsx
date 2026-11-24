@@ -206,17 +206,25 @@ function Gruppo({ prodotto, opzione, scelta, mancante, onScegli }: PropsGruppo) 
   };
 
   return (
-    <div className="space-y-2">
-      <p id={idEtichetta} className="text-sm font-semibold text-[#0A1430]">
-        {opzione.nome}
-      </p>
+    <div>
+      {/* l'etichetta e il nome scelto sulla stessa riga («Colore  Castano», come nel documento §4.5.4): niente riga in più sotto i campioni */}
+      <div className="flex flex-wrap items-baseline gap-x-2">
+        <p id={idEtichetta} className="text-sm font-semibold text-[#0A1430]">
+          {opzione.nome}
+        </p>
+        {aCampioni && (
+          <p data-scelto className="min-h-5 text-sm text-[#0A1430]/80">
+            {scelto}
+          </p>
+        )}
+      </div>
       <div
         role="radiogroup"
         data-opzione={opzione.nome}
         aria-labelledby={idEtichetta}
         aria-describedby={messaggio ? idMessaggio : undefined}
         onKeyDown={alTasto}
-        className="flex flex-wrap gap-2"
+        className="mt-2 flex flex-wrap gap-2"
       >
         {aCampioni
           ? campioni.map((c) => (
@@ -240,14 +248,9 @@ function Gruppo({ prodotto, opzione, scelta, mancante, onScegli }: PropsGruppo) 
               />
             ))}
       </div>
-      {aCampioni && (
-        <p data-scelto className="min-h-5 text-sm text-[#0A1430]/80">
-          {scelto}
-        </p>
-      )}
       <div id={idMessaggio} aria-live="polite">
         {messaggio && (
-          <p className="flex items-start gap-1.5 text-sm font-semibold text-[#0A1430]">
+          <p className="mt-2 flex items-start gap-1.5 text-sm font-semibold text-[#0A1430]">
             <CircleAlert className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
             {messaggio}
           </p>
@@ -279,7 +282,7 @@ export function SelettoreVariante({
     : [];
   if (opzioni.length === 0) return null;
   return (
-    <div ref={ref} className="space-y-5">
+    <div ref={ref} className="space-y-4">
       {opzioni.map((o) => (
         <Gruppo
           key={o.nome}
