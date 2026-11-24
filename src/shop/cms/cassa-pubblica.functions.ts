@@ -10,6 +10,8 @@ import { getRequestUrl, setResponseHeader } from "@tanstack/react-start/server";
 import { leggiVetrinaCassa } from "@/crm/negozio/fatti.server";
 import type { ClienteDb } from "@/crm/negozio/comune";
 import { cacheDellaRisposta } from "./catalogo.server";
+import { collaudoDellaRichiesta } from "./catalogo.functions";
+import { CACHE_COLLAUDO } from "./collaudo";
 import { cassaEffettivaDelServer } from "./cassa-sito.functions";
 import type { Cassa } from "./cassa-sito";
 
@@ -38,9 +40,11 @@ export const cassaPubblica = createServerFn({ method: "GET" }).handler(
     } catch {
       guasto = true;
     }
+    // col cookie del collaudo l'HTML della pagina resta `private, no-store` (T114b: un guasto qui non deve scendere a `no-store` e sovrascriverlo)
+    const inCollaudo = await collaudoDellaRichiesta().catch(() => false);
     try {
       const intestazione = cacheDellaRisposta(
-        guasto ? "no-store" : "public, max-age=15",
+        inCollaudo ? CACHE_COLLAUDO : guasto ? "no-store" : "public, max-age=15",
         getRequestUrl().pathname,
       );
       if (intestazione) setResponseHeader("Cache-Control", intestazione);
