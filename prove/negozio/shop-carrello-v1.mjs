@@ -54,7 +54,7 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("con righe: un solo H1 «Il tuo carrello», il sottotitolo del documento, due righe in una lista (`<ul role=list>`, un `<li>` per riga)", [1, true, true, 1, 2], [conta(hc, /<h1\b/g), tc.includes(T.titolo), tc.includes(T.sottotitolo), conta(hc, /<ul role="list"/g), conta(hc, /<li\b/g)]);
   const sub = alfa.snap.prezzoCent * alfa.qty + beta.snap.prezzoCent * beta.qty;
   c("con righe: prezzo di riga (pezzo × quantità) dal server, «Prodotti», «Spedizione» (tariffa 4,90 €) e «Totale (IVA inclusa)» = prodotti + spedizione", [true, true, true, true, true, true], [
-    tc.includes(euro(beta.snap.prezzoCent * beta.qty)), hc.includes(`<dt>${T.prodotti}</dt><dd class="tabular-nums text-[#0A1430]">${euroRaw(sub)}`), hc.includes(`<dt>${T.spedizione}</dt><dd class="tabular-nums text-[#0A1430]">${euroRaw(490)}`),
+    tc.includes(euro(beta.snap.prezzoCent * beta.qty)), hc.includes(`<dt>${T.prodotti}</dt><dd class="ml-auto tabular-nums text-[#0A1430]">${euroRaw(sub)}`), hc.includes(`<dt>${T.spedizione}</dt><dd class="ml-auto tabular-nums text-[#0A1430]">${euroRaw(490)}`),
     tc.includes(`${T.totale} (${T.ivaInclusa}) ${euro(sub + 490)}`), tc.indexOf(T.prodotti) < tc.indexOf(T.spedizione), tc.indexOf(T.spedizione) < tc.indexOf(`${T.totale} (`)]);
   c("con righe: [Vai alla cassa] è UN link verso `/shop/checkout` (la cassa di oggi), con l'attributo che nasconde la barra; mai «Procedi al checkout»", [1, 1, true, false], [
     conta(hc, /<a [^>]*href="\/shop\/checkout"/g), conta(hc, /<a data-barra-nascondi="vista" href="\/shop\/checkout"/g), tc.includes(T.vaiAllaCassa), /Procedi al checkout/.test(hc)]);
@@ -92,7 +92,7 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("«non_verificabile»: prezzi, prodotti e totale «—», nessuna cifra del browser, nessuna cifra inventata; l'avviso `role=alert` di R2; le righe restano e [Vai alla cassa] anche", [false, true, true, true], [
     /7\.777|8\.888/.test(guasto), conta(guasto, />—</g) >= 4, /role="alert"[^>]*>(?:<svg[^]*?<\/svg>)?Non riusciamo a controllare il carrello/.test(guasto), conta(guasto, /<li\b/g) === 2 && /href="\/shop\/checkout"/.test(guasto)]);
   c("la spedizione è quella del server: tariffa a 12,00 → «Spedizione» 12,00 €; tariffa assente → «—» e totale «—» (mai un totale senza spedizione)", [true, true, true], [
-    chiaro((await pagina(CARRELLO_NUOVO, { tariffa: { stato: "ok", costoCent: 1200, chiusa: false } })).html).includes(`${T.totale} (${T.ivaInclusa}) ${euro(sub + 1200)}`), hc.includes(`<dd class="tabular-nums text-[#0A1430]">${euroRaw(490)}`),
+    chiaro((await pagina(CARRELLO_NUOVO, { tariffa: { stato: "ok", costoCent: 1200, chiusa: false } })).html).includes(`${T.totale} (${T.ivaInclusa}) ${euro(sub + 1200)}`), hc.includes(`<dd class="ml-auto tabular-nums text-[#0A1430]">${euroRaw(490)}`),
     /<dt[^>]*>Totale <span[^>]*>\(IVA inclusa\)<\/span><\/dt><dd[^>]*>—</.test((await pagina(CARRELLO_NUOVO, { tariffa: { stato: "assente", costoCent: null, chiusa: false } })).html)]);
 
   // ── righe del catalogo vecchio e di Invisible Derm (V1-K3) ──

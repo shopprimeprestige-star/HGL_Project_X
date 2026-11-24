@@ -26,8 +26,8 @@ export async function prove(mod, { c, gruppo, radice }) {
   const righe = riep.match(/<div className="[^"]*\bflex\b[^"]*justify-between[^"]*">/g) ?? [];
   c("T112-2: le tre righe del riepilogo (Prodotti, Spedizione, Totale) vanno a capo (`flex-wrap`)", [3, 3], [righe.length, righe.filter((r) => /\bflex-wrap\b/.test(r)).length]);
   const link = (riep.match(/<Link[\s\S]*?>/) ?? [""])[0];
-  c("T112-2: «Vai alla cassa» ha `min-h-14` (non `h-14`) e il testo centrato, così a 3 righe il bottone cresce", [true, false, true], [
-    /\bmin-h-14\b/.test(link), /(^|[\s"])h-14\b/.test(link), /\btext-center\b/.test(link)]);
+  c("T112-2: «Vai alla cassa» ha `min-h-14` (non `h-14`) e il testo centrato, così a 3 righe il bottone cresce", [true, false, true, true], [
+    /\bmin-h-14\b/.test(link), /(^|[\s"])h-14\b/.test(link), /\btext-center\b/.test(link), /\bpy-3\b/.test(link)]);
   c("T112-2: il bottone è ancora a tutta larghezza, pieno e con il padding di prima (al 100 % e a 390 non cambia niente)", true,
     /\bw-full\b/.test(link) && /\bbg-\[#0A1430\]/.test(link) && /\bpx-6\b/.test(link) && /\bmt-4\b/.test(link));
 }
