@@ -24,13 +24,13 @@ export function RiepilogoOrdine({ riepilogo, formatta, refBottone }: Props) {
   return (
     <div className="rounded-[14px] border border-ink/10 bg-white p-4 sm:p-5">
       <dl className="flex flex-col gap-2 text-sm text-ink-muted">
-        <div className="flex items-baseline justify-between gap-3">
+        <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
           <dt>{t.prodotti}</dt>
           <dd className="tabular-nums text-[#0A1430]">
             {testoPrezzo(riepilogo.prodotti, formatta)}
           </dd>
         </div>
-        <div className="flex items-baseline justify-between gap-3">
+        <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
           <dt>{t.spedizione}</dt>
           <dd className="tabular-nums text-[#0A1430]">
             {testoPrezzo(riepilogo.spedizione, formatta)}
@@ -49,7 +49,7 @@ export function RiepilogoOrdine({ riepilogo, formatta, refBottone }: Props) {
         to="/shop/checkout"
         ref={refBottone}
         {...ATTRIBUTO_BLOCCO}
-        className="shop-anello mt-4 flex h-14 w-full items-center justify-center rounded-md bg-[#0A1430] px-6 text-base font-semibold text-white transition-colors hover:bg-[#1B2A4E]"
+        className="shop-anello mt-4 flex min-h-14 w-full items-center justify-center rounded-md bg-[#0A1430] px-6 py-3 text-center text-base font-semibold text-white transition-colors hover:bg-[#1B2A4E]"
       >
         {t.vaiAllaCassa}
       </Link>

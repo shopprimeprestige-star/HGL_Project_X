@@ -261,7 +261,7 @@ export function FiltriCategoria<P extends Filtrabile>({
         {/* computer: la colonna a sinistra */}
         <aside
           aria-label={TESTI.titolo}
-          className="-m-1 hidden p-1 lg:sticky lg:top-24 lg:block lg:max-h-[calc(100dvh-7rem)] lg:overflow-y-auto"
+          className="-m-1 hidden p-1 lg:sticky lg:top-24 lg:block lg:max-h-[calc(100dvh-7rem-var(--barra-h,0px))] lg:overflow-y-auto"
         >
           <h2 className="text-lg font-semibold tracking-tight text-ink">{TESTI.titolo}</h2>
           <div className="mt-5 space-y-6">{corpo}</div>
