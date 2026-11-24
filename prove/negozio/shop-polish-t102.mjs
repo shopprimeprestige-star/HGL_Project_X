@@ -50,7 +50,7 @@ export async function prove(mod, { c, gruppo, radice }) {
   ]);
   c("A15: la pillola scelta ha anche la spunta (non solo il riempimento)", [true, true], [/<Check className=\{`size-4 \$\{scelto \? "" : "invisible"\}`\} aria-hidden="true" \/>/.test(F.variante), /inline-flex min-h-11 min-w-11 items-center justify-center gap-1\.5/.test(F.variante)]);
   c("A16: la scheda sale di 8 px e 12 px (pt-4, gap-5; dal computer invariata)", [true, true], [/pb-16 pt-4 /.test(F.scheda) && /lg:pt-10/.test(F.scheda), /grid gap-5 lg:grid-cols-/.test(F.scheda) && /lg:gap-x-12 lg:gap-y-10/.test(F.scheda)]);
-  c("A17: il Totale del carrello è 24 px (28 dal computer), in grassetto, più piccolo dell'H1 (24/36)", true, /<dd className="text-2xl font-bold tabular-nums lg:text-\[28px\]">/.test(F.riepilogo));
+  c("A17: il Totale del carrello è 24 px (28 dal computer), in grassetto, più piccolo dell'H1 (24/36)", true, /<dd className="ml-auto text-2xl font-bold tabular-nums lg:text-\[28px\]">/.test(F.riepilogo));
   c("A18: l'avviso di riga non è giallo pieno: filetto ambra a sinistra (#8A5A00) su bianco", [false, true, true], [/amber/.test(F.riga), /border-l-4 border-ink\/10 border-l-\[#8A5A00\] bg-white/.test(F.riga), /text-\[#8A5A00\]/.test(F.riga)]);
   c("A19: i bottoni dello stato vuoto hanno la stessa larghezza (contenitore sm:w-64, bottoni w-full, niente min-w-48)", [true, 2, false], [/flex-col items-center gap-3 sm:w-64/.test(F.vuoto), (F.vuoto.match(/\bw-full\b[^`]*sm:min-w-0/g) ?? []).length, /min-w-48|sm:w-auto/.test(F.vuoto)]);
   c("A21: i due angoli del logo nell'header sono decorativi (aria-hidden)", [true, true], [/<span className="br-tr" aria-hidden="true" \/>/.test(F.header), /<span className="br-bl" aria-hidden="true" \/>/.test(F.header)]);
