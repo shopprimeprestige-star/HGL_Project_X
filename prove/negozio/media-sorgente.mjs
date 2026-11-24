@@ -4,6 +4,7 @@
  *  Regole: nessun `delete`; nessun nome del file originale (mai nei dati, mai nel percorso); `alt` obbligatorio prima di «Salva»;
  *  lo slot vuoto è azzurro e tratteggiato, mai grigio; più file e fotocamera; avanzamento e ripresa; l'originale non esce. */
 import { execFileSync } from "node:child_process";
+import { conMainDentro } from "./_unione-main.mjs";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -98,7 +99,7 @@ export async function prove(_mod, { c, gruppo, radice }) {
   let toccati = null;
   try {
     //  Sul ramo di integrazione `shop-r1` il diff da BASE contiene i compiti di tutti: il perimetro di T16 vale solo sul suo ramo di compito (T32, fase 1).
-    if (execFileSync("git", ["-C", radice, "rev-parse", "--abbrev-ref", "HEAD"], { encoding: "utf8" }).trim().match(/^shop-(r1$|r2|v1)/)) throw new Error("integrazione");
+    if (execFileSync("git", ["-C", radice, "rev-parse", "--abbrev-ref", "HEAD"], { encoding: "utf8" }).trim().match(/^shop-(r1$|r2|v1)/) || conMainDentro(radice)) throw new Error("integrazione");
     toccati = [
       ...execFileSync("git", ["-C", radice, "diff", "--name-only", BASE], { encoding: "utf8" }).split("\n"),
       ...execFileSync("git", ["-C", radice, "ls-files", "--others", "--exclude-standard"], { encoding: "utf8" }).split("\n"),

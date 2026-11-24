@@ -5,6 +5,7 @@
  *  · il prezzo passa da `centDaEuro` (nel modulo puro); i controlli vengono da `controllaPubblicazione`;
  *  · le firme dei segnaposto di T14 restano, e `CRM.ecommerce.tsx` e `routeTree.gen.ts` non cambiano rispetto a T14. */
 import { execFileSync } from "node:child_process";
+import { conMainDentro } from "./_unione-main.mjs";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -197,7 +198,7 @@ export async function prove(_mod, { c, gruppo, radice }) {
   let diff = null;
   try {
     //  Sul ramo di integrazione `shop-r1` T16 e T17 hanno legittimamente toccato questi file: il perimetro di T15 vale solo sui rami di compito (T32, fase 1).
-    if (execFileSync("git", ["rev-parse", "--abbrev-ref", "HEAD"], { cwd: radice, encoding: "utf8" }).trim().match(/^shop-(r1$|r2|v1)/)) throw new Error("integrazione");
+    if (execFileSync("git", ["rev-parse", "--abbrev-ref", "HEAD"], { cwd: radice, encoding: "utf8" }).trim().match(/^shop-(r1$|r2|v1)/) || conMainDentro(radice)) throw new Error("integrazione");
     diff = execFileSync(
       "git",
       [

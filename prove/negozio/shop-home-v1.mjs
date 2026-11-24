@@ -7,6 +7,7 @@
  *  con `codice`, come oggi); (4) il `codice` resta com'è (il corpo di `Storefront` è quello del base); (5) le regole del sorgente.
  *  I blocchi (`HeroShop`, `VetrinaHome`…) li prova già `shop-home-blocchi.mjs`: qui si prova ciò che la PAGINA ci fa. Dati inventati, nessuna rete. */
 import { execFileSync } from "node:child_process";
+import { conMainDentro } from "./_unione-main.mjs";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import * as D from "./_dati-vetrina.mjs";
@@ -213,5 +214,5 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("la rotta non importa i blocchi della home direttamente (li monta la pagina)", 0, conta(rotta, /components\/shop\/home\//g));
   c("nessun «da confermare», nessuna `{{`, nessun indirizzo dello studio e nessuna frase scritta nei due file (i testi sono di `testi-shop.ts`)", [false, false, false], [/da confermare/i.test(rotta.slice(0, rotta.indexOf("function Storefront() {")) + pag), /\{\{/.test(pag + rotta.slice(0, rotta.indexOf("function Storefront() {"))), /Scipioni|\bVia degli\b/i.test(pag)]);
   c("nessun carattere né font a mano, nessun rosso, nessuna `<img` nella pagina nuova", [false, false, false], [/font-family|Anton|Instrument|\bInter\b/.test(pag), /#FF3B3B|bg-destructive|text-destructive/i.test(pag), /<img\b/.test(pag)]);
-  c("`routeTree.gen.ts` non è nel lavoro (non si committa)", false, execFileSync("git", ["status", "--porcelain", "--", "src/routeTree.gen.ts"], { cwd: radice, encoding: "utf8" }).trim() !== "");
+  c("`routeTree.gen.ts` non è nel lavoro (non si committa)", false, !conMainDentro(radice) && execFileSync("git", ["status", "--porcelain", "--", "src/routeTree.gen.ts"], { cwd: radice, encoding: "utf8" }).trim() !== "");
 }
