@@ -164,12 +164,14 @@ export async function prove(mod, { c, gruppo, radice }) {
   // ── ogni disegno ha le sue chiamate: il `loader` del primo, chiamato dopo il secondo, resta sul primo ──
   {
     const R0 = "src/routes/shop.carrello.tsx";
-    const a = await rendi(radice, R0, { loaderData: { modo: "codice" }, server: { modalitaCatalogo: "cms" } });
+    // T114: con `cms` il loader del carrello legge anche le tre fonti della scheda (tariffa, testi, cassa): qui rispondono `stato.server`, e le chiamate sono quelle che il loader fa davvero
+    const FONTI = { tariffaSpedizione: { stato: "assente" }, contenutoShop: { testi: {}, media: {} }, cassaPubblica: null };
+    const a = await rendi(radice, R0, { loaderData: { modo: "codice" }, server: { modalitaCatalogo: "cms", ...FONTI } });
     const b = await rendi(radice, R0, { loaderData: { modo: "codice" }, server: { modalitaCatalogo: "codice" } });
     const daA = await a.route.loader();
-    c("due disegni, poi il `loader` del primo: le chiamate stanno nel primo (non sull'ultimo disegnato) e rispondono col suo `stato.server`", [["modalitaCatalogo"], [], { modo: "cms" }], [a.pagina.chiamate, b.pagina.chiamate, daA]);
+    c("due disegni, poi il `loader` del primo: le chiamate stanno nel primo (non sull'ultimo disegnato) e rispondono col suo `stato.server`", [["modalitaCatalogo", "tariffaSpedizione", "contenutoShop", "cassaPubblica"], [], "cms"], [a.pagina.chiamate, b.pagina.chiamate, daA.modo]);
     const daB = await b.route.loader();
-    c("…e il secondo resta il suo: il suo `loader` registra e risponde col suo stato", [["modalitaCatalogo"], ["modalitaCatalogo"], { modo: "codice" }], [a.pagina.chiamate, b.pagina.chiamate, daB]);
+    c("…e il secondo resta il suo: il suo `loader` registra e risponde col suo stato", [["modalitaCatalogo", "tariffaSpedizione", "contenutoShop", "cassaPubblica"], ["modalitaCatalogo"], { modo: "codice" }], [a.pagina.chiamate, b.pagina.chiamate, daB]);
   }
   {
     const dirA = mkdtempSync(join(tmpdir(), "prova-aiuti-"));
