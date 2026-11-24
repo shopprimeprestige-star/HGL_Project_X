@@ -75,6 +75,7 @@ export const segnapostiResidui = (t) => Array.from(new Set((t.match(/\\{\\{?[^{}
   tipi: `export const LEAD_STATUS_LABEL = {};
 export const eStatoDaChiamare = () => true;
 export const eAppuntamento = () => false;
+export const eGiaCliente = () => false;
 export const STATI_CHIUSURA_VINTA = [];`,
 };
 

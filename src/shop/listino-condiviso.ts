@@ -48,6 +48,47 @@ export function numeroDaTesto(t: string): number | null {
   return Number.isFinite(n) && n >= 0 ? n : null;
 }
 
+/** ── UN PREZZO PUÒ ESSERE NEGATIVO ─────────────────────────────────────────
+ *  Richiesta del titolare: «una cosa come prezzo è −300: quando la seleziono
+ *  toglie quella cifra, non è uno sconto, quel servizio costa meno». Il segno
+ *  si accetta in tutte le forme in cui lo si scrive o lo si incolla: «-», il
+ *  meno tipografico «−» e il trattino lungo «–». Il resto della lettura è
+ *  quella di `numeroDaTesto` (virgola, punto delle migliaia).
+ *  ⚠️ SOLO PER IL PREZZO DELLE OPZIONI (`ammetteNegativo`): acconto, prezzo
+ *   pieno, assistenza e codici restano ≥ 0, e continuano a leggersi con
+ *   `numeroDaTesto`. */
+export function prezzoDaTesto(t: string): number | null {
+  const s = String(t ?? "").replace(/[€\s]/g, "").replace(/^[\u2212\u2013\u2012\u2014]/, "-");
+  if (!s.startsWith("-")) return numeroDaTesto(s);
+  const n = numeroDaTesto(s.slice(1));
+  return n == null ? null : n > 0 ? -n : 0;
+}
+
+/** La stessa lettura dal valore che arriva al server: numero (qualunque segno)
+ *  o testo digitato. Una sola funzione, perché client e server devono leggere
+ *  lo stesso «-47,20» allo stesso modo. */
+export function prezzoDaValore(v: unknown): number | null {
+  if (typeof v === "number") return Number.isFinite(v) ? v : null;
+  return typeof v === "string" ? prezzoDaTesto(v) : null;
+}
+
+/** Il prezzo di una riga, dal valore che arriva al server. Lo STESSO limite
+ *  per testo e per numero: un `-300` JSON su una voce che non ammette il meno
+ *  (base, installazione, analisi…) si scarta come il testo «-300», non passa. */
+export function prezzoDaValoreRiga(
+  riga: { ammetteNegativo?: boolean } | undefined,
+  v: unknown,
+): number | null {
+  const n = prezzoDaValore(v);
+  return n != null && n < 0 && !riga?.ammetteNegativo ? null : n;
+}
+
+/** Il prezzo scritto in una riga del listino non è un importo valido? Le opzioni
+ *  delle sezioni ammettono il segno meno; tutte le altre voci no. */
+export function prezzoNonValido(riga: { ammetteNegativo?: boolean }, testo: string): boolean {
+  return (riga.ammetteNegativo ? prezzoDaTesto(testo) : numeroDaTesto(testo)) == null;
+}
+
 /** Da numero a testo modificabile: virgola decimale, niente zeri inutili. */
 export function testoDaNumero(n: number | null | undefined): string {
   if (n == null || Number.isNaN(n)) return "";
@@ -137,7 +178,8 @@ export function listinoDaVoci(voci: Listino): PricingOverrides {
   RIGHE.forEach((r) => {
     const v = voci[r.id];
     if (!v) return;
-    const p = numeroDaTesto(v.prezzo);
+    //  Il segno meno vale solo per le opzioni delle sezioni.
+    const p = r.ammetteNegativo ? prezzoDaTesto(v.prezzo) : numeroDaTesto(v.prezzo);
     if (p != null) prices[r.id] = p;
     if (r.hasWas) {
       const w = numeroDaTesto(v.pieno);
@@ -150,6 +192,11 @@ export function listinoDaVoci(voci: Listino): PricingOverrides {
 
 export const stessoImporto = (a: string, b: string) =>
   (numeroDaTesto(a) ?? -1) === (numeroDaTesto(b) ?? -1);
+
+/** Lo stesso confronto per il prezzo, che può avere il segno meno. */
+const stessoPrezzo = (a: string, b: string) =>
+  (prezzoDaTesto(a) ?? Number.NaN) === (prezzoDaTesto(b) ?? Number.NaN) ||
+  (prezzoDaTesto(a) == null && prezzoDaTesto(b) == null);
 
 /* ═══════════════════════════════════════════════════════════════════════════
    2. IL PRIMA → DOPO
@@ -178,6 +225,8 @@ export interface VoceModificata {
  *  troppo, lo zero mancante, e la voce diventata gratis per errore. */
 export function avvisoPrezzo(prima: number | null, dopo: number | null): string | undefined {
   if (prima == null || dopo == null) return undefined;
+  if (dopo < 0 && prima >= 0) return "toglie dal totale invece di aggiungere";
+  if (prima < 0 && dopo >= 0) return "non toglie più dal totale";
   if (prima > 0 && dopo === 0) return "diventa GRATIS per tutti";
   if (prima === 0 && dopo > 0) return "non è più inclusa nel prezzo";
   if (prima > 0 && dopo >= prima * 5) return `moltiplicato per ${Math.round(dopo / prima)}`;
@@ -200,9 +249,9 @@ export function vociModificate(
     const b = bozza[r.id];
     if (!a || !b) return;
     const cambi: Cambio[] = [];
-    if (!stessoImporto(a.prezzo, b.prezzo)) {
-      const prima = numeroDaTesto(a.prezzo);
-      const dopo = numeroDaTesto(b.prezzo);
+    if (!stessoPrezzo(a.prezzo, b.prezzo)) {
+      const prima = prezzoDaTesto(a.prezzo);
+      const dopo = prezzoDaTesto(b.prezzo);
       cambi.push({
         campo: "Prezzo",
         prima: prima == null ? "—" : formatta(prima),
@@ -231,7 +280,7 @@ export function vociModificate(
       out.push({
         riga: r,
         cambi,
-        prezzo: numeroDaTesto(b.prezzo) ?? 0,
+        prezzo: prezzoDaTesto(b.prezzo) ?? 0,
         pieno: numeroDaTesto(b.pieno),
         nascosta: b.nascosta,
       });
@@ -305,7 +354,8 @@ export function calcolaPreventivoTipo(
   const perImpianto = voci.reduce((s, v) => s + v.eur, 0);
   const remoto = menu.fitting.find((f) => f.id === "remoto") ?? menu.fitting[0];
   const analisi = trapianto ? 0 : (remoto?.price ?? 0);
-  const lordo = perImpianto * quantita + analisi;
+  //  Un'opzione a prezzo negativo abbassa il lordo, ma mai sotto zero.
+  const lordo = Math.max(0, perImpianto * quantita + analisi);
 
   const righeSconto: VoceCalcolo[] = sconti.auto.map((a) => ({
     nome: `Video testimonianza (${a.code})`,

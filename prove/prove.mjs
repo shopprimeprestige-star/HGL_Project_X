@@ -63,7 +63,10 @@ import { proveProssimoMeet } from "./idee/prossimo-meet.mjs";
 import { proveProssimoRicontatto } from "./idee/prossimo-ricontatto.mjs";
 import { proveAzioniMeet } from "./idee/azioni-meet.mjs";
 import { proveSoloBlocco } from "./idee/solo-blocco.mjs";
+import { proveStatoGiaCliente } from "./idee/stato-gia-cliente.mjs";
 import { proveChiamateAzzera } from "./idee/chiamate-azzera.mjs";
+import { proveScontoOpzione } from "./idee/sconto-opzione.mjs";
+import { provePrezziNegativi } from "./idee/prezzi-negativi.mjs";
 import { proveFiltriRitocchi } from "./idee/filtri-ritocchi.mjs";
 import { proveMeetlyStallo } from "./idee/meetly-stallo.mjs";
 import { proveMeetlyAvvio } from "./idee/meetly-avvio.mjs";
@@ -13038,6 +13041,8 @@ function proveDeiMessaggiConNome() {
     "da_chiamare",
     "appuntamento_fissato", "appuntamento_rifissato", "link_consulenza", "promemoria",
     "da_ricontattare", "fissa_meet_dopo", "gestire_in_chat", "sta_valutando",
+    //  «già cliente» (23/11/2026): a chi ha già comprato non si manda la raccolta dei lavori.
+    "gia_cliente",
   ];
   const senzaLink = chiavi.filter((k) => !MODELLI_ORIGINALI[k].includes("/media/"));
   c("il link dei risultati manca solo dove c'è quello della consulenza",
@@ -13050,7 +13055,8 @@ function proveDeiMessaggiConNome() {
     //  Il primo messaggio al lead nuovo è senza link per scelta del titolare
     //  (20/10/2026): chiede solo «mattina o sera».
     //  Così anche «Da chiamare» (28/10/2026): chiede solo quando richiamarlo.
-    SENZA_RISULTATI.filter((k) => k !== "da_contattare" && k !== "attesa_whatsapp" && k !== "da_chiamare" && !/\{link|\{preventivi\}/.test(MODELLI_ORIGINALI[k])).join(","));
+    //  E «Già cliente nostro» (23/11/2026): un saluto, nessun link da toccare.
+    SENZA_RISULTATI.filter((k) => k !== "da_contattare" && k !== "attesa_whatsapp" && k !== "da_chiamare" && k !== "gia_cliente" && !/\{link|\{preventivi\}/.test(MODELLI_ORIGINALI[k])).join(","));
 
   //  Composto con i valori veri: niente graffe rimaste in giro, e il nome del
   //  consulente entra nella presentazione.
@@ -16236,7 +16242,8 @@ function proveDelGestoPerStato() {
   const stati = TY.ALL_LEAD_STATUSES;
   //  Gli stati chiusi non hanno un gesto, e non devono averlo: quelli sono
   //  archivio davvero.
-  const chiusi = new Set(["concluso", "annullato", "perdi_tempo", "ripensamento"]);
+  //  «gia_cliente» (23/11/2026): fase chiusa, nessuna cosa da fare su una scheda già nostra.
+  const chiusi = new Set(["concluso", "annullato", "perdi_tempo", "ripensamento", "gia_cliente"]);
   for (const s of stati) {
     if (chiusi.has(s)) {
       c(`${s}: nessun gesto, ed e' giusto`, undefined, UI.AZIONE_PER_STATO[s]);
@@ -21739,8 +21746,11 @@ proveDellOrdineAcconti();
 proveDeiContatoriABadge();
 proveAzioniMeet(mod, { c, gruppo, radice });
 proveSoloBlocco(mod, { c, gruppo, radice });
+proveStatoGiaCliente(mod, { c, gruppo, radice });
 proveDelContatoreChiamate();
 proveChiamateAzzera(mod, { c, gruppo, radice });
+proveScontoOpzione(mod, { c, gruppo, radice });
+provePrezziNegativi(mod, { c, gruppo, radice });
 proveMeetlyStallo(mod, { c, gruppo, radice });
 proveMeetlyAvvio(mod, { c, gruppo, radice });
 await proveMeetlyRifiniture(mod, { c, gruppo, radice });

@@ -91,6 +91,7 @@ import {
   Undo2,
   TimerOff,
   Trophy,
+  UserCheck,
   UserX,
   Voicemail,
 } from "lucide-react";
@@ -111,6 +112,7 @@ import {
   LEAD_PHASE_LABEL,
   LEAD_STATUS_NOTA,
   LEAD_STATUS_PHASE,
+  PUNTO_GIA_CLIENTE,
   PUNTO_PER_ORA_NO,
   STATI_PRIMO_CONTATTO,
   statiPer,
@@ -199,6 +201,8 @@ export const ICONA_STATO: Partial<Record<LeadStatus, ComponentType<{ className?:
   annullato: ThumbsDown,
   //  «Per ora no»: un no con la scadenza, quindi l'orologio e non il pollice giù.
   per_ora_no: CalendarClock,
+  //  Ha già comprato da noi: la persona con la spunta, non la coppa (non è una vendita di oggi).
+  gia_cliente: UserCheck,
   //  Una freccia che torna indietro: ha fatto un passo avanti e l'ha disfatto.
   //  Non il pollice giù di «Non interessato» — quello dichiara un no mai
   //  cambiato, questo un sì che si è sciolto.
@@ -340,7 +344,11 @@ function PulsanteStato({
         aria-hidden="true"
         className={cn(
           "absolute inset-y-0 left-0 w-[3px]",
-          stato === "per_ora_no" ? PUNTO_PER_ORA_NO : PUNTO_TONO[tonoStato(stato)],
+          stato === "per_ora_no"
+            ? PUNTO_PER_ORA_NO
+            : stato === "gia_cliente"
+              ? PUNTO_GIA_CLIENTE
+              : PUNTO_TONO[tonoStato(stato)],
         )}
       />
       {Icona ? <Icona className="h-4 w-4 shrink-0 text-slate-500" /> : null}

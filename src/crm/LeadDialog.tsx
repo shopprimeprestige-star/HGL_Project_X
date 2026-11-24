@@ -160,6 +160,7 @@ import {
   eAppuntamento,
   eChiusuraVinta,
   LEAD_STATUS_LABEL,
+  TINTA_GIA_CLIENTE,
   LOST_STATUSES,
   LOST_REASON_LABEL,
   LOST_REASON_OPTIONS,
@@ -243,6 +244,7 @@ import {
   type DaySlots,
   type SlotConStato,
 } from "./booking-utils";
+import { eClienteNostro } from "./kpi-calcoli";
 import { TastoMessaggio } from "./TastoMessaggio";
 import { BloccoAnagrafica } from "./DatiAnagrafici";
 import {
@@ -270,6 +272,7 @@ import {
   Receipt,
   RotateCcw,
   Bell,
+  UserCheck,
   UserIcon,
   Wallet,
   Lock,
@@ -2233,12 +2236,30 @@ function BloccoContatto({
   messaggioPromemoria?: string | null;
   compatto?: boolean;
 }) {
+  //  «Già cliente nostro» (23/11/2026): se un'ALTRA scheda con lo stesso numero ha già comprato e
+  //  questa no, lo si dice. Solo un avviso: due persone possono condividere un numero, quindi lo
+  //  stato lo sceglie la persona, mai il programma.
+  const clienteAltrove = !eClienteNostro({ data: form })
+    ? doppioni.find((l) => l.data && eClienteNostro(l))
+    : undefined;
   return (
     <SezioneFinestra
       titolo={compatto ? undefined : "Chi è"}
       nota={compatto ? undefined : "Bastano nome e telefono: il resto si aggiunge dopo"}
       classeCorpo="p-4 space-y-3"
     >
+      {form.stato === "gia_cliente" && (
+        <div
+          role="note"
+          className={cn(
+            "flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-[12.5px] font-semibold",
+            TINTA_GIA_CLIENTE,
+          )}
+        >
+          <UserCheck className="h-4 w-4 shrink-0" aria-hidden="true" />
+          Già cliente nostro
+        </div>
+      )}
       <div className={GRIGLIA}>
         <Campo etichetta="Nome" obbligatorio>
           <Input
@@ -2305,6 +2326,25 @@ function BloccoContatto({
                 `${doppioni[0]?.data?.nome ?? ""} ${doppioni[0]?.data?.cognome ?? ""}`.trim(),
               )}{" "}
               <span className="font-semibold underline underline-offset-2">Apri la sua scheda</span>
+            </span>
+          </button>
+        )}
+        {clienteAltrove && (
+          <button
+            type="button"
+            onClick={onVediDoppione}
+            className={cn(
+              "mt-1 flex w-full items-start gap-1.5 rounded-md border px-2 py-1.5 text-left text-[11.5px] leading-snug hover:opacity-90",
+              TINTA_GIA_CLIENTE,
+            )}
+          >
+            <UserCheck className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+            <span className="min-w-0 flex-1">
+              Risulta già cliente: vedi scheda{" "}
+              <span className="font-semibold underline underline-offset-2">
+                {`${clienteAltrove.data.nome ?? ""} ${clienteAltrove.data.cognome ?? ""}`.trim() ||
+                  "senza nome"}
+              </span>
             </span>
           </button>
         )}

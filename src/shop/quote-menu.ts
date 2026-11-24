@@ -634,7 +634,8 @@ export function prezzoDiPartenza(
   const b = menu.base.find((x) => x.id === baseId);
   const partenza = b?.price ?? 0;
   const voci = vociPreselezionate(menu.sections, baseId, selezionati);
-  const totale = partenza + voci.reduce((s, i) => s + i.price, 0);
+  //  Mai sotto zero: con opzioni a prezzo negativo la scheda non scende sotto 0.
+  const totale = Math.max(0, partenza + voci.reduce((s, i) => s + i.price, 0));
   //  Il prezzo pieno di una voce senza barrato è il suo prezzo: sommare
   //  `wasPrice ?? 0` cancellerebbe dal barrato tutte le voci non scontate, e
   //  il "prima" uscirebbe più basso del "dopo".
@@ -749,6 +750,41 @@ export function accontoDi(o: PricingOverrides = {}, baseId?: string): number {
   return typeof a === "number" && Number.isFinite(a) && a >= 0 ? a : ACCONTO_DI_CASA;
 }
 
+/** ── LO SCONTO DELLE OPZIONI NEI PREVENTIVI GIÀ EMESSI ─────────────────────
+ *  ⚠️ DAL 21/11 NON SI USA PIÙ PER I PREVENTIVI NUOVI: il titolare voleva un
+ *  PREZZO NEGATIVO sull'opzione (si scrive nel campo Prezzo del listino), non
+ *  uno sconto. Restano questa funzione e il tipo di voce `opzione` solo per
+ *  leggere i preventivi emessi con uno sconto dentro la voce (`scontoOpz`).
+ *  `sconti` = id → euro per impianto; `scelte` = le voci spuntate; lo sconto segue il prezzo della voce, quindi si moltiplica per la
+ *  quantità. Un valore che non è un numero positivo si scarta in silenzio:
+ *  meglio nessuno sconto che uno inventato. */
+export interface ScontoOpzione { id: string; nome: string; eur: number }
+export function scontoOpzioni(
+  sconti: Record<string, number> | undefined,
+  scelte: { id: string; name: string }[],
+  quantita = 1,
+): { righe: ScontoOpzione[]; totale: number } {
+  const q = Number.isFinite(quantita) && quantita >= 1 ? quantita : 1;
+  const righe: ScontoOpzione[] = [];
+  for (const v of scelte) {
+    const unitario = sconti?.[v.id];
+    if (typeof unitario !== "number" || !Number.isFinite(unitario) || unitario <= 0) continue;
+    righe.push({ id: v.id, nome: v.name, eur: Math.round(unitario * q * 100) / 100 });
+  }
+  return { righe, totale: Math.round(righe.reduce((t, r) => t + r.eur, 0) * 100) / 100 };
+}
+
+/** ── COME SI SCRIVE IL PREZZO DI UNA VOCE ──────────────────────────────────
+ *  «GRATIS» a zero, «+47,20 €» se aggiunge, «−300,00 €» se TOGLIE: un prezzo
+ *  negativo (opzione che costa meno, vedi `ammetteNegativo`) è un prezzo come
+ *  gli altri, ma col «+» davanti si leggerebbe «+-300». `formatta` arriva da
+ *  fuori (formatPrice del catalogo) per non legare questo file al catalogo. */
+export function etichettaPrezzoVoce(prezzo: number, formatta: (n: number) => string): string {
+  if (prezzo === 0) return "GRATIS";
+  if (prezzo < 0) return formatta(prezzo).replace("-", "\u2212");
+  return "+" + formatta(prezzo);
+}
+
 export function buildMenu(o: PricingOverrides = {}) {
   const p = o.prices ?? {}, w = o.was ?? {}, d = o.disabled ?? {};
   //  Spegnere gli sconti si fa QUI, in un punto solo: togliendo il `wasPrice`
@@ -767,11 +803,15 @@ export function buildMenu(o: PricingOverrides = {}) {
   const listinoDi = (id: string, base?: number) => wasOr(w[id], base);
   const prezzoDi = (id: string, prezzo: number, listinoBase?: number) => {
     const corrente = numOr(p[id], prezzo);
-    if (sconti) return corrente;
+    //  Un prezzo NEGATIVO è un prezzo vero («costa meno»), non un'offerta: non
+    //  ha un listino da ripristinare e non si tocca mai.
+    if (sconti || corrente < 0) return corrente;
     const pieno = listinoDi(id, listinoBase);
     return typeof pieno === "number" && pieno > corrente ? pieno : corrente;
   };
-  const was = (id: string, base?: number) => (sconti ? listinoDi(id, base) : undefined);
+  //  ⚠️ Mai un barrato accanto a un prezzo negativo: non è uno sconto.
+  const was = (id: string, base?: number) =>
+    sconti && !(numOr(p[id], 0) < 0) ? listinoDi(id, base) : undefined;
   return {
     //  ⚠️ Anche le soluzioni di partenza: hanno un listino barrato come le
     //   altre voci, e lasciarle fuori voleva dire una pagina che toglie gli
@@ -856,11 +896,11 @@ export function vociAiPrezziDiOggi<T extends { name: string; price: number; wasP
 }
 
 /** Elenco piatto di tutte le voci con prezzo, per l'editor del CRM. */
-export interface PricingRow { id: string; label: string; group: string; price: number; wasPrice?: number; hasWas: boolean; }
+export interface PricingRow { id: string; label: string; group: string; price: number; wasPrice?: number; hasWas: boolean; /** true = il prezzo può essere negativo (le opzioni delle sezioni) */ ammetteNegativo?: boolean; }
 export function pricingRows(): PricingRow[] {
   const rows: PricingRow[] = [];
   BASE_SOLUTIONS.forEach((b) => rows.push({ id: b.id, label: b.name, group: "Soluzione base", price: b.price, hasWas: false }));
-  UPSELL_SECTIONS.forEach((s) => s.items.forEach((i) => rows.push({ id: i.id, label: i.name, group: s.title, price: i.price, wasPrice: i.wasPrice, hasWas: true })));
+  UPSELL_SECTIONS.forEach((s) => s.items.forEach((i) => rows.push({ id: i.id, label: i.name, group: s.title, price: i.price, wasPrice: i.wasPrice, hasWas: true, ammetteNegativo: true })));
   rows.push({ id: INSTALLATION.id, label: INSTALLATION.name, group: "Installazione", price: INSTALLATION.price, hasWas: false });
   FITTING_OPTIONS.forEach((f) => rows.push({ id: f.id, label: f.name, group: "Colore e analisi morfologica", price: f.price, hasWas: false }));
   rows.push({ id: SIMULATION.id, label: SIMULATION.name, group: "Simulazione", price: SIMULATION.price, wasPrice: SIMULATION.wasPrice, hasWas: true });

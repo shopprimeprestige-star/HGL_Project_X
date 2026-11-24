@@ -231,7 +231,8 @@ export function AnteprimaPrezzo({
   senzaPiu?: boolean;
 }) {
   const gratis = prezzo === 0;
-  const promo = pieno != null && pieno > prezzo;
+  //  Un prezzo negativo non è un'offerta: niente barrato.
+  const promo = prezzo >= 0 && pieno != null && pieno > prezzo;
   return (
     <span className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-2 py-1 align-middle">
       {promo && (
@@ -248,7 +249,11 @@ export function AnteprimaPrezzo({
               : "bg-brand/20 text-brand"
         }`}
       >
-        {gratis ? "GRATIS" : (senzaPiu ? "" : "+") + formatPrice(prezzo)}
+        {gratis
+          ? "GRATIS"
+          : prezzo < 0
+            ? formatPrice(prezzo).replace("-", "\u2212")
+            : (senzaPiu ? "" : "+") + formatPrice(prezzo)}
       </span>
     </span>
   );
