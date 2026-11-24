@@ -4,6 +4,8 @@ La Vetrina V1 è il disegno nuovo di cinque pagine dello shop: la home (`/shop`)
 
 **Non ci sono migrazioni del database e non ci sono variabili nuove.** Non devi incollare chiavi né lanciare file SQL.
 
+**Una variabile da non toccare: `SHOP_CATALOGO_FORZA`.** Nel Worker di produzione **non va impostata**. Se ci fosse, varrebbe più dell'interruttore «Apri lo shop al pubblico» del CRM. Serve solo per le prove in locale, come `SHOP_CASSA_FORZA` (che in produzione viene ignorata).
+
 **Cosa cambia per i clienti, subito: quasi niente.** Le pagine nuove le vedi solo tu, con il collaudo con chiave (sezione 2). Il pubblico le vede quando premi «Apri lo shop al pubblico» nel CRM. Finché non lo premi, restano le pagine di oggi, con le due differenze della sezione 4.
 
 ## 1. Cosa carichi nel CMS prima di accendere la vetrina nuova
@@ -15,6 +17,13 @@ La Vetrina V1 è il disegno nuovo di cinque pagine dello shop: la home (`/shop`)
 Le altre quattro, se le vuoi: `districanti`, `colle-e-remover`, `spazzole`, `kit`. L'elenco esatto sta in `src/landing/testi-shop.ts` (`TESTI_SHOP.categorie`).
 - Metti dentro i prodotti. **Una categoria senza prodotti non fa comparire il suo bottone nell'eroe della home**, e la home resta senza bottoni.
 - Una categoria nuova nasce nascosta: accendila dall'elenco.
+- **Se `patch-pronte` manca, è nascosta o è vuota**, i link «Patch pronte» dell'intestazione e del menu del telefono riportano il cliente sulla home dello shop: sembra un link rotto. Lo stesso vale per ogni indirizzo `/shop/c/…` di una categoria che non c'è: non dà una pagina d'errore, torna sulla home.
+
+**L'ordine giusto:**
+1. crea le categorie e mettici i prodotti;
+2. accendi le categorie;
+3. guarda tutto con il collaudo con chiave (sezione 2), toccando anche «Patch pronte» in alto e nel menu del telefono;
+4. solo dopo premi «Apri lo shop al pubblico».
 
 **I titoli.** Nella sezione «Shop (/shop)» dei contenuti:
 - il titolo dell'eroe («Home · titolo»);

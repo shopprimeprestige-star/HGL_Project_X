@@ -104,7 +104,9 @@ Espandi la sezione **Variables and Secrets** e aggiungi:
 I passi «a mano» per il titolare, scritti in frasi brevi, stanno in `RILASCIO-2-PASSI-DEL-TITOLARE.md` (cartella della commessa).
 Qui sotto c'è la parte tecnica.
 
-**Vetrina V1 (pagine nuove di `/shop`): nessuna migrazione del database e nessuna variabile nuova o cambiata.** Per le sue pagine vedi `RILASCIO-V1-PASSI-DEL-TITOLARE.md`.
+**Vetrina V1 (pagine nuove di `/shop`): nessuna migrazione del database e nessuna variabile da impostare.** Per le sue pagine vedi `RILASCIO-V1-PASSI-DEL-TITOLARE.md`.
+- `SHOP_CATALOGO_FORZA` (variabile del Worker, letta in `src/shop/cms/catalogo.functions.ts` e `modalita-certa.functions.ts`): «cms» o «codice» forza la modalità della vetrina e **vince sull'interruttore del CRM**. **Non impostarla in produzione**: serve solo per le prove.
+- `SHOP_CASSA_FORZA`: vale solo in locale (`import.meta.env.DEV`); in produzione si ignora.
 
 ### Migrazioni dello shop (Supabase → SQL Editor, una alla volta, in quest'ordine)
 **Non `supabase db push`.** Copia ogni file nel SQL Editor, premi «Run», controlla che non ci siano errori e passa al successivo.
@@ -120,6 +122,8 @@ Qui sotto c'è la parte tecnica.
 | S4b | `20261122123000_shop_orders_protezione.sql` | il blocco che impedisce di scrivere «pagato» dal browser. **Subito dopo: un ordine di prova dalla cassa vecchia** (nome «PROVA-ELIMINARE») per vedere che arriva ancora |
 | S5 | `20261122130000_shop_spedizioni.sql` | tariffa di spedizione (seme: 4,90 €, provvisoria) |
 | S6 | `20261122140000_shop_email.sql` | i cinque modelli email, tutti spenti |
+
+**Dopo S3: `supabase functions deploy capi`.** La funzione `capi` è cambiata con il tracciamento: senza `tracciamento_proprietario` chiude gli eventi. Va ridistribuita subito dopo la migrazione S3 e l'`INSERT` del proprietario (come in `RILASCIO-1-PASSI-DEL-TITOLARE.md`).
 
 Se S4 si ferma con un messaggio sulla colonna `pagato_il`, M1 non è stata applicata: si applica M1 e si rilancia S4.
 Nessuna migrazione cancella o cambia dati esistenti. Per tornare indietro si spegne la cassa nuova dal CRM; le migrazioni restano (la cassa vecchia non le legge).
