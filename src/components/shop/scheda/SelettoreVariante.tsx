@@ -2,7 +2,7 @@
  *  La scelta della variante nella scheda (SPEC §4.5.4 n. 3): un gruppo per ogni opzione del prodotto.
  *  · Il colore è a campioni a cerchio con la foto vera del campione (senza foto: la prima lettera su fondo notte, mai una tinta inventata);
  *    le altre opzioni (misura, lunghezza, base…) sono pillole. Ogni bersaglio è da 44 px.
- *  · Il valore scelto ha l'anello (bordo notte) e la spunta; il suo nome sta sotto i campioni.
+ *  · Il valore scelto ha l'anello (bordo notte) e la spunta; il suo nome sta sulla riga dell’etichetta («Colore  Castano», SPEC §4.5.4; T114).
  *  · Un valore esaurito ha la diagonale e la parola «Esaurito» nell'etichetta accessibile (V1-S4), ma si può scegliere: è così che il
  *    bottone d'acquisto (T87b) diventa «Esaurito». Nessun radio è mai `disabled`.
  *  · Tastiera da `radiogroup`: una sola tappa per gruppo (il valore scelto, o il primo); frecce, Home e End spostano e scelgono.
