@@ -21,6 +21,7 @@ import { ShoppingBag, TriangleAlert } from "lucide-react";
 import { BarraCarrello } from "@/components/shop/guscio/BarreFisse";
 import { AvvisoCarrello, RigaCarrelloShop } from "@/components/shop/carrello/RigaCarrelloShop";
 import { RiepilogoOrdine } from "@/components/shop/carrello/RiepilogoOrdine";
+import { BloccoFiducia } from "@/components/shop/BloccoFiducia";
 import { StatoVuoto } from "@/components/shop/StatoVuoto";
 import { TiServeAnche, type Correlato } from "@/components/shop/TiServeAnche";
 import { riempi, TESTI_SHOP } from "@/landing/testi-shop";
@@ -30,6 +31,7 @@ import { schedaProdotto } from "@/shop/cms/catalogo.functions";
 import { MSG_NON_VERIFICABILE, MSG_RIMOSSE } from "@/shop/cms/cassa";
 import { eventoCarrello, eventoRimuovi } from "@/shop/cms/vetrina-eventi";
 import { avvisiRiga, ingressiCarrelloVuoto, righeVista, riepilogo, type AvvisoRiga } from "@/shop/cms/vetrina-carrello";
+import type { VoceFiducia } from "@/shop/cms/vetrina-fiducia";
 import { useRivalidaCarrello } from "@/shop/useRivalidaCarrello";
 import { useTariffa } from "@/shop/useTariffa";
 
@@ -94,7 +96,7 @@ function ErroreControllo() {
   );
 }
 
-export function PaginaCarrello() {
+export function PaginaCarrello({ voci }: { voci?: readonly VoceFiducia[] } = {}) {
   const t = TESTI_SHOP.carrello;
   const { lines, setQty, remove } = useCart();
   const { stato, avviso, controlla } = useRivalidaCarrello("cms");
@@ -203,6 +205,8 @@ export function PaginaCarrello() {
           </div>
           <div className="lg:sticky lg:top-24">
             <RiepilogoOrdine riepilogo={conti} formatta={formatta} />
+            {/* la riga di fiducia sotto il totale: solo voci vere (reso, pagamenti, WhatsApp, spedizione con i tempi); zero voci = non si monta */}
+            <BloccoFiducia voci={voci ?? []} className="mt-4" />
           </div>
         </div>
       ) : (
