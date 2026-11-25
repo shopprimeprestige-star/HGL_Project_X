@@ -1,6 +1,6 @@
-/** ── LO SMISTAMENTO DEL CMS: UNA ROTTA, QUATTRO MODULI (smista.server.ts) ────
- *  Commessa 2026-11-20-shop-completo (T10). `/api/crm/negozio` è un solo indirizzo, ma le azioni sono di quattro moduli:
- *  prodotti (T08), giacenza, categorie e interruttori (T09); dal R2 anche le spedizioni (T50, collegate da T56). Qui si decide a chi tocca; il lavoro è tutto dei moduli.
+/** ── LO SMISTAMENTO DEL CMS: UNA ROTTA, PIÙ MODULI (smista.server.ts) ────
+ *  Commessa 2026-11-20-shop-completo (T10). `/api/crm/negozio` è un solo indirizzo, ma le azioni sono di più moduli:
+ *  prodotti (T08), giacenza, categorie e interruttori (T09); dal R2 anche le spedizioni (T50, collegate da T56); dall'editor prodotti l'import da CSV (E3). Qui si decide a chi tocca; il lavoro è tutto dei moduli.
  *  ⚠️ Importabile senza ambiente: niente `process.env`, niente client del server. La rotta (`src/routes/api.crm.negozio.ts`)
  *   collega le porte; i moduli si provano con un finto database (`prove/negozio/rotte.mjs`).
  *
@@ -22,6 +22,7 @@ import { AZIONI_GIACENZA, gestisciPOST as scriviGiacenza } from "./giacenza.serv
 import { AZIONI_CATEGORIE, gestisciGET as leggiCategorie, gestisciPOST as scriviCategorie } from "./categorie.server";
 import { AZIONI_INTERRUTTORI, gestisciGET as leggiInterruttori, gestisciPOST as scriviInterruttori, type FattiEsterni } from "./interruttori.server";
 import { AZIONI_SPEDIZIONI, gestisciGET as leggiSpedizioni, gestisciPOST as scriviSpedizioni } from "./spedizioni.server";
+import { AZIONI_IMPORT, gestisciPOST as scriviImporta } from "./import.server";
 
 /** Il client di servizio deve avere tutto ciò che servono i moduli (da `supabaseAdmin as unknown as ClienteDbNegozio`). */
 export type ClienteDbNegozio = ClienteDbProdotti & ClienteDbCms;
@@ -32,18 +33,23 @@ export interface DipendenzeNegozio extends Omit<DipendenzeProdotti, "db"> {
   fattiEsterni: () => FattiEsterni | Promise<FattiEsterni>;
 }
 
-type Modulo = "prodotti" | "giacenza" | "categorie" | "interruttori" | "spedizioni";
+type Modulo = "prodotti" | "giacenza" | "categorie" | "interruttori" | "spedizioni" | "importa";
 const PER_AZIONE: Record<string, Modulo> = Object.fromEntries([
   ...AZIONI_PRODOTTI.map((a) => [a, "prodotti"]),
   ...AZIONI_GIACENZA.map((a) => [a, "giacenza"]),
   ...AZIONI_CATEGORIE.map((a) => [a, "categorie"]),
   ...AZIONI_INTERRUTTORI.map((a) => [a, "interruttori"]),
   ...AZIONI_SPEDIZIONI.map((a) => [a, "spedizioni"]),
+  ...AZIONI_IMPORT.map((a) => [a, "importa"]),
 ]);
 /** Le azioni del CMS del R1 (prodotti, giacenza, categorie, interruttori): l'elenco di sempre, che le prove di R1 controllano. */
-export const AZIONI_NEGOZIO: readonly string[] = Object.keys(PER_AZIONE).filter((a) => !(AZIONI_SPEDIZIONI as readonly string[]).includes(a));
+export const AZIONI_NEGOZIO: readonly string[] = Object.keys(PER_AZIONE).filter(
+  (a) => !(AZIONI_SPEDIZIONI as readonly string[]).includes(a) && !(AZIONI_IMPORT as readonly string[]).includes(a),
+);
 /** Le azioni delle spedizioni (R2, T50): sono nello smistamento ma in un elenco loro. */
 export const AZIONI_SPEDIZIONI_ROTTA: readonly string[] = AZIONI_SPEDIZIONI;
+/** Le azioni dell'import da CSV (editor prodotti, E3): nello smistamento, ma in un elenco loro (la guardia si prova in `import-rotta.mjs`). */
+export const AZIONI_IMPORT_ROTTA: readonly string[] = AZIONI_IMPORT;
 
 const SCRIVI: Record<Modulo, (r: Request, d: DipendenzeNegozio) => Promise<Response>> = {
   prodotti: scriviProdotti,
@@ -51,6 +57,7 @@ const SCRIVI: Record<Modulo, (r: Request, d: DipendenzeNegozio) => Promise<Respo
   categorie: scriviCategorie,
   interruttori: scriviInterruttori,
   spedizioni: scriviSpedizioni,
+  importa: scriviImporta,
 };
 /** Le letture (`?prodotti`, `?prodotto=`, `?categorie`, `?interruttori`, `?cassa`, `?spedizioni`) e chi le fa. Il resto va ai prodotti, che dice «non so cosa leggere». */
 const LEGGI: Record<string, (r: Request, d: DipendenzeNegozio) => Promise<Response>> = {
