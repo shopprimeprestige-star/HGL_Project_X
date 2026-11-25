@@ -440,7 +440,7 @@ function campiDiCrea(campi: unknown, tipo: string): Record<string, unknown> {
   return v;
 }
 function categorieDiCrea(x: unknown): string[] {
-  if (!Array.isArray(x) || x.length > MAX_CATEGORIE || !x.every(eUuid)) throw valore(`Le categorie sono al massimo ${MAX_CATEGORIE}.`);
+  if (!Array.isArray(x) || x.length > MAX_CATEGORIE || !x.every(eUuid)) throw valore(`Le categorie non sono valide (al massimo ${MAX_CATEGORIE}).`);
   return [...new Set(x)];
 }
 /** La variante «Unica» di un prodotto nuovo: dalla richiesta solo la giacenza (carico iniziale) e il costo; SKU e nome sono quelli del prodotto. */
@@ -468,6 +468,7 @@ const prodotto_crea: Azione = async (c, corpo) => {
   const categorie = corpo.categorie === undefined ? [] : categorieDiCrea(corpo.categorie);
   const unica = corpo.variante === undefined ? null : unicaDiCrea(corpo.variante);
   if (!skuLibero(sku, await skuNoti(c.d, [sku]), null)) throw rifiuta("duplicato", 409, `Lo SKU “${sku}” è già usato da un altro prodotto.`);
+  // solo per chiarezza: `shop_prodotti.slug` è UNIQUE e l'insert del prodotto è il primo passo, quindi fallirebbe da solo (23505, stessa frase)
   if (righe(await q(c.d, "crea", c.d.db.from("shop_prodotti").select("id").eq("slug", slug).limit(1))).length)
     throw rifiuta("duplicato", 409, "Questo SKU o questo indirizzo è già usato da un altro prodotto.");
   if (categorie.length && righe(await q(c.d, "crea", c.d.db.from("shop_categorie").select("id").in("id", categorie))).length !== categorie.length)
