@@ -48,6 +48,8 @@ export async function prove(_mod, { c, gruppo, radice }) {
   c("entità sconosciuta: lasciata com'è", "&inesistente; e &", T("&inesistente; e &amp;"));
   c("entità con maiuscole che non esistono nella tabella non diventano altro", "&AMP;", T("&AMP;"));
   c("numeriche pericolose (NUL, controllo, surrogato, fuori Unicode, segnaposto interno) → tolte", "ab", T("a&#0;&#7;&#xD800;&#x110000;&#xE000;&#xE001;&#127;b"));
+  c("bidi e invisibili scritti come entità (&#x202E;, &#8238;, &#x200B;, &#xFEFF;, &#x2028;, &#x2066;, &#xFFFE;) → tolti, non rientrano", "abcdefgh", T("a&#x202E;b&#8238;c&#x200B;d&#xFEFF;e&#x2028;f&#x2066;g&#xFFFE;h"));
+  c("…e anche i caratteri bidi già scritti nel testo non sono toccati qui (li toglie il lettore del CSV)", "a\u202Eb", T("a\u202Eb"));
   c("il segnaposto interno scritto nel testo non diventa un a capo", "ab", T("ab"));
   c("«__proto__» come nome di entità non è un'entità", "&__proto__; &constructor; &toString;", T("&__proto__; &constructor; &toString;"));
   c("un tag scritto come entità non si apre", "<script>alert(1)</script>", T("&lt;script&gt;alert(1)&lt;/script&gt;"));

@@ -24,8 +24,8 @@ function simbolo(corpo: string): string | null {
   if (corpo[0] === "#") {
     const hex = corpo[1] === "x" || corpo[1] === "X";
     const cp = parseInt(corpo.slice(hex ? 2 : 1), hex ? 16 : 10);
-    // Niente NUL, controlli, surrogati né valori fuori dall'Unicode: si tolgono.
-    if (!Number.isFinite(cp) || cp > 0x10ffff || (cp >= 0xd800 && cp <= 0xdfff) || cp < 0x20 || (cp >= 0x7f && cp <= 0x9f) || cp === 0xe000 || cp === 0xe001) return "";
+    // Niente NUL, controlli, surrogati, valori fuori dall'Unicode, né invisibili e bidi (gli stessi che toglie il lettore del CSV): si tolgono.
+    if (!Number.isFinite(cp) || cp > 0x10ffff || (cp >= 0xd800 && cp <= 0xdfff) || cp < 0x20 || (cp >= 0x7f && cp <= 0x9f) || cp === 0xe000 || cp === 0xe001 || (cp >= 0x200b && cp <= 0x200f) || (cp >= 0x2028 && cp <= 0x202e) || (cp >= 0x2060 && cp <= 0x2069) || cp === 0xfeff || cp === 0xfffe || cp === 0xffff) return "";
     if (cp === 0xa0) return " ";
     return String.fromCodePoint(cp);
   }

@@ -53,6 +53,7 @@ export function leggiCsv(byte: Uint8Array): EsitoCsv {
   if (byte.length >= 2 && ((byte[0] === 0xff && byte[1] === 0xfe) || (byte[0] === 0xfe && byte[1] === 0xff))) return ecc("Il file è salvato in UTF-16: in Excel scegli «CSV UTF-8» e riprova.");
 
   const avvisi: string[] = [];
+  if (byte[0] === 0xef && byte[1] === 0xbb && byte[2] === 0xbf) byte = byte.subarray(3); // il BOM UTF-8 si toglie prima: anche nel ripiego Windows-1252 non deve finire nella prima intestazione
   let codifica: "utf-8" | "windows-1252" = "utf-8";
   let testo: string;
   try {
@@ -62,7 +63,6 @@ export function leggiCsv(byte: Uint8Array): EsitoCsv {
     // I cinque byte che Windows-1252 non definisce non si leggono: diventano «�», così si contano come caratteri rotti.
     testo = new TextDecoder("windows-1252").decode(byte).replace(/[\u0081\u008D\u008F\u0090\u009D]/g, "\uFFFD");
   }
-  if (testo.charCodeAt(0) === 0xfeff) testo = testo.slice(1);
 
   const rotti = testo.match(ROTTI)?.length ?? 0;
   if (rotti > 0) avvisi.push(`${rotti === 1 ? "C'è 1 carattere che non riesco a leggere" : `Ci sono ${rotti} caratteri che non riesco a leggere`} (accenti o simboli): controlla i testi dopo l'anteprima.`);
@@ -113,7 +113,7 @@ function leggiRighe(t: string, sep: number): { ok: true; record: string[][] } | 
     // ── una cella ──
     let cella: string;
     if (t.charCodeAt(i) === 34) {
-      const rigaDiInizio = record.length + 1;
+      const rigaDiInizio = record.length + vuote + 1;
       i++;
       const pezzi: string[] = [];
       let da = i;
@@ -151,7 +151,7 @@ function leggiRighe(t: string, sep: number): { ok: true; record: string[][] } | 
       }
       cella = t.slice(da, i);
     }
-    if (cella.length > MAX_CELLA_LETTURA) return ecc(`Una cella alla riga ${record.length + 1} è lunghissima (oltre ${MAX_CELLA_LETTURA} caratteri): controlla il file.`);
+    if (cella.length > MAX_CELLA_LETTURA) return ecc(`Una cella alla riga ${record.length + vuote + 1} è lunghissima (oltre ${MAX_CELLA_LETTURA} caratteri): controlla il file.`);
     riga.push(cella);
 
     // ── dopo la cella: fine file, separatore o a capo ──

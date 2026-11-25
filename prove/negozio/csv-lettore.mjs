@@ -31,6 +31,8 @@ export async function prove(_mod, { c, gruppo, radice }) {
   c("Windows-1252 con un byte non definito → avviso «caratteri che non riesco a leggere»", [1, true], [rotto.avvisi.length, /non riesco a leggere/.test(rotto.avvisi[0])]);
   const fffd = L("Handle,Title\nx,Pro�va\n");
   c("UTF-8 con il carattere rotto → avviso, il testo resta com'è", [1, "Pro�va"], [fffd.avvisi.length, fffd.record[1][1]]);
+  const bomFallback = L(Uint8Array.from([0xef, 0xbb, 0xbf, ...latin1("Handle,Title\nx,Caff\xE8\n")]));
+  c("BOM UTF-8 più un byte non UTF-8 (ripiego Windows-1252): la prima intestazione resta «Handle»", ["windows-1252", "Handle", "Caffè"], [bomFallback.codifica, bomFallback.record[0][0], bomFallback.record[1][1]]);
   c("UTF-16 → rifiutato con la frase, non letto a caso", [false, true], (({ ok, frase }) => [ok, /UTF-16/.test(frase)])(L(Uint8Array.from([0xff, 0xfe, 0x48, 0x00]))));
 
   // ── separatore ──
@@ -89,6 +91,12 @@ export async function prove(_mod, { c, gruppo, radice }) {
   let t0 = performance.now();
   const enorme = L('a,b\n1,"' + "x".repeat(M.MAX_BYTE - 20));
   c("virgoletta aperta su 2 MB → si ferma con errore, in meno di un secondo", [false, true], [enorme.ok, performance.now() - t0 < 1000]);
+  const conVuote = L('a\n\n\n\nx,"mai');
+  c("il numero di riga conta anche le righe vuote prima (`a\\n\\n\\n\\nx,\"mai` → riga 5)", [false, true], [conVuote.ok, /riga 5\b/.test(conVuote.frase)]);
+  const lungaDopoVuote = L('a\n\n\n"' + "x".repeat(M.MAX_CELLA_LETTURA + 5) + '"\n');
+  c("cella lunghissima dopo due righe vuote → riga 4", true, /riga 4\b/.test(lungaDopoVuote.frase));
+  const lungaNudaDopoVuote = L("a\n\n\n" + "x".repeat(M.MAX_CELLA_LETTURA + 5) + "\n");
+  c("stessa cosa senza virgolette → riga 4", true, /riga 4\b/.test(lungaNudaDopoVuote.frase));
   const lunga = L('a\n"' + "x".repeat(M.MAX_CELLA_LETTURA + 5) + '"\n');
   c("una cella tra virgolette oltre il tetto di lettura → errore, anche se chiusa", [false, true], [lunga.ok, /lunghissima/.test(lunga.frase)]);
   const lungaNuda = L("a\n" + "x".repeat(M.MAX_CELLA_LETTURA + 5) + "\n");
