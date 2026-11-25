@@ -71,6 +71,8 @@ export interface Costruttore extends PromiseLike<EsitoDb> {
 }
 export interface ClienteDb {
   from(tabella: string): Costruttore;
+  /** Le funzioni SQL (la giacenza si muove solo con `shop_giacenza_muovi`). */
+  rpc(nome: string, args: Record<string, unknown>): PromiseLike<EsitoDb>;
 }
 export interface DipendenzeProdotti {
   /** La guardia del CRM («pagamenti»): `ok` col nome di chi chiama, oppure la risposta 401/403 da restituire così com'è. */
@@ -116,6 +118,8 @@ const rifiuta = (motivo: string, stato: number, frase: string, extra?: Record<st
 const valore = (frase: string) => rifiuta("valore", 400, frase);
 const NON_TROVATO = () => rifiuta("non_trovato", 404, "Prodotto non trovato.");
 const CONFLITTO = () => rifiuta("conflitto", 409, "Un'altra persona ha modificato questo prodotto nel frattempo: ricarica la scheda e riprova.");
+/** La colonna `costo_cent` arriva con la migrazione 20261125: finché non c'è, il costo resta spento (SPEC criterio 3). */
+const COSTO_SPENTO = () => rifiuta("migrazione", 409, "Per il costo serve un aggiornamento del database: chiedi a chi gestisce il database di applicarlo.");
 const MIGRAZIONE = () =>
   rifiuta("migrazione", 409, "Mancano gli aggiornamenti del database del catalogo: chiedi a chi gestisce il database di applicarli.");
 
@@ -146,6 +150,8 @@ interface Stato {
   /** Solo i media non rimossi. */
   media: Media[];
   categorie: string[];
+  /** Il costo di ogni variante, letto dalla riga grezza: `varianteDaRiga` non lo porta (non deve mai arrivare al sito). Colonna assente = tutti `null`. */
+  costi: Record<string, number | null>;
 }
 interface SkuNoto extends SkuUsato {
   varianteId: string | null;
@@ -161,9 +167,12 @@ async function carica(d: DipendenzeProdotti, id: unknown): Promise<Stato> {
     q(d, "media", d.db.from("shop_media").select("*").eq("prodotto_id", id).is("rimosso_il", null)),
     q(d, "categorie", d.db.from("shop_prodotti_categorie").select("categoria_id").eq("prodotto_id", id)),
   ]);
+  const costi: Record<string, number | null> = {};
+  for (const x of righe(v)) if (typeof x.id === "string") costi[x.id] = typeof x.costo_cent === "number" && Number.isInteger(x.costo_cent) ? x.costo_cent : null;
   return {
     riga,
     prodotto,
+    costi,
     varianti: righe(v).flatMap((x) => varianteDaRiga(x) ?? []).sort((a, b) => a.ordine - b.ordine || (a.id < b.id ? -1 : 1)),
     media: ordinaMedia(righe(m).flatMap((x) => mediaDaRiga(x) ?? [])),
     categorie: righe(c).flatMap((x) => (typeof x.categoria_id === "string" ? [x.categoria_id] : [])),
@@ -186,6 +195,17 @@ async function skuNoti(d: DipendenzeProdotti, skus: readonly string[]): Promise<
 }
 /** Gli SKU di un prodotto: il suo e quelli delle sue varianti. */
 const skusDi = (s: Stato): string[] => [s.prodotto.sku, ...s.varianti.map((v) => v.sku)];
+
+/** La colonna `costo_cent` c'è? Si chiede al database (una riga): `false` solo se manca davvero, un guasto resta un guasto. */
+async function costoDisponibile(d: DipendenzeProdotti): Promise<boolean> {
+  try {
+    await q(d, "costo", d.db.from("shop_varianti").select("costo_cent").limit(1));
+    return true;
+  } catch (e) {
+    if (e instanceof Rifiuto && e.motivo === "migrazione") return false;
+    throw e;
+  }
+}
 
 /** Gli stessi controlli del pannello «Prima di pubblicare». Nel R1 la spedizione non è ancora valutabile (`null`). */
 const controlla = (s: Stato, tutti: readonly SkuUsato[]): EsitoPubblicazione =>
@@ -402,18 +422,101 @@ const effettivo = (s: Stato, k: string): unknown => (s.prodotto as unknown as Re
 
 type Azione = (c: Ctx, corpo: Record<string, unknown>) => Promise<Record<string, unknown>>;
 
+/** Cosa si può dare a `prodotto_crea` dentro `campi`: i campi della scheda, TRANNE quelli che hanno il loro posto (nome, tipo, SKU, indirizzo)
+ *  o che puntano a righe che in un prodotto nuovo non esistono (prodotto collegato, immagine di condivisione). */
+const FUORI_DA_CREA = ["nome", "tipo", "sku", "slug", "correlatoId", "seoMediaId"];
+const MAX_CATEGORIE = 10;
+const MAX_PEZZI = 1_000_000;
+const eUuid = (v: unknown): v is string => typeof v === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
+const CONTENUTO_VUOTO = { passi: [], confezione: [], avvertenze: [], faq: [] };
+
+function campiDiCrea(campi: unknown, tipo: string): Record<string, unknown> {
+  const o = oggetto(campi);
+  if (!o) throw valore("I dati del prodotto non sono validi.");
+  for (const k of Object.keys(o)) if (FUORI_DA_CREA.includes(k) || !Object.prototype.hasOwnProperty.call(VALIDA, k)) throw valore(`Il campo «${k}» non si può dare così.`);
+  if (!Object.keys(o).length) return {};
+  const v = validaCampi(o);
+  if (v.boxConsulenza === true && tipo !== "patch") throw valore("Il box consulenza si mostra solo sulle patch.");
+  return v;
+}
+function categorieDiCrea(x: unknown): string[] {
+  if (!Array.isArray(x) || x.length > MAX_CATEGORIE || !x.every(eUuid)) throw valore(`Le categorie sono al massimo ${MAX_CATEGORIE}.`);
+  return [...new Set(x)];
+}
+/** La variante «Unica» di un prodotto nuovo: dalla richiesta solo la giacenza (carico iniziale) e il costo; SKU e nome sono quelli del prodotto. */
+function unicaDiCrea(x: unknown): { giacenza: number; costoCent: number | null } {
+  const o = oggetto(x);
+  if (!o || Object.keys(o).some((k) => k !== "giacenza" && k !== "costoCent")) throw valore("Per la variante «Unica» si possono dare solo la giacenza e il costo.");
+  return {
+    giacenza: o.giacenza == null ? 0 : (interoIn("Giacenza", MAX_PEZZI)(o.giacenza) as number),
+    costoCent: o.costoCent === undefined ? null : (interoIn("Costo", MAX_CENT)(o.costoCent) as number | null),
+  };
+}
+
+/** «Salva bozza» di un prodotto nuovo. La richiesta vecchia (nome, tipo, SKU, indirizzo) crea la sola bozza, come sempre. Con `campi`, `categorie`
+ *  e `variante` crea anche la variante «Unica» (con la giacenza come «carico») e lega le categorie.
+ *  ⚠️ Tutto si controlla PRIMA del primo insert: indirizzo, SKU fra i prodotti E SKU fra le varianti (uno SKU di variante di un altro prodotto
+ *  farebbe nascere la bozza e fallire la Unica: una bozza orfana che il progetto non sa cancellare), categorie, costo. Resta solo la corsa fra
+ *  due persone: se un passo DOPO il primo insert fallisce la risposta è `ok:true` con `parziale` (i passi mancati) e la scheda lo dice. */
 const prodotto_crea: Azione = async (c, corpo) => {
   const nome = VALIDA.nome(corpo.nome) as string;
   const tipo = VALIDA.tipo(corpo.tipo) as string;
   const sku = VALIDA.sku(corpo.sku) as string;
   const slug = VALIDA.slug(corpo.slug ?? slugDa(nome)) as string;
   nessunTestoVietato(nome);
+  const campi = corpo.campi === undefined ? {} : campiDiCrea(corpo.campi, tipo);
+  const categorie = corpo.categorie === undefined ? [] : categorieDiCrea(corpo.categorie);
+  const unica = corpo.variante === undefined ? null : unicaDiCrea(corpo.variante);
   if (!skuLibero(sku, await skuNoti(c.d, [sku]), null)) throw rifiuta("duplicato", 409, `Lo SKU “${sku}” è già usato da un altro prodotto.`);
-  const r = righe(await q(c.d, "crea", c.d.db.from("shop_prodotti").insert({ sku, slug, nome, tipo, stato: "bozza", prezzo_cent: 0, creato_il: c.ora, aggiornato_il: c.ora }).select("*")))[0];
+  if (righe(await q(c.d, "crea", c.d.db.from("shop_prodotti").select("id").eq("slug", slug).limit(1))).length)
+    throw rifiuta("duplicato", 409, "Questo SKU o questo indirizzo è già usato da un altro prodotto.");
+  if (categorie.length && righe(await q(c.d, "crea", c.d.db.from("shop_categorie").select("id").in("id", categorie))).length !== categorie.length)
+    throw valore("Una categoria indicata non esiste.");
+  if (unica?.costoCent != null && !(await costoDisponibile(c.d))) throw COSTO_SPENTO();
+
+  const r = righe(await q(c.d, "crea", c.d.db.from("shop_prodotti").insert({ sku, slug, nome, tipo, stato: "bozza", prezzo_cent: 0, creato_il: c.ora, aggiornato_il: c.ora, ...inColonne(campi, CONTENUTO_VUOTO) }).select("*")))[0];
   const p = r && prodottoDaRiga(r);
   if (!p) throw rifiuta("interno", 500, "Il prodotto non è stato creato: riprova.");
-  const storico = await registra(c, [rigaStorico(c, "prodotto", p.id, "creato", null, { sku, slug, nome, tipo })]);
-  return { prodotto: p, versione: p.aggiornatoIl, storico };
+
+  // da qui il prodotto c'è: un passo che fallisce si segnala in `parziale`, non si butta via il resto
+  const parziale: string[] = [];
+  const tenta = async <T>(passo: string, f: () => Promise<T>): Promise<T | null> => {
+    try {
+      return await f();
+    } catch (e) {
+      c.d.log(`crea ${passo} ${e instanceof Rifiuto ? e.motivo : nomeDi(e)}`);
+      parziale.push(passo);
+      return null;
+    }
+  };
+  let variante: VarianteLetta | null = null;
+  if (unica) {
+    variante = await tenta("variante", async () => {
+      const riga = righe(await q(c.d, "crea", c.d.db.from("shop_varianti").insert({
+        prodotto_id: p.id, sku, nome: "Unica", opzioni: {}, prezzo_cent: null, giacenza: 0, attiva: true, ordine: 1,
+        ...(unica.costoCent !== null ? { costo_cent: unica.costoCent } : {}),
+      }).select("*")))[0];
+      const v = riga && varianteDaRiga(riga);
+      if (!v) throw rifiuta("interno", 500, "La variante non è stata creata.");
+      return v;
+    });
+    if (unica.giacenza > 0) {
+      const caricata = variante && (await tenta("giacenza", async () => {
+        const g = await c.d.db.rpc("shop_giacenza_muovi", { p_variante: variante!.id, p_delta: unica.giacenza, p_motivo: "carico", p_nota: "Prodotto nuovo", p_chi: c.chi, p_ordine_ref: null });
+        if (g.error) throw rifiuta(`db_${codiceDi(g.error)}`, 500, "Il carico non è stato scritto.");
+        return true;
+      }));
+      if (!variante) parziale.push("giacenza");
+      else if (caricata) variante = { ...variante, giacenza: unica.giacenza, disponibile: true };
+    }
+  }
+  if (categorie.length)
+    await tenta("categorie", async () => void (await q(c.d, "crea", c.d.db.from("shop_prodotti_categorie").insert(categorie.map((categoria_id) => ({ prodotto_id: p.id, categoria_id }))))));
+  const storico = await registra(c, [
+    rigaStorico(c, "prodotto", p.id, "creato", null, { sku, slug, nome, tipo }),
+    ...(variante ? [rigaStorico(c, "variante", variante.id, "creata", null, { sku, nome: "Unica" })] : []),
+  ]);
+  return { prodotto: p, versione: p.aggiornatoIl, storico, ...(variante ? { variante } : {}), ...(parziale.length ? { parziale } : {}) };
 };
 
 const prodotto_salva: Azione = async (c, corpo) => {
@@ -533,7 +636,7 @@ const prodotto_adotta: Azione = async (c, corpo) => {
   return { versione, storico };
 };
 
-/** Copia tutto TRANNE foto e SKU (lo SKU nuovo è obbligatorio). Le varianti si copiano con giacenza 0 e SKU derivati. */
+/** Copia tutto TRANNE foto e SKU (lo SKU nuovo è obbligatorio). Le varianti si copiano con giacenza 0, SKU derivati e lo stesso costo. */
 const prodotto_duplica: Azione = async (c, corpo) => {
   const s = await carica(c.d, corpo.prodottoId);
   const sku = VALIDA.sku(corpo.sku) as string;
@@ -555,9 +658,12 @@ const prodotto_duplica: Azione = async (c, corpo) => {
   )[0];
   const nuovo = r && copia && prodottoDaRiga(copia);
   if (!nuovo) throw rifiuta("interno", 500, "La copia non è stata creata: riprova.");
+  // il costo si copia solo se c'è: un costo letto implica che la colonna esiste (senza migrazione `costi` è tutto `null` e la chiave non si scrive)
+  const conCosto = nuoviSku.some(({ v }) => s.costi[v.id] != null);
   if (nuoviSku.length)
     await q(c.d, "duplica", c.d.db.from("shop_varianti").insert(nuoviSku.map(({ v, sku: sv }) => ({
       prodotto_id: nuovo.id, sku: sv, nome: v.nome, opzioni: v.opzioni, prezzo_cent: v.prezzoCent, giacenza: 0, peso_g: v.pesoG, attiva: v.attiva, ordine: v.ordine,
+      ...(conCosto ? { costo_cent: s.costi[v.id] ?? null } : {}),
     }))));
   if (s.categorie.length) await q(c.d, "duplica", c.d.db.from("shop_prodotti_categorie").insert(s.categorie.map((categoria_id) => ({ prodotto_id: nuovo.id, categoria_id }))));
   const storico = await registra(c, [rigaStorico(c, "prodotto", nuovo.id, "creato", null, { copiaDi: s.prodotto.id, sku })]);
@@ -587,8 +693,10 @@ const VALIDA_VARIANTE: Record<string, (v: unknown) => unknown> = {
   pesoG: interoIn("Peso", 1_000_000),
   gtin: testoOpz("GTIN", 20),
   ordine: interoIn("Ordine", 1000),
+  /** Il costo in centesimi (`null` = non scritto). Solo del CRM: non entra mai in `Variante` né nelle viste del sito. */
+  costoCent: interoIn("Costo", MAX_CENT),
 };
-const COLONNA_VARIANTE: Record<string, string> = { sku: "sku", nome: "nome", opzioni: "opzioni", prezzoCent: "prezzo_cent", pesoG: "peso_g", gtin: "gtin", ordine: "ordine" };
+const COLONNA_VARIANTE: Record<string, string> = { sku: "sku", nome: "nome", opzioni: "opzioni", prezzoCent: "prezzo_cent", pesoG: "peso_g", gtin: "gtin", ordine: "ordine", costoCent: "costo_cent" };
 
 /** Lo SKU di una variante deve essere libero fra tutti i prodotti e le altre varianti (quello del suo stesso prodotto va bene, come nelle 33 migrate). */
 function skuVarianteLibero(sku: string, prodottoId: string, varianteId: string | null, tutti: readonly SkuNoto[]): boolean {
@@ -611,13 +719,18 @@ const variante_salva: Azione = async (c, corpo) => {
   if (typeof nuovi.sku === "string" && nuovi.sku !== esistente?.sku && !skuVarianteLibero(nuovi.sku, s.prodotto.id, esistente?.id ?? null, tutti))
     throw rifiuta("duplicato", 409, `Lo SKU “${nuovi.sku}” è già usato da un altro prodotto o da un'altra variante.`);
 
-  const cambi = Object.entries(nuovi).filter(([k, v]) => !esistente || !uguali((esistente as unknown as Record<string, unknown>)[k], v));
+  // il costo non è nel modello `Variante` (non deve mai arrivare al sito): si confronta col valore grezzo della riga
+  if (!esistente && nuovi.costoCent === null) delete nuovi.costoCent;
+  const attuale = (k: string): unknown => (k === "costoCent" ? s.costi[esistente?.id ?? ""] ?? null : (esistente as unknown as Record<string, unknown>)[k]);
+  const cambi = Object.entries(nuovi).filter(([k, v]) => !esistente || !uguali(attuale(k), v));
   if (esistente && !cambi.length) return { variante: esistente, storico: true };
+  if (cambi.some(([k]) => k === "costoCent") && !(await costoDisponibile(c.d))) throw COSTO_SPENTO();
   const patch = Object.fromEntries(cambi.map(([k, v]) => [COLONNA_VARIANTE[k], v]));
   // lo stato dopo, per vedere se il prodotto (se è sul sito) resta pubblicabile
+  const { costoCent: _costo, ...nuoviV } = nuovi;
   const dopoV: VarianteLetta = esistente
-    ? { ...esistente, ...Object.fromEntries(cambi) }
-    : ({ id: "nuova", prodottoId: s.prodotto.id, giacenza: 0, attiva: true, disponibile: false, pesoG: null, gtin: null, ordine: s.varianti.length + 1, prezzoCent: null, opzioni: {}, ...nuovi } as VarianteLetta);
+    ? { ...esistente, ...Object.fromEntries(cambi.filter(([k]) => k !== "costoCent")) }
+    : ({ id: "nuova", prodottoId: s.prodotto.id, giacenza: 0, attiva: true, disponibile: false, pesoG: null, gtin: null, ordine: s.varianti.length + 1, prezzoCent: null, opzioni: {}, ...nuoviV } as VarianteLetta);
   nonPeggiora(s, { ...s, varianti: esistente ? s.varianti.map((v) => (v.id === esistente.id ? dopoV : v)) : [...s.varianti, dopoV] }, tutti);
 
   let letta;
@@ -628,7 +741,7 @@ const variante_salva: Azione = async (c, corpo) => {
   }
   const v = letta && varianteDaRiga(letta);
   if (!v) throw rifiuta("non_trovato", 404, "Variante non trovata.");
-  const storico = await registra(c, cambi.map(([k, x]) => rigaStorico(c, "variante", v.id, k, esistente ? (esistente as unknown as Record<string, unknown>)[k] : null, x)));
+  const storico = await registra(c, cambi.map(([k, x]) => rigaStorico(c, "variante", v.id, k, esistente ? attuale(k) : null, x)));
   return { variante: v, storico };
 };
 
@@ -856,9 +969,10 @@ async function elencoProdotti(d: DipendenzeProdotti, p: URLSearchParams) {
 
 async function schedaProdotto(d: DipendenzeProdotti, id: string) {
   const s = await carica(d, id);
-  const [storico, tutti] = await Promise.all([
+  const [storico, tutti, conCosto] = await Promise.all([
     q(d, "storico", d.db.from("shop_storico").select("id,entita,entita_id,campo,prima,dopo,chi,creato_il").eq("entita_id", id).order("creato_il", { ascending: false }).limit(50)),
     skuNoti(d, skusDi(s)),
+    costoDisponibile(d),
   ]);
   const principale = s.media.filter((m) => m.slot === "principale")[0];
   return {
@@ -870,6 +984,9 @@ async function schedaProdotto(d: DipendenzeProdotti, id: string) {
     categorie: s.categorie,
     storico: righe(storico),
     controllo: controlla(s, tutti),
+    // il costo sta in una mappa a parte, solo nella risposta del CRM: mai dentro `varianti` (che prende la forma del sito)
+    costi: conCosto ? Object.fromEntries(s.varianti.map((v) => [v.id, s.costi[v.id] ?? null])) : {},
+    costoDisponibile: conCosto,
   };
 }
 
