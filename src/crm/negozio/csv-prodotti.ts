@@ -79,7 +79,6 @@ export function leggiProdottiCsv(record: readonly (readonly string[])[], opz: Op
   /* ── 1. le righe → i gruppi (un prodotto ciascuno) ── */
   const gruppi = new Map<string, Gruppo>();
   const erroriFile: ErroreRiga[] = [];
-  const avvisiFile: AvvisoRiga[] = [];
   let righe = 0;
   let ultimo: Gruppo | null = null;
   let aCapoStrani = 0;
@@ -158,6 +157,8 @@ export function leggiProdottiCsv(record: readonly (readonly string[])[], opz: Op
     const nomi: string[] = ["", "", ""];
     const opt = (k: number, parte: "Nome" | "Valore") => `opt${k}${parte}` as ChiaveColonna;
     for (const r of g.righe) for (let k = 1; k <= 3; k++) if (!nomi[k - 1]) nomi[k - 1] = uno(cella(r.celle, opt(k, "Nome")));
+    const nomiDoppi = nomi.filter((x, k) => x && nomi.findIndex((y) => y.toLowerCase() === x.toLowerCase()) < k);
+    if (nomiDoppi.length) err(riga1, `L'opzione «${mostra(nomiDoppi[0])}» è scritta due volte: ogni opzione ha un nome diverso.`);
     let massimoOpzioni = 0;
     for (const r of g.righe)
       for (const o of mappa.oltre) if ((r.celle[o.indice] ?? "").trim() && o.numero > massimoOpzioni) { massimoOpzioni = o.numero; }
@@ -193,8 +194,9 @@ export function leggiProdottiCsv(record: readonly (readonly string[])[], opz: Op
       if (!costo.ok) err(r.riga, costo.frase);
       const intero = (t: string, colonna: string, max: number): number | null => {
         if (!t) return null;
-        if (!/^\d+(?:[.,]0+)?$/.test(t)) { err(r.riga, `${colonna} «${mostra(t)}» non è valida: scrivi un numero intero, 0 o più (senza decimali né punti).`); return null; }
-        const x = Number(t.replace(/[.,]0+$/, ""));
+        if (/^\d{1,3}(?:[.,]\d{3})+$/.test(t)) { err(r.riga, `${colonna} «${mostra(t)}» ha il separatore delle migliaia: scrivi ${t.replace(/[.,]/g, "")}.`); return null; }
+        if (!/^\d+(?:[.,]0{1,2})?$/.test(t)) { err(r.riga, `${colonna} «${mostra(t)}» non è valida: scrivi un numero intero, 0 o più (senza decimali né punti).`); return null; }
+        const x = Number(t.replace(/[.,]0{1,2}$/, ""));
         if (x > max) { err(r.riga, `${colonna} «${mostra(t)}» è troppo alta: il massimo è ${max}.`); return null; }
         return x;
       };
@@ -317,7 +319,7 @@ export function leggiProdottiCsv(record: readonly (readonly string[])[], opz: Op
   const prodotti: ProdottoImport[] = [];
   const respinti: ProdottoRespinto[] = [];
   const errori: ErroreRiga[] = [...erroriFile];
-  const avvisi: AvvisoRiga[] = [...avvisiFile];
+  const avvisi: AvvisoRiga[] = [];
   let nVarianti = 0;
   for (const c of costruiti) {
     nVarianti += c.p.varianti.length;

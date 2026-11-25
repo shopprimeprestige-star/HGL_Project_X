@@ -76,6 +76,9 @@ export async function prove(_mod, { c, gruppo, radice }) {
   const gi = (g, extra = {}) => L([{ Handle: "gi", Title: "Gi", "Variant SKU": "GI", "Variant Price": "1", "Variant Inventory Qty": g, ...extra }]);
   c("giacenza «12» e vuota", [12, 0], [gi("12").prodotti[0].varianti[0].giacenza, gi("").prodotti[0].varianti[0].giacenza]);
   c("giacenza «1e3», «10,5», «-3», «99999999999» → errori a parole, il prodotto non entra", [[1, 0], [1, 0], [1, 0], [1, 0]], ["1e3", "10,5", "-3", "99999999999"].map((x) => [gi(x).errori.length, gi(x).prodotti.length]));
+  c("giacenza e peso con il punto delle migliaia («1.000», «2.000», «1,000») → errore «scrivi 2000», mai 1 o 2", [true, true, true, true], [["1.000", "scrivi 1000"], ["2.000", "scrivi 2000"], ["1,000", "scrivi 1000"]].map(([t, f]) => gi(t).prodotti.length === 0 && gi(t).errori[0].frase.includes(f)).concat([gi("1", { "Variant Grams": "2.000" }).errori[0].frase.includes("scrivi 2000")]));
+  c("giacenza «10.0», «10,00», «0,0» → 10, 10, 0", [10, 10, 0], ["10.0", "10,00", "0,0"].map((t) => gi(t).prodotti[0].varianti[0].giacenza));
+  c("giacenza «10,000» e «10.5» e «10,000,000» → errore", [0, 0, 0], ["10,000", "10.5", "10,000,000"].map((t) => gi(t).prodotti.length));
   c("peso oltre il massimo e peso con decimali → errore", [1, 1], [gi("1", { "Variant Grams": "2000000" }).errori.length, gi("1", { "Variant Grams": "12,5" }).errori.length]);
   c("costo «abc» → errore «Cost per item»", true, /Cost per item «abc»/.test(gi("1", { "Cost per item": "abc" }).errori[0].frase));
 
@@ -135,6 +138,7 @@ export async function prove(_mod, { c, gruppo, radice }) {
   c("celle con spazi, a capo e spazi duri nei prezzi e negli SKU → puliti", [1990, "AB-1"], (() => { const r = L([{ Handle: "sp", Title: "Sp", "Variant SKU": " ab 1\r\n", "Variant Price": " 19,90 \r\n" }]); return [r.prodotti[0]?.prezzoCent, r.prodotti[0]?.sku]; })());
   const rep = L([{ Handle: "rep", Title: "Rep", "Option1 Name": "T", "Option1 Value": "a", "Variant SKU": "R1", "Variant Price": "1" }, { Handle: "rep", "Option1 Value": "A", "Variant SKU": "R2", "Variant Price": "1" }]);
   c("due varianti con le stesse opzioni (anche in maiuscolo) → errore con la riga della prima", true, /già alla riga 2/.test(rep.errori[0]?.frase ?? ""));
+  c("due opzioni con lo stesso nome (anche in maiuscolo) → errore a parole", true, L([{ Handle: "dn", Title: "Dn", "Option1 Name": "Colore", "Option1 Value": "a", "Option2 Name": "colore", "Option2 Value": "b", "Variant SKU": "DN1", "Variant Price": "1" }]).errori.some((e) => /«colore» è scritta due volte/.test(e.frase)));
   c("più varianti ma una senza opzioni → errore a parole", true, L([{ Handle: "no", Title: "No", "Variant SKU": "N1", "Variant Price": "1" }, { Handle: "no", "Variant SKU": "N2", "Variant Price": "1" }]).errori.some((e) => /non ha opzioni/.test(e.frase)));
   c("più di 50 varianti → errore con il numero", true, L(Array.from({ length: 51 }, (_x, i) => ({ Handle: "tante", Title: "Tante", "Option1 Name": "Nn", "Option1 Value": `v${i}`, "Variant SKU": `T-${i}`, "Variant Price": "1" }))).errori.some((e) => /51 varianti: il massimo è 50/.test(e.frase)));
   const tanti = M.leggiProdottiCsv(tab(Array.from({ length: 301 }, (_x, i) => ({ Handle: `p${i}`, Title: `P${i}`, "Variant SKU": `S${i}`, "Variant Price": "1" }))), { categorie: [] });
