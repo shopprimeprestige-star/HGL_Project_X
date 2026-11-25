@@ -173,14 +173,38 @@ export async function prove(_mod, { c, gruppo, radice }) {
     const campo = albero.find((e) => e.type === "input" && e.props.id === "f-giacenza");
     c("riquadro Giacenza: un contenitore ascolta l'uscita del fuoco (onBlur) e il campo quantità non scrive da solo", [true, true], [!!gruppoEl, !!campo && campo.props.onBlur === undefined]);
     if (gruppoEl && campo) {
+      // Il fuoco si guarda UN TURNO DOPO l'evento (su Safari `relatedTarget` può mancare): `document.activeElement` è finto, `aspetta` lascia girare i timer.
+      const aspetta = () => new Promise((f) => setTimeout(f, 5));
       const motivoEl = {};
       const contenitore = { contains: (n) => n === motivoEl || n === campo };
-      gruppoEl.props.onBlur({ currentTarget: contenitore, relatedTarget: motivoEl });
-      c("dalla quantità al menu «Motivo»: NON parte il movimento (così «Reso» si può scegliere)", 0, scritture);
-      gruppoEl.props.onBlur({ currentTarget: contenitore, relatedTarget: {} });
-      c("il fuoco esce dal gruppo: parte una volta", 1, scritture);
-      gruppoEl.props.onBlur({ currentTarget: contenitore, relatedTarget: null });
-      c("il fuoco esce dalla pagina (relatedTarget nullo): parte", 2, scritture);
+      const vecchioDocument = globalThis.document;
+      const doveVaIlFuoco = (el) => { globalThis.document = { activeElement: el }; };
+      try {
+        // stato di un guscio in miniatura: a ogni cambio si ridisegna il riquadro, come fa React (il gestore vede le props dell'ultimo disegno)
+        const stato = { letta: 10, testo: "10", toccata: false, motivoGiac: null };
+        const scritti = [];
+        const disegna = () => dispiega(R.RiquadroGiacenza({ modulo: { sku: "HG-T01", gtin: "" }, cambia: () => {}, errori: {}, avvisi: {}, modalita: "semplice", invisibleDerm: false, nuovo: false, skuBloccato: false, giacenzaAttuale: 10, quantita: stato.testo, cambiaQuantita: () => {}, motivo: stato.motivoGiac ?? "carico", cambiaMotivo: () => {}, soglia: null, confermaQuantita: () => { const m = G.movimentoDaScrivere({ ...stato, motivo: stato.motivoGiac }); if (m) scritti.push(m); } })).find((e) => typeof e.props?.onBlur === "function");
+        const esci = async (el, relatedTarget = null) => { disegna().props.onBlur({ currentTarget: contenitore, relatedTarget }); doveVaIlFuoco(el); await aspetta(); };
+        Object.assign(stato, { testo: "20", toccata: true });
+        // 1 · quantità → menu «Motivo» (anche con `relatedTarget` nullo, come su Safari): niente movimento
+        doveVaIlFuoco(motivoEl);
+        disegna().props.onBlur({ currentTarget: contenitore, relatedTarget: null });
+        await aspetta();
+        c("dalla quantità al menu «Motivo» (relatedTarget nullo, come su Safari): NON parte il movimento", 0, scritti.length);
+        // 2 · si sceglie «Reso» e si esce dal gruppo: UN movimento, col motivo scelto
+        stato.motivoGiac = "reso";
+        await esci(null);
+        c("quantità toccata, cambio del motivo, uscita: un solo movimento col motivo scelto («reso»)", [{ valore: 20, motivo: "reso" }], scritti);
+        // 3 · l'uscita semplice (senza passare dal motivo) e l'uscita dalla pagina
+        Object.assign(stato, { testo: "4", toccata: true, motivoGiac: null });
+        await esci({});
+        c("quantità toccata, uscita fuori dal gruppo: parte, col motivo proposto dal verso", { valore: 4, motivo: "rettifica" }, scritti[1]);
+        // 4 · il fuoco è ancora nel gruppo allo scadere del turno: non scrive (il gestore non si fida di `relatedTarget`)
+        doveVaIlFuoco(campo);
+        disegna().props.onBlur({ currentTarget: contenitore, relatedTarget: {} });
+        await aspetta();
+        c("il fuoco è ancora dentro il gruppo un turno dopo, anche se relatedTarget dice «fuori»: non scrive", 2, scritti.length);
+      } finally { globalThis.document = vecchioDocument; }
       let sfocato = 0;
       campo.props.onKeyDown?.({ key: "Enter", currentTarget: { blur: () => sfocato++ }, preventDefault() {} });
       campo.props.onKeyDown?.({ key: "a", currentTarget: { blur: () => sfocato++ }, preventDefault() {} });

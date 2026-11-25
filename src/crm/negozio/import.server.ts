@@ -125,12 +125,25 @@ async function categorieEsistenti(d: PorteDb, dove: string): Promise<Record<stri
 /* ══ L'IMPORT ═══════════════════════════════════════════════════════════════ */
 
 const ripulisci = (x: unknown): unknown => (typeof x === "string" ? x.trim() : x);
+/** Le opzioni di una variante (`{ Colore: "Rosso" }`) con chiavi e valori ripuliti dai bordi: « Colore » e «Colore» sono la stessa opzione. Un valore che non è testo resta com'è (lo dice la validazione). */
+const opzioniPulite = (x: unknown): unknown =>
+  eOggetto(x) ? Object.fromEntries(Object.entries(x).map(([k, v]) => [k.trim(), ripulisci(v)])) : x;
+/** Le opzioni doppie dopo il trim (« Colore» e «Colore»): `pulito` le fonderebbe in silenzio e una delle due sparirebbe. Una riga e il nome per ogni variante coinvolta. */
+const opzioniDoppie = (grezzo: unknown): { riga: number; nome: string }[] => {
+  const varianti = eOggetto(grezzo) && Array.isArray(grezzo.varianti) ? grezzo.varianti : [];
+  return varianti.flatMap((v) => {
+    if (!eOggetto(v) || !eOggetto(v.opzioni) || !Number.isInteger(v.riga)) return [];
+    const nomi = Object.keys(v.opzioni).map((k) => k.trim());
+    const nome = nomi.find((n, i) => nomi.indexOf(n) !== i);
+    return nome === undefined ? [] : [{ riga: v.riga as number, nome }];
+  });
+};
 const vuotoANiente = <T>(x: T | undefined): T | undefined => (x === "" ? undefined : x);
 
 /** Il prodotto come arriva dal browser, con i testi ripuliti dai bordi (anche da tab e a capo). Qualunque cosa non sia un oggetto resta com'è: la validazione lo dice. */
 function pulito(x: unknown): ProdottoImport {
   const p = eOggetto(x) ? x : {};
-  const varianti = Array.isArray(p.varianti) ? p.varianti.map((v) => (eOggetto(v) ? { ...v, nome: ripulisci(v.nome), gtin: ripulisci(v.gtin) } : v)) : p.varianti;
+  const varianti = Array.isArray(p.varianti) ? p.varianti.map((v) => (eOggetto(v) ? { ...v, nome: ripulisci(v.nome), gtin: ripulisci(v.gtin), opzioni: opzioniPulite(v.opzioni) } : v)) : p.varianti;
   return {
     ...p,
     titolo: ripulisci(p.titolo), marca: ripulisci(p.marca), descrizioneBreve: ripulisci(p.descrizioneBreve), descrizioneLunga: ripulisci(p.descrizioneLunga),
@@ -150,7 +163,8 @@ async function importaUno(grezzo: unknown, chi: string, nota: string, categorie:
   const handle = typeof p.handle === "string" ? p.handle.slice(0, 80) : "";
   const { errori, avvisi } = validaProdottoImport(p, { categorie: [...categorie.keys()].map((slug) => ({ slug })) });
   const conAvvisi = (r: RisultatoImporta, a: AvvisoRiga[]): RisultatoImporta => (a.length ? { ...r, avvisi: a } : r);
-  if (errori.length) return conAvvisi({ handle, esito: "errore", errori: conRighe(errori, p) }, avvisi);
+  const doppie = opzioniDoppie(grezzo).map(({ riga, nome }) => ({ riga, handle, frase: `Due opzioni hanno lo stesso nome «${nome}» (spazi a parte): tienine una sola.` }));
+  if (errori.length || doppie.length) return conAvvisi({ handle, esito: "errore", errori: conRighe([...errori, ...doppie], p) }, avvisi);
 
   const r = await d.db.rpc(FUNZIONE, {
     p_prodotto: {
