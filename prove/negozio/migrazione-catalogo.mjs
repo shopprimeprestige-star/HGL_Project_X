@@ -7,6 +7,7 @@
  *  su un Postgres usa-e-getta: mai sul database di produzione. Dati: nessuno. */
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { delNegozio } from "../_migrazioni-negozio.mjs";
 
 const S1 = "20261120120000_shop_catalogo.sql";
 const TABELLE = [
@@ -65,7 +66,7 @@ export async function prove(_mod, { c, gruppo, radice }) {
   const cartella = join(radice, "supabase/migrations");
   const percorso = join(cartella, S1);
   const precedenti = existsSync(cartella)
-    ? readdirSync(cartella).filter((f) => f.endsWith(".sql") && f !== S1 && !f.startsWith("202611201") && !f.startsWith("202611211") && !f.startsWith("202611221"))
+    ? readdirSync(cartella).filter((f) => f.endsWith(".sql") && f !== S1 && !delNegozio(f))
     : [];
   c("S1 esiste col nome del piano", true, existsSync(percorso));
   c("S1 viene dopo ogni altra migrazione che esiste già (M1 compresa)", true, precedenti.every((f) => f < S1));

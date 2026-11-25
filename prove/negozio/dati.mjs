@@ -32,7 +32,9 @@ export const prodottoProva = (extra = {}) => ({
   ...extra,
 });
 
-/** Una variante attiva con 5 pezzi; `prezzo_cent: null` = vale il prezzo del prodotto. */
+/** Una variante attiva con 5 pezzi; `prezzo_cent: null` = vale il prezzo del prodotto.
+ *  `costo_cent` (migrazione 20261125, editor prodotti): senza, la riga è come quelle di prima della migrazione (colonna assente = nessun costo);
+ *  `varianteProva({ costo_cent: 450 })` ha il costo di 4,50 € e `costo_cent: null` è «colonna presente, costo non scritto». */
 export const varianteProva = (extra = {}) => ({
   id: uuid(0x300), prodotto_id: uuid(0x200), sku: "PROVA-001-A", nome: "Unica", opzioni: {},
   prezzo_cent: null, giacenza: 5, peso_g: null, attiva: true, gtin: null, ordine: 1,

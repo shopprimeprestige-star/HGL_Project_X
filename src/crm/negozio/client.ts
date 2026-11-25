@@ -64,6 +64,7 @@ export const AZIONI_NEGOZIO = [
   "prodotto_adotta", "gruppo_stato", "anteprima_chiave", "variante_salva", "varianti_genera", "variante_attiva", "media_registra",
   "media_ordina", "media_alt", "media_flag", "media_rimuovi",
   "giacenza_muovi", "giacenza_imposta", "prodotto_categorie", "categoria_salva", "categoria_ordina", "categoria_visibile", "categoria_foto", "interruttore_imposta",
+  "prodotti_importa_verifica", "prodotti_importa", // editor prodotti: import da CSV (modulo `import.server`, E3)
 ] as const;
 export type AzioneNegozio = (typeof AZIONI_NEGOZIO)[number];
 
@@ -229,6 +230,10 @@ export interface SchedaProdotto {
   categorie: string[];
   storico: unknown[];
   controllo: { bloccanti: Voce[]; informativi: Voce[] };
+  /** Il costo di ogni variante in centesimi (`null` = non scritto). Solo in lettura nel CRM: non esce mai sul sito. Assente = server vecchio. */
+  costi?: Record<string, number | null>;
+  /** `false` se la colonna del costo non c'è ancora nel database (migrazione non applicata): il campo si spegne con la frase. */
+  costoDisponibile?: boolean;
 }
 
 /** `troncato`: l'elenco ha superato il tetto del server e non è completo (la pagina lo deve dire). */
