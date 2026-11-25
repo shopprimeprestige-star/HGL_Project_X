@@ -34,7 +34,7 @@
  *  la linguetta sparisce (`onNegato`). */
 import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowLeft, Lock, Mail, RefreshCw, ShoppingBag } from "lucide-react";
+import { Lock, Mail, RefreshCw, ShoppingBag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { BarraAzioni, Pagina, Titolo, Vuoto, dataBreve } from "@/crm/ui";
@@ -358,7 +358,7 @@ function PaginaEcommerce() {
 
 /** ── LA LINGUETTA «PRODOTTI» ────────────────────────────────────────────────────
  *  Crea l'archivio del negozio UNA volta (una lettura, una rilettura ogni 30 s) e lo passa alle schermate di `prodotti/`.
- *  Con un `id` apre la scheda di quel prodotto (T15) sotto il link «Tutti i prodotti»; senza, «Apri lo shop» (T17, se è spento),
+ *  Con un `id` apre la scheda di quel prodotto (T15; il «← Prodotti» sta nella sua testata); senza, «Apri lo shop» (T17, se è spento),
  *  l'elenco e le categorie (T17). Si disegna solo con `?scheda=prodotti`: nessun'altra linguetta legge il catalogo. */
 function LinguettaProdotti({ id, apri }: { id?: string; apri: (id: string | null) => void }) {
   const negozio = useNegozio();
@@ -367,18 +367,6 @@ function LinguettaProdotti({ id, apri }: { id?: string; apri: (id: string | null
   if (id)
     return (
       <div className="flex flex-col gap-3">
-        <div>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="-ml-2 min-h-11 text-[12.5px] sm:min-h-8"
-            onClick={() => apri(null)}
-          >
-            <ArrowLeft className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
-            Tutti i prodotti
-          </Button>
-        </div>
         <SchedaProdotto id={id} negozio={negozio} apri={apri} />
       </div>
     );
