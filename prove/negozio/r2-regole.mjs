@@ -13,7 +13,7 @@
  *   8  ogni gestore delle rotte ha un `try/catch` di primo livello (o passa a una funzione che lo ha);
  *   9  gli indirizzi di ritorno vengono da `SITO`, mai da `Host` né `Origin`;
  *  10  la cifra di ripiego della spedizione (490) è scritta in un solo file;
- *  11  `.env.example` e `DEPLOY.md` dicono le tre variabili e le migrazioni nell'ordine giusto.
+ *  11  `DEPLOY.md` dice le tre variabili e le migrazioni nell'ordine giusto.
  *  ⚠️ La ricerca delle parole proibite NON guarda `prove/`, dove le parole stanno per forza (qui sono costruite a pezzi). Dati inventati. */
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { execFileSync } from "node:child_process";
@@ -295,10 +295,10 @@ export async function prove(mod, { c, gruppo, radice }) {
 
   // ── 11 · i documenti del titolare ──
   {
-    const env = leggi(".env.example");
-    const nomi = ["STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET", "SHOP_EMAIL_INDIRIZZO"];
-    c(".env.example elenca le tre variabili del R2 e le lascia vuote", [true, true, true], nomi.map((n) => new RegExp(`^${n}=(""|)\\s*$`, "m").test(env)));
+    // Pubblicazione 25/11/2026: lo script di pubblicazione ferma ogni file `.env*`, quindi i tre nomi stanno solo nella tabella di DEPLOY.md.
     const deploy = leggi("DEPLOY.md");
+    const nomi = ["STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET", "SHOP_EMAIL_INDIRIZZO"];
+    c("DEPLOY.md elenca le tre variabili del R2 (`npx wrangler secret put`)", [true, true, true], nomi.map((n) => new RegExp("\\| `" + n + "` \\|.*wrangler secret put " + n).test(deploy)));
     const posizioni = ["20261117120000_ecommerce_ordini", "20261120120000_shop_catalogo.", ...MIGRAZIONI.map((m) => m.replace(/\.sql$/, ""))].map((m) => deploy.indexOf(m));
     c("DEPLOY.md nomina le migrazioni (M1, R1, S4, S4b, S5, S6) nell'ordine in cui si applicano", true, posizioni.every((p) => p >= 0) && posizioni.every((p, i) => i === 0 || p > posizioni[i - 1]));
     c("DEPLOY.md dice di NON usare `supabase db push` e di usare il SQL Editor", [true, true], [/non (si )?usa(re)?[^.\n]*supabase db push|supabase db push[^.\n]*(non|mai)/i.test(deploy), /SQL Editor/.test(deploy)]);
