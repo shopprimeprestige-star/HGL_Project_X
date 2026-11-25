@@ -1,83 +1,50 @@
-/** ── LA SCHEDA DI UN PRODOTTO (SchedaProdotto.tsx) ───────────────────────────────
- *  Commessa 2026-11-20-shop-completo, T15 (Design §4.10.2). Undici sezioni apribili, ognuna col suo segno «a posto / da sistemare
- *  (n)»; a destra (sul telefono in cima, chiusa) la colonna «Prima di pubblicare», che si aggiorna mentre si scrive e porta al
- *  campo da sistemare; l'anteprima a 390 e 1440 px; «Copia il link per il telefono»; il salvataggio automatico di T13; la striscia
- *  «Hai modifiche non pubblicate»; «Archivia» e «Duplica» nel menu «…». Sul telefono: una colonna e la barra fissa in basso.
- *
- *  ── LE PROPS (le fissa T14, restano così) ───────────────────────────────────
- *   · `id`      il prodotto aperto.   · `negozio` l'archivio unico della pagina (`useNegozio()`).
- *   · `apri`    `apri(null)` torna all'elenco (dopo «Archivia»), `apri(altroId)` apre un altro prodotto (dopo «Duplica»).
- *  Il link «← Tutti i prodotti» lo mette il guscio: qui non ce n'è un secondo.
+/** ── LA SCHEDA DI UN PRODOTTO (SchedaProdotto.tsx) · IL GUSCIO ────────────────────
+ *  Commessa 2026-11-20-shop-completo T15, rifatta in 2026-11-25-editor-prodotti (E7, SPEC §3). Qui stanno lo stato, il salvataggio e le scritture;
+ *  i riquadri (`scheda/`) mostrano soltanto: ricevono dati, funzioni e pezzi già costruiti da qui (gli editor di foto e varianti, i tasti «Applica
+ *  prezzo» e «Pubblica»). Testata in stile Shopify, due colonne dal computer (una sola sul telefono, con la barra fissa in basso).
+ *  Le props le fissa T14: `id` (il prodotto), `negozio` (l'archivio unico, `useNegozio()`), `apri` (`apri(null)` torna all'elenco, `apri(altroId)` apre un altro).
  *
  *  ── LE REGOLE CHE SI VEDONO ─────────────────────────────────────────────────
- *  · «Pubblica» salva PRIMA (`await subito()`) e parte solo se ha restituito `true`: con `false` dice chiaro che non ha pubblicato
- *    niente, e il tasto si può ripremere. Il tasto è spento finché `bloccanti.length > 0` (le stesse frasi del server).
- *  · Il salvataggio automatico manda solo i campi CAMBIATI e mai un campo con un errore. Le scritture sul prodotto (testi, categorie,
- *    prezzo, stato) passano da UNA coda: due insieme litigherebbero sulla versione.
- *  · Un prodotto PUBBLICATO: i testi vanno in «bozza di modifica» (il sito resta com'è finché non si preme «Pubblica le modifiche»);
- *    il prezzo si applica con il suo tasto (subito, sul sito); varianti e foto subito. Lo SKU e l'indirizzo non si cambiano più.
+ *  · «Pubblica» salva PRIMA (`await subito()`) e parte solo se ha restituito `true`; il tasto è spento finché `bloccanti.length > 0` (le frasi del server).
+ *  · UN SOLO tasto pieno per schermata: «Pubblica» (testata dal computer, barra dal telefono). Il resto è di contorno.
+ *  · Il salvataggio automatico manda solo i campi CAMBIATI e mai un campo con un errore; le scritture sul prodotto passano da UNA coda (la versione è una).
+ *  · Un prodotto PUBBLICATO: i testi vanno in «bozza di modifica» (il sito resta com'è finché non si preme «Pubblica le modifiche»); il prezzo si
+ *    applica col suo tasto (subito, sul sito); varianti e foto subito. SKU e indirizzo non si cambiano più.
  *  · Conflitto di versione («409»): «Qualcun altro ha modificato questo prodotto», con «Ricarica». Mai una scrittura sopra.
- *  · Per costruzione non c'è un campo per il prezzo barrato, lo sconto, le stelle o il best seller. Invisible Derm (D39) non ha
- *    un campo prezzo: il suo costo si vede in consulenza.
- *  · Parole da non usare: un avviso accanto al campo, che non blocca. Una cifra vicino a «Invisible Derm», «sconto del»…: un errore
- *    accanto al campo, che blocca.
+ *  · Nessun campo per il prezzo barrato, lo sconto, le stelle o il best seller. Invisible Derm (D39) non ha un campo prezzo.
+ *  · Parole da non usare: un avviso accanto al campo, che non blocca. Una cifra vicino a «Invisible Derm», «sconto del»…: un errore che blocca.
+ *
+ *  ── IL PRODOTTO SEMPLICE E LA VARIANTE «UNICA» (PIANO §1.2) ─────────────────
+ *  Un prodotto senza opzioni è una variante chiamata «Unica» con lo SKU del prodotto. Prezzo, peso e barcode stanno sul PRODOTTO; SKU, giacenza e
+ *  costo sulla Unica. Il guscio la crea se manca e la riaccende se è spenta (aprendo una bozza), in bozza allinea il suo SKU a quello del prodotto,
+ *  scrive il costo con `variante_salva` nello stesso salvataggio automatico dei testi, scrive la quantità come movimento registrato
+ *  (`giacenza_imposta`) quando si esce dal campo. Passando alle opzioni la Unica si DISATTIVA (mai cancellata): lo fa `EditorVarianti` (E8) subito dopo aver generato le righe.
  *  ⚠️ Nessun log da qui, mai.
- *  shortcut: gli SKU degli altri prodotti per il controllo «già usato» sono quelli dell'elenco caricato (le varianti di altri
- *  prodotti le controlla il server al momento di pubblicare); si cambia quando l'elenco porterà anche gli SKU delle varianti. */
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  useSyncExternalStore,
-  type ReactNode,
-} from "react";
-import {
-  AlertTriangle,
-  ArrowRight,
-  CheckCircle2,
-  ChevronDown,
-  Copy,
-  Eye,
-  Info,
-  MoreHorizontal,
-  Plus,
-  RefreshCw,
-  X,
-} from "lucide-react";
+ *  shortcut: gli SKU degli altri prodotti per il controllo «già usato» sono quelli dell'elenco caricato (le varianti di altri prodotti le controlla
+ *  il server al momento di pubblicare); si cambia quando l'elenco porterà anche gli SKU delle varianti. */
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { ArrowLeft, Copy, Eye, MoreHorizontal, RefreshCw, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Chip } from "@/crm/ui";
 import { cn } from "@/lib/utils";
-import { Avviso } from "@/crm/ecommerce/Avviso";
 import { porteBrowser } from "@/crm/ecommerce/client";
 import { creaAutosalva } from "@/crm/negozio/autosalva";
 import type { ErroreNegozio, SchedaProdotto as DatiScheda } from "@/crm/negozio/client";
-import { slugDa, type Media, type Prodotto, type Variante } from "@/shop/cms/modello";
+import { centDaEuro, type Media, type Prodotto, type Variante } from "@/shop/cms/modello";
 import type { SkuUsato, Voce } from "@/shop/cms/pubblicazione";
 import { EditorMedia } from "./EditorMedia";
 import { EditorVarianti } from "./EditorVarianti";
 import { proponiCopia } from "./elenco-puro";
+import { leggiStatoShop } from "./interruttore-puro";
 import {
-  SEZIONI,
+  apertoDiPartenza,
+  conteggiPerRiquadro,
+  riquadroDi,
+  segnoRiquadro,
+  type RiquadroId,
+} from "./riquadri-puro";
+import {
   avvisiCampi,
   campiDaModulo,
-  conteggiPerSezione,
   controlloLive,
   eInvisibleDerm,
   haBozza,
@@ -86,13 +53,39 @@ import {
   moduloDaProdotto,
   patchCampi,
   prezzoInTesto,
-  sezioneDi,
-  statoSezione,
   type CampiScheda,
-  type CampoModulo,
   type Modulo,
-  type SezioneId,
 } from "./scheda-pura";
+import {
+  AvvisiScheda,
+  ErroreLettura,
+  SchedaInCarico,
+  type EsitoScheda,
+} from "./scheda/AvvisiScheda";
+import { ColonnaLaterale } from "./scheda/ColonnaLaterale";
+import { movimentoDaScrivere, testoQuantita } from "./scheda/giacenza-puro";
+import { FinestraAnteprima, FinestraArchivia, type VistaAnteprima } from "./scheda/FinestreScheda";
+import { PrimaDiPubblicare } from "./scheda/PrimaDiPubblicare";
+import { RiquadroContenuto, type RiquadroRichiudibile } from "./scheda/RiquadroContenuto";
+import { RiquadroFoto } from "./scheda/RiquadroFoto";
+import { RiquadroGiacenza } from "./scheda/RiquadroGiacenza";
+import { RiquadroPrezzo } from "./scheda/RiquadroPrezzo";
+import { CampoTesto } from "./scheda/RiquadroCampi";
+import { RiquadroSeo } from "./scheda/RiquadroSeo";
+import { RiquadroSpedizione } from "./scheda/RiquadroSpedizione";
+import { RiquadroTitolo } from "./scheda/RiquadroTitolo";
+import { RiquadroVarianti } from "./scheda/RiquadroVarianti";
+import { TestataScheda } from "./scheda/TestataScheda";
+import { Banner, BadgeStato, CLASSI_TASTO, PaginaScheda } from "./scheda/polaris";
+import {
+  cambioQuantita,
+  euroInTesto,
+  modalitaDi,
+  statoUnica,
+  trovaUnica,
+  type MotivoGiacenza,
+} from "./semplice-puro";
+import { SLOT_EDITOR } from "./media-puro";
 import type { Negozio } from "./tipi";
 
 export interface PropsSchedaProdotto {
@@ -101,15 +94,28 @@ export interface PropsSchedaProdotto {
   apri: (id: string | null) => void;
 }
 
-const campo =
-  "min-h-11 w-full rounded-md border border-border bg-card px-2.5 text-[16px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:min-h-9 md:text-[12.5px]";
-const tastoGrande = "h-11 text-[13px] md:h-9 md:text-[12px]";
-
-type Esito = { tono: "ok" | "errore"; testo: string } | null;
+type Esito = EsitoScheda;
+/** I riquadri che si chiudono, com'è la scheda di un prodotto già salvato (`apertoDiPartenza`). */
+const APERTI_DI_PARTENZA: Record<RiquadroRichiudibile | "cataloghi", boolean> = {
+  caratteristiche: apertoDiPartenza("caratteristiche", { nuovo: false }),
+  uso: apertoDiPartenza("uso", { nuovo: false }),
+  reso: apertoDiPartenza("reso", { nuovo: false }),
+  cataloghi: apertoDiPartenza("cataloghi", { nuovo: false }),
+};
 type Lettura =
   | { stato: "carico" }
   | { stato: "errore"; errore: ErroreNegozio }
   | { stato: "ok"; scheda: DatiScheda };
+
+/** «manca 1 cosa» / «mancano 3 cose»: lo dice la barra del telefono quando «Pubblica» è spento. */
+const quanteMancano = (n: number) => (n === 1 ? "Manca 1 cosa" : `Mancano ${n} cose`);
+
+/** Ciò che il salvataggio automatico tiene d'occhio: i testi del prodotto, il costo (sulla Unica) e l'immagine di condivisione. */
+interface Contenuto {
+  m: Modulo;
+  costo: string;
+  seo: string;
+}
 
 /* ══ LA LETTURA ═════════════════════════════════════════════════════════════ */
 
@@ -131,46 +137,15 @@ export function SchedaProdotto({ id, negozio, apri }: PropsSchedaProdotto) {
     };
   }, [id, giro, leggi]);
 
-  if (lettura.stato === "carico")
+  if (lettura.stato === "carico") return <SchedaInCarico />;
+  if (lettura.stato === "errore")
     return (
-      <div role="status" aria-label="Carico la scheda" className="flex flex-col gap-3">
-        <div className="h-9 w-2/3 animate-pulse rounded-md bg-muted motion-reduce:animate-none" />
-        <div className="h-40 animate-pulse rounded-xl bg-muted motion-reduce:animate-none" />
-        <div className="h-40 animate-pulse rounded-xl bg-muted motion-reduce:animate-none" />
-      </div>
+      <ErroreLettura
+        errore={lettura.errore}
+        torna={() => apri(null)}
+        riprova={() => setGiro((g) => g + 1)}
+      />
     );
-  if (lettura.stato === "errore") {
-    const e = lettura.errore;
-    const nonTrovato = e.tipo === "non_trovato";
-    return (
-      <Avviso
-        errore
-        azione={
-          nonTrovato ? (
-            <Button
-              type="button"
-              variant="outline"
-              className={tastoGrande}
-              onClick={() => apri(null)}
-            >
-              Torna ai prodotti
-            </Button>
-          ) : (
-            <Button
-              type="button"
-              variant="outline"
-              className={tastoGrande}
-              onClick={() => setGiro((g) => g + 1)}
-            >
-              Riprova
-            </Button>
-          )
-        }
-      >
-        {e.messaggio}
-      </Avviso>
-    );
-  }
   return (
     <SchedaAperta
       key={`${id}-${giro}`}
@@ -189,9 +164,12 @@ interface DatiVivi {
   varianti: Variante[];
   media: Media[];
   categorie: string[];
+  /** Il costo di ogni variante in centesimi (`null` = non scritto). Solo del CRM: mai sul sito. */
+  costi: Record<string, number | null>;
 }
 
-function SchedaAperta({
+/** Esportata solo perché la prova la disegna da sola (la lettura è un'altra cosa): in produzione la usa `SchedaProdotto`. */
+export function SchedaAperta({
   scheda,
   negozio,
   apri,
@@ -204,13 +182,32 @@ function SchedaAperta({
 }) {
   const prodotto0 = scheda.prodotto as unknown as Prodotto;
   const id = prodotto0.id;
+  const varianti0 = scheda.varianti as unknown as Variante[];
+  const unica0 = trovaUnica(varianti0, prodotto0.sku);
+  /** Server vecchio (campo assente) = come senza migrazione: il costo resta spento. */
+  const costoDisp = scheda.costoDisponibile === true;
+  const eCosto = (k: number | null | undefined) => (typeof k === "number" ? euroInTesto(k) : "");
+  const seo0 =
+    (prodotto0.stato === "pubblicato" &&
+    prodotto0.bozzaModifiche &&
+    "seoMediaId" in prodotto0.bozzaModifiche
+      ? prodotto0.bozzaModifiche.seoMediaId
+      : prodotto0.seoMediaId) ?? "";
+
   const [dati, setDati] = useState<DatiVivi>({
     prodotto: prodotto0,
-    varianti: scheda.varianti as unknown as Variante[],
+    varianti: varianti0,
     media: scheda.media as unknown as Media[],
     categorie: scheda.categorie,
+    costi: scheda.costi ?? {},
   });
   const [modulo, setModulo] = useState<Modulo>(() => moduloDaProdotto(prodotto0));
+  const [costo, setCosto] = useState(() => eCosto(unica0 ? scheda.costi?.[unica0.id] : null));
+  const [seo, setSeo] = useState(seo0);
+  /** La quantità scritta dal titolare; `null` = non l'ha toccata (il campo segue il magazzino). */
+  const [scritta, setScritta] = useState<string | null>(null);
+  const [motivoGiac, setMotivoGiac] = useState<MotivoGiacenza | null>(null);
+  const [soglia, setSoglia] = useState<number | null>(null);
   const [stato, setStato] = useState(prodotto0.stato);
   const [origine, setOrigine] = useState(prodotto0.origine);
   const [conBozza, setConBozza] = useState(
@@ -222,13 +219,10 @@ function SchedaAperta({
   const [erroreSalva, setErroreSalva] = useState<string | null>(null);
   const [rifiutoServer, setRifiutoServer] = useState<Voce[]>([]);
   const [letturaFallita, setLetturaFallita] = useState(false);
-  const [aperte, setAperte] = useState<ReadonlySet<SezioneId>>(new Set<SezioneId>(["identita"]));
+  const [aperti, setAperti] = useState(APERTI_DI_PARTENZA);
   const [pannello, setPannello] = useState(false);
-  const [vai, setVai] = useState<{ id: string; sezione: SezioneId; n: number } | null>(null);
-  const [anteprima, setAnteprima] = useState<{
-    url: string;
-    vista: "telefono" | "computer";
-  } | null>(null);
+  const [vai, setVai] = useState<{ ids: string[]; n: number } | null>(null);
+  const [anteprima, setAnteprima] = useState<{ url: string; vista: VistaAnteprima } | null>(null);
   const [link, setLink] = useState<string | null>(null);
   const [archivia, setArchivia] = useState(false);
   const [elencoCategorie, setElencoCategorie] = useState<{ id: string; nome: string }[] | null>(
@@ -240,10 +234,18 @@ function SchedaAperta({
 
   const negozioRef = useRef(negozio);
   negozioRef.current = negozio;
+  const ricaricaRef = useRef(ricarica);
+  ricaricaRef.current = ricarica;
   const versione = useRef(scheda.versione);
   const statoRef = useRef(stato);
   statoRef.current = stato;
+  const origineRef = useRef(origine);
+  origineRef.current = origine;
+  /** I dati vivi per le funzioni che restano in vita più di un disegno (il salvataggio automatico nasce una volta sola). */
+  const viva = useRef(dati);
+  viva.current = dati;
   const salvati = useRef<Partial<CampiScheda>>(campiDaModulo(moduloDaProdotto(prodotto0)).campi);
+  const salvatoSeo = useRef(seo0 || null);
   const coda = useRef<Promise<unknown>>(Promise.resolve());
   const conflittoRef = useRef(false);
   conflittoRef.current = conflitto;
@@ -255,14 +257,12 @@ function SchedaAperta({
     if (r.ok && r.dati.storico === false) setSenzaStorico(true);
     return r;
   }, []);
-
   /** Le scritture sul prodotto (versione condivisa) una dopo l'altra. */
   const serializza = useCallback(<T,>(f: () => Promise<T>): Promise<T> => {
     const p = coda.current.then(() => f());
     coda.current = p.catch(() => undefined);
     return p;
   }, []);
-
   /** Un errore di una scrittura: il conflitto ha il suo avviso, il resto una frase. */
   const riferisci = useCallback((e: ErroreNegozio, doveVa: (t: string) => void) => {
     if (e.tipo === "conflitto") return setConflitto(true);
@@ -273,31 +273,82 @@ function SchedaAperta({
     if (typeof dati.versione === "string") versione.current = dati.versione;
   };
 
+  /* ── rileggere varianti, foto e costi dopo le scritture ── */
+  const rileggi = useCallback(async () => {
+    const r = await negozioRef.current.scheda(id);
+    if (!r.ok) return setLetturaFallita(true);
+    setLetturaFallita(false);
+    //  Un ritiro per liberatoria ha riportato il prodotto in bozza (e cambiato la sua versione): si riparte da quello che c'è.
+    if ((r.scheda.prodotto as unknown as Prodotto).stato !== statoRef.current)
+      return ricaricaRef.current();
+    viva.current = {
+      ...viva.current,
+      varianti: r.scheda.varianti as unknown as Variante[],
+      media: r.scheda.media as unknown as Media[],
+      categorie: r.scheda.categorie,
+      costi: r.scheda.costi ?? {},
+    };
+    setDati(viva.current);
+  }, [id]);
+
+  /** Il costo e lo SKU della Unica, e la Unica stessa se manca: l'ultimo passo del salvataggio automatico. `false` = non scritto. */
+  const scriviUnica = async (c: Contenuto): Promise<boolean> => {
+    const v = viva.current;
+    if (origineRef.current === "codice" || modalitaDi(v.varianti) !== "semplice") return true;
+    const sku = salvati.current.sku ?? v.prodotto.sku;
+    const unica = trovaUnica(v.varianti, v.prodotto.sku);
+    const campi: Record<string, unknown> = unica ? {} : { sku, nome: "Unica", opzioni: {} };
+    //  In bozza lo SKU della Unica segue quello del prodotto; su un pubblicato lo SKU non si cambia più.
+    if (unica && !v.prodotto.pubblicatoIl && unica.sku !== sku) campi.sku = sku;
+    //  Un costo che non è una cifra non parte (lo dice il campo); vuoto = «non scritto» (`null`).
+    const nuovoCosto = c.costo.trim() === "" ? null : centDaEuro(c.costo);
+    const costoValido = c.costo.trim() === "" || nuovoCosto !== null;
+    const senzaCosto = !costoDisp || eInvisibleDerm(c.m.nome, c.m.slug) || !costoValido;
+    if (!senzaCosto && nuovoCosto !== (unica ? (v.costi[unica.id] ?? null) : null))
+      campi.costoCent = nuovoCosto;
+    if (Object.keys(campi).length === 0) return true;
+    const r = await scrivi("variante_salva", {
+      prodottoId: id,
+      variante: unica ? { id: unica.id, ...campi } : campi,
+    });
+    if (!r.ok) {
+      riferisci(r.errore, setErroreSalva);
+      return false;
+    }
+    await rileggi();
+    return true;
+  };
   /* ── il salvataggio automatico (T13) ── */
   const [auto] = useState(() =>
-    creaAutosalva<Modulo>({
+    creaAutosalva<Contenuto>({
       porte: porteBrowser(),
-      contenutoIniziale: moduloDaProdotto(prodotto0),
-      salva: (m) =>
+      contenutoIniziale: { m: moduloDaProdotto(prodotto0), costo, seo },
+      salva: (c) =>
         serializza(async () => {
           if (conflittoRef.current) return false;
           const pubblicato = statoRef.current === "pubblicato";
-          const patch = patchCampi(salvati.current, campiDaModulo(m).campi, { pubblicato });
-          if (Object.keys(patch).length === 0) return true;
-          const r = await scrivi("prodotto_salva", {
-            prodottoId: id,
-            versione: versione.current,
-            campi: patch,
-          });
-          if (!r.ok) {
-            riferisci(r.errore, setErroreSalva);
-            return false;
+          const patch = patchCampi(salvati.current, campiDaModulo(c.m).campi, { pubblicato });
+          const nuovaSeo = c.seo || null;
+          const daMandare =
+            nuovaSeo === salvatoSeo.current ? patch : { ...patch, seoMediaId: nuovaSeo };
+          if (Object.keys(daMandare).length > 0) {
+            const r = await scrivi("prodotto_salva", {
+              prodottoId: id,
+              versione: versione.current,
+              campi: daMandare,
+            });
+            if (!r.ok) {
+              riferisci(r.errore, setErroreSalva);
+              return false;
+            }
+            nuovaVersione(r.dati);
+            salvati.current = { ...salvati.current, ...patch };
+            salvatoSeo.current = nuovaSeo;
+            if (r.dati.bozza === true) setConBozza(true);
           }
-          nuovaVersione(r.dati);
-          salvati.current = { ...salvati.current, ...patch };
-          if (r.dati.bozza === true) setConBozza(true);
-          setErroreSalva(null);
-          return true;
+          const fatto = await scriviUnica(c);
+          if (fatto) setErroreSalva(null);
+          return fatto;
         }),
     }),
   );
@@ -321,31 +372,44 @@ function SchedaAperta({
     return () => window.removeEventListener("beforeunload", f);
   }, [statoAuto.fase]);
 
+  const modifica = (p: Partial<Contenuto>) => {
+    setEsito(null);
+    auto.modifica({ m: modulo, costo, seo, ...p });
+  };
   const cambia = (p: Partial<Modulo>) => {
     const nuovo = { ...modulo, ...p };
     setModulo(nuovo);
     setRifiutoServer([]);
-    setEsito(null);
-    auto.modifica(nuovo);
+    modifica({ m: nuovo });
   };
+  const cambiaCosto = (t: string) => (setCosto(t), modifica({ costo: t }));
+  const cambiaImmagine = (m: string) => (setSeo(m), modifica({ seo: m }));
 
-  /* ── rileggere varianti e foto dopo le scritture degli editor ── */
-  const rileggi = useCallback(async () => {
-    const r = await negozioRef.current.scheda(id);
-    if (!r.ok) return setLetturaFallita(true);
-    setLetturaFallita(false);
-    const p = r.scheda.prodotto as unknown as Prodotto;
-    //  Un ritiro per liberatoria ha riportato il prodotto in bozza (e cambiato la sua versione): si riparte da quello che c'è.
-    if (p.stato !== statoRef.current) return ricarica();
-    setDati((d) => ({
-      ...d,
-      varianti: r.scheda.varianti as unknown as Variante[],
-      media: r.scheda.media as unknown as Media[],
-      categorie: r.scheda.categorie,
-    }));
-  }, [id, ricarica]);
+  /* ── una bozza senza Unica (o con la Unica spenta) la ritrova aprendo la scheda ── */
+  const riparata = useRef(false);
+  useEffect(() => {
+    if (riparata.current || prodotto0.origine === "codice" || prodotto0.stato !== "bozza") return;
+    const s = statoUnica(varianti0, prodotto0.sku);
+    if (s !== "assente" && s !== "disattivata") return;
+    riparata.current = true;
+    void serializza(async () => {
+      const u = trovaUnica(varianti0, prodotto0.sku);
+      const r = u
+        ? await scrivi("variante_attiva", { prodottoId: id, varianteId: u.id, attiva: true })
+        : await scrivi("variante_salva", {
+            prodottoId: id,
+            variante: { sku: prodotto0.sku, nome: "Unica", opzioni: {} },
+          });
+      //  Anche dopo un errore si rilegge: un'altra persona può aver sistemato la Unica un attimo prima (SKU «duplicato»). L'errore si
+      //  mostra solo se la Unica manca ancora: chi ha solo aperto la scheda non deve vedere un errore per ciò che non ha fatto.
+      await rileggi();
+      const ancora = statoUnica(viva.current.varianti, prodotto0.sku);
+      if (!r.ok && (ancora === "assente" || ancora === "disattivata"))
+        setEsito({ tono: "errore", testo: r.errore.messaggio });
+    });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  /* ── le categorie ── */
+  /* ── le categorie e la soglia di scorta bassa ── */
   useEffect(() => {
     let vivo = true;
     void negozioRef.current.categorie().then((r) => {
@@ -360,6 +424,10 @@ function SchedaAperta({
             : [];
         }),
       );
+    });
+    //  Se la lettura fallisce la riga della soglia non si mostra (non è un errore della scheda).
+    void negozioRef.current.interruttori().then((r) => {
+      if (vivo && r.ok) setSoglia(leggiStatoShop(r.dati)?.soglia ?? null);
     });
     return () => {
       vivo = false;
@@ -412,11 +480,6 @@ function SchedaAperta({
     return [...live.bloccanti, ...rifiutoServer.filter((v) => !viste.has(v.frase))];
   }, [live.bloccanti, rifiutoServer]);
   const informativi = live.informativi;
-  const ctx = { nome: modulo.nome, sku: dati.prodotto.sku };
-  const conti = useMemo(
-    () => conteggiPerSezione(bloccanti, informativi, ctx),
-    [bloccanti, informativi, modulo.nome, dati.prodotto.sku],
-  ); // eslint-disable-line react-hooks/exhaustive-deps
 
   const vecchio = origine === "codice";
   const archiviato = stato === "archiviato";
@@ -426,24 +489,89 @@ function SchedaAperta({
   const senzaModifiche = pubblicato && !modificheInCorso;
   const spento = occupato || conflitto;
   const senzaPrezzo = eInvisibleDerm(modulo.nome, modulo.slug);
+  /** Già pubblicato una volta: lo SKU e l'indirizzo non si cambiano più (anche se oggi è tornato in bozza). */
+  const bloccoSkuIndirizzo = !!dati.prodotto.pubblicatoIl;
+
+  const modalita = modalitaDi(dati.varianti);
+  const unica = trovaUnica(dati.varianti, dati.prodotto.sku);
+  const ctxRiquadri = { nome: modulo.nome, sku: dati.prodotto.sku, modalita };
+  const conti = conteggiPerRiquadro(bloccanti, informativi, ctxRiquadri); // pochi conti: non serve ricordarli
+  const segno = (r: RiquadroId) => segnoRiquadro(conti[r]);
+
+  /* ── il costo e la quantità del prodotto semplice ── */
+  const costoErrore =
+    costo.trim() !== "" && centDaEuro(costo) === null
+      ? "Scrivi il costo in euro, per esempio 10,40."
+      : undefined;
+  const giacenzaAttuale = unica?.giacenza ?? 0;
+  const testoQ = testoQuantita({
+    letta: giacenzaAttuale,
+    testo: scritta ?? "",
+    toccata: scritta !== null,
+  });
+  const proposta = cambioQuantita(giacenzaAttuale, testoQ);
+  const motivo: MotivoGiacenza =
+    motivoGiac ?? (proposta.ok ? proposta.motivo : null) ?? "rettifica";
+  /** Il fuoco esce da quantità + motivo: se la quantità è stata toccata e cambia, ora diventa un movimento registrato. */
+  const confermaQuantita = () => {
+    const m = movimentoDaScrivere({
+      letta: giacenzaAttuale,
+      testo: scritta ?? "",
+      toccata: scritta !== null,
+      motivo: motivoGiac,
+    });
+    if (!m || conflitto) return;
+    if (!unica)
+      return setEsito({
+        tono: "errore",
+        testo: "Salva prima il prodotto: non ha ancora la sua variante.",
+      });
+    setScritta(null); // prima di scrivere: un secondo «esci dal campo» non rimanda lo stesso movimento
+    void (async () => {
+      const r = await scrivi("giacenza_imposta", {
+        varianteId: unica.id,
+        valore: m.valore,
+        motivo: m.motivo,
+      });
+      if (!r.ok) return setEsito({ tono: "errore", testo: r.errore.messaggio });
+      setMotivoGiac(null);
+      await rileggi();
+      setEsito({
+        tono: "ok",
+        testo: `Giacenza aggiornata: ${m.valore} ${m.valore === 1 ? "pezzo" : "pezzi"}.`,
+      });
+    })();
+  };
 
   /* ── andare al campo ── */
   const vaiA = (v: Voce) => {
-    const sezione = sezioneDi(v, ctx);
-    setAperte((a) => new Set(a).add(sezione));
-    setVai((x) => ({ id: idCampo(v.campo), sezione, n: (x?.n ?? 0) + 1 }));
+    //  La frase sulla spedizione sta in «Reso, consulenza e consegna» (come nella scheda di prima)
+    const riquadro = v.campo === "spedizione" ? "reso" : riquadroDi(v, ctxRiquadri);
+    if (Object.hasOwn(aperti, riquadro)) setAperti((a) => ({ ...a, [riquadro]: true }));
+    //  Il campo di una voce può non esserci (la variante mancante senza opzioni sta nello SKU): si ripiega, alla fine, sul pannello del riquadro.
+    const ids = [
+      idCampo(v.campo),
+      ...(v.campo === "varianti" && modalita === "semplice" ? ["f-sku"] : []),
+      `pan-${riquadro}`,
+    ];
+    setVai((x) => ({ ids, n: (x?.n ?? 0) + 1 }));
+  };
+  /** Dalla barra del telefono: apre «Prima di pubblicare» e ci porta. */
+  const mostraPrima = () => {
+    setPannello(true);
+    setVai((x) => ({ ids: ["prima-di-pubblicare"], n: (x?.n ?? 0) + 1 }));
   };
   useEffect(() => {
     if (!vai) return;
-    const el = document.getElementById(vai.id) ?? document.getElementById(`sez-${vai.sezione}`);
+    const el = vai.ids.map((i) => document.getElementById(i)).find((x) => x !== null);
     if (!el) return;
     const ridotto = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
     el.scrollIntoView({ block: "center", behavior: ridotto ? "auto" : "smooth" });
     const diretto = /^(INPUT|TEXTAREA|SELECT|BUTTON)$/.test(el.tagName) || el.tabIndex >= 0;
-    (diretto ? el : document.getElementById(`sez-${vai.sezione}`))?.focus({ preventScroll: true });
+    (diretto ? el : el.querySelector<HTMLElement>("input, textarea, select, button"))?.focus({
+      preventScroll: true,
+    });
   }, [vai]);
-  const alternaSezione = (s: SezioneId) =>
-    setAperte((a) => (a.has(s) ? new Set([...a].filter((x) => x !== s)) : new Set(a).add(s)));
 
   /* ── le azioni ── */
   const lavora = async (f: () => Promise<void>) => {
@@ -569,7 +697,12 @@ function SchedaAperta({
       let ultimo = "Non sono riuscito a duplicare il prodotto.";
       for (let prova = 0; prova < 3; prova++) {
         //  Come nell'elenco: SKU e indirizzo con lo stesso suffisso (shop_prodotti.slug è UNIQUE, senza indirizzo nuovo la seconda copia darebbe «duplicato»).
-        const { sku, slug } = proponiCopia(dati.prodotto.sku, dati.prodotto.slug, skuUsati, slugUsati);
+        const { sku, slug } = proponiCopia(
+          dati.prodotto.sku,
+          dati.prodotto.slug,
+          skuUsati,
+          slugUsati,
+        );
         const r = await scrivi("prodotto_duplica", { prodottoId: id, sku, slug });
         skuUsati.add(sku);
         slugUsati.add(slug);
@@ -638,1216 +771,328 @@ function SchedaAperta({
   /* ── i pezzi che ripeto ── */
   const prezzoVivo = dati.prodotto.prezzoCent;
   const prezzoPerVarianti = pubblicato ? prezzoVivo : (campi.prezzoCent ?? prezzoVivo);
-  const testoStato = archiviato ? "Archiviato" : pubblicato ? "Pubblicato" : "Bozza";
   const tastoPubblica = pubblicato ? "Pubblica le modifiche" : "Pubblica";
   const tastoSalva = pubblicato ? "Salva" : "Salva bozza";
-  const sezione = (s: SezioneId, children: ReactNode, subito?: boolean) => {
-    const def = SEZIONI.find((x) => x.id === s)!;
-    return (
-      <Sezione
-        key={s}
-        id={s}
-        titolo={def.titolo}
-        segno={statoSezione(conti[s])}
-        aperta={aperte.has(s)}
-        alterna={() => alternaSezione(s)}
-        subito={subito && pubblicato}
-      >
-        {children}
-      </Sezione>
-    );
-  };
-  const mostra = (k: CampoModulo) => ({ errore: errori[k], avvisi: avvisi[k]?.avvisi ?? [] });
-  const testo = (
-    k:
-      | "nome"
-      | "marca"
-      | "rigaPresentazione"
-      | "descrizioneBreve"
-      | "descrizioneLunga"
-      | "perChi"
-      | "seoTitolo"
-      | "seoDescrizione",
-    etichetta: string,
-    extra?: {
-      aiuto?: string;
-      max?: number;
-      area?: boolean;
-      righe?: number;
-      disabilitato?: boolean;
-    },
-  ) => (
-    <Campo
-      k={k}
-      etichetta={etichetta}
-      aiuto={extra?.aiuto}
-      contatore={extra?.max ? { n: modulo[k].length, max: extra.max } : undefined}
-      {...mostra(k)}
+  const base = { modulo, cambia, errori, avvisi };
+  const immagini = dati.media
+    .filter((m) => m.tipo === "foto" && !m.rimossoIl)
+    .map((m) => ({
+      id: m.id,
+      nome: `${SLOT_EDITOR.find((s) => s.slot === m.slot)?.etichetta ?? m.slot}${m.alt ? ` · ${m.alt}` : ""}`,
+    }));
+  /** Il tasto «Applica il nuovo prezzo» (un prodotto pubblicato cambia il sito subito): sta nel riquadro Prezzo o, con le opzioni, in Varianti. */
+  const azionePrezzo = (
+    <Button
+      type="button"
+      variant="outline"
+      className={CLASSI_TASTO}
+      disabled={spento || !!errori.prezzo || !campi.prezzoCent || campi.prezzoCent === prezzoVivo}
+      onClick={() => void applicaPrezzo()}
     >
-      {(p) =>
-        extra?.area ? (
-          <textarea
-            {...p}
-            rows={extra.righe ?? 3}
-            value={modulo[k]}
-            onChange={(e) => cambia({ [k]: e.target.value })}
-            className={cn(campo, "py-2")}
-          />
-        ) : (
-          <input
-            {...p}
-            value={modulo[k]}
-            disabled={extra?.disabilitato}
-            onChange={(e) => cambia({ [k]: e.target.value })}
-            className={campo}
-          />
-        )
-      }
-    </Campo>
+      Applica il nuovo prezzo
+    </Button>
   );
-  const lista = (k: "passi" | "confezione" | "avvertenze", etichetta: string, aiuto: string) => (
-    <Campo k={k} etichetta={etichetta} aiuto={aiuto} {...mostra(k)}>
-      {(p) => (
-        <textarea
-          {...p}
-          rows={4}
-          value={modulo[k]}
-          onChange={(e) => cambia({ [k]: e.target.value })}
-          className={cn(campo, "py-2")}
-        />
-      )}
-    </Campo>
-  );
-  const bloccoServer = erroreSalva ? (
-    <Avviso errore>{erroreSalva} Premi «Salva» per riprovare.</Avviso>
-  ) : null;
-
-  const barra = (
-    <>
-      <Button
-        type="button"
-        variant="outline"
-        className={cn(tastoGrande, "flex-1 md:flex-none")}
-        disabled={spento}
-        onClick={() => void salvaOra()}
-      >
-        {tastoSalva}
-      </Button>
-      <Button
-        type="button"
-        className={cn(tastoGrande, "flex-1 md:flex-none")}
-        disabled={nonPubblicabile || senzaModifiche || spento}
-        onClick={() => void pubblica()}
-      >
-        {tastoPubblica}
-      </Button>
-    </>
+  const tastoSalvaGrande = (
+    <Button
+      type="button"
+      variant="outline"
+      className={cn(CLASSI_TASTO, "flex-1 md:flex-none")}
+      disabled={spento}
+      onClick={() => void salvaOra()}
+    >
+      {tastoSalva}
+    </Button>
   );
 
   return (
-    <div className="flex flex-col gap-3 pb-24 md:pb-0">
-      {/* ── Intestazione ── */}
-      <header className="flex flex-col gap-2">
-        <div className="flex flex-wrap items-start justify-between gap-2">
-          <div className="min-w-0">
-            <h1 className="truncate text-[17px] font-semibold leading-tight">
-              {dati.prodotto.nome}
-            </h1>
-            <div className="mt-1 flex flex-wrap items-center gap-2">
-              <Chip tono={archiviato ? "chiusa" : pubblicato ? "vinta" : "neutro"}>
-                {testoStato}
-              </Chip>
-              <span className="text-[12px] text-muted-foreground" role="status" aria-live="polite">
-                {conflitto
-                  ? "Non salvato: qualcun altro ha modificato il prodotto."
-                  : statoAuto.testo || (statoAuto.fase === "fermo" ? "Si salva da solo." : "")}
-              </span>
-            </div>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="hidden items-center gap-2 md:flex">{barra}</div>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
+    <div className="pb-44 md:pb-0">
+      <PaginaScheda
+        testata={
+          <>
+            <TestataScheda
+              titolo={modulo.nome.trim() || dati.prodotto.nome}
+              stato={stato}
+              salvataggio={statoAuto.testo}
+              conflitto={conflitto}
+              storico={scheda.storico}
+              link={link}
+              indietro={() => apri(null)}
+              spento={spento}
+              vecchio={vecchio}
+              azioni={{
+                copiaLink: () => void copiaLink(),
+                duplica: () => void duplica(),
+                archivia: () => setArchivia(true),
+                rimettiInBozza: () => void cambiaStato("bozza"),
+                rendiMio: () => void adotta(),
+              }}
+              prima={
+                <>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className={CLASSI_TASTO}
+                    disabled={spento}
+                    onClick={() => void apriAnteprima()}
+                  >
+                    <Eye className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
+                    Anteprima
+                  </Button>
+                  <div className="hidden md:block">{tastoSalvaGrande}</div>
+                </>
+              }
+              principale={
                 <Button
                   type="button"
-                  variant="outline"
-                  className="h-11 w-11 p-0 md:h-9 md:w-9"
-                  aria-label="Altre azioni"
+                  className={cn(CLASSI_TASTO, "hidden md:inline-flex")}
+                  disabled={nonPubblicabile || senzaModifiche || spento}
+                  onClick={() => void pubblica()}
                 >
-                  <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
+                  {tastoPubblica}
                 </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="crm-theme bg-white text-foreground">
-                <DropdownMenuItem
-                  className="min-h-11 md:min-h-8"
-                  disabled={spento}
-                  onSelect={() => void duplica()}
-                >
-                  <Copy className="mr-2 h-4 w-4" aria-hidden="true" />
-                  Duplica
-                </DropdownMenuItem>
-                {archiviato ? (
-                  <DropdownMenuItem
-                    className="min-h-11 md:min-h-8"
-                    disabled={spento}
-                    onSelect={() => void cambiaStato("bozza")}
-                  >
-                    Rimetti in bozza
-                  </DropdownMenuItem>
-                ) : (
-                  <DropdownMenuItem
-                    className="min-h-11 md:min-h-8"
-                    disabled={spento}
-                    onSelect={() => setArchivia(true)}
-                  >
-                    Archivia
-                  </DropdownMenuItem>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            className={tastoGrande}
-            disabled={spento}
-            onClick={() => void apriAnteprima()}
-          >
-            <Eye className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
-            Anteprima
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            className={tastoGrande}
-            disabled={spento}
-            onClick={() => void copiaLink()}
-          >
-            <Copy className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
-            Copia il link per il telefono
-          </Button>
-        </div>
-        {link && (
-          <div className="flex flex-col gap-1 rounded-lg border border-border bg-card p-3 text-[12.5px]">
-            <label htmlFor="link-anteprima" className="font-medium">
-              Copia questo link a mano (vale 24 ore)
-            </label>
-            <input
-              id="link-anteprima"
-              readOnly
-              value={link}
-              onFocus={(e) => e.currentTarget.select()}
-              className={campo}
+              }
             />
-          </div>
-        )}
-      </header>
-
-      {/* ── Avvisi in cima ── */}
-      {conflitto && (
-        <Avviso
-          errore
-          azione={
-            <Button type="button" variant="outline" className={tastoGrande} onClick={ricarica}>
-              <RefreshCw className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
-              Ricarica
-            </Button>
-          }
-        >
-          Qualcun altro ha modificato questo prodotto mentre lo guardavi. Ricarica per vedere la sua
-          versione: le tue ultime modifiche non salvate andranno perse. Finché non ricarichi non
-          salvo niente.
-        </Avviso>
-      )}
-      {vecchio && (
-        <Avviso
-          azione={
-            <Button
-              type="button"
-              variant="outline"
-              className={tastoGrande}
-              disabled={spento}
-              onClick={() => void adotta()}
-            >
-              Usa questo prodotto
-            </Button>
-          }
-        >
-          Questo articolo viene dal vecchio catalogo: per pubblicarlo devi prima farne un tuo
-          prodotto.
-        </Avviso>
-      )}
-      {senzaStorico && (
-        <Avviso>
-          La modifica è salvata, ma non è rimasta traccia nello storico (chi l'ha fatta e quando).
-          Avvisa chi gestisce il database.
-        </Avviso>
-      )}
-      {letturaFallita && (
-        <Avviso>
-          Non riesco a rileggere la scheda: i numeri che vedi potrebbero essere indietro. Ricarica
-          la pagina se qualcosa non torna.
-        </Avviso>
-      )}
-      {bloccoServer}
-      {esito && <Avviso errore={esito.tono === "errore"}>{esito.testo}</Avviso>}
-      {pubblicato && modificheInCorso && (
-        <div
-          role="status"
-          className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[12.5px] text-amber-900"
-        >
-          <p className="min-w-0 flex-1">
-            <strong className="font-semibold">Hai modifiche non pubblicate.</strong> Il sito resta
-            com'è finché non le pubblichi.
-          </p>
-          <Button
-            type="button"
-            className={tastoGrande}
-            disabled={nonPubblicabile || spento}
-            onClick={() => void pubblica()}
-          >
-            Pubblica le modifiche
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            className={tastoGrande}
-            disabled={spento}
-            onClick={() => void scarta()}
-          >
-            Scarta
-          </Button>
-        </div>
-      )}
-
-      <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start">
-        {/* ── Prima di pubblicare ── */}
-        <aside
-          aria-label="Prima di pubblicare"
-          className="rounded-xl border border-border bg-card lg:sticky lg:top-3 lg:col-start-2 lg:row-start-1"
-        >
-          <button
-            type="button"
-            aria-expanded={pannello}
-            aria-controls="prima-di-pubblicare"
-            onClick={() => setPannello((x) => !x)}
-            className="flex min-h-11 w-full items-center justify-between gap-2 px-3 text-left text-[13px] font-semibold lg:hidden"
-          >
-            <span>
-              Prima di pubblicare ·{" "}
-              {bloccanti.length === 0
-                ? "tutto a posto"
-                : bloccanti.length === 1
-                  ? "manca 1 cosa"
-                  : `mancano ${bloccanti.length} cose`}
-            </span>
-            <ChevronDown
-              className={cn(
-                "h-4 w-4 transition-transform motion-reduce:transition-none",
-                pannello && "rotate-180",
-              )}
-              aria-hidden="true"
+            <AvvisiScheda
+              conflitto={conflitto}
+              ricarica={ricarica}
+              vecchio={vecchio}
+              adotta={() => void adotta()}
+              spento={spento}
+              letturaFallita={letturaFallita}
+              erroreSalva={erroreSalva}
+              esito={esito}
             />
-          </button>
-          <div
-            id="prima-di-pubblicare"
-            className={cn("flex flex-col gap-3 p-3", !pannello && "hidden lg:flex")}
-          >
-            <h2 className="hidden text-[13px] font-semibold lg:block">Prima di pubblicare</h2>
-            {bloccanti.length === 0 ? (
-              <p className="flex items-start gap-2 text-[12.5px] text-emerald-900">
-                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-                {archiviato
-                  ? "Il prodotto è archiviato: rimettilo in bozza per pubblicarlo."
-                  : vecchio
-                    ? "Prima usa questo prodotto dal vecchio catalogo."
-                    : "Tutto a posto: puoi pubblicare."}
-              </p>
-            ) : (
-              <ul className="flex flex-col gap-1.5" aria-label="Cose da sistemare">
-                {bloccanti.map((v, k) => (
-                  <li key={`${v.campo}-${k}`}>
-                    <VoceLink voce={v} tono="blocco" vai={() => vaiA(v)} />
-                  </li>
-                ))}
-              </ul>
+            {senzaStorico && (
+              <Banner tono="attenzione">
+                La modifica è salvata, ma non è rimasta traccia nello storico (chi l'ha fatta e
+                quando). Avvisa chi gestisce il database.
+              </Banner>
             )}
-            {informativi.length > 0 && (
-              <div className="mt-2 flex flex-col gap-1.5">
-                <h3 className="text-[12px] font-semibold text-muted-foreground">
-                  Da sapere (non ferma la pubblicazione)
-                </h3>
-                <ul className="flex flex-col gap-1.5">
-                  {informativi.map((v, k) => (
-                    <li key={`${v.campo}-${k}`}>
-                      <VoceLink voce={v} tono="info" vai={() => vaiA(v)} />
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-          </div>
-        </aside>
-
-        {/* ── Le undici sezioni ── */}
-        <div className="flex min-w-0 flex-col gap-2 lg:col-start-1 lg:row-start-1">
-          {sezione(
-            "identita",
-            <div className="grid gap-3 md:grid-cols-2">
-              <div className="md:col-span-2">{testo("nome", "Nome", { max: 120 })}</div>
-              <Campo k="tipo" etichetta="Tipo" {...mostra("tipo")}>
-                {(p) => (
-                  <select
-                    {...p}
-                    value={modulo.tipo}
-                    onChange={(e) => cambia({ tipo: e.target.value as Modulo["tipo"] })}
-                    className={campo}
-                  >
-                    <option value="patch">Patch</option>
-                    <option value="cura">Cura</option>
-                    <option value="kit">Kit</option>
-                  </select>
-                )}
-              </Campo>
-              {testo("marca", "Marca")}
-              <Campo
-                k="sku"
-                etichetta="SKU"
-                aiuto={
-                  dati.prodotto.pubblicatoIl
-                    ? "Già pubblicato: lo SKU non si cambia più."
-                    : "Maiuscolo, senza spazi (per esempio HG-T01). È il codice che usano le vendite e le piattaforme."
-                }
-                {...mostra("sku")}
-              >
-                {(p) => (
-                  <input
-                    {...p}
-                    value={modulo.sku}
-                    disabled={!!dati.prodotto.pubblicatoIl}
-                    autoCapitalize="characters"
-                    onChange={(e) => cambia({ sku: e.target.value.toUpperCase() })}
-                    className={campo}
-                  />
-                )}
-              </Campo>
-              <Campo
-                k="slug"
-                etichetta="Indirizzo"
-                aiuto={
-                  dati.prodotto.pubblicatoIl
-                    ? "Già pubblicato: l'indirizzo non si cambia più, i link condivisi funzionano."
-                    : `Nel sito: /shop/prodotto/${modulo.slug || "…"}`
-                }
-                {...mostra("slug")}
-              >
-                {(p) => (
-                  <div className="flex gap-2">
-                    <input
-                      {...p}
-                      value={modulo.slug}
-                      disabled={!!dati.prodotto.pubblicatoIl}
-                      onChange={(e) => cambia({ slug: e.target.value.toLowerCase() })}
-                      className={campo}
-                    />
-                    {!dati.prodotto.pubblicatoIl && (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className={cn(tastoGrande, "shrink-0")}
-                        onClick={() => cambia({ slug: slugDa(modulo.nome) })}
-                      >
-                        Dal nome
-                      </Button>
-                    )}
-                  </div>
-                )}
-              </Campo>
-            </div>,
-          )}
-          {sezione(
-            "categorie",
-            <fieldset
-              id={idCampo("categoria")}
-              tabIndex={-1}
-              className="flex flex-col gap-1 outline-none"
-            >
-              <legend className="mb-1 text-[12.5px] text-muted-foreground">
-                Scegli almeno una categoria: il prodotto si trova lì nel sito.
-              </legend>
-              {categorieErrore && (
-                <p role="alert" className="text-[12.5px] text-rose-800">
-                  {categorieErrore}
-                </p>
-              )}
-              {elencoCategorie === null && !categorieErrore && (
-                <p role="status" className="text-[12.5px] text-muted-foreground">
-                  Carico le categorie…
-                </p>
-              )}
-              {elencoCategorie?.length === 0 && (
-                <p className="text-[12.5px]">
-                  Non c'è ancora nessuna categoria: creala sotto l'elenco dei prodotti, in
-                  «Categorie».
-                </p>
-              )}
-              {elencoCategorie?.map((k) => (
-                <label
-                  key={k.id}
-                  className="flex min-h-11 items-center gap-3 rounded-md px-1 text-[13px] md:min-h-9"
-                >
-                  <input
-                    type="checkbox"
-                    className="h-5 w-5 accent-[color:var(--primary)]"
-                    checked={dati.categorie.includes(k.id)}
-                    disabled={salvandoCategorie || spento}
-                    onChange={(e) => void scegliCategoria(k.id, e.target.checked)}
-                  />
-                  {k.nome}
-                </label>
-              ))}
-            </fieldset>,
-          )}
-          {sezione(
-            "descrizione",
-            <div className="flex flex-col gap-3">
-              {senzaPrezzo && (
-                <p
-                  role="note"
-                  className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[12.5px] text-amber-900"
-                >
-                  Non scrivere prezzi nelle descrizioni: Invisible Derm non ha un prezzo nello shop,
-                  e il testo libero il sistema non lo può controllare del tutto.
-                </p>
-              )}
-              {testo("rigaPresentazione", "Riga di presentazione", {
-                max: 90,
-                aiuto: "Una frase sotto il nome.",
-              })}
-              {testo("descrizioneBreve", "Descrizione breve (obbligatoria)", {
-                max: 300,
-                area: true,
-                righe: 3,
-                aiuto: "Si legge in elenco e nella scheda.",
-              })}
-              {testo("descrizioneLunga", "Descrizione lunga", { area: true, righe: 6 })}
-              {testo("perChi", "Per chi è", { max: 200 })}
-            </div>,
-          )}
-          {sezione(
-            "caratteristiche",
-            <Caratteristiche
-              modulo={modulo}
-              cambia={cambia}
-              errore={errori.caratteristiche}
-              avvisi={avvisi.caratteristiche?.avvisi ?? []}
-            />,
-          )}
-          {sezione(
-            "prezzo",
-            senzaPrezzo ? (
-              <p className="text-[13px]">
-                Invisible Derm non ha un prezzo nello shop: il costo si vede in consulenza.
-              </p>
-            ) : (
-              <div className="flex flex-col gap-3">
-                <Campo
-                  k="prezzo"
-                  etichetta="Prezzo in euro"
-                  aiuto="Il prezzo di ogni variante, se è diverso, si scrive nelle varianti. Vuoto = vale questo."
-                  {...mostra("prezzo")}
-                >
-                  {(p) => (
-                    <input
-                      {...p}
-                      inputMode="decimal"
-                      value={modulo.prezzo}
-                      onChange={(e) => cambia({ prezzo: e.target.value })}
-                      placeholder="19,90"
-                      className={cn(campo, "md:max-w-48")}
-                    />
-                  )}
-                </Campo>
-                {pubblicato && (
-                  <div className="flex flex-wrap items-center gap-3">
-                    <p className="text-[12.5px] text-muted-foreground">
-                      Sul sito ora:{" "}
-                      <strong className="text-foreground">
-                        € {prezzoInTesto(prezzoVivo) || "0,00"}
-                      </strong>
-                    </p>
+            {pubblicato && modificheInCorso && (
+              <Banner
+                tono="attenzione"
+                titolo="Hai modifiche non pubblicate"
+                azione={
+                  <div className="flex flex-wrap gap-2">
                     <Button
                       type="button"
-                      className={tastoGrande}
-                      disabled={
-                        spento ||
-                        !!errori.prezzo ||
-                        !campi.prezzoCent ||
-                        campi.prezzoCent === prezzoVivo
-                      }
-                      onClick={() => void applicaPrezzo()}
+                      variant="outline"
+                      className={CLASSI_TASTO}
+                      disabled={nonPubblicabile || spento}
+                      onClick={() => void pubblica()}
                     >
-                      Applica il nuovo prezzo
+                      Pubblica le modifiche
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className={CLASSI_TASTO}
+                      disabled={spento}
+                      onClick={() => void scarta()}
+                    >
+                      Scarta
                     </Button>
                   </div>
-                )}
-              </div>
-            ),
-            true,
-          )}
-          {sezione(
-            "varianti",
-            <EditorVarianti
-              prodotto={{
-                id,
-                sku: dati.prodotto.sku,
-                nome: modulo.nome,
-                slug: modulo.slug,
-                prezzoCent: prezzoPerVarianti,
-                pubblicato,
-                versione: versione.current,
-              }}
-              varianti={dati.varianti}
-              esegui={scrivi}
-              aggiorna={rileggi}
-            />,
-            true,
-          )}
-          {sezione(
-            "foto",
-            <EditorMedia
-              prodotto={{ id, nome: modulo.nome, pubblicato }}
-              media={dati.media}
-              esegui={scrivi}
-              aggiorna={rileggi}
-            />,
-            true,
-          )}
-          {sezione(
-            "uso",
-            <div className="flex flex-col gap-3">
-              {lista("passi", "Come si usa", "Un passo per riga.")}
-              {lista("confezione", "Nella confezione", "Una voce per riga.")}
-              {lista("avvertenze", "Avvertenze", "Una per riga.")}
-              <Domande
-                modulo={modulo}
-                cambia={cambia}
-                errore={errori.faq}
-                avvisi={avvisi.faq?.avvisi ?? []}
-              />
-            </div>,
-          )}
-          {sezione(
-            "reso",
-            <div className="grid gap-3 md:grid-cols-2">
-              <Campo k="reso" etichetta="Reso" {...mostra("reso")}>
-                {(p) => (
-                  <select
-                    {...p}
-                    value={modulo.reso}
-                    onChange={(e) => cambia({ reso: e.target.value as Modulo["reso"] })}
-                    className={campo}
-                  >
-                    <option value="">Non deciso</option>
-                    <option value="si">Si può rendere</option>
-                    <option value="no">Non si rende</option>
-                  </select>
-                )}
-              </Campo>
-              <Campo k="resoGiorni" etichetta="Giorni per il reso" {...mostra("resoGiorni")}>
-                {(p) => (
-                  <input
-                    {...p}
-                    inputMode="numeric"
-                    disabled={modulo.reso !== "si"}
-                    value={modulo.resoGiorni}
-                    onChange={(e) => cambia({ resoGiorni: e.target.value })}
-                    className={campo}
-                  />
-                )}
-              </Campo>
-              <div className="md:col-span-2">
-                <Campo
-                  k="boxConsulenza"
-                  etichetta="Box «consulenza»"
-                  aiuto="Si mostra solo sulle patch."
-                  {...mostra("boxConsulenza")}
-                >
-                  {(p) => (
-                    <label className="flex min-h-11 items-center gap-3 text-[13px] md:min-h-9">
-                      <Switch
-                        id={p.id}
-                        aria-describedby={p["aria-describedby"]}
-                        checked={modulo.boxConsulenza}
-                        onCheckedChange={(x) => cambia({ boxConsulenza: x })}
-                      />
-                      {modulo.boxConsulenza ? "Acceso" : "Spento"}
-                    </label>
-                  )}
-                </Campo>
-              </div>
-              <div className="md:col-span-2">
-                <Campo
-                  k="correlatoId"
-                  etichetta="«Ti serve anche»"
-                  aiuto="Un altro prodotto da proporre insieme (al massimo uno)."
-                  {...mostra("correlatoId")}
-                >
-                  {(p) => (
-                    <select
-                      {...p}
-                      value={modulo.correlatoId}
-                      onChange={(e) => cambia({ correlatoId: e.target.value })}
-                      className={campo}
-                    >
-                      <option value="">Nessuno</option>
-                      {negozio.prodotti
-                        .filter(
-                          (r) => r.id !== id && r.stato !== "archiviato" && r.origine !== "codice",
-                        )
-                        .map((r) => (
-                          <option key={r.id} value={r.id}>
-                            {r.nome}
-                          </option>
-                        ))}
-                    </select>
-                  )}
-                </Campo>
-              </div>
-              <p
-                id={idCampo("spedizione")}
-                className="text-[12.5px] text-muted-foreground md:col-span-2"
+                }
               >
-                Costo e tempi di spedizione si impostano insieme alla cassa: non servono per
-                pubblicare adesso.
-              </p>
-            </div>,
-          )}
-          {sezione(
-            "canali",
-            <fieldset
-              id={idCampo("canali")}
-              tabIndex={-1}
-              className="flex flex-col gap-1 outline-none"
-            >
-              <legend className="mb-1 text-[12.5px] text-muted-foreground">
-                Accendi almeno un canale.
-              </legend>
-              {(
-                [
-                  ["sito", "Sito"],
-                  ["meta", "Meta (Facebook e Instagram)"],
-                  ["google", "Google Merchant"],
-                  ["tiktok", "TikTok"],
-                ] as const
-              ).map(([c, nome]) => (
-                <label
-                  key={c}
-                  className="flex min-h-11 items-center justify-between gap-3 rounded-md px-1 text-[13px] md:min-h-9"
-                >
-                  {nome}
-                  <Switch
-                    checked={modulo.canali[c]}
-                    onCheckedChange={(x) => cambia({ canali: { ...modulo.canali, [c]: x } })}
-                    aria-label={nome}
-                  />
-                </label>
-              ))}
-            </fieldset>,
-          )}
-          {sezione(
-            "ricerca",
-            <div className="flex flex-col gap-3">
-              {testo("seoTitolo", "Titolo per Google", {
-                max: 60,
-                aiuto: "Oltre 60 segni Google lo taglia. Vuoto = si usa il nome.",
-              })}
-              {testo("seoDescrizione", "Descrizione per Google", {
-                max: 155,
-                area: true,
-                righe: 3,
-                aiuto: "Oltre 155 segni Google la taglia.",
-              })}
-            </div>,
-          )}
-        </div>
-      </div>
-
-      {/* ── Telefono: la barra fissa ── */}
-      <div className="fixed inset-x-0 bottom-0 z-30 flex gap-2 border-t border-border bg-background px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 md:hidden">
-        {barra}
-      </div>
-
-      {/* ── Anteprima ── */}
-      <Dialog open={anteprima !== null} onOpenChange={(v) => !v && setAnteprima(null)}>
-        <DialogContent className="crm-theme max-h-[92vh] max-w-[96vw] overflow-auto bg-white text-foreground md:max-w-4xl">
-          <DialogHeader>
-            <DialogTitle>Anteprima della bozza</DialogTitle>
-            <DialogDescription>
-              Mostra ciò che hai salvato, come lo vedrebbe un cliente. Non è ancora sul sito.
-            </DialogDescription>
-          </DialogHeader>
-          {anteprima && (
-            <AnteprimaVista
-              url={anteprima.url}
-              vista={anteprima.vista}
-              cambia={(vista) => setAnteprima({ ...anteprima, vista })}
-            />
-          )}
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              className={tastoGrande}
-              onClick={() => setAnteprima(null)}
-            >
-              <X className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
-              Chiudi
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* ── Archivia ── */}
-      <Dialog open={archivia} onOpenChange={(v) => !v && !occupato && setArchivia(false)}>
-        <DialogContent className="crm-theme bg-white text-foreground">
-          <DialogHeader>
-            <DialogTitle>Archiviare «{dati.prodotto.nome}»?</DialogTitle>
-            <DialogDescription>
-              Sparisce dal sito e dall'elenco normale. Non si cancella niente: lo ritrovi in «Tutti»
-              e lo puoi rimettere in bozza.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              className={tastoGrande}
-              disabled={occupato}
-              onClick={() => setArchivia(false)}
-            >
-              Annulla
-            </Button>
-            <Button
-              type="button"
-              className={tastoGrande}
-              disabled={occupato}
-              onClick={() => void cambiaStato("archiviato")}
-            >
-              Archivia
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
-  );
-}
-
-/* ══ PEZZI PICCOLI ══════════════════════════════════════════════════════════ */
-
-function Sezione({
-  id,
-  titolo,
-  segno,
-  aperta,
-  alterna,
-  subito,
-  children,
-}: {
-  id: SezioneId;
-  titolo: string;
-  segno: { tono: "ok" | "da_sistemare" | "da_controllare"; testo: string };
-  aperta: boolean;
-  alterna: () => void;
-  subito?: boolean;
-  children: ReactNode;
-}) {
-  const Icona =
-    segno.tono === "ok" ? CheckCircle2 : segno.tono === "da_sistemare" ? AlertTriangle : Info;
-  return (
-    <section className="rounded-xl border border-border bg-card">
-      <h2 className="m-0">
-        <button
-          type="button"
-          id={`sez-${id}`}
-          aria-expanded={aperta}
-          aria-controls={`pan-${id}`}
-          onClick={alterna}
-          className="flex min-h-11 w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-[13.5px] font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          <span className="min-w-0">
-            {titolo}
-            {subito && (
-              <span className="ml-2 rounded-full bg-sky-50 px-2 py-0.5 text-[11px] font-medium text-sky-900">
-                si applica subito
-              </span>
+                Il sito resta com'è finché non le pubblichi.
+              </Banner>
             )}
-          </span>
-          <span className="flex shrink-0 items-center gap-2">
-            <span
-              className={cn(
-                "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium",
-                segno.tono === "ok" && "bg-emerald-50 text-emerald-900",
-                segno.tono === "da_sistemare" && "bg-rose-50 text-rose-900",
-                segno.tono === "da_controllare" && "bg-amber-50 text-amber-900",
-              )}
-            >
-              <Icona className="h-3 w-3" aria-hidden="true" />
-              {segno.testo}
-            </span>
-            <ChevronDown
-              className={cn(
-                "h-4 w-4 transition-transform motion-reduce:transition-none",
-                aperta && "rotate-180",
-              )}
-              aria-hidden="true"
-            />
-          </span>
-        </button>
-      </h2>
-      <div id={`pan-${id}`} hidden={!aperta} className="border-t border-border p-3 md:p-4">
-        {children}
-      </div>
-    </section>
-  );
-}
-
-function VoceLink({ voce, tono, vai }: { voce: Voce; tono: "blocco" | "info"; vai: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={vai}
-      className={cn(
-        "flex min-h-11 w-full items-start gap-2 rounded-md border px-2.5 py-2 text-left text-[12.5px] leading-snug focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-        tono === "blocco"
-          ? "border-rose-200 bg-rose-50 text-rose-900"
-          : "border-amber-200 bg-amber-50 text-amber-900",
-      )}
-    >
-      {tono === "blocco" ? (
-        <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-      ) : (
-        <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-      )}
-      <span className="min-w-0 flex-1">{voce.frase}</span>
-      <span className="flex shrink-0 items-center gap-0.5 font-medium">
-        Vai
-        <ArrowRight className="h-3 w-3" aria-hidden="true" />
-      </span>
-    </button>
-  );
-}
-
-/** Un campo con etichetta, aiuto, contatore, errore e avvisi, collegati al controllo con `aria-describedby`. */
-function Campo({
-  k,
-  etichetta,
-  aiuto,
-  contatore,
-  errore,
-  avvisi,
-  children,
-}: {
-  k: CampoModulo;
-  etichetta: string;
-  aiuto?: string;
-  contatore?: { n: number; max: number };
-  errore?: string;
-  avvisi?: string[];
-  children: (p: {
-    id: string;
-    "aria-describedby": string | undefined;
-    "aria-invalid": boolean;
-  }) => ReactNode;
-}) {
-  const id = idCampo(k);
-  const descr =
-    [aiuto && `${id}-aiuto`, errore && `${id}-errore`, avvisi?.length && `${id}-avvisi`]
-      .filter(Boolean)
-      .join(" ") || undefined;
-  const troppo = contatore ? contatore.n > contatore.max : false;
-  return (
-    <div className="flex min-w-0 flex-col gap-1">
-      <div className="flex items-baseline justify-between gap-2">
-        <label htmlFor={id} className="text-[12.5px] font-medium">
-          {etichetta}
-        </label>
-        {contatore && (
-          <span
-            className={cn(
-              "text-[11.5px] tabular-nums",
-              troppo ? "font-semibold text-rose-800" : "text-muted-foreground",
-            )}
-          >
-            {contatore.n}/{contatore.max}
-          </span>
-        )}
-      </div>
-      {children({ id, "aria-describedby": descr, "aria-invalid": !!errore })}
-      {aiuto && (
-        <p id={`${id}-aiuto`} className="text-[12px] text-muted-foreground">
-          {aiuto}
-        </p>
-      )}
-      {errore && (
-        <p
-          id={`${id}-errore`}
-          role="alert"
-          className="flex items-start gap-1.5 text-[12.5px] text-rose-800"
-        >
-          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-          {errore}
-        </p>
-      )}
-      {avvisi && avvisi.length > 0 && (
-        <ul id={`${id}-avvisi`} className="flex flex-col gap-0.5">
-          {avvisi.map((a) => (
-            <li key={a} className="flex items-start gap-1.5 text-[12.5px] text-amber-900">
-              <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-              {a}
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
-}
-
-function Caratteristiche({
-  modulo,
-  cambia,
-  errore,
-  avvisi,
-}: {
-  modulo: Modulo;
-  cambia: (p: Partial<Modulo>) => void;
-  errore?: string;
-  avvisi: string[];
-}) {
-  const righe = modulo.caratteristiche;
-  const imposta = (k: number, p: Partial<Modulo["caratteristiche"][number]>) =>
-    cambia({ caratteristiche: righe.map((r, i) => (i === k ? { ...r, ...p } : r)) });
-  return (
-    <div id={idCampo("caratteristiche")} tabIndex={-1} className="flex flex-col gap-3 outline-none">
-      <p className="text-[12.5px] text-muted-foreground">
-        Le righe «da confermare» non si mostrano mai ai clienti. Per confermarne una serve la fonte
-        (la scheda del fornitore).
-      </p>
-      {righe.length === 0 && (
-        <p className="text-[12.5px]">Non c'è ancora nessuna caratteristica.</p>
-      )}
-      {righe.map((r, k) => (
-        <div
-          key={k}
-          className="grid grid-cols-1 gap-2 rounded-lg border border-border p-2.5 md:grid-cols-[1fr_1fr_11rem_1fr_auto] md:items-end"
-        >
-          <label className="flex flex-col gap-1 text-[12px] font-medium">
-            Nome
-            <input
-              value={r.etichetta}
-              onChange={(e) => imposta(k, { etichetta: e.target.value })}
-              className={campo}
-            />
-          </label>
-          <label className="flex flex-col gap-1 text-[12px] font-medium">
-            Valore
-            <input
-              value={r.valore}
-              onChange={(e) => imposta(k, { valore: e.target.value })}
-              className={campo}
-            />
-          </label>
-          <label className="flex flex-col gap-1 text-[12px] font-medium">
-            Stato
-            <select
-              value={r.stato}
-              onChange={(e) =>
-                imposta(k, { stato: e.target.value as "confermato" | "da_confermare" })
+          </>
+        }
+        principale={
+          <>
+            <RiquadroTitolo
+              {...base}
+              segno={segno("titolo")}
+              avviso={
+                senzaPrezzo && (
+                  <Banner tono="attenzione">
+                    Non scrivere prezzi nelle descrizioni: Invisible Derm non ha un prezzo nello
+                    shop (il costo si vede in consulenza), e il testo libero il sistema non lo può
+                    controllare del tutto.
+                  </Banner>
+                )
               }
-              className={campo}
-            >
-              <option value="da_confermare">Da confermare</option>
-              <option value="confermato">Confermata</option>
-            </select>
-          </label>
-          <label className="flex flex-col gap-1 text-[12px] font-medium">
-            Fonte
-            <input
-              value={r.fonte ?? ""}
-              onChange={(e) => imposta(k, { fonte: e.target.value })}
-              className={campo}
             />
-          </label>
+            <RiquadroFoto nuovo={false} segno={segno("foto")} subito={pubblicato}>
+              <EditorMedia
+                prodotto={{ id, nome: modulo.nome, pubblicato }}
+                media={dati.media}
+                esegui={scrivi}
+                aggiorna={rileggi}
+              />
+            </RiquadroFoto>
+            <RiquadroPrezzo
+              {...base}
+              segno={segno("prezzo")}
+              modalita={modalita}
+              invisibleDerm={senzaPrezzo}
+              pubblicato={pubblicato}
+              prezzoVivo={prezzoInTesto(prezzoVivo)}
+              costo={costo}
+              cambiaCosto={cambiaCosto}
+              costoErrore={costoErrore}
+              costoDisponibile={costoDisp}
+              azionePrezzo={azionePrezzo}
+            />
+            <RiquadroGiacenza
+              {...base}
+              segno={segno("giacenza")}
+              modalita={modalita}
+              invisibleDerm={senzaPrezzo}
+              nuovo={false}
+              skuBloccato={bloccoSkuIndirizzo}
+              giacenzaAttuale={giacenzaAttuale}
+              quantita={testoQ}
+              cambiaQuantita={(t) => {
+                setScritta(t);
+                setEsito(null);
+              }}
+              motivo={motivo}
+              cambiaMotivo={setMotivoGiac}
+              soglia={soglia ? soglia : null}
+              linkSoglia={
+                <Button
+                  type="button"
+                  variant="link"
+                  className="h-auto min-h-11 p-0 text-[13px] md:min-h-0"
+                  onClick={() => apri(null)}
+                >
+                  Apri l'elenco prodotti
+                </Button>
+              }
+              confermaQuantita={confermaQuantita}
+            />
+            <RiquadroSpedizione
+              {...base}
+              segno={segno("spedizione")}
+              modalita={modalita}
+              invisibleDerm={senzaPrezzo}
+            />
+            <RiquadroVarianti segno={segno("varianti")} pubblicato={pubblicato}>
+              <EditorVarianti
+                prodotto={{
+                  id,
+                  sku: dati.prodotto.sku,
+                  nome: modulo.nome,
+                  slug: modulo.slug,
+                  prezzoCent: prezzoPerVarianti,
+                  pubblicato,
+                  versione: versione.current,
+                }}
+                varianti={dati.varianti}
+                esegui={scrivi}
+                aggiorna={rileggi}
+                costi={dati.costi}
+                costoDisponibile={costoDisp}
+                prezzoBase={
+                  modalita === "opzioni" && !senzaPrezzo
+                    ? {
+                        testo: modulo.prezzo,
+                        cambia: (t) => cambia({ prezzo: t }),
+                        errore: errori.prezzo,
+                        azione: pubblicato ? azionePrezzo : undefined,
+                      }
+                    : undefined
+                }
+              />
+            </RiquadroVarianti>
+            <RiquadroSeo
+              {...base}
+              segno={segno("seo")}
+              pubblicato={bloccoSkuIndirizzo}
+              dominio={typeof window === "undefined" ? "il tuo sito" : window.location.hostname}
+              immagini={immagini.length > 0 ? immagini : undefined}
+              immagineId={seo}
+              cambiaImmagine={immagini.length > 0 ? cambiaImmagine : undefined}
+            />
+            <RiquadroContenuto
+              {...base}
+              aperti={aperti}
+              alterna={(r) => setAperti((a) => ({ ...a, [r]: !a[r] }))}
+              segni={{
+                caratteristiche: segno("caratteristiche"),
+                uso: segno("uso"),
+                reso: segno("reso"),
+              }}
+              correlabili={negozio.prodotti
+                .filter((r) => r.id !== id && r.stato !== "archiviato" && r.origine !== "codice")
+                .map((r) => ({ id: r.id, nome: r.nome }))}
+            />
+          </>
+        }
+        laterale={
+          <ColonnaLaterale
+            {...base}
+            stato={stato}
+            segni={{
+              canali: segno("canali"),
+              organizzazione: segno("organizzazione"),
+              cataloghi: segno("cataloghi"),
+              note: segno("note"),
+            }}
+            categorie={{
+              elenco: elencoCategorie,
+              scelte: dati.categorie,
+              scegli: (k, acceso) => void scegliCategoria(k, acceso),
+              errore: categorieErrore,
+              occupato: salvandoCategorie || spento,
+            }}
+            cataloghiAperto={aperti.cataloghi}
+            alternaCataloghi={() => setAperti((a) => ({ ...a, cataloghi: !a.cataloghi }))}
+            prima={
+              <PrimaDiPubblicare
+                bloccanti={bloccanti}
+                informativi={informativi}
+                vai={vaiA}
+                archiviato={archiviato}
+                vecchio={vecchio}
+                aperto={pannello}
+                alterna={() => setPannello((x) => !x)}
+              />
+            }
+          />
+        }
+      />
+
+      {/* ── Telefono: la barra fissa (se «Pubblica» è spento dice perché e porta a «Prima di pubblicare») ── */}
+      <div className="fixed inset-x-0 bottom-0 z-30 flex flex-col gap-2 border-t border-border bg-background px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2 md:hidden">
+        {bloccanti.length > 0 && (
+          <button
+            type="button"
+            onClick={mostraPrima}
+            className="flex min-h-11 w-full items-center justify-between gap-2 rounded-lg px-1 text-left text-[13px] font-medium text-rose-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            {quanteMancano(bloccanti.length)} prima di pubblicare
+            <span className="underline">Vedi</span>
+          </button>
+        )}
+        <div className="flex gap-2">
+          {tastoSalvaGrande}
           <Button
             type="button"
-            variant="outline"
-            className={tastoGrande}
-            onClick={() => cambia({ caratteristiche: righe.filter((_, i) => i !== k) })}
+            className={cn(CLASSI_TASTO, "flex-1")}
+            disabled={nonPubblicabile || senzaModifiche || spento}
+            onClick={() => void pubblica()}
           >
-            Togli la riga
+            {tastoPubblica}
           </Button>
         </div>
-      ))}
-      <div>
-        <Button
-          type="button"
-          variant="outline"
-          className={tastoGrande}
-          onClick={() =>
-            cambia({
-              caratteristiche: [
-                ...righe,
-                { etichetta: "", valore: "", stato: "da_confermare", fonte: null },
-              ],
-            })
-          }
-        >
-          <Plus className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
-          Aggiungi una caratteristica
-        </Button>
       </div>
-      {errore && (
-        <p role="alert" className="text-[12.5px] text-rose-800">
-          {errore}
-        </p>
-      )}
-      {avvisi.map((a) => (
-        <p key={a} className="text-[12.5px] text-amber-900">
-          {a}
-        </p>
-      ))}
-    </div>
-  );
-}
 
-function Domande({
-  modulo,
-  cambia,
-  errore,
-  avvisi,
-}: {
-  modulo: Modulo;
-  cambia: (p: Partial<Modulo>) => void;
-  errore?: string;
-  avvisi: string[];
-}) {
-  const righe = modulo.faq;
-  const imposta = (k: number, p: Partial<{ d: string; r: string }>) =>
-    cambia({ faq: righe.map((f, i) => (i === k ? { ...f, ...p } : f)) });
-  return (
-    <div id={idCampo("faq")} tabIndex={-1} className="flex flex-col gap-3 outline-none">
-      <h3 className="text-[12.5px] font-medium">Domande frequenti</h3>
-      {righe.map((f, k) => (
-        <div key={k} className="flex flex-col gap-2 rounded-lg border border-border p-2.5">
-          <label className="flex flex-col gap-1 text-[12px] font-medium">
-            Domanda
-            <input
-              value={f.d}
-              onChange={(e) => imposta(k, { d: e.target.value })}
-              className={campo}
-            />
-          </label>
-          <label className="flex flex-col gap-1 text-[12px] font-medium">
-            Risposta
-            <textarea
-              rows={3}
-              value={f.r}
-              onChange={(e) => imposta(k, { r: e.target.value })}
-              className={cn(campo, "py-2")}
-            />
-          </label>
-          <div>
-            <Button
-              type="button"
-              variant="outline"
-              className={tastoGrande}
-              onClick={() => cambia({ faq: righe.filter((_, i) => i !== k) })}
-            >
-              Togli la domanda
-            </Button>
-          </div>
-        </div>
-      ))}
-      <div>
-        <Button
-          type="button"
-          variant="outline"
-          className={tastoGrande}
-          onClick={() => cambia({ faq: [...righe, { d: "", r: "" }] })}
-        >
-          <Plus className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
-          Aggiungi una domanda
-        </Button>
-      </div>
-      {errore && (
-        <p role="alert" className="text-[12.5px] text-rose-800">
-          {errore}
-        </p>
-      )}
-      {avvisi.map((a) => (
-        <p key={a} className="text-[12.5px] text-amber-900">
-          {a}
-        </p>
-      ))}
-    </div>
-  );
-}
-
-/** L'anteprima: un riquadro a 390 px (telefono) o a 1440 px rimpicciolito per entrare nella finestra (computer). */
-function AnteprimaVista({
-  url,
-  vista,
-  cambia,
-}: {
-  url: string;
-  vista: "telefono" | "computer";
-  cambia: (v: "telefono" | "computer") => void;
-}) {
-  const larghezza = vista === "telefono" ? 390 : 1440;
-  const altezza = vista === "telefono" ? 720 : 900;
-  const disponibile = Math.min(typeof window === "undefined" ? 1000 : window.innerWidth, 920) - 64;
-  const scala = Math.min(1, disponibile / larghezza);
-  return (
-    <div className="flex flex-col gap-3">
-      <div className="flex gap-2" role="group" aria-label="Come guardarla">
-        {(
-          [
-            ["telefono", "Telefono (390 px)"],
-            ["computer", "Computer (1440 px)"],
-          ] as const
-        ).map(([v, nome]) => (
-          <Button
-            key={v}
-            type="button"
-            variant={vista === v ? "default" : "outline"}
-            aria-pressed={vista === v}
-            className={tastoGrande}
-            onClick={() => cambia(v)}
-          >
-            {nome}
-          </Button>
-        ))}
-      </div>
-      <div
-        className="mx-auto overflow-hidden rounded-lg border border-border"
-        style={{ width: larghezza * scala, height: altezza * scala }}
-      >
-        <iframe
-          key={vista}
-          title={`Anteprima della bozza, vista ${vista}`}
-          src={url}
-          referrerPolicy="no-referrer"
-          style={{
-            width: larghezza,
-            height: altezza,
-            transform: `scale(${scala})`,
-            transformOrigin: "0 0",
-            border: 0,
-          }}
-        />
-      </div>
+      <FinestraAnteprima
+        anteprima={anteprima}
+        cambiaVista={(vista) => anteprima && setAnteprima({ ...anteprima, vista })}
+        chiudi={() => setAnteprima(null)}
+      />
+      <FinestraArchivia
+        aperta={archivia}
+        nome={dati.prodotto.nome}
+        occupato={occupato}
+        chiudi={() => setArchivia(false)}
+        conferma={() => void cambiaStato("archiviato")}
+      />
     </div>
   );
 }
