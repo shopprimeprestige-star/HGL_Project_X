@@ -13,6 +13,9 @@
  *  · Una lettura che fallisce NON svuota l'elenco (lo dice `client.ts`): qui si vede l'ultimo buono con l'ora e l'errore accanto.
  *  · Database non pronto (S1 non applicata) o cancello: una frase chiara e «Riprova», non un errore generico.
  *  · «Elimina» non esiste: un prodotto si archivia dalla sua scheda. Niente prezzi barrati, sconti, stelle.
+ *  · «Aggiungi prodotto» apre la scheda vuota (`SchedaNuova`, E9): non scrive niente finché non si preme «Salva bozza». «Importa» apre la
+ *    finestra dell'import (E10): la finestra scrive con un `esegui` che NON rilegge l'elenco dopo ogni gruppo (fino a 60 letture), e l'elenco
+ *    si rilegge una volta sola, alla chiusura.
  *  · Il numero dei pezzi non si legge dall'elenco del server (non lo porta): si apre dalla riga («Giacenza») e si legge la
  *    scheda di quel prodotto solo allora. Si cambia con `giacenza_imposta`, che non va mai sotto zero.
  *  ⚠️ Nessun log da qui, mai. */
@@ -27,28 +30,23 @@ import {
   Plus,
   RefreshCw,
   Search,
+  Upload,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { fetchCRM } from "@/crm/AuthContext";
 import { Chip, Segmento, Vuoto } from "@/crm/ui";
 import { cn } from "@/lib/utils";
 import { oraHHmm } from "@/crm/ecommerce/client";
 import { Avviso } from "@/crm/ecommerce/Avviso";
 import {
   SEGMENTI,
+  eseguiAzione,
   type ErroreNegozio,
   type FiltriElenco,
   type RigaElenco,
 } from "@/crm/negozio/client";
-import { skuValido, slugDa, type Variante } from "@/shop/cms/modello";
+import type { Variante } from "@/shop/cms/modello";
 import {
   ETICHETTE_SEGMENTO,
   MAX_GRUPPO,
@@ -65,6 +63,8 @@ import {
   type Direzione,
   type Fuori,
 } from "./elenco-puro";
+import { FinestraImporta } from "./importa/FinestraImporta";
+import { SchedaNuova } from "./SchedaNuova";
 import type { Negozio } from "./tipi";
 
 export interface PropsElencoProdotti {
@@ -82,11 +82,6 @@ const CANALI = [
   { chiave: "meta", lettera: "M", nome: "Meta" },
   { chiave: "google", lettera: "G", nome: "Google" },
   { chiave: "tiktok", lettera: "T", nome: "TikTok" },
-] as const;
-const TIPI = [
-  { valore: "patch", nome: "Patch" },
-  { valore: "cura", nome: "Cura" },
-  { valore: "kit", nome: "Kit" },
 ] as const;
 const MAX_PEZZI = 1_000_000;
 /** I tipi di errore dopo i quali riprovare con il prodotto dopo è inutile: l'operazione si ferma. */
@@ -127,6 +122,7 @@ export function ElencoProdotti({ negozio, apri, categorieAggiornate = 0 }: Props
   const [occupato, setOccupato] = useState(false);
   const [esito, setEsito] = useState<EsitoGruppo | null>(null);
   const [nuovo, setNuovo] = useState(false);
+  const [importa, setImporta] = useState(false);
   const [categorie, setCategorie] = useState<{ id: string; nome: string }[]>([]);
 
   //  I nomi delle categorie per il filtro: una lettura sola, all'apertura. Se fallisce il filtro non compare (l'elenco funziona lo stesso).
@@ -158,6 +154,20 @@ export function ElencoProdotti({ negozio, apri, categorieAggiornate = 0 }: Props
   const selezionati = useMemo(() => visibili.filter((r) => scelti.has(r.id)), [visibili, scelti]);
   const pieno = selezionati.length >= MAX_GRUPPO;
   const filtrato = segmento !== "tutti" || categoria !== "" || q.trim() !== "";
+
+  //  L'import scrive a gruppi: con l'`esegui` del negozio l'elenco si rileggerebbe dopo OGNI gruppo (fino a 60 letture, e la lista sfarfalla sotto
+  //  la finestra). Questo `esegui` manda l'azione e basta; l'elenco si rilegge una volta sola, quando la finestra si chiude.
+  const negozioImporta = useMemo(
+    () => ({
+      esegui: (azione: string, dati?: Record<string, unknown>) =>
+        eseguiAzione(fetchCRM, azione, dati),
+    }),
+    [],
+  );
+  const chiudiImporta = () => {
+    setImporta(false);
+    void aggiorna();
+  };
 
   const cambiaFiltri = (p: Partial<FiltriElenco>) => {
     setScelti(new Set());
@@ -257,10 +267,23 @@ export function ElencoProdotti({ negozio, apri, categorieAggiornate = 0 }: Props
     return <Scheletri />;
   }
 
+  /* ── «Aggiungi prodotto»: la scheda vuota prende il posto dell'elenco (che resta com'era: ricerca, filtri, scelte). Non scrive niente. ── */
+  if (nuovo)
+    return (
+      <SchedaNuova
+        negozio={negozio}
+        apri={(id) => {
+          setNuovo(false);
+          apri(id);
+        }}
+        torna={() => setNuovo(false)}
+      />
+    );
+
   const tastoNuovo = (
     <Button type="button" size="sm" className="h-8 text-[12px]" onClick={() => setNuovo(true)}>
       <Plus className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
-      Nuovo prodotto
+      Aggiungi prodotto
     </Button>
   );
   const nessunProdotto = prodotti.length === 0;
@@ -361,6 +384,16 @@ export function ElencoProdotti({ negozio, apri, categorieAggiornate = 0 }: Props
             />
             Aggiorna
           </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-11 text-[12px] md:h-8"
+            onClick={() => setImporta(true)}
+          >
+            <Upload className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
+            Importa
+          </Button>
           <span className="hidden md:inline-flex">{tastoNuovo}</span>
         </div>
       </div>
@@ -432,7 +465,7 @@ export function ElencoProdotti({ negozio, apri, categorieAggiornate = 0 }: Props
         <Vuoto
           icona={PackageOpen}
           titolo="Non c'è ancora nessun prodotto."
-          testo="Crea il primo con «Nuovo prodotto»: lo completi con calma, in bozza, e lo pubblichi quando è pronto."
+          testo="Crea il primo con «Aggiungi prodotto»: lo completi con calma, in bozza, e lo pubblichi quando è pronto. Se hai già un catalogo in un file, usa «Importa»."
         />
       ) : visibili.length === 0 ? (
         <Vuoto
@@ -649,18 +682,19 @@ export function ElencoProdotti({ negozio, apri, categorieAggiornate = 0 }: Props
           onClick={() => setNuovo(true)}
         >
           <Plus className="mr-1.5 h-4 w-4" aria-hidden="true" />
-          Nuovo prodotto
+          Aggiungi prodotto
         </Button>
       </div>
 
-      <FinestraNuovo
-        aperta={nuovo}
-        chiudi={() => setNuovo(false)}
-        crea={(dati) => esegui("prodotto_crea", dati)}
-        creato={(id) => {
-          setNuovo(false);
+      <FinestraImporta
+        aperta={importa}
+        chiudi={chiudiImporta}
+        negozio={negozioImporta}
+        apriProdotto={(id) => {
+          void aggiorna();
           apri(id);
         }}
+        vaiAiProdotti={chiudiImporta}
       />
     </div>
   );
@@ -1037,136 +1071,5 @@ function RigaGiacenza({ variante, esegui }: { variante: Variante; esegui: Negozi
         {!valido ? "Scrivi un numero intero, da 0 in su." : (stato?.testo ?? "")}
       </span>
     </li>
-  );
-}
-
-/* ══ «NUOVO PRODOTTO» ═══════════════════════════════════════════════════════ */
-
-function FinestraNuovo({
-  aperta,
-  chiudi,
-  crea,
-  creato,
-}: {
-  aperta: boolean;
-  chiudi: () => void;
-  crea: (dati: Record<string, unknown>) => ReturnType<Negozio["esegui"]>;
-  creato: (id: string) => void;
-}) {
-  const [nome, setNome] = useState("");
-  const [tipo, setTipo] = useState<(typeof TIPI)[number]["valore"]>("patch");
-  const [sku, setSku] = useState("");
-  const [errore, setErrore] = useState<string | null>(null);
-  const [invio, setInvio] = useState(false);
-  const pulito = sku.trim().toUpperCase();
-
-  const invia = async () => {
-    if (invio) return;
-    if (nome.trim().length < 2) return setErrore("Scrivi il nome del prodotto.");
-    if (!skuValido(pulito))
-      return setErrore(
-        "Lo SKU non è valido: maiuscolo, senza spazi, da 2 a 40 segni (per esempio HG-T01).",
-      );
-    setInvio(true);
-    setErrore(null);
-    const dati = { nome: nome.trim(), tipo, sku: pulito };
-    let r = await crea({ ...dati, slug: slugDa(dati.nome) || slugDa(`${dati.nome} ${pulito}`) });
-    // Due prodotti con lo stesso nome (due colori) hanno lo stesso indirizzo: una sola riprova, con nome e SKU.
-    if (!r.ok && r.errore.tipo === "duplicato")
-      r = await crea({ ...dati, slug: slugDa(`${dati.nome} ${pulito}`) });
-    setInvio(false);
-    const id = r.ok ? (r.dati.prodotto as { id?: unknown } | undefined)?.id : null;
-    if (!r.ok)
-      return setErrore(
-        r.errore.tipo === "duplicato"
-          ? "Esiste già un prodotto con questo SKU o con questo nome. Cambia lo SKU e riprova."
-          : r.errore.messaggio,
-      );
-    if (typeof id !== "string")
-      return setErrore(
-        "Il prodotto è stato creato ma non riesco ad aprirlo: lo trovi nell'elenco.",
-      );
-    setNome("");
-    setSku("");
-    creato(id);
-  };
-
-  return (
-    <Dialog open={aperta} onOpenChange={(v) => !v && !invio && chiudi()}>
-      <DialogContent className="crm-theme bg-white text-foreground">
-        <DialogHeader>
-          <DialogTitle>Nuovo prodotto</DialogTitle>
-          <DialogDescription>
-            Nasce in bozza: nessuno lo vede finché non lo pubblichi. Il resto lo scrivi nella
-            scheda.
-          </DialogDescription>
-        </DialogHeader>
-        <form
-          className="flex flex-col gap-3"
-          onSubmit={(e) => {
-            e.preventDefault();
-            void invia();
-          }}
-        >
-          <label className="flex flex-col gap-1 text-[12.5px] font-medium">
-            Nome
-            <Input
-              value={nome}
-              onChange={(e) => setNome(e.target.value)}
-              maxLength={120}
-              autoComplete="off"
-              className="min-h-11 text-[14px] font-normal sm:min-h-9"
-            />
-          </label>
-          <label className="flex flex-col gap-1 text-[12.5px] font-medium">
-            Tipo
-            <select
-              value={tipo}
-              onChange={(e) => setTipo(e.target.value as typeof tipo)}
-              className={cn(campo, "min-h-11 text-[14px] font-normal sm:min-h-9")}
-            >
-              {TIPI.map((t) => (
-                <option key={t.valore} value={t.valore}>
-                  {t.nome}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="flex flex-col gap-1 text-[12.5px] font-medium">
-            SKU
-            <Input
-              value={sku}
-              onChange={(e) => setSku(e.target.value.toUpperCase())}
-              maxLength={40}
-              autoComplete="off"
-              placeholder="Per esempio HG-T01"
-              className="min-h-11 text-[14px] font-normal sm:min-h-9"
-            />
-            <span className="text-[11.5px] font-normal text-muted-foreground">
-              È il codice con cui riconosci il prodotto. Una volta scelto non va cambiato.
-            </span>
-          </label>
-          {errore && (
-            <p role="alert" className="text-[12.5px] text-rose-800">
-              {errore}
-            </p>
-          )}
-          <DialogFooter className="gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              className="min-h-11 sm:min-h-9"
-              disabled={invio}
-              onClick={chiudi}
-            >
-              Annulla
-            </Button>
-            <Button type="submit" className="min-h-11 sm:min-h-9" disabled={invio}>
-              {invio ? "Creo…" : "Crea il prodotto"}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
   );
 }
