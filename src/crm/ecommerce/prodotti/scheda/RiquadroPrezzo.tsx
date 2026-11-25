@@ -5,6 +5,7 @@
  *  Il costo sta sulla variante «Unica»: lo legge e lo scrive il guscio; senza la migrazione (`costoDisponibile` falso) il campo è spento e
  *  lo dice a parole. Su un prodotto pubblicato il prezzo cambia il sito subito, col suo tasto «Applica»: il tasto lo costruisce il guscio. */
 import type { ReactNode } from "react";
+import { cn } from "@/lib/utils";
 import { riquadriVisibili } from "../riquadri-puro";
 import { fraseMargine, type Modalita } from "../semplice-puro";
 import { CLASSI_CAMPO, CampoP, RiquadroPolaris } from "./polaris";
@@ -41,49 +42,52 @@ export function RiquadroPrezzo({
   const margine = costoDisponibile ? fraseMargine(p.modulo.prezzo, costo) : null;
   return (
     <RiquadroPolaris id="prezzo" titolo="Prezzo" segno={p.segno} subito={pubblicato}>
-      <div className="grid gap-4 md:grid-cols-2">
-        <CampoTesto
-          k="prezzo"
-          p={p}
-          etichetta="Prezzo (euro)"
-          inputMode="decimal"
-          placeholder="19,90"
-          aiuto="Un solo prezzo, IVA inclusa."
-        />
-        <CampoP
-          id="f-costo"
-          etichetta="Costo per articolo (euro)"
-          facoltativo
-          aiuto={
-            costoDisponibile
-              ? "Lo vedi solo tu: serve per il margine, non compare mai sul sito."
-              : FRASE_COSTO_SPENTO
-          }
-          errore={costoErrore}
-        >
-          {(a) => (
-            <input
-              {...a}
-              inputMode="decimal"
-              placeholder="10,40"
-              value={costo}
-              disabled={!costoDisponibile}
-              onChange={(e) => cambiaCosto(e.target.value)}
-              className={CLASSI_CAMPO}
-            />
+      <div>
+        <div className="grid gap-4 md:grid-cols-2">
+          <CampoTesto
+            k="prezzo"
+            p={p}
+            etichetta="Prezzo (euro)"
+            inputMode="decimal"
+            placeholder="19,90"
+            aiuto="Un solo prezzo, IVA inclusa."
+          />
+          <CampoP
+            id="f-costo"
+            etichetta="Costo per articolo (euro)"
+            facoltativo
+            aiuto={
+              costoDisponibile
+                ? "Lo vedi solo tu: serve per il margine, non compare mai sul sito."
+                : FRASE_COSTO_SPENTO
+            }
+            errore={costoErrore}
+          >
+            {(a) => (
+              <input
+                {...a}
+                inputMode="decimal"
+                placeholder="10,40"
+                value={costo}
+                disabled={!costoDisponibile}
+                onChange={(e) => cambiaCosto(e.target.value)}
+                className={CLASSI_CAMPO}
+              />
+            )}
+          </CampoP>
+        </div>
+        {/* La zona che si annuncia resta SEMPRE nella pagina (se compare insieme al testo, chi legge con lo schermo non lo sente): cambia solo il testo. */}
+        <p
+          aria-live="polite"
+          className={cn(
+            "text-[13px] font-medium",
+            margine ? "mt-3" : "mt-0",
+            margine?.tono === "perdita" ? "text-rose-800" : "text-foreground",
           )}
-        </CampoP>
+        >
+          {margine?.testo}
+        </p>
       </div>
-      <p
-        aria-live="polite"
-        className={
-          margine?.tono === "perdita"
-            ? "text-[13px] font-medium text-rose-800 empty:hidden"
-            : "text-[13px] font-medium text-foreground empty:hidden"
-        }
-      >
-        {margine?.testo}
-      </p>
       {pubblicato && (
         <div className="flex flex-wrap items-center gap-3 border-t border-border pt-3">
           <p className="text-[13px] text-muted-foreground">

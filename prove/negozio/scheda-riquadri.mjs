@@ -51,6 +51,7 @@ export async function prove(_mod, { c, gruppo, radice }) {
     const campi = inizi.map((i, n) => k.slice(i, inizi[n + 1] ?? i + 900)).filter((t) => !/type="checkbox"/.test(t.slice(0, 200)));
     c(`${nome}: ogni campo di testo ha CLASSI_CAMPO`, campi.length, campi.filter((t) => /CLASSI_CAMPO/.test(t)).length);
   }
+  c("SEO e Titolo prendono i tetti da TETTI (shop/cms/modello), non da numeri scritti a mano", [true, true, true], [/TETTI\.seoTitolo/.test(src["RiquadroSeo"]) && /TETTI\.seoDescrizione/.test(src["RiquadroSeo"]), /TETTI\.breve/.test(src["RiquadroTitolo"]) && /TETTI\.riga/.test(src["RiquadroTitolo"]), !/\b(60|155)\b/.test(senzaCommenti(src["RiquadroSeo"]).replace(/"[^"\n]*"|`[^`\n]*`/g, ""))]);
   c("le righe con casella o interruttore sono alte 44 px sul telefono", true, /label[\s\S]{0,200}min-h-11/.test(src["ColonnaLaterale"]) && /label[\s\S]{0,200}min-h-11/.test(src["RiquadroContenuto"]));
   c("«Prima di pubblicare»: tasto che apre alto 44 px e focus visibile", true, /min-h-11[\s\S]{0,200}focus-visible:ring-2|focus-visible:ring-2[\s\S]{0,200}min-h-11/.test(src["PrimaDiPubblicare"]));
 
@@ -99,7 +100,10 @@ export async function prove(_mod, { c, gruppo, radice }) {
     tutti.push(p0);
     c("Prezzo 20,00 e costo 10,40: «Margine 48 %, utile 9,60 €»", true, leggibile(p0).includes("Margine 48 %, utile 9,60 €"));
     c("Prezzo: «Un solo prezzo, IVA inclusa.» e nessun prezzo barrato", [true, false], [leggibile(p0).includes("Un solo prezzo, IVA inclusa."), /barrat|sconti/i.test(leggibile(p0))]);
-    c("Prezzo: il margine sta in una zona che si annuncia (aria-live)", true, /aria-live="polite"[^>]*>[^<]*Margine 48/.test(p0));
+    const live = (h) => [...h.matchAll(/<p[^>]*aria-live="polite"[^>]*>/g)].map((m) => m[0]);
+    c("Prezzo: il margine sta in una zona che si annuncia (aria-live) con il testo", true, /aria-live="polite"[^>]*>[^<]*Margine 48/.test(p0));
+    const pVuoto = await vedi("RiquadroPrezzo", { ...pz, modulo: { ...MODULO, prezzo: "" } });
+    c("Prezzo: la zona aria-live c'è anche senza margine (stessa zona, cambia solo il testo, mai nascosta)", [1, 1, false], [live(pVuoto).length, live(p0).length, live(pVuoto).some((t) => /hidden/.test(t))]);
     c("Prezzo: i campi hanno etichetta (Prezzo, Costo) e il costo è facoltativo", [], senzaEtichetta(p0));
     c("Prezzo: il costo dice a parole che non compare sul sito", true, leggibile(p0).includes("non compare mai sul sito"));
     const p1 = await vedi("RiquadroPrezzo", { ...pz, modulo: { ...MODULO, prezzo: "20,00" }, costo: "25,00" });
@@ -123,8 +127,10 @@ export async function prove(_mod, { c, gruppo, radice }) {
     c("Giacenza: SKU, barcode, quantità, motivo con Carico / Rettifica / Reso", true, ["SKU", "Barcode (GTIN)", "Quantità disponibile", "Motivo del cambio", "Carico", "Rettifica", "Reso"].every((x) => leggibile(g0).includes(x)));
     c("Giacenza: «In magazzino ora: 10.» e la soglia in sola lettura", [true, true], [leggibile(g0).includes("In magazzino ora: 10."), leggibile(g0).includes("Scorta bassa sotto 5 pezzi")]);
     c("Giacenza: i campi hanno etichetta", [], senzaEtichetta(g0));
+    c("Giacenza: senza variazione la zona aria-live c'è lo stesso, vuota e non nascosta", [1, ">"], [live(g0).length, leggibile(live(g0)[0] ?? "").length === 0 && !/hidden/.test(live(g0)[0]) ? ">" : "da vedere"]);
     c("Giacenza: nessuna variazione se la quantità non cambia", false, /Salvando, la giacenza/.test(g0));
     const g1 = await vedi("RiquadroGiacenza", { ...gz, quantita: "15" });
+    c("Giacenza: con la variazione la zona aria-live è la stessa (una sola)", 1, live(g1).length);
     c("Giacenza 10 → 15: «Salvando, la giacenza sale di 5 (carico).»", true, leggibile(g1).includes("Salvando, la giacenza sale di 5 (carico)."));
     const g2 = await vedi("RiquadroGiacenza", { ...gz, quantita: "4", motivo: "reso" });
     c("Giacenza 10 → 4 con motivo Reso: scende di 6 (reso)", true, leggibile(g2).includes("Salvando, la giacenza scende di 6 (reso)."));
@@ -159,7 +165,12 @@ export async function prove(_mod, { c, gruppo, radice }) {
     c("SEO pubblicato: l'indirizzo è bloccato e lo dice, niente «Dal titolo»", [true, true, false], [/<input[^>]*id="f-slug"[^>]*\sdisabled=""|<input[^>]*\sdisabled=""[^>]*id="f-slug"/.test(e1), leggibile(e1).includes("l'indirizzo non si cambia più"), leggibile(e1).includes("Dal titolo")]);
     const lungo = "p".repeat(80);
     const e2 = await vedi("RiquadroSeo", { ...se, modulo: { ...MODULO, seoTitolo: lungo, seoDescrizione: "d".repeat(200) } });
-    c("SEO: l'anteprima taglia come Google (60 e 155 segni, con i puntini) e i contatori lo dicono", [true, true, true], [leggibile(e2).includes("p".repeat(59) + "…"), leggibile(e2).includes("d".repeat(154) + "…"), leggibile(e2).includes("80 / 60 · troppo lungo")]);
+    const anteprima = (h) => ({ titolo: leggibile(/<p[^>]*text-\[16px\][^>]*>([\s\S]*?)<\/p>/.exec(h)?.[1] ?? ""), descrizione: leggibile(/<p[^>]*leading-snug text-muted-foreground[^>]*>([\s\S]*?)<\/p>/.exec(h)?.[1] ?? "") });
+    const tagliata = anteprima(e2);
+    c("SEO: l'anteprima taglia come Google, testo ESATTO e lunghezza 60 e 155 (59 segni + puntini)", [["p".repeat(59) + "…", 60], ["d".repeat(154) + "…", 155]], [[tagliata.titolo, tagliata.titolo.length], [tagliata.descrizione, tagliata.descrizione.length]]);
+    const giusta = anteprima(await vedi("RiquadroSeo", { ...se, modulo: { ...MODULO, seoTitolo: "p".repeat(60), seoDescrizione: "d".repeat(155) } }));
+    c("SEO: a 60 e 155 segni esatti non si taglia niente", [["p".repeat(60), 60], ["d".repeat(155), 155]], [[giusta.titolo, giusta.titolo.length], [giusta.descrizione, giusta.descrizione.length]]);
+    c("SEO: il contatore dice «80 / 60 · troppo lungo»", true, leggibile(e2).includes("80 / 60 · troppo lungo"));
     c("SEO: senza foto passate, il campo «Immagine di condivisione» non c'è", false, /Immagine di condivisione/.test(e0));
     const e3 = await vedi("RiquadroSeo", { ...se, immagini: [{ id: "m1", nome: "Foto principale del prodotto" }], immagineId: "m1", cambiaImmagine: () => {} });
     c("SEO: con le foto, «Immagine di condivisione» è un menu con etichetta", [true, []], [leggibile(e3).includes("Immagine di condivisione"), senzaEtichetta(e3)]);
@@ -196,10 +207,19 @@ export async function prove(_mod, { c, gruppo, radice }) {
     const interruttori = [...l0.matchAll(/<button[^>]*role="switch"[^>]*>/g)].map((m) => m[0]);
     c("Colonna: quattro interruttori dei canali, ognuno col suo nome, solo il sito è acceso", [["Sito", "Meta (Facebook e Instagram)", "Google Merchant", "TikTok"], ["Sito"]], [interruttori.map((t) => /aria-label="([^"]*)"/.exec(t)?.[1]), interruttori.filter((t) => /aria-checked="true"/.test(t)).map((t) => /aria-label="([^"]*)"/.exec(t)?.[1])]);
     c("Colonna: Tipo, Marca, Fornitore, MPN, Categoria Google, Nota interna, Nota del titolare, con etichetta", [true, []], [["Tipo", "Marca", "Fornitore", "Codice produttore (MPN)", "Categoria Google", "Nota interna", "Nota del titolare"].every((x) => leggibile(l0).includes(x)), senzaEtichetta(l0)]);
+    c("Colonna: «Marca» ha il contatore «0 / 80» (il tetto del server)", true, leggibile(l0).includes("0 / 80"));
     c("Colonna: le note dicono che non si vedono mai sul sito", 2, (leggibile(l0).match(/non si vede mai sul sito/g) ?? []).length);
     c("Colonna: «Dati per i cataloghi» è richiudibile e chiuso (aria-expanded false, pannello hidden)", [true, true], [/<button[^>]*id="sez-cataloghi"[^>]*aria-expanded="false"|<button[^>]*aria-expanded="false"[^>]*id="sez-cataloghi"/.test(l0), /id="pan-cataloghi"[^>]*hidden|hidden=""[^>]*id="pan-cataloghi"/.test(l0)]);
     c("Colonna: il prodotto collegato NON è qui (sta in «Reso, consulenza e consegna»)", false, /Ti serve anche/.test(l0));
-    // categorie con ricerca
+    // categorie con ricerca: la regola pura
+    const FILTRO = join(dir, "RiquadroCategorie.ts");
+    const { buildSync } = requireQui("esbuild");
+    const modFiltro = await import(`data:text/javascript;base64,${Buffer.from(buildSync({ entryPoints: [FILTRO], bundle: true, format: "esm", write: false, logLevel: "silent" }).outputFiles[0].text).toString("base64")}`);
+    const nomi = (q) => modFiltro.filtraCategorie(elenco, q).map((k) => k.nome);
+    c("filtraCategorie: vuota o con soli spazi = tutte, nell'ordine dell'elenco", [elenco.map((k) => k.nome), elenco.map((k) => k.nome)], [nomi(""), nomi("   ")]);
+    c("filtraCategorie: senza maiuscole e senza accenti, in qualunque punto del nome", [["Cura dei capelli"], ["Sérum"], ["Sérum"], ["Collezione autunno"], []], [nomi("CURA"), nomi("serum"), nomi("sÉrum"), nomi("zione aut"), nomi("zzz")]);
+    c("filtraCategorie: più risultati restano nell'ordine", ["Cura dei capelli", "Collezione autunno"], nomi("c").filter((n) => n.startsWith("C")).slice(0, 2));
+    // categorie con ricerca: il disegno
     c("Categorie: campo di ricerca con etichetta, tutte le otto in elenco, «Patch» spuntata", [true, 8, 1], [/<input[^>]*id="f-categoria-ricerca"/.test(l0) && /for="f-categoria-ricerca"/.test(l0), (caselle(l0).match(/type="checkbox"/g) ?? []).length, (caselle(l0).match(/type="checkbox"[^>]*\schecked=""/g) ?? []).length]);
     c("Categorie: le scelte si leggono scritte sopra l'elenco", true, leggibile(l0).includes("Scelte: Patch."));
     const l1 = await vedi("CategorieScelta", { ...col.categorie, ricercaIniziale: "cur" }, "ColonnaLaterale");

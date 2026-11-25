@@ -8,14 +8,10 @@ import { useState, type ReactNode } from "react";
 import { Switch } from "@/components/ui/switch";
 import { idCampo } from "../scheda-pura";
 import { BadgeStato, CLASSI_CAMPO, CampoP, RiquadroPolaris } from "./polaris";
+import { filtraCategorie, type Categoria } from "./RiquadroCategorie";
 import { CampoTesto, type ProprietaRiquadro, type SegnoRiquadroProps } from "./RiquadroCampi";
 
 /* ══ LE CATEGORIE ═══════════════════════════════════════════════════════════ */
-
-type Categoria = { id: string; nome: string };
-
-/** Senza maiuscole e senza accenti, così «cura» trova «Cura dei capelli» e «capelli» trova «Capélli». */
-const semplice = (t: string) => t.toLowerCase().normalize("NFD").replace(/\p{M}/gu, "");
 
 /** Scelta multipla con ricerca. `elenco` nullo = ancora in lettura. Le scelte restano scritte sopra l'elenco anche se la ricerca le nasconde. */
 export function CategorieScelta({
@@ -32,10 +28,11 @@ export function CategorieScelta({
   errore?: string | null;
   /** Un salvataggio è in corso o la scheda è ferma: le caselle si leggono ma non si toccano. */
   occupato?: boolean;
+  /** Solo per la prova (il disegno sul server non ha il campo da scrivere): la ricerca con cui parte l'elenco. */
   ricercaIniziale?: string;
 }) {
   const [ricerca, setRicerca] = useState(ricercaIniziale);
-  const trovate = (elenco ?? []).filter((k) => semplice(k.nome).includes(semplice(ricerca.trim())));
+  const trovate = filtraCategorie(elenco ?? [], ricerca);
   const nomiScelti = (elenco ?? []).filter((k) => scelte.includes(k.id)).map((k) => k.nome);
   return (
     <fieldset
@@ -212,7 +209,7 @@ export function ColonnaLaterale({
           )}
         </CampoP>
         <CategorieScelta {...categorie} />
-        <CampoTesto k="marca" p={p} etichetta="Marca" facoltativo />
+        <CampoTesto k="marca" p={p} etichetta="Marca" max={80} facoltativo />
         <CampoTesto k="fornitore" p={p} etichetta="Fornitore" max={200} facoltativo />
       </RiquadroPolaris>
 

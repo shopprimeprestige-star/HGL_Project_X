@@ -3,12 +3,12 @@
  *  poi titolo SEO (60), descrizione SEO (155), indirizzo (si cambia finché non è pubblicato) e, se il guscio passa le foto, l'immagine
  *  di condivisione. L'anteprima mostra ciò che Google taglierebbe (… dopo 60 e 155 segni); vuoto = si usano il titolo e la descrizione breve. */
 import { Button } from "@/components/ui/button";
-import { slugDa } from "@/shop/cms/modello";
+import { TETTI, slugDa } from "@/shop/cms/modello";
 import { CLASSI_CAMPO, CLASSI_TASTO, CampoP, RiquadroPolaris } from "./polaris";
 import { CampoTesto, type ProprietaRiquadro } from "./RiquadroCampi";
 
-const MAX_TITOLO = 60;
-const MAX_DESCRIZIONE = 155;
+const MAX_TITOLO = TETTI.seoTitolo;
+const MAX_DESCRIZIONE = TETTI.seoDescrizione;
 /** Come Google: oltre il massimo si taglia e si chiude con i puntini. */
 const taglia = (t: string, max: number) =>
   t.length > max ? `${t.slice(0, max - 1).trimEnd()}…` : t;

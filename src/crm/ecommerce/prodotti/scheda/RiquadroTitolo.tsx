@@ -5,6 +5,7 @@
  *  L'avviso su Invisible Derm lo scrive il guscio e lo passa come `avviso` (resta dov'è, con le sue prove). */
 import type { ReactNode } from "react";
 import { ChevronDown } from "lucide-react";
+import { TETTI } from "@/shop/cms/modello";
 import { RiquadroPolaris } from "./polaris";
 import { CampoTesto, type ProprietaRiquadro } from "./RiquadroCampi";
 
@@ -26,7 +27,7 @@ export function RiquadroTitolo({
         k="descrizioneBreve"
         p={p}
         etichetta="Descrizione breve"
-        max={300}
+        max={TETTI.breve}
         area
         righe={3}
         aiuto="Obbligatoria per pubblicare. Si legge nell'elenco e in cima alla scheda."
@@ -54,7 +55,7 @@ export function RiquadroTitolo({
             k="rigaPresentazione"
             p={p}
             etichetta="Riga di presentazione"
-            max={90}
+            max={TETTI.riga}
             facoltativo
             aiuto="Una frase sotto il titolo."
           />

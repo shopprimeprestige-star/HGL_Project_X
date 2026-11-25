@@ -75,47 +75,48 @@ export function RiquadroGiacenza({
           inputMode="numeric"
         />
       </div>
-      <div className={nuovo ? "grid gap-4" : "grid gap-4 md:grid-cols-2"}>
-        <CampoP
-          id="f-giacenza"
-          etichetta={nuovo ? "Quantità iniziale" : "Quantità disponibile"}
-          errore={errore}
-          aiuto={nuovo ? undefined : `In magazzino ora: ${giacenzaAttuale}.`}
-        >
-          {(a) => (
-            <input
-              {...a}
-              inputMode="numeric"
-              value={quantita}
-              onChange={(e) => cambiaQuantita(e.target.value)}
-              className={CLASSI_CAMPO}
-            />
-          )}
-        </CampoP>
-        {!nuovo && (
-          <CampoP id="f-motivo" etichetta="Motivo del cambio">
+      <div>
+        <div className={nuovo ? "grid gap-4" : "grid gap-4 md:grid-cols-2"}>
+          <CampoP
+            id="f-giacenza"
+            etichetta={nuovo ? "Quantità iniziale" : "Quantità disponibile"}
+            errore={errore}
+            aiuto={nuovo ? undefined : `In magazzino ora: ${giacenzaAttuale}.`}
+          >
             {(a) => (
-              <select
+              <input
                 {...a}
-                value={motivo}
-                onChange={(e) => cambiaMotivo(e.target.value as MotivoGiacenza)}
+                inputMode="numeric"
+                value={quantita}
+                onChange={(e) => cambiaQuantita(e.target.value)}
                 className={CLASSI_CAMPO}
-              >
-                {MOTIVI_GIACENZA.map((m) => (
-                  <option key={m.valore} value={m.valore}>
-                    {m.etichetta}
-                  </option>
-                ))}
-              </select>
+              />
             )}
           </CampoP>
-        )}
-      </div>
-      {variazione && (
-        <p aria-live="polite" className="text-[13px] font-medium">
+          {!nuovo && (
+            <CampoP id="f-motivo" etichetta="Motivo del cambio">
+              {(a) => (
+                <select
+                  {...a}
+                  value={motivo}
+                  onChange={(e) => cambiaMotivo(e.target.value as MotivoGiacenza)}
+                  className={CLASSI_CAMPO}
+                >
+                  {MOTIVI_GIACENZA.map((m) => (
+                    <option key={m.valore} value={m.valore}>
+                      {m.etichetta}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </CampoP>
+          )}
+        </div>
+        {/* Sempre nella pagina, anche vuota: cambia solo il testo (così lo schermo lo annuncia). */}
+        <p aria-live="polite" className={variazione ? "mt-3 text-[13px] font-medium" : "mt-0"}>
           {variazione}
         </p>
-      )}
+      </div>
       {soglia !== null && (
         <p className="border-t border-border pt-3 text-[13px] text-muted-foreground">
           Scorta bassa sotto {soglia} {soglia === 1 ? "pezzo" : "pezzi"} (si cambia nelle
