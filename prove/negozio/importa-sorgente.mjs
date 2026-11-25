@@ -58,6 +58,7 @@ export async function prove(_mod, { c, gruppo, radice }) {
   const fin = senzaCommenti(src["FinestraImporta.tsx"]);
   c("la rete passa da negozio.esegui (verifica e import), una volta ciascuna", [true, true, 2], [/analizzaFile\(file, negozio\.esegui\)/.test(fin), /negozio\.esegui\(AZIONE_IMPORTA, \{ prodotti \}\)/.test(fin), conta(fin, /negozio\.esegui/g)]);
   c("la finestra non si chiude mentre i gruppi partono (onOpenChange guarda `occupata`)", true, /onOpenChange=\{\(v\) => !v && !occupata && chiudi\(\)\}/.test(fin));
+  c("l'indirizzo del file scaricato si libera dopo 5 secondi, non subito", true, /revokeObjectURL\(url\), 5000\)/.test(fin));
   c("«Riprendi» non rimanda i gruppi fatti: passa da riprendi() della macchina", true, /manda\(fase\.analisi, riprendi\(fase\.stato\)\)/.test(fin));
   c("i risultati in ritardo di un giro vecchio si scartano", true, (fin.match(/mio === giro\.current|mio !== giro\.current/g) ?? []).length >= 3);
   c("i tre passi non toccano la rete né l'archivio: niente esegui, niente negozio", [false, false, false], ["PassoScegli.tsx", "PassoControllo.tsx", "PassoImporta.tsx"].map((f) => /\besegui\b|\bnegozio\.|\buseNegozio|\bNegozio\b/.test(senzaCommenti(src[f]))));
@@ -125,12 +126,15 @@ export async function prove(_mod, { c, gruppo, radice }) {
   const a12 = { ...aOk, nuovi: Array.from({ length: 12 }, (_, i) => prod(i + 1)), giaPresenti: [], errori: [], nProdottiConErrori: 0 };
   const p3 = (stato, inCorso, analisi = a12, extra = {}) => resa("PassoImporta.tsx", "PassoImporta", { analisi, stato, inCorso, interrompi: nulla, riprendi: nulla, scaricaErrori: nulla, vaiAiProdotti: nulla, chiudi: nulla, ...extra });
   const dopoUno = await F.eseguiGruppi(F.avviaImporta(a12.nuovi), srv(), { interrompi: (() => { let k = 0; return () => k++ >= 1; })() });
+  const finitoStato = await F.eseguiGruppi(F.avviaImporta(a12.nuovi), srv());
   const hc = await p3({ ...dopoUno, fermo: null }, true);
   c("passo 3, in corso: barra al 41 %, «5 di 12 prodotti · gruppo 2 di 3», «Interrompi», niente «Riprendi»", [true, true, true, false], [/role="progressbar"[^>]*aria-valuenow="41"/.test(hc), leggibile(hc).includes("5 di 12 prodotti · gruppo 2 di 3"), leggibile(hc).includes("Interrompi"), /Riprendi/.test(hc)]);
   c("passo 3, in corso: la barra ha nome, minimo e massimo; si ferma con motion-reduce; dice di non chiudere", [true, true, true], [/aria-label="Importati 5 di 12 prodotti"[^>]*aria-valuemin="0"[^>]*aria-valuemax="100"|aria-valuemin="0"[^>]*aria-valuemax="100"/.test(hc) && /aria-label="Importati 5 di 12 prodotti"/.test(hc), /motion-reduce:transition-none/.test(hc) && /motion-reduce:animate-none/.test(hc), leggibile(hc).includes("Non chiudere la finestra")]);
   c("passo 3, in corso: nessun tasto pieno (solo «Interrompi» di contorno)", 0, pieni(hc));
   const ferma = await F.eseguiGruppi(F.avviaImporta(a12.nuovi), srv((n) => (n === 2 ? { ok: false, errore: { tipo: "rete", messaggio: "Non riesco a collegarmi al server: controlla la connessione e riprova." } } : null)));
   const hf = await p3(ferma, false);
+  const annuncio = (h) => h.match(/<p class="sr-only" role="status">([^<]*)<\/p>/)?.[1];
+  c("passo 3: l'avanzamento è annunciato (sr-only, role=status, sempre montato): in corso, fermo, finito", ["Importati 5 di 12 prodotti", "Importati 5 di 12 prodotti", "Importati 12 di 12 prodotti"], [annuncio(hc), annuncio(hf), annuncio(await p3(finitoStato, false))]);
   c("passo 3, fermo per un errore di rete: la frase, «Riprendi» (uno solo pieno), «Chiudi», niente doppioni, e come ripartire", [true, true, 1, true, true, true], [leggibile(hf).includes("Non riesco a collegarmi al server: controlla la connessione e riprova."), leggibile(hf).includes("L'importazione si è fermata"), pieni(hf), leggibile(hf).includes("senza doppioni"), leggibile(hf).includes("Se chiudi, puoi ricaricare lo stesso file"), /role="alert"/.test(hf)]);
   const hi = await p3(F.sospendi(dopoUno), false);
   c("passo 3, interrotto da chi usa: «Importazione interrotta» come avviso, «Riprendi» acceso, 5 di 12", [true, true, true], [leggibile(hi).includes("Importazione interrotta"), !/role="alert"/.test(hi), leggibile(hi).includes("5 di 12 prodotti")]);

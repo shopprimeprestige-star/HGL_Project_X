@@ -117,6 +117,24 @@ export function registraFallimento(
   i: number,
   errore: { tipo: string; messaggio: string },
 ): StatoImporta {
+  // Un rifiuto che riprovando non cambia (richiesta troppo grande, dati non validi): i prodotti del gruppo sono respinti con la frase
+  // del server e si va avanti, invece di far premere «Riprendi» all'infinito sullo stesso gruppo.
+  if (errore.tipo === "valore") {
+    const risultati = s.gruppi[i].prodotti.map(
+      (p): RisultatoImporta => ({
+        handle: p.handle,
+        esito: "errore",
+        errori: [
+          {
+            riga: p.varianti[0]?.riga ?? 0,
+            handle: p.handle,
+            frase: `Il server ha rifiutato questo gruppo di prodotti: ${errore.messaggio}`,
+          },
+        ],
+      }),
+    );
+    return cambia(s, i, { stato: "fatto", risultati }, null);
+  }
   const incerto = errore.tipo === "rete" || errore.tipo === "server";
   return cambia(
     s,

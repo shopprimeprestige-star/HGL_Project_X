@@ -54,6 +54,10 @@ export function PassoImporta({
             {Math.min(a.gruppiFatti + (finito ? 0 : 1), a.gruppiTotali)} di {a.gruppiTotali}
           </p>
         </div>
+        {/* Sempre montato: chi usa la sintesi vocale sente l'avanzamento (e la fine) senza guardare la barra. */}
+        <p className="sr-only" role="status">
+          {nome}
+        </p>
         <div
           role="progressbar"
           aria-label={nome}

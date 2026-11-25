@@ -120,6 +120,19 @@ export async function prove(_mod, { c, gruppo, radice }) {
   const rie5 = F.riepilogoFinale({ nuovi: serie(5), giaPresenti: [], errori: [], nProdottiConErrori: 0 }, r5);
   c("un prodotto senza risposta del server è respinto (non importato per sbaglio); uno sconosciuto si ignora", [1, 0, 4], [rie5.importati, rie5.saltati, rie5.respinti]);
 
+  // note del revisore: esito sconosciuto e errori che non passano riprovando
+  const boh = serverFinto({ guasti: { risposta: (ris) => ris.map((x, k) => (k === 0 ? { handle: x.handle, esito: "boh" } : x)) } });
+  const aBoh = (await F.analizzaFile(fileDa("modello-prodotti.csv", Mo.costruisciModello()), boh.esegui)).analisi;
+  const stBoh = await F.eseguiGruppi(F.avviaImporta(aBoh.nuovi), (prodotti) => boh.esegui("prodotti_importa", { prodotti }), {});
+  const rieBoh = F.riepilogoFinale(aBoh, stBoh);
+  const csvBoh = Lt.leggiCsv(new TextEncoder().encode(F.csvDaCorreggere(aBoh, rieBoh)));
+  c("un esito sconosciuto («boh») è «senza risposta»: respinto, con la frase, e la sua riga è nel CSV da correggere", [1, 1, true, ["shampoo-delicato-esempio"]], [rieBoh.importati, rieBoh.respinti, rieBoh.errori.some((e) => /non ha risposto/.test(e.frase) && e.handle === "shampoo-delicato-esempio"), csvBoh.record.slice(1).map((x) => x[0])]);
+  const nonValido = serverFinto({ guasti: { 1: { tipo: "valore", messaggio: "La richiesta è troppo grande per il server." } } });
+  const stNv = await F.eseguiGruppi(F.avviaImporta(serie(12)), (prodotti) => nonValido.esegui("prodotti_importa", { prodotti }), {});
+  const rieNv = F.riepilogoFinale({ nuovi: serie(12), giaPresenti: [], errori: [], nProdottiConErrori: 0 }, stNv);
+  c("errore non transitorio (413/400): il gruppo non si riprova, i suoi 5 prodotti sono respinti con la frase del server e si va avanti", [3, null, 7, 5, true], [nonValido.richiesteImporta().length, stNv.fermo, rieNv.importati, rieNv.respinti, rieNv.errori.every((e) => /troppo grande per il server/.test(e.frase))]);
+  c("…e nessun prodotto del gruppo rifiutato è nel server; gli altri 7 sì", [7, false], [nonValido.db.size, nonValido.db.has("prodotto-1")]);
+
   // «Interrompi»: si ferma dopo il gruppo in corso, «Riprendi» finisce
   const srv6 = serverFinto();
   let vuole = false;
@@ -215,6 +228,9 @@ export async function prove(_mod, { c, gruppo, radice }) {
   const sv11 = serverFinto({ guasti: { verifica: true } });
   const a11 = await F.analizzaFile(fileDa("modello-prodotti.csv", modello), sv11.esegui);
   c("se la verifica non arriva: nessuna anteprima, la frase del server, nessuna scrittura", [false, "Non riesco a collegarmi al server.", 0], [a11.ok, a11.frase, sv11.richiesteImporta().length]);
+  const sv12b = { esegui: async () => ({ ok: true, dati: { presenti: [], skuUsati: [], categorie: [], costoDisponibile: true } }) };
+  const a12b = await F.analizzaFile(fileDa("modello-prodotti.csv", modello), sv12b.esegui);
+  c("una verifica senza importaDisponibile booleano non dà anteprima", false, a12b.ok);
   const sv12 = { esegui: async () => ({ ok: true, dati: { presenti: "no" } }) };
   const a12 = await F.analizzaFile(fileDa("modello-prodotti.csv", modello), sv12.esegui);
   c("una verifica che non è nella forma del contratto non produce un'anteprima", [false, true], [a12.ok, typeof a12.frase === "string" && a12.frase.length > 10]);
