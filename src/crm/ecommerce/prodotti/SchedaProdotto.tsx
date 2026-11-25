@@ -204,8 +204,8 @@ export function SchedaAperta({
   const [modulo, setModulo] = useState<Modulo>(() => moduloDaProdotto(prodotto0));
   const [costo, setCosto] = useState(() => eCosto(unica0 ? scheda.costi?.[unica0.id] : null));
   const [seo, setSeo] = useState(seo0);
-  const [quantita, setQuantita] = useState("");
-  const [toccata, setToccata] = useState(false);
+  /** La quantità scritta dal titolare; `null` = non l'ha toccata (il campo segue il magazzino). */
+  const [scritta, setScritta] = useState<string | null>(null);
   const [motivoGiac, setMotivoGiac] = useState<MotivoGiacenza | null>(null);
   const [soglia, setSoglia] = useState<number | null>(null);
   const [stato, setStato] = useState(prodotto0.stato);
@@ -257,14 +257,12 @@ export function SchedaAperta({
     if (r.ok && r.dati.storico === false) setSenzaStorico(true);
     return r;
   }, []);
-
   /** Le scritture sul prodotto (versione condivisa) una dopo l'altra. */
   const serializza = useCallback(<T,>(f: () => Promise<T>): Promise<T> => {
     const p = coda.current.then(() => f());
     coda.current = p.catch(() => undefined);
     return p;
   }, []);
-
   /** Un errore di una scrittura: il conflitto ha il suo avviso, il resto una frase. */
   const riferisci = useCallback((e: ErroreNegozio, doveVa: (t: string) => void) => {
     if (e.tipo === "conflitto") return setConflitto(true);
@@ -320,7 +318,6 @@ export function SchedaAperta({
     await rileggi();
     return true;
   };
-
   /* ── il salvataggio automatico (T13) ── */
   const [auto] = useState(() =>
     creaAutosalva<Contenuto>({
@@ -498,10 +495,7 @@ export function SchedaAperta({
   const modalita = modalitaDi(dati.varianti);
   const unica = trovaUnica(dati.varianti, dati.prodotto.sku);
   const ctxRiquadri = { nome: modulo.nome, sku: dati.prodotto.sku, modalita };
-  const conti = useMemo(
-    () => conteggiPerRiquadro(bloccanti, informativi, ctxRiquadri),
-    [bloccanti, informativi, modulo.nome, dati.prodotto.sku, modalita], // eslint-disable-line react-hooks/exhaustive-deps
-  );
+  const conti = conteggiPerRiquadro(bloccanti, informativi, ctxRiquadri); // pochi conti: non serve ricordarli
   const segno = (r: RiquadroId) => segnoRiquadro(conti[r]);
 
   /* ── il costo e la quantità del prodotto semplice ── */
@@ -510,7 +504,11 @@ export function SchedaAperta({
       ? "Scrivi il costo in euro, per esempio 10,40."
       : undefined;
   const giacenzaAttuale = unica?.giacenza ?? 0;
-  const testoQ = testoQuantita({ letta: giacenzaAttuale, testo: quantita, toccata });
+  const testoQ = testoQuantita({
+    letta: giacenzaAttuale,
+    testo: scritta ?? "",
+    toccata: scritta !== null,
+  });
   const proposta = cambioQuantita(giacenzaAttuale, testoQ);
   const motivo: MotivoGiacenza =
     motivoGiac ?? (proposta.ok ? proposta.motivo : null) ?? "rettifica";
@@ -518,17 +516,17 @@ export function SchedaAperta({
   const confermaQuantita = () => {
     const m = movimentoDaScrivere({
       letta: giacenzaAttuale,
-      testo: quantita,
-      toccata,
+      testo: scritta ?? "",
+      toccata: scritta !== null,
       motivo: motivoGiac,
     });
     if (!m || conflitto) return;
     if (!unica)
       return setEsito({
         tono: "errore",
-        testo: "Questo prodotto non ha ancora la sua variante: salva prima il prodotto.",
+        testo: "Salva prima il prodotto: non ha ancora la sua variante.",
       });
-    setToccata(false); // prima di scrivere: un secondo «esci dal campo» non rimanda lo stesso movimento
+    setScritta(null); // prima di scrivere: un secondo «esci dal campo» non rimanda lo stesso movimento
     void (async () => {
       const r = await scrivi("giacenza_imposta", {
         varianteId: unica.id,
@@ -794,21 +792,6 @@ export function SchedaAperta({
       Applica il nuovo prezzo
     </Button>
   );
-  /** Le props che il nuovo EditorVarianti (E8) accetta: il costo per riga e il «Prezzo di base» (campo, errore e tasto «Applica»). Passate come
-   *  gruppo: finché l'editor è quello vecchio non le legge (nessun errore); dopo l'unione con E8 lavorano da sole. */
-  const propsNuoveVarianti = {
-    costi: dati.costi,
-    costoDisponibile: costoDisp,
-    prezzoBase:
-      modalita === "opzioni" && !senzaPrezzo
-        ? {
-            testo: modulo.prezzo,
-            cambia: (t: string) => cambia({ prezzo: t }),
-            errore: errori.prezzo,
-            azione: pubblicato ? azionePrezzo : undefined,
-          }
-        : undefined,
-  };
   const tastoSalvaGrande = (
     <Button
       type="button"
@@ -963,8 +946,7 @@ export function SchedaAperta({
               giacenzaAttuale={giacenzaAttuale}
               quantita={testoQ}
               cambiaQuantita={(t) => {
-                setQuantita(t);
-                setToccata(true);
+                setScritta(t);
                 setEsito(null);
               }}
               motivo={motivo}
@@ -1002,7 +984,18 @@ export function SchedaAperta({
                 varianti={dati.varianti}
                 esegui={scrivi}
                 aggiorna={rileggi}
-                {...propsNuoveVarianti}
+                costi={dati.costi}
+                costoDisponibile={costoDisp}
+                prezzoBase={
+                  modalita === "opzioni" && !senzaPrezzo
+                    ? {
+                        testo: modulo.prezzo,
+                        cambia: (t) => cambia({ prezzo: t }),
+                        errore: errori.prezzo,
+                        azione: pubblicato ? azionePrezzo : undefined,
+                      }
+                    : undefined
+                }
               />
             </RiquadroVarianti>
             <RiquadroSeo

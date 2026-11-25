@@ -145,8 +145,8 @@ export async function prove(_mod, { c, gruppo, radice }) {
   c("passando alle opzioni la Unica NON si cancella e il guscio non la spegne da solo (lo fa EditorVarianti, E8): nessuna variante_attiva a false qui", [false, false], [/variante_(elimina|cancella|rimuovi)/.test(k), /"variante_attiva"[\s\S]{0,200}attiva:\s*false/.test(k)]);
   c("la quantità si scrive come movimento registrato (giacenza_imposta), quando si esce dal campo", [true, true], [/"giacenza_imposta"/.test(k), /confermaQuantita/.test(k)]);
   c("il costo e lo SKU della Unica viaggiano nel salvataggio automatico (un solo posto che scrive)", true, /creaAutosalva(<[^>]*>)?\(/.test(k) && /costo/.test(k.slice(k.indexOf("creaAutosalva<"), k.indexOf("creaAutosalva<") + 2500)));
-  c("il «Prezzo di base» sta dentro EditorVarianti (E8): il guscio passa `prezzoBase` solo con le opzioni, legato al prezzo del modulo e al tasto «Applica» (una sola volta)", [true, true, true, 1], [/prezzoBase:/.test(k), /testo:\s*modulo\.prezzo/.test(k) && /azione:\s*pubblicato \? azionePrezzo/.test(k), /modalita === "opzioni" && !senzaPrezzo/.test(k), conta(k, /void applicaPrezzo\(\)/g)]);
-  c("costi e costoDisponibile arrivano all'editor delle varianti", true, /costi:\s*dati\.costi/.test(k) && /costoDisponibile:\s*costoDisp/.test(k) && /<EditorVarianti[\s\S]{0,700}\.\.\.propsNuoveVarianti/.test(k));
+  c("il «Prezzo di base» sta dentro EditorVarianti (E8): il guscio passa `prezzoBase` solo con le opzioni, legato al prezzo del modulo e al tasto «Applica» (una sola volta)", [true, true, true, 1], [/prezzoBase=\{/.test(k), /testo:\s*modulo\.prezzo/.test(k) && /azione:\s*pubblicato \? azionePrezzo/.test(k), /modalita === "opzioni" && !senzaPrezzo/.test(k), conta(k, /void applicaPrezzo\(\)/g)]);
+  c("costi e costoDisponibile arrivano all'editor delle varianti", true, /<EditorVarianti[\s\S]{0,900}costi=\{dati\.costi\}[\s\S]{0,200}costoDisponibile=\{costoDisp\}[\s\S]{0,200}prezzoBase=/.test(k) && !/propsNuoveVarianti/.test(k));
 
 
   // ════ LA QUANTITÀ: QUANDO SI SCRIVE E COSA (correzioni di E7) ════
@@ -187,7 +187,7 @@ export async function prove(_mod, { c, gruppo, radice }) {
       c("Invio nel campo toglie il fuoco (un solo percorso: lo stesso dell'uscita); un altro tasto no", 1, sfocato);
     }
   }
-  c("il guscio: il campo segue il magazzino finché non lo si tocca, la scrittura parte solo dopo un tocco e il segno si azzera prima di scrivere", [true, true, true], [/testoQuantita\(/.test(k), /movimentoDaScrivere\(/.test(k), /setToccata\(false\)[\s\S]{0,300}"giacenza_imposta"/.test(k)]);
+  c("il guscio: il campo segue il magazzino finché non lo si tocca, la scrittura parte solo dopo un tocco e il segno si azzera prima di scrivere", [true, true, true], [/testoQuantita\(/.test(k), /movimentoDaScrivere\(/.test(k), /setScritta\(null\)[\s\S]{0,300}"giacenza_imposta"/.test(k)]);
   c("quantità con la Unica assente: una frase («salva prima il prodotto»), non il silenzio", true, /salva prima il prodotto/i.test(k));
 
   // ════ L'APERTURA DI UNA BOZZA SCRIVE; QUELLA DI UN PUBBLICATO MAI ════
