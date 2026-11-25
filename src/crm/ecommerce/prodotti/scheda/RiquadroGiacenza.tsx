@@ -25,6 +25,7 @@ export function RiquadroGiacenza({
   cambiaMotivo,
   soglia,
   linkSoglia,
+  confermaQuantita,
   ...p
 }: ProprietaRiquadro & {
   modalita: Modalita;
@@ -43,6 +44,8 @@ export function RiquadroGiacenza({
   soglia: number | null;
   /** Il link alle impostazioni, costruito dal chiamante (il router non è affare dei riquadri). */
   linkSoglia?: ReactNode;
+  /** Si esce dal campo della quantità: è il momento in cui il guscio scrive il movimento (mai a ogni tasto: ogni cifra sarebbe un movimento). */
+  confermaQuantita?: () => void;
 }) {
   if (!riquadriVisibili({ modalita, invisibleDerm }).includes("giacenza")) return null;
   const esito = cambioQuantita(giacenzaAttuale, quantita);
@@ -89,6 +92,7 @@ export function RiquadroGiacenza({
                 inputMode="numeric"
                 value={quantita}
                 onChange={(e) => cambiaQuantita(e.target.value)}
+                onBlur={confermaQuantita}
                 className={CLASSI_CAMPO}
               />
             )}
