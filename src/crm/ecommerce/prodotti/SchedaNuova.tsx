@@ -26,6 +26,8 @@ import {
   applicaCambio,
   controllaBozza,
   creaBozza,
+  dopoCreazione,
+  eScritta,
   elencoCategorie,
   fraseMancanti,
   moduloVuoto,
@@ -92,6 +94,15 @@ export function SchedaNuova({ negozio, apri, torna }: PropsSchedaNuova) {
     categorie: scelte,
   };
   const controllo = controllaBozza(dati);
+  const scritta = eScritta(dati);
+
+  //  F5 o chiusura della scheda con dei dati scritti e non salvati: il browser chiede conferma. Scheda non toccata, in salvataggio o già creata: nessun avviso.
+  useEffect(() => {
+    if (!scritta || invio || fatto) return;
+    const f = (e: BeforeUnloadEvent) => e.preventDefault();
+    window.addEventListener("beforeunload", f);
+    return () => window.removeEventListener("beforeunload", f);
+  }, [scritta, invio, fatto]);
   const avvisi = useMemo(() => avvisiCampi(modulo), [modulo]);
   const errori = {
     ...(provato && !controllo.ok ? controllo.errori.campi : {}),
@@ -122,12 +133,22 @@ export function SchedaNuova({ negozio, apri, torna }: PropsSchedaNuova) {
     if (!controllo.ok) return aFuoco(controllo.errori);
     occupato.current = true;
     setInvio(true);
-    const esito = await creaBozza(negozio.esegui, dati);
-    occupato.current = false;
-    setInvio(false);
+    let esito;
+    try {
+      esito = await creaBozza(negozio.esegui, dati);
+    } catch {
+      return setFermo(
+        "Non so se il prodotto sia stato salvato: guarda nell'elenco prima di riprovare.",
+      );
+    } finally {
+      occupato.current = false;
+      setInvio(false);
+    }
     if (esito.tipo === "creato") {
-      if (esito.id && esito.mancanti.length === 0) return apri(esito.id);
-      return setFatto({ id: esito.id, mancanti: esito.mancanti });
+      const dopo = dopoCreazione(esito);
+      return dopo.tipo === "apri"
+        ? apri(dopo.id)
+        : setFatto({ id: dopo.id, mancanti: dopo.mancanti });
     }
     if (esito.tipo === "errori") {
       setDalServer(esito.errori);
@@ -141,6 +162,16 @@ export function SchedaNuova({ negozio, apri, torna }: PropsSchedaNuova) {
       );
     }
     setFermo(esito.frase);
+  };
+
+  /** «← Prodotti»: se c'è qualcosa di scritto e non salvato, prima si chiede. */
+  const esci = () => {
+    if (
+      scritta &&
+      !window.confirm("Hai scritto dei dati che non sono salvati. Uscire senza salvare?")
+    )
+      return;
+    torna();
   };
 
   // Il prodotto c'è ma un passo dopo è fallito, o non si sa dove sia: si dice, e non si offre di salvare di nuovo.
@@ -191,7 +222,7 @@ export function SchedaNuova({ negozio, apri, torna }: PropsSchedaNuova) {
                 variant="ghost"
                 className={cn(CLASSI_TASTO, "-ml-3 px-3")}
                 disabled={invio}
-                onClick={torna}
+                onClick={esci}
               >
                 <ArrowLeft className="mr-1.5 h-4 w-4" aria-hidden="true" />
                 Prodotti

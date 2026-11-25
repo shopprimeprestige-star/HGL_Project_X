@@ -74,7 +74,11 @@ export async function prove(mod, { c, gruppo, radice }) {
     ["RiquadroTitolo", "RiquadroFoto", "RiquadroPrezzo", "RiquadroGiacenza", "RiquadroSpedizione", "RiquadroSeo", "ColonnaLaterale", "PaginaScheda"].map((n) => new RegExp(`import[^;]*\\b${n}\\b[^;]*from "\\./scheda/`).test(scheda)));
   c("le proposte dal titolo passano da `applicaCambio` (SKU e indirizzo seguono il titolo finché non li cambi a mano)", true, /applicaCambio\(/.test(k.scheda) && /slugDa\(/.test(k.puro) && /propostaSku\(/.test(k.puro));
   c("il tasto «Salva bozza» è uno solo per schermata: pieno dal computer, in una barra fissa sul telefono", [true, true], [/md:hidden/.test(scheda) && /fixed inset-x-0 bottom-0/.test(scheda), /hidden md:/.test(scheda)]);
-  c("niente avviso del browser sul testo non salvato (beforeunload, popstate): la scheda vuota non ha nulla da perdere di nascosto", false, /beforeunload|popstate|onbeforeunload|history\./.test(k.scheda));
+  c("l'avviso di uscita c'è, ma SOLO dietro `eScritta`: il `beforeunload` (non in invio) e la conferma di «← Prodotti»", [true, true, true, true],
+    [/addEventListener\("beforeunload"/.test(k.scheda), /if \(!scritta \|\| invio[^)]*\) return;[\s\S]{0,120}addEventListener\("beforeunload"/.test(k.scheda), /const scritta = eScritta\(dati\)/.test(k.scheda), /scritta && !window\.confirm\(/.test(k.scheda)]);
+  c("niente popstate né history: il tasto indietro del browser resta fuori (dichiarato)", false, /popstate|history\./.test(k.scheda));
+  c("`salva` decide con `dopoCreazione` (apri o avviso) e non guarda `mancanti` da sé; `creaBozza` sta in try/finally (il tasto non resta «Salvo…»)", [true, false, true],
+    [/dopoCreazione\(esito\)/.test(k.scheda), /mancanti\.length/.test(k.scheda), /try \{[\s\S]*?await creaBozza\([\s\S]*?\} finally \{[\s\S]*?setInvio\(false\)/.test(k.scheda)]);
 
   // ════ ② LE REGOLE PURE ════
   if (!existsSync(file.puro)) return;
@@ -223,6 +227,17 @@ export async function prove(mod, { c, gruppo, radice }) {
     await P.creaBozza(async (...a) => { nessuna.push(a); return { ok: true, dati: {} }; }, { modulo: V, quantita: "", costo: "", costoDisponibile: true, categorie: [] });
     c("la scheda vuota non chiama il server", 0, nessuna.length);
   }
+  {
+    const vuota = { modulo: V, quantita: "", costo: "", costoDisponibile: true, categorie: [] };
+    const titolo = P.applicaCambio(V, { nome: "Spray" });
+    c("`eScritta`: la scheda non toccata → no (nessun avviso falso)", false, P.eScritta(vuota));
+    c("…un titolo → sì; titolo scritto e poi cancellato (SKU e indirizzo proposti spariscono) → no", [true, false], [P.eScritta({ ...vuota, modulo: titolo }), P.eScritta({ ...vuota, modulo: P.applicaCambio(titolo, { nome: "" }) })]);
+    c("…solo quantità, solo costo, solo una categoria, solo un canale spento → sì; spazi soli → no",
+      [true, true, true, true, false], [P.eScritta({ ...vuota, quantita: "3" }), P.eScritta({ ...vuota, costo: "1" }), P.eScritta({ ...vuota, categorie: [CAT] }), P.eScritta({ ...vuota, modulo: P.applicaCambio(V, { canali: { ...V.canali, sito: false } }) }), P.eScritta({ ...vuota, quantita: "  ", costo: " " })]);
+    c("`dopoCreazione`: con `parziale` → avviso con l'id e i passi; senza → apri; id nullo → avviso senza apertura (anche senza passi)",
+      [{ tipo: "avviso", id: "x", mancanti: ["giacenza"] }, { tipo: "apri", id: "x" }, { tipo: "avviso", id: null, mancanti: [] }, { tipo: "avviso", id: null, mancanti: ["categorie"] }],
+      [P.dopoCreazione({ tipo: "creato", id: "x", mancanti: ["giacenza"] }), P.dopoCreazione({ tipo: "creato", id: "x", mancanti: [] }), P.dopoCreazione({ tipo: "creato", id: null, mancanti: [] }), P.dopoCreazione({ tipo: "creato", id: null, mancanti: ["categorie"] })]);
+  }
   c("le categorie lette dal server: solo id e nome validi, il resto si scarta", [[{ id: "a", nome: "A" }], []], [P.elencoCategorie([{ id: "a", nome: "A", x: 1 }, { id: 3, nome: "B" }, null, { id: "c" }]), P.elencoCategorie("no")]);
   c("l'errore da mettere a fuoco: il primo campo con un errore, poi la quantità, poi il costo", ["f-nome", "f-giacenza", "f-costo", null],
     [P.primoCampoDaSistemare({ campi: { nome: "x", sku: "y" }, quantita: "q" }), P.primoCampoDaSistemare({ campi: {}, quantita: "q", costo: "c" }), P.primoCampoDaSistemare({ campi: {}, costo: "c" }), P.primoCampoDaSistemare({ campi: {} })]);
@@ -258,6 +273,7 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("«Aggiungi prodotto» apre la scheda nuova (senza scrivere) e «Importa» apre la finestra dell'import",
     [true, true, true], [/<SchedaNuova\b/.test(nuovoSrc) && /setNuovo\(true\)/.test(nuovoSrc), /<FinestraImporta\b[\s\S]*?aperta=\{importa\}/.test(nuovoSrc), /setImporta\(true\)/.test(nuovoSrc)]);
   c("il telefono ha il suo tasto fisso «Aggiungi prodotto»", true, /fixed inset-x-4[^"]*md:hidden[\s\S]{0,400}Aggiungi prodotto/.test(elenco));
+  c("tornando dalla scheda nuova il cursore va al tasto «Aggiungi prodotto» visibile (computer o telefono)", [2, true], [conta(nuovoSrc, /data-aggiungi-prodotto/g), /eraNuovo\.current && !nuovo[\s\S]{0,160}getClientRects\(\)\.length > 0[\s\S]{0,40}focus\(\)/.test(nuovoSrc)]);
   c("l'import: la finestra riceve un `negozio` il cui `esegui` NON rilegge l'elenco (`eseguiAzione`), e l'elenco si rilegge UNA volta, alla chiusura",
     [true, true, true], [/eseguiAzione\(fetchCRM, azione, dati\)/.test(nuovoSrc), /negozio=\{negozioImporta\}/.test(nuovoSrc), /const chiudiImporta = \(\) => \{[^}]*setImporta\(false\)[^}]*aggiorna\(\)/.test(nuovoSrc)]);
   c("l'elenco non scrive direttamente: nessun fetch( (la rete passa da eseguiAzione e negozio)", false, /\bfetch\(/.test(nuovoSrc));

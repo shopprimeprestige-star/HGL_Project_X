@@ -5,8 +5,8 @@
  *
  *  ── COSA STA DOVE ───────────────────────────────────────────────────────────
  *  Le regole senza schermo (ordine, ricerca, chip, SKU della copia, frasi dei riepiloghi) sono in `elenco-puro.ts` e si provano
- *  da sole. Le letture e le scritture passano TUTTE da `negozio` (`useNegozio()`, chiamato una volta dal guscio): qui non c'è
- *  nessun `fetch`. Il segmento e la categoria si chiedono al server (`impostaFiltri`) e restano nell'archivio, quindi tornando
+ *  da sole. Le letture e le scritture passano da `negozio` (`useNegozio()`, chiamato una volta dal guscio); l'unica eccezione è l'import
+ *  (E9: `eseguiAzione` senza la rilettura dopo ogni gruppo, vedi sotto). Qui non c'è nessun `fetch(` diretto. Il segmento e la categoria si chiedono al server (`impostaFiltri`) e restano nell'archivio, quindi tornando
  *  dalla scheda si ritrova l'elenco com'era; la ricerca per testo è locale e immediata.
  *
  *  ── LE REGOLE CHE SI VEDONO ─────────────────────────────────────────────────
@@ -19,7 +19,7 @@
  *  · Il numero dei pezzi non si legge dall'elenco del server (non lo porta): si apre dalla riga («Giacenza») e si legge la
  *    scheda di quel prodotto solo allora. Si cambia con `giacenza_imposta`, che non va mai sotto zero.
  *  ⚠️ Nessun log da qui, mai. */
-import { Fragment, useEffect, useMemo, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   ArrowDown,
   ArrowUp,
@@ -65,6 +65,7 @@ import {
 } from "./elenco-puro";
 import { FinestraImporta } from "./importa/FinestraImporta";
 import { SchedaNuova } from "./SchedaNuova";
+import { elencoCategorie } from "./scheda-nuova-puro";
 import type { Negozio } from "./tipi";
 
 export interface PropsElencoProdotti {
@@ -123,6 +124,7 @@ export function ElencoProdotti({ negozio, apri, categorieAggiornate = 0 }: Props
   const [esito, setEsito] = useState<EsitoGruppo | null>(null);
   const [nuovo, setNuovo] = useState(false);
   const [importa, setImporta] = useState(false);
+  const eraNuovo = useRef(false);
   const [categorie, setCategorie] = useState<{ id: string; nome: string }[]>([]);
 
   //  I nomi delle categorie per il filtro: una lettura sola, all'apertura. Se fallisce il filtro non compare (l'elenco funziona lo stesso).
@@ -131,14 +133,7 @@ export function ElencoProdotti({ negozio, apri, categorieAggiornate = 0 }: Props
     let vivo = true;
     void leggiCategorie().then((r) => {
       if (!vivo || !r.ok || !Array.isArray(r.dati.categorie)) return;
-      setCategorie(
-        (r.dati.categorie as unknown[]).flatMap((k) => {
-          const o = k as { id?: unknown; nome?: unknown } | null;
-          return o && typeof o.id === "string" && typeof o.nome === "string"
-            ? [{ id: o.id, nome: o.nome }]
-            : [];
-        }),
-      );
+      setCategorie(elencoCategorie(r.dati.categorie));
     });
     return () => {
       vivo = false;
@@ -164,6 +159,14 @@ export function ElencoProdotti({ negozio, apri, categorieAggiornate = 0 }: Props
     }),
     [],
   );
+  //  Tornando dalla scheda nuova il cursore va al tasto «Aggiungi prodotto» (quello che si vede: sul telefono è il tasto fisso), non sul nulla.
+  useEffect(() => {
+    if (eraNuovo.current && !nuovo)
+      [...document.querySelectorAll<HTMLElement>("[data-aggiungi-prodotto]")]
+        .find((b) => b.getClientRects().length > 0)
+        ?.focus();
+    eraNuovo.current = nuovo;
+  }, [nuovo]);
   const chiudiImporta = () => {
     setImporta(false);
     void aggiorna();
@@ -281,7 +284,13 @@ export function ElencoProdotti({ negozio, apri, categorieAggiornate = 0 }: Props
     );
 
   const tastoNuovo = (
-    <Button type="button" size="sm" className="h-8 text-[12px]" onClick={() => setNuovo(true)}>
+    <Button
+      type="button"
+      size="sm"
+      className="h-8 text-[12px]"
+      data-aggiungi-prodotto
+      onClick={() => setNuovo(true)}
+    >
       <Plus className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
       Aggiungi prodotto
     </Button>
@@ -679,6 +688,7 @@ export function ElencoProdotti({ negozio, apri, categorieAggiornate = 0 }: Props
         <Button
           type="button"
           className="h-12 w-full text-[14px] shadow-lg"
+          data-aggiungi-prodotto
           onClick={() => setNuovo(true)}
         >
           <Plus className="mr-1.5 h-4 w-4" aria-hidden="true" />

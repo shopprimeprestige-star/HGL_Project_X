@@ -158,6 +158,13 @@ export function controllaBozza(
   };
 }
 
+/** C'è qualcosa di scritto che uscendo andrebbe perso? La scheda non toccata (o scritta e poi cancellata) no: nessun avviso falso. */
+export const eScritta = (d: DatiBozza): boolean =>
+  JSON.stringify(d.modulo) !== JSON.stringify(moduloVuoto()) ||
+  d.quantita.trim() !== "" ||
+  d.costo.trim() !== "" ||
+  d.categorie.length > 0;
+
 /** L'elemento da mettere a fuoco dopo un «Salva bozza» respinto: il primo campo con un errore, poi la quantità, poi il costo. */
 export function primoCampoDaSistemare(e: ErroriBozza): string | null {
   const primo = Object.keys(e.campi)[0];
@@ -226,3 +233,11 @@ export async function creaBozza(crea: Crea, d: DatiBozza): Promise<EsitoBozza> {
     mancanti: parziale.filter((p): p is string => typeof p === "string"),
   };
 }
+
+/** Dopo «Salva bozza» riuscito: si apre il prodotto, a meno che un passo dopo il primo sia fallito (`mancanti`) o non si sappia l'id: allora un avviso. */
+export const dopoCreazione = (
+  e: Extract<EsitoBozza, { tipo: "creato" }>,
+): { tipo: "apri"; id: string } | { tipo: "avviso"; id: string | null; mancanti: string[] } =>
+  e.id && e.mancanti.length === 0
+    ? { tipo: "apri", id: e.id }
+    : { tipo: "avviso", id: e.id, mancanti: e.mancanti };
