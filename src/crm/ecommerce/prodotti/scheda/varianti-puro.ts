@@ -13,6 +13,7 @@ import { cambioQuantita, euroInTesto, trovaUnica, type MotivoGiacenza } from "..
 
 /** I campi di una riga, tutti come testo (è quello che c'è nelle caselle). */
 export interface RigaTesto {
+  nome: string;
   prezzo: string;
   giacenza: string;
   sku: string;
@@ -25,10 +26,12 @@ export type ErroriRiga = Partial<Record<CampoRiga, string>>;
 
 const MAX_PESO = 1_000_000;
 const MAX_GTIN = 20;
+const MAX_NOME = 120;
 
 /** I testi di una riga così come sono salvati. `costo` è `undefined` quando la scheda non lo conosce (nessuna colonna nuova da mostrare). */
 export function rigaDa(v: Variante, costoCent: number | null | undefined): RigaTesto {
   return {
+    nome: v.nome,
     prezzo: prezzoInTesto(v.prezzoCent ?? 0),
     giacenza: String(v.giacenza),
     sku: v.sku,
@@ -37,6 +40,10 @@ export function rigaDa(v: Variante, costoCent: number | null | undefined): RigaT
     costo: costoCent === null || costoCent === undefined ? "" : euroInTesto(costoCent),
   };
 }
+
+/** Il nome proposto dalle opzioni («Nero / S», come lo scrive il generatore); vuoto se la variante non ha opzioni. */
+export const nomeDalleOpzioni = (opzioni: Record<string, string> | null | undefined): string =>
+  Object.values(opzioni ?? {}).join(" / ");
 
 /** I testi in uso: quelli salvati, con sopra ciò che il titolare ha già cambiato. */
 export const testiInUso = (
@@ -49,8 +56,11 @@ export const campiCambiati = (base: RigaTesto, ora: RigaTesto): CampoRiga[] =>
   (Object.keys(base) as CampoRiga[]).filter((k) => base[k].trim() !== ora[k].trim());
 
 /** Gli errori di forma di una riga, uno per campo, scritti a parole. `{}` = tutto a posto. */
-export function erroriRiga(t: RigaTesto, costoDisponibile: boolean): ErroriRiga {
+export function erroriRiga(t: RigaTesto, costoDisponibile: boolean, nomeProposto = ""): ErroriRiga {
   const e: ErroriRiga = {};
+  // nome vuoto: se ci sono le opzioni si propone quello (non è un errore), altrimenti va scritto
+  if (!t.nome.trim() && !nomeProposto) e.nome = "Scrivi il nome della variante.";
+  if (t.nome.trim().length > MAX_NOME) e.nome = `Il nome ha al massimo ${MAX_NOME} segni.`;
   if (!prezzoVarianteDaTesto(t.prezzo).ok)
     e.prezzo = "Scrivi il prezzo in euro, per esempio 19,90, oppure lascialo vuoto.";
   if (!cambioQuantita(0, t.giacenza).ok)
@@ -80,13 +90,17 @@ export function lavoroRiga(
   v: Variante,
   base: RigaTesto,
   ora: RigaTesto,
-  opzioni: { senzaPrezzo: boolean; costoDisponibile: boolean },
+  opzioni: { senzaPrezzo: boolean; costoDisponibile: boolean; motivo?: MotivoGiacenza },
 ): LavoroRiga | null {
-  if (Object.keys(erroriRiga(ora, opzioni.costoDisponibile)).length) return null;
+  const proposto = nomeDalleOpzioni(v.opzioni);
+  if (Object.keys(erroriRiga(ora, opzioni.costoDisponibile, proposto)).length) return null;
   const cambiati = campiCambiati(base, ora);
   const campi: Record<string, unknown> = {};
   for (const k of cambiati) {
-    if (k === "sku") campi.sku = ora.sku.trim();
+    if (k === "nome") {
+      const nome = ora.nome.trim() || proposto;
+      if (nome !== v.nome) campi.nome = nome;
+    } else if (k === "sku") campi.sku = ora.sku.trim();
     else if (k === "prezzo" && !opzioni.senzaPrezzo) {
       const p = prezzoVarianteDaTesto(ora.prezzo);
       campi.prezzoCent = p.ok ? p.cent : null;
@@ -98,7 +112,8 @@ export function lavoroRiga(
   let giacenza: LavoroRiga["giacenza"] = null;
   if (cambiati.includes("giacenza")) {
     const q = cambioQuantita(v.giacenza, ora.giacenza);
-    if (q.ok && q.motivo) giacenza = { valore: v.giacenza + q.differenza, motivo: q.motivo };
+    if (q.ok && q.motivo)
+      giacenza = { valore: v.giacenza + q.differenza, motivo: opzioni.motivo ?? q.motivo };
   }
   return { campi: Object.keys(campi).length ? campi : null, giacenza };
 }
@@ -114,13 +129,16 @@ export const eUnicaSpenta = (
   skuProdotto: string,
 ): boolean => !v.attiva && trovaUnica(tutte, skuProdotto)?.id === v.id;
 
-/** Le righe della tabella (tutte tranne l'Unica spenta) e, a parte, quella da mostrare chiusa. Senza opzioni (prodotto semplice) non c'è tabella. */
+/**
+ * Le righe della tabella e, a parte, l'Unica spenta da mostrare in una riga chiusa (solo se ci sono le opzioni). Senza opzioni: la sola
+ * variante (l'Unica) è il «prodotto semplice» e non ha tabella; con più varianti, anche senza opzioni, si vedono tutte (modificabili e disattivabili).
+ */
 export function dividiRighe(
   varianti: readonly Variante[],
   skuProdotto: string,
 ): { righe: Variante[]; unicaSpenta: Variante | null } {
   const conOpzioni = varianti.some((v) => Object.keys(v.opzioni ?? {}).length > 0);
-  if (!conOpzioni) return { righe: [], unicaSpenta: null };
+  if (!conOpzioni) return { righe: varianti.length > 1 ? [...varianti] : [], unicaSpenta: null };
   const unicaSpenta = varianti.find((v) => eUnicaSpenta(v, varianti, skuProdotto)) ?? null;
   return { righe: varianti.filter((v) => v !== unicaSpenta), unicaSpenta };
 }

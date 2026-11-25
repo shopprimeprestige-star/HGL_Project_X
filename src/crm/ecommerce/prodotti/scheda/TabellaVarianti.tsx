@@ -1,7 +1,7 @@
 /** ── LA TABELLA DELLE VARIANTI (scheda/TabellaVarianti.tsx) ──────────────────────────────────────────────────
  *  Commessa 2026-11-25-editor-prodotti, E8 (SPEC §3.3 riquadro 6). Una riga per combinazione: spunta · Variante · Prezzo · Giacenza · SKU ·
  *  Barcode · Peso · Costo · Attiva. Larga abbastanza (il riquadro, non lo schermo: `@container`) è una tabella con le intestazioni sopra;
- *  più stretta (sotto i 43 rem) ogni riga diventa una scheda con le etichette sopra ogni casella (sul telefono, 44 px, nessuno scorrimento di lato).
+ *  più stretta (sotto i 44 rem) ogni riga diventa una scheda con le etichette sopra ogni casella (sul telefono, 44 px, nessuno scorrimento di lato).
  *  Il prezzo vuoto vale il prezzo di base: la casella lo mostra in grigio e sotto c'è scritto «del prodotto». La variante «Unica» spenta sta in
  *  una riga chiusa. Mai un tasto per togliere una variante: si disattiva.
  *  ⚠️ Solo presentazione: niente rete, niente stato delle righe (lo tiene `EditorVarianti`). */
@@ -10,8 +10,9 @@ import { Switch } from "@/components/ui/switch";
 import { Chip } from "@/crm/ui";
 import { cn } from "@/lib/utils";
 import type { Variante } from "@/shop/cms/modello";
+import { MOTIVI_GIACENZA, type MotivoGiacenza } from "../semplice-puro";
 import { CLASSI_CAMPO } from "./polaris";
-import type { CampoRiga, ErroriRiga, RigaTesto } from "./varianti-puro";
+import { nomeDalleOpzioni, type CampoRiga, type ErroriRiga, type RigaTesto } from "./varianti-puro";
 
 export interface PropsTabella {
   righe: Variante[];
@@ -20,6 +21,9 @@ export interface PropsTabella {
   ora: Record<string, RigaTesto>;
   errori: Record<string, ErroriRiga>;
   cambia: (id: string, campo: CampoRiga, valore: string) => void;
+  /** Il motivo del movimento, solo per le righe dove i pezzi cambiano (proposto da `cambioQuantita`, modificabile). */
+  motivi: Record<string, MotivoGiacenza>;
+  cambiaMotivo: (id: string, motivo: MotivoGiacenza) => void;
   /** Il prezzo di base come testo («19,90»; vuoto se il prodotto non ne ha ancora uno). */
   prezzoBase: string;
   senzaPrezzo: boolean;
@@ -52,8 +56,8 @@ function Cella({
   children: (p: { "aria-label": string; "aria-invalid": boolean }) => ReactNode;
 }) {
   return (
-    <label className="flex min-w-0 flex-col gap-1 @[43rem]:justify-start">
-      <span className="text-[12px] font-medium @[43rem]:sr-only">{nome}</span>
+    <label className="flex min-w-0 flex-col gap-1 @[44rem]:justify-start">
+      <span className="text-[12px] font-medium @[44rem]:sr-only">{nome}</span>
       {children({ "aria-label": `${nome}, ${riga}`, "aria-invalid": !!errore })}
       {sotto && <span className="text-[12px] leading-tight text-muted-foreground">{sotto}</span>}
     </label>
@@ -63,7 +67,7 @@ function Cella({
 export function TabellaVarianti(p: PropsTabella) {
   const colonne = [
     "1.25rem",
-    "minmax(4.5rem,1fr)",
+    "minmax(5.5rem,1fr)",
     ...(p.senzaPrezzo ? [] : ["4.5rem"]),
     "3.75rem",
     "6rem",
@@ -86,7 +90,7 @@ export function TabellaVarianti(p: PropsTabella) {
   ];
   return (
     <div className="@container flex min-w-0 flex-col gap-2">
-      <label className="flex min-h-11 items-center gap-2 text-[13px] @[43rem]:min-h-8">
+      <label className="flex min-h-11 items-center gap-2 text-[13px] @[44rem]:min-h-8">
         <input
           type="checkbox"
           checked={tutte}
@@ -97,7 +101,7 @@ export function TabellaVarianti(p: PropsTabella) {
       </label>
       <div
         aria-hidden="true"
-        className="hidden gap-2 px-2 text-[12px] font-medium text-muted-foreground @[43rem]:grid @[43rem]:grid-cols-[var(--col)]"
+        className="hidden gap-2 px-2 text-[12px] font-medium text-muted-foreground @[44rem]:grid @[44rem]:grid-cols-[var(--col)]"
         style={stile}
       >
         <span />
@@ -105,7 +109,7 @@ export function TabellaVarianti(p: PropsTabella) {
           <span key={t}>{t}</span>
         ))}
       </div>
-      <ul className="m-0 flex list-none flex-col gap-3 p-0 @[43rem]:gap-0 @[43rem]:divide-y @[43rem]:divide-border @[43rem]:border-y @[43rem]:border-border">
+      <ul className="m-0 flex list-none flex-col gap-3 p-0 @[44rem]:gap-0 @[44rem]:divide-y @[44rem]:divide-border @[44rem]:border-y @[44rem]:border-border">
         {p.righe.map((v) => {
           const base = p.base[v.id];
           const ora = p.ora[v.id];
@@ -121,13 +125,13 @@ export function TabellaVarianti(p: PropsTabella) {
               data-variante={v.id}
               style={stile}
               className={cn(
-                "grid grid-cols-1 gap-x-2 gap-y-3 rounded-xl border border-border p-3 @[43rem]:grid-cols-[var(--col)] @[43rem]:items-start @[43rem]:gap-y-0 @[43rem]:rounded-none @[43rem]:border-0 @[43rem]:px-2 @[43rem]:py-2",
+                "grid grid-cols-1 gap-x-1.5 gap-y-3 rounded-xl border border-border p-3 @[44rem]:grid-cols-[var(--col)] @[44rem]:items-start @[44rem]:gap-y-0 @[44rem]:rounded-none @[44rem]:border-0 @[44rem]:px-2 @[44rem]:py-2",
                 cambiata && "bg-amber-50",
                 !v.attiva && "text-muted-foreground",
               )}
             >
-              <div className="flex items-center gap-2 @[43rem]:contents">
-                <label className="flex h-11 w-6 shrink-0 items-center justify-center @[43rem]:h-9 @[43rem]:w-5">
+              <div className="flex items-center gap-2 @[44rem]:contents">
+                <label className="flex h-11 w-6 shrink-0 items-center justify-center @[44rem]:h-9 @[44rem]:w-5">
                   <input
                     type="checkbox"
                     checked={p.scelte.has(v.id)}
@@ -136,25 +140,35 @@ export function TabellaVarianti(p: PropsTabella) {
                     className="h-4 w-4 accent-primary"
                   />
                 </label>
-                <div className="min-w-0 flex-1 @[43rem]:flex-none @[43rem]:py-2">
-                  <p className="truncate text-[13px] font-semibold">{v.nome}</p>
-                  {!v.attiva && <Chip tono="neutro">Disattivata</Chip>}
-                  {v.attiva && v.giacenza === 0 && <Chip tono="in_sospeso">Esaurita</Chip>}
+                <div className="flex min-w-0 flex-1 flex-col gap-1 @[44rem]:flex-none">
+                  <input
+                    aria-label={`Variante, ${v.nome}`}
+                    aria-invalid={!!err.nome}
+                    value={ora.nome}
+                    maxLength={120}
+                    placeholder={nomeDalleOpzioni(v.opzioni)}
+                    onChange={(e) => p.cambia(v.id, "nome", e.target.value)}
+                    className={cn(CLASSI_CAMPO, "px-2 font-semibold md:text-[12.5px]")}
+                  />
+                  <div className="flex flex-wrap items-center gap-1 empty:hidden">
+                    {!v.attiva && <Chip tono="neutro">Disattivata</Chip>}
+                    {v.attiva && v.giacenza === 0 && <Chip tono="in_sospeso">Esaurita</Chip>}
+                  </div>
                   {cambiata && (
                     <p className="text-[12px] text-amber-900">Modificata, non ancora salvata</p>
                   )}
                 </div>
-                <label className="flex min-h-11 items-center gap-2 text-[13px] @[43rem]:order-[9999] @[43rem]:h-9 @[43rem]:min-h-0">
+                <label className="flex min-h-11 items-center gap-2 text-[13px] @[44rem]:order-[9999] @[44rem]:h-9 @[44rem]:min-h-0">
                   <Switch
                     checked={v.attiva}
                     disabled={p.spento}
                     onCheckedChange={(x) => p.attiva(v, x)}
                     aria-label={`Variante ${v.nome} attiva`}
                   />
-                  <span className="@[43rem]:sr-only">Attiva</span>
+                  <span className="@[44rem]:sr-only">Attiva</span>
                 </label>
               </div>
-              <div className="grid grid-cols-2 gap-2 @md:grid-cols-3 @[43rem]:contents">
+              <div className="grid grid-cols-2 gap-2 @md:grid-cols-3 @[44rem]:contents">
                 {!p.senzaPrezzo && (
                   <Cella
                     nome="Prezzo"
@@ -235,10 +249,28 @@ export function TabellaVarianti(p: PropsTabella) {
                   </Cella>
                 )}
               </div>
+              {p.motivi[v.id] && (
+                <label className="flex flex-wrap items-center gap-2 text-[13px] @[44rem]:order-[10000] @[44rem]:col-span-full @[44rem]:pb-1">
+                  <span className="font-medium">
+                    Motivo del movimento ({v.giacenza} → {ora.giacenza.trim()} pezzi)
+                  </span>
+                  <select
+                    value={p.motivi[v.id]}
+                    onChange={(e) => p.cambiaMotivo(v.id, e.target.value as MotivoGiacenza)}
+                    className={cn(CLASSI_CAMPO, "w-auto px-2 md:text-[12.5px]")}
+                  >
+                    {MOTIVI_GIACENZA.map((m) => (
+                      <option key={m.valore} value={m.valore}>
+                        {m.etichetta}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
               {frasi.length > 0 && (
                 <p
                   role="alert"
-                  className="text-[13px] text-rose-800 @[43rem]:order-[10000] @[43rem]:col-span-full @[43rem]:pb-1"
+                  className="text-[13px] text-rose-800 @[44rem]:order-[10000] @[44rem]:col-span-full @[44rem]:pb-1"
                 >
                   {frasi.join(" ")}
                 </p>

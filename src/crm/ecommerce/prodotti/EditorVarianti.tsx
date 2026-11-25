@@ -15,6 +15,7 @@
  *  · Una variante NON si cancella: si disattiva (D5). Generare di nuovo non tocca quelle che ci sono già.
  *  · Il prezzo vuoto vale il prezzo di base; «Imposta il prezzo di tutte» lo scrive su ogni riga. Dopo aver creato le varianti NON si scrive
  *    il prezzo da soli (50 scritture, e se una fallisce?): restano vuote e valgono il prezzo di base.
+ *  · Ogni riga ha il suo nome (vuoto = quello dalle opzioni) e, se i pezzi cambiano, il motivo del movimento (Carico, Rettifica, Reso).
  *  · Passando dal prodotto semplice alle opzioni, la variante «Unica» si spegne (e sta in una riga chiusa): i suoi pezzi non si spostano da soli.
  *  · Su un prodotto pubblicato prezzo, varianti e giacenza si applicano SUBITO (D27): lo dice la riga in cima, e il server rifiuta
  *    un cambio che renderebbe il prodotto non pubblicabile.
@@ -30,7 +31,13 @@ import {
   opzioniDaVarianti,
   prezzoInTesto,
 } from "./scheda-pura";
-import { avvisoPassaggioAOpzioni, statoUnica, trovaUnica } from "./semplice-puro";
+import {
+  avvisoPassaggioAOpzioni,
+  cambioQuantita,
+  statoUnica,
+  trovaUnica,
+  type MotivoGiacenza,
+} from "./semplice-puro";
 import type { Negozio } from "./tipi";
 import { AzioniDiTutte } from "./scheda/AzioniDiTutte";
 import { OpzioniVarianti } from "./scheda/OpzioniVarianti";
@@ -49,6 +56,7 @@ import {
   dividiRighe,
   erroriRiga,
   lavoroRiga,
+  nomeDalleOpzioni,
   rigaDa,
   testiInUso,
   valoriCompleti,
@@ -109,7 +117,6 @@ export function EditorVarianti({
     opzioniDaVarianti(varianti).map((x) => ({ nome: x.nome, valori: x.valori, bozza: "" })),
   );
   const { righe, unicaSpenta } = dividiRighe(varianti, prodotto.sku);
-  const conOpzioni = righe.length > 0 || unicaSpenta !== null;
   const scritte: OpzioneInput[] = opzioni.map((o) => ({ nome: o.nome, valori: valoriCompleti(o) }));
   const anteprima = anteprimaCombinazioni(prodotto.sku, scritte, varianti);
   const cambiaOpzione = (k: number, p: Partial<OpzioneScritta>) =>
@@ -160,25 +167,32 @@ export function EditorVarianti({
 
   /* ── le righe: i testi cambiati si tengono qui finché non si salvano ── */
   const [cambiati, setCambiati] = useState<Record<string, Partial<RigaTesto>>>({});
+  const [motivi, setMotivi] = useState<Record<string, MotivoGiacenza>>({});
   const [scelte, setScelte] = useState<ReadonlySet<string>>(new Set());
   const costoPresente = costi !== undefined;
   const costoAcceso = costoPresente && costoDisponibile !== false;
   const base: Record<string, RigaTesto> = {};
   const ora: Record<string, RigaTesto> = {};
   const errori: Record<string, ErroriRiga> = {};
+  /** Il motivo del movimento, solo per le righe dove i pezzi cambiano: quello scelto, o quello proposto. */
+  const motiviOra: Record<string, MotivoGiacenza> = {};
   const sporche: Variante[] = [];
   for (const v of righe) {
     base[v.id] = rigaDa(v, costi?.[v.id]);
     ora[v.id] = testiInUso(base[v.id], cambiati[v.id]);
     if (campiCambiati(base[v.id], ora[v.id]).length) {
       sporche.push(v);
-      errori[v.id] = erroriRiga(ora[v.id], costoAcceso);
+      errori[v.id] = erroriRiga(ora[v.id], costoAcceso, nomeDalleOpzioni(v.opzioni));
+      const q = cambioQuantita(v.giacenza, ora[v.id].giacenza);
+      if (q.ok && q.motivo) motiviOra[v.id] = motivi[v.id] ?? q.motivo;
     }
   }
   const cambiaCampo = (id: string, campo: CampoRiga, valore: string) =>
     setCambiati((c) => ({ ...c, [id]: { ...c[id], [campo]: valore } }));
   /** Toglie i testi cambiati di quelle righe (tutti, o solo i `campi` dati): dopo un salvataggio o un «Annulla». */
-  const dimentica = (ids: readonly string[], campi?: CampoRiga[]) =>
+  const dimentica = (ids: readonly string[], campi?: CampoRiga[]) => {
+    if (!campi || campi.includes("giacenza"))
+      setMotivi((m) => Object.fromEntries(Object.entries(m).filter(([id]) => !ids.includes(id))));
     setCambiati((c) =>
       Object.fromEntries(
         Object.entries(c).flatMap(([id, t]) => {
@@ -190,6 +204,7 @@ export function EditorVarianti({
         }),
       ),
     );
+  };
 
   const salva = () =>
     lavora(async () => {
@@ -197,6 +212,7 @@ export function EditorVarianti({
         const l = lavoroRiga(v, base[v.id], ora[v.id], {
           senzaPrezzo,
           costoDisponibile: costoAcceso,
+          motivo: motivi[v.id],
         });
         return l ? [{ v, lavoro: l }] : [];
       });
@@ -242,7 +258,7 @@ export function EditorVarianti({
   const senzaBase =
     prodotto.prezzoCent <= 0 && righe.some((v) => v.attiva && v.prezzoCent === null);
   const [aperte, setAperte] = useState(false);
-  const editorAperto = conOpzioni || opzioni.length > 0 || aperte;
+  const editorAperto = opzioni.length > 0 || aperte;
 
   return (
     <div className="flex min-w-0 flex-col gap-4">
@@ -352,6 +368,8 @@ export function EditorVarianti({
             ora={ora}
             errori={errori}
             cambia={cambiaCampo}
+            motivi={motiviOra}
+            cambiaMotivo={(id, m) => setMotivi((x) => ({ ...x, [id]: m }))}
             prezzoBase={prezzoBaseTesto}
             senzaPrezzo={senzaPrezzo}
             conCosto={costoPresente}

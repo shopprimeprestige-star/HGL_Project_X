@@ -65,7 +65,7 @@ export async function prove(mod, { c, gruppo, radice }) {
   // mai cancellare: le sole azioni che il codice manda sono queste quattro, e nessun testo promette di togliere una variante
   const azioni = new Set(Object.values(cod).flatMap((k) => [...k.matchAll(/esegui\(\s*"([a-z_]+)"/g)].map((m) => m[1])));
   c("le sole azioni mandate sono varianti_genera, variante_salva, variante_attiva, giacenza_imposta (nessuna cancellazione)", ["giacenza_imposta", "variante_attiva", "variante_salva", "varianti_genera"], [...azioni].sort());
-  c("la tabella è a contenitore (`@container`) e ogni riga diventa scheda sul telefono", true, /@container/.test(cod.TabellaVarianti) && /@\[43rem\]:grid-cols-\[var\(--col\)\]/.test(cod.TabellaVarianti));
+  c("la tabella è a contenitore (`@container`) e ogni riga diventa scheda sul telefono", true, /@container/.test(cod.TabellaVarianti) && /@\[44rem\]:grid-cols-\[var\(--col\)\]/.test(cod.TabellaVarianti));
   c("l'Invio aggiunge il valore (`Enter` con `preventDefault`)", true, /key !== "Enter"[\s\S]{0,120}preventDefault/.test(cod.OpzioniVarianti));
 
   // ════ LE REGOLE PURE ════
@@ -76,7 +76,7 @@ export async function prove(mod, { c, gruppo, radice }) {
 
   const salvata = variante({ prezzoCent: 2250, giacenza: 4, pesoG: 120, gtin: "8012345678905" });
   const b = P.rigaDa(salvata, 1040);
-  c("rigaDa: i testi come li scrive il titolare (19,90, costo 10,40, peso, barcode)", { prezzo: "22,50", giacenza: "4", sku: "HG-T01-NE-S", gtin: "8012345678905", peso: "120", costo: "10,40" }, b);
+  c("rigaDa: i testi come li scrive il titolare (19,90, costo 10,40, peso, barcode)", { nome: "Nero / S", prezzo: "22,50", giacenza: "4", sku: "HG-T01-NE-S", gtin: "8012345678905", peso: "120", costo: "10,40" }, b);
   c("rigaDa: prezzo vuoto = `null` = vuoto; costo assente = vuoto; costo 0 = «0,00»", ["", "", "0,00"], [P.rigaDa(variante(), null).prezzo, P.rigaDa(variante(), undefined).costo, P.rigaDa(variante(), 0).costo]);
   c("nessun cambio → nessun lavoro", { campi: null, giacenza: null }, P.lavoroRiga(salvata, b, b, COME));
   const l = P.lavoroRiga(salvata, b, { ...b, prezzo: "19,90", sku: "HG-T01-X", gtin: "", peso: "", costo: "9,50", giacenza: "10" }, COME);
@@ -88,7 +88,7 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("Invisible Derm (senza prezzo): il prezzo non si manda mai", null, P.lavoroRiga(salvata, b, { ...b, prezzo: "19,90" }, { ...COME, senzaPrezzo: true })?.campi);
   c("righe con un errore di forma non mandano niente (`null`)", [null, null, null, null], [
     P.lavoroRiga(salvata, b, { ...b, prezzo: "19,9,0" }, COME), P.lavoroRiga(salvata, b, { ...b, peso: "12,5" }, COME), P.lavoroRiga(salvata, b, { ...b, giacenza: "-1" }, COME), P.lavoroRiga(salvata, b, { ...b, costo: "abc" }, COME)]);
-  const er = P.erroriRiga({ prezzo: "abc", giacenza: "1,5", sku: " ", gtin: "1".repeat(21), peso: "2000000", costo: "-4" }, true);
+  const er = P.erroriRiga({ nome: "Nero", prezzo: "abc", giacenza: "1,5", sku: " ", gtin: "1".repeat(21), peso: "2000000", costo: "-4" }, true);
   c("erroriRiga: ogni errore è una frase, un campo per volta", ["prezzo", "giacenza", "sku", "gtin", "peso", "costo"], Object.keys(er));
   c("…le frasi parlano di euro, pezzi, SKU, barcode, grammi e costo", [true, true, true, true, true, true], [/euro/.test(er.prezzo), /pezzi/.test(er.giacenza), /SKU/.test(er.sku), /barcode/i.test(er.gtin), /grammi/.test(er.peso), /costo/i.test(er.costo)]);
   c("costo storto con la colonna assente non è un errore (la colonna è spenta)", {}, P.erroriRiga({ ...b, costo: "abc" }, false));
@@ -103,6 +103,38 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("valoriCompleti: il valore in scrittura conta subito, senza doppioni (anche con altre maiuscole)", [["Nero", "Biondo", "Castano"], ["Nero"], ["Nero"]],
     [P.valoriCompleti({ ...o, bozza: "Biondo, Castano , nero" }), P.valoriCompleti({ ...o, bozza: "NERO" }), P.valoriCompleti({ ...o, bozza: " , " })]);
   c("valoriDa: virgola o a capo, senza vuoti", ["a", "b", "c"], P.valoriDa("a, b\n c,,"));
+
+
+  // ── E8 correzioni: nome modificabile, motivo per riga, righe senza opzioni, soldi senza decimali binari ──
+  {
+    const rn = variante({ nome: "Piccola" });
+    const bn = P.rigaDa(rn, null);
+    c("nome: rigaDa lo porta nei testi", "Piccola", bn.nome);
+    c("nome cambiato → `variante_salva` con `nome` (e solo quello)", { nome: "Piccola scura" }, P.lavoroRiga(rn, bn, { ...bn, nome: " Piccola scura " }, COME)?.campi);
+    c("nome svuotato con le opzioni → si propone quello dalle opzioni («Nero / S»)", { nome: "Nero / S" }, P.lavoroRiga(rn, bn, { ...bn, nome: "" }, COME)?.campi);
+    c("nome svuotato = quello che c'è già dalle opzioni → niente da mandare", { campi: null, giacenza: null }, ((x) => P.lavoroRiga(x, P.rigaDa(x, null), { ...P.rigaDa(x, null), nome: "  " }, COME))(variante()));
+    const senzaOpz = variante({ opzioni: {}, nome: "Unica" });
+    const bs = P.rigaDa(senzaOpz, null);
+    c("nome svuotato senza opzioni → errore a parole, nulla da mandare", [true, null], [/nome/i.test(P.erroriRiga({ ...bs, nome: "" }, true, "").nome ?? ""), P.lavoroRiga(senzaOpz, bs, { ...bs, nome: "" }, COME)]);
+    c("nome di 121 segni → errore; di 120 → a posto", [true, undefined], [/120/.test(P.erroriRiga({ ...bn, nome: "x".repeat(121) }, true, "Nero / S").nome ?? ""), P.erroriRiga({ ...bn, nome: "x".repeat(120) }, true, "Nero / S").nome]);
+    c("con il nome vuoto e le opzioni, non è un errore (si propone quello dalle opzioni)", undefined, P.erroriRiga({ ...bn, nome: "" }, true, "Nero / S").nome);
+    c("nomeDalleOpzioni: «Nero / S» nell'ordine delle opzioni; senza opzioni vuoto", ["Nero / S", ""], [P.nomeDalleOpzioni({ Colore: "Nero", Misura: "S" }), P.nomeDalleOpzioni({})]);
+
+    c("motivo per riga: scelto «reso» arriva in `giacenza.motivo` anche se i pezzi aumentano", { valore: 10, motivo: "reso" }, P.lavoroRiga(salvata, b, { ...b, giacenza: "10" }, { ...COME, motivo: "reso" })?.giacenza);
+    c("…senza scelta resta quello proposto (carico se salgono, rettifica se scendono)", [{ valore: 10, motivo: "carico" }, { valore: 1, motivo: "rettifica" }], [P.lavoroRiga(salvata, b, { ...b, giacenza: "10" }, COME)?.giacenza, P.lavoroRiga(salvata, b, { ...b, giacenza: "1" }, COME)?.giacenza]);
+    c("…pezzi invariati: nessun movimento, anche con un motivo scelto", null, P.lavoroRiga(salvata, b, b, { ...COME, motivo: "reso" })?.giacenza);
+
+    // più varianti senza opzioni: si vedono tutte (modificabili e disattivabili)
+    const due = [unica({ id: "u1" }), unica({ id: "u2", sku: "HG-T01-B", nome: "Seconda", attiva: false })];
+    c("due varianti senza opzioni → due righe in tabella, nessuna riga chiusa (si possono modificare e riattivare)", [["u1", "u2"], null], ((x) => [x.righe.map((v) => v.id), x.unicaSpenta])(P.dividiRighe(due, "HG-T01")));
+    c("una sola variante senza opzioni (l'Unica, accesa o spenta) → prodotto semplice, nessuna tabella", [0, 0], [P.dividiRighe([unica()], "HG-T01").righe.length, P.dividiRighe([unica({ attiva: false })], "HG-T01").righe.length]);
+
+    // i soldi non passano da decimali binari: 0,29 · 1,15 · 19,99 → 29 · 115 · 1999
+    const cr = (t) => P.lavoroRiga(salvata, b, { ...b, costo: t }, COME)?.campi?.costoCent;
+    c("costo 0,29 · 1,15 · 19,99 euro → 29 · 115 · 1999 centesimi", [29, 115, 1999], [cr("0,29"), cr("1,15"), cr("19,99")]);
+    const pr = (t) => P.lavoroRiga(salvata, b, { ...b, prezzo: t }, COME)?.campi?.prezzoCent;
+    c("prezzo 0,29 · 1,15 · 19,99 euro → 29 · 115 · 1999 centesimi", [29, 115, 1999], [pr("0,29"), pr("1,15"), pr("19,99")]);
+  }
 
   // ════ LE SCRITTURE: server vero, database finto ════
   const S = mod["negozio/prodotti.server"];
@@ -169,6 +201,7 @@ export async function prove(mod, { c, gruppo, radice }) {
       c("tabella: 6 righe (una per combinazione), la Unica spenta NON è fra le righe", 6, conta(html, /data-variante=/g));
       c("tabella: le intestazioni Variante · Prezzo · Giacenza · SKU · Barcode · Peso · Costo · Attiva", [true, true, true, true, true, true, true, true], ["Variante", "Prezzo", "Giacenza", "SKU", "Barcode", "Peso (g)", "Costo", "Attiva"].map((x) => new RegExp(`<span>${x.replace(/[()]/g, "\\$&")}</span>`).test(html)));
       c("tabella: 6 caselle per ogni colonna (prezzo, giacenza, SKU, barcode, peso, costo)", [6, 6, 6, 6, 6, 6], ["Prezzo", "Giacenza", "SKU", "Barcode", "Peso \\(g\\)", "Costo"].map((x) => conta(html, new RegExp(`aria-label="${x}, `, "g"))));
+      c("la colonna «Variante» è una casella modificabile col nome (6 caselle, `aria-label` «Variante, <nome>»)", [6, true], [conta(html, /<input[^>]*aria-label="Variante, [^"]+"/g), /<input[^>]*aria-label="Variante, Nero \/ S"[^>]*value="Nero \/ S"|<input[^>]*value="Nero \/ S"[^>]*aria-label="Variante, Nero \/ S"/.test(html)]);
       c("tabella: 6 interruttori «Attiva» e 6 caselle per scegliere", [6, 6], [conta(html, /aria-label="Variante [^"]* attiva"/g) - 1, conta(html, /aria-label="Scegli /g)]);
       c("il campo «Prezzo di base» c'è, col prezzo del prodotto (19,90), in sola lettura finché il guscio non lo lega", [true, true, true], [t.includes("Prezzo di base (per le righe senza prezzo)"), /id="prezzo-base"[^>]*value="19,90"|value="19,90"[^>]*id="prezzo-base"/.test(html), /<input[^>]*id="prezzo-base"[^>]*readOnly=""|<input[^>]*readOnly=""[^>]*id="prezzo-base"/.test(html)]);
       c("le righe senza prezzo mostrano 19,90 in grigio (segnaposto) e «del prodotto» sotto, su ognuna", [6, 6], [conta(html, /<input[^>]*aria-label="Prezzo, [^>]*placeholder="19,90"/g), conta(html, />del prodotto</g)]);
@@ -178,7 +211,7 @@ export async function prove(mod, { c, gruppo, radice }) {
       c("…e la schermata lo dice: «Le varianti non si cancellano: si disattivano»", true, t.includes("Le varianti non si cancellano: si disattivano."));
       c("le opzioni ci sono, scritte come etichette, con la frase «Scrivi un valore e premi Invio.»", [true, true, true], [t.includes("Scrivi un valore e premi Invio."), COLORI.every((x) => html.includes(`aria-label="Togli il valore ${x}"`)), /aria-label="Togli il valore S"/.test(html)]);
       c("un valore che ha già delle varianti non si toglie da qui (casella spenta)", true, /<button[^>]*aria-label="Togli il valore Nero"[^>]*disabled=""|<button[^>]*disabled=""[^>]*aria-label="Togli il valore Nero"/.test(html));
-      c("riga sul telefono: etichette sopra le caselle (visibili) e, nella tabella larga, solo per chi legge lo schermo", true, /<span class="[^"]*@\[43rem\]:sr-only[^"]*">Prezzo<\/span>/.test(html));
+      c("riga sul telefono: etichette sopra le caselle (visibili) e, nella tabella larga, solo per chi legge lo schermo", true, /<span class="[^"]*@\[44rem\]:sr-only[^"]*">Prezzo<\/span>/.test(html));
       c("tutte le caselle di una riga hanno un nome che dice quale riga è", [true], [/aria-label="Giacenza, [A-Za-z]+ \/ [SM]"/.test(html) || /aria-label="Giacenza, /.test(html)]);
 
       // senza `costi` la colonna del costo non c'è; con la colonna spenta c'è con la sua frase
@@ -204,6 +237,21 @@ export async function prove(mod, { c, gruppo, radice }) {
       c("prodotto semplice: «Aggiungi opzioni come colore o misura», nessuna tabella, nessun «Prezzo di base»", [true, 0, false], [leggibile(sem).includes("Aggiungi opzioni come colore o misura"), conta(sem, /data-variante=/g), leggibile(sem).includes("Prezzo di base")]);
       c("…e il tasto per aprirle (alto 44 px sul telefono)", true, /<button[^>]*class="[^"]*h-11[^"]*"[^>]*>Aggiungi opzioni<\/button>/.test(sem));
       c("prodotto senza nessuna variante: resta il tasto per aggiungere la variante unica", true, leggibile(await vedi(props([]))).includes("aggiungi la variante unica"));
+
+      // più varianti senza opzioni: si vedono tutte, modificabili e disattivabili
+      const dueNo = await vedi(props([{ ...u, attiva: true }, { ...u, id: "u2", sku: "HG-E08-B", nome: "Seconda", attiva: false }]));
+      c("due varianti senza opzioni: due righe in tabella, ognuna col suo nome, il suo interruttore e la sua spunta", [2, 2, 2, 2], [conta(dueNo, /data-variante=/g), conta(dueNo, /aria-label="Variante, (Unica|Seconda)"/g), conta(dueNo, /aria-label="Variante (Unica|Seconda) attiva"/g), conta(dueNo, /aria-label="Scegli /g)]);
+
+      // il motivo del movimento per riga: solo sulle righe dove i pezzi cambiano, proposto e modificabile
+      const righeT = dopo.varianti.filter((x) => Object.keys(x.opzioni).length);
+      const baseT = Object.fromEntries(righeT.map((x) => [x.id, P.rigaDa(x, null)]));
+      const propsT = (ora, motivi) => ({ righe: righeT, base: baseT, ora, errori: {}, cambia() {}, motivi, cambiaMotivo() {}, prezzoBase: "19,90", senzaPrezzo: false, conCosto: true, costoDisponibile: true, scelte: new Set(), alternaScelta() {}, sceltaTutte() {}, attiva() {}, spento: false, unicaSpenta: null });
+      const vediT = async (pr) => (await rendiComponente(radice, FILE.TabellaVarianti, "TabellaVarianti", pr)).html;
+      const senzaMod = await vediT(propsT(baseT, {}));
+      const primaId = righeT[0].id;
+      const conMod = await vediT(propsT({ ...baseT, [primaId]: { ...baseT[primaId], giacenza: "20" } }, { [primaId]: "carico" }));
+      c("nessuna riga con pezzi cambiati → nessun menu del motivo", 0, conta(senzaMod, /<select/g));
+      c("una riga con pezzi cambiati → UN menu «Motivo» con Carico, Rettifica, Reso, scelto quello proposto", [1, true, true, true, true], [conta(conMod, /<select/g), />Carico</.test(conMod), />Rettifica</.test(conMod), />Reso</.test(conMod), /<option value="carico" selected=""/.test(conMod)]);
 
       // i limiti: tasto spento con la frase del perché
       const spentoCon = (h, nome) => new RegExp(`<button[^>]*disabled=""[^>]*>${nome}</button>|<button[^>]*>[^<]*</button>`).test(h) && new RegExp(`<button(?:(?!</button>)[^>])*disabled=""(?:(?!</button>)[^>])*>(?:(?!</button>).)*${nome}`).test(h);
@@ -257,16 +305,20 @@ export async function prove(mod, { c, gruppo, radice }) {
     // ── una riga: salvare tutti i campi cambiati, e ricaricare mostra gli stessi valori (criterio 2) ──
     const v0 = dopoStock.varianti.find((v) => v.id === ids[0]);
     const base0 = P.rigaDa(v0, dopoStock.costi[v0.id]);
-    const nuovo0 = { prezzo: "21,00", giacenza: "3", sku: "HG-E08-NE-S", gtin: "8012345678905", peso: "85", costo: "9,90" };
+    const nuovo0 = { nome: "Nero piccola", prezzo: "21,00", giacenza: "3", sku: "HG-E08-NE-S", gtin: "8012345678905", peso: "85", costo: "9,90" };
     const lavoro = P.lavoroRiga(v0, base0, nuovo0, COME);
     const s1 = await A.salvaRighe(p.esegui, id, [{ v: v0, lavoro }], false);
     const dopoRiga = await scheda(db, id);
     const v0d = dopoRiga.varianti.find((v) => v.id === ids[0]);
-    c("salvaRighe: prezzo, giacenza (via movimento), SKU, barcode, peso e costo scritti; «Salvata 1 riga.»", [{ prezzoCent: 2100, giacenza: 3, sku: "HG-E08-NE-S", gtin: "8012345678905", pesoG: 85 }, 990, "Salvata 1 riga.", [ids[0]]],
-      [{ prezzoCent: v0d.prezzoCent, giacenza: v0d.giacenza, sku: v0d.sku, gtin: v0d.gtin, pesoG: v0d.pesoG }, dopoRiga.costi[ids[0]], s1.esito.testo, s1.fatte]);
+    c("salvaRighe: nome, prezzo, giacenza (via movimento), SKU, barcode, peso e costo scritti; «Salvata 1 riga.»", [{ nome: "Nero piccola", prezzoCent: 2100, giacenza: 3, sku: "HG-E08-NE-S", gtin: "8012345678905", pesoG: 85 }, 990, "Salvata 1 riga.", [ids[0]]],
+      [{ nome: v0d.nome, prezzoCent: v0d.prezzoCent, giacenza: v0d.giacenza, sku: v0d.sku, gtin: v0d.gtin, pesoG: v0d.pesoG }, dopoRiga.costi[ids[0]], s1.esito.testo, s1.fatte]);
     c("ricaricata la scheda, i testi della riga sono quelli scritti (andata e ritorno)", nuovo0, P.rigaDa(v0d, dopoRiga.costi[ids[0]]));
     c("…le altre 5 righe non sono state toccate (prezzo 2250 o 3000, stock 7)", true, ids.slice(1).every((i) => dopoRiga.varianti.find((v) => v.id === i).giacenza === 7));
     c("…il costo non esce nella variante letta (sta solo in `costi`)", false, JSON.stringify(dopoRiga.varianti).includes("costo"));
+    const movN = righe(db, "shop_giacenza_movimenti").length;
+    const sReso = await A.salvaRighe(p.esegui, id, [{ v: v0d, lavoro: P.lavoroRiga(v0d, P.rigaDa(v0d, dopoRiga.costi[ids[0]]), { ...nuovo0, giacenza: "5" }, { ...COME, motivo: "reso" }) }], false);
+    c("giacenza di una riga col motivo scelto «reso»: il movimento registrato dice «reso» (+2)", [1, "reso", 2], [righe(db, "shop_giacenza_movimenti").length - movN, righe(db, "shop_giacenza_movimenti").at(-1)?.motivo, righe(db, "shop_giacenza_movimenti").at(-1)?.delta]);
+    void sReso;
     const sPub = await A.salvaRighe(p.esegui, id, [{ v: v0d, lavoro: P.lavoroRiga(v0d, P.rigaDa(v0d, dopoRiga.costi[ids[0]]), { ...nuovo0, peso: "90" }, COME) }], true);
     c("su un prodotto pubblicato la frase dice che si vede già sul sito", "Salvata 1 riga: si vede già sul sito.", sPub.esito.testo);
     const sDue = await A.salvaRighe(p.esegui, id, ids.slice(1, 3).map((i) => ({ v: dopoRiga.varianti.find((v) => v.id === i), lavoro: { campi: { pesoG: 50 }, giacenza: null } })), false);
