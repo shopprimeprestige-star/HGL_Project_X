@@ -141,6 +141,8 @@ export async function prove(mod, { c, gruppo, radice }) {
   ]);
   const vq = righeDi(ok1.db, "shop_varianti").filter((r) => r.sku.startsWith("IMP-CUF"));
   c("il prodotto con 4 varianti: opzioni e prezzi delle varianti scritti, prezzo vuoto = quello del prodotto", [["Rosso / S", "Rosso / M", "Nero / S", "Nero / M"], [null, 2190, null, null], [1, 2, 3, 4]], [vq.map((v) => v.nome), vq.map((v) => v.prezzo_cent), vq.map((v) => v.ordine)]);
+  const spazi = await importa([prodotto(4, { handle: "spazi-prova", sku: "IMP-SPAZI", varianti: [variante(2, "IMP-SPAZI", { nome: "Rosso", opzioni: { " Colore\t": "  Rosso \n" } })] })]);
+  c("le opzioni arrivano ripulite dai bordi (chiavi e valori): «Colore»/«Rosso», non « Colore\\t»/«  Rosso \\n»", [200, [{ Colore: "Rosso" }]], [spazi.stato, righeDi(spazi.db, "shop_varianti").filter((r) => r.sku === "IMP-SPAZI").map((r) => r.opzioni)]);
   c("`chi` preso dalla guardia anche se il corpo ne porta un altro: «Mallory» non compare da nessuna parte", [false, true], [JSON.stringify(ok1.db.tabelle).includes("Mallory"), righeDi(ok1.db, "shop_storico").length > 0 && righeDi(ok1.db, "shop_storico").every((r) => r.chi === "Giulia Esempio")]);
   const risposta = JSON.stringify(ok1.corpo);
   c("la risposta dell'import non porta il costo né altro di non richiesto", [false, false], [/costo|450|700/.test(risposta), /nota_titolare|Importato da CSV/.test(risposta)]);

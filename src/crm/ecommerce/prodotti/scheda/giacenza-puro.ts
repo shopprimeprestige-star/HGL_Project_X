@@ -3,7 +3,8 @@
  *  · il campo SEGUE il magazzino finché il titolare non lo tocca (se arriva un ordine e il magazzino passa da 10 a 7, il campo dice 7);
  *  · si scrive solo ciò che il titolare ha toccato dopo l'ultima lettura (un numero vecchio non diventa mai un movimento);
  *  · si scrive quando il fuoco esce da TUTTO il gruppo quantità + motivo, non appena si lascia la quantità: altrimenti passando al menu
- *    «Motivo» il movimento partirebbe col motivo proposto e «Reso» non si potrebbe più scegliere.
+ *    «Motivo» il movimento partirebbe col motivo proposto e «Reso» non si potrebbe più scegliere. Dove va il fuoco si guarda UN TURNO DOPO
+ *    l'evento (`alLasciareIlGruppo`): su Safari `relatedTarget` può essere nullo anche passando al menu, `document.activeElement` no.
  *  Si prova in `prove/negozio/scheda-struttura.mjs`. */
 import { cambioQuantita, type MotivoGiacenza } from "../semplice-puro";
 
@@ -30,3 +31,16 @@ export const fuocoEsceDalGruppo = (
   gruppo: { contains: (n: Node | null) => boolean },
   prossimo: Node | null,
 ): boolean => !gruppo.contains(prossimo);
+
+/** Da chiamare nel `onBlur` del gruppo con `e.currentTarget` (si legge subito: dopo il turno l'evento è vuoto). Il fuoco si guarda
+ *  un turno dopo, quando il browser ha deciso dove è andato: se è ancora nel gruppo (quantità → menu «Motivo») non si scrive;
+ *  uscendo dal gruppo si chiama `conferma`, che vede le props dell'ultimo disegno (motivo scelto compreso). */
+export function alLasciareIlGruppo(
+  gruppo: { contains: (n: Node | null) => boolean },
+  attivo: () => Node | null,
+  conferma: () => void,
+): void {
+  setTimeout(() => {
+    if (fuocoEsceDalGruppo(gruppo, attivo())) conferma();
+  }, 0);
+}

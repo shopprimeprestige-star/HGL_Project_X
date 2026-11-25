@@ -125,12 +125,15 @@ async function categorieEsistenti(d: PorteDb, dove: string): Promise<Record<stri
 /* ══ L'IMPORT ═══════════════════════════════════════════════════════════════ */
 
 const ripulisci = (x: unknown): unknown => (typeof x === "string" ? x.trim() : x);
+/** Le opzioni di una variante (`{ Colore: "Rosso" }`) con chiavi e valori ripuliti dai bordi: « Colore » e «Colore» sono la stessa opzione. Un valore che non è testo resta com'è (lo dice la validazione). */
+const opzioniPulite = (x: unknown): unknown =>
+  eOggetto(x) ? Object.fromEntries(Object.entries(x).map(([k, v]) => [k.trim(), ripulisci(v)])) : x;
 const vuotoANiente = <T>(x: T | undefined): T | undefined => (x === "" ? undefined : x);
 
 /** Il prodotto come arriva dal browser, con i testi ripuliti dai bordi (anche da tab e a capo). Qualunque cosa non sia un oggetto resta com'è: la validazione lo dice. */
 function pulito(x: unknown): ProdottoImport {
   const p = eOggetto(x) ? x : {};
-  const varianti = Array.isArray(p.varianti) ? p.varianti.map((v) => (eOggetto(v) ? { ...v, nome: ripulisci(v.nome), gtin: ripulisci(v.gtin) } : v)) : p.varianti;
+  const varianti = Array.isArray(p.varianti) ? p.varianti.map((v) => (eOggetto(v) ? { ...v, nome: ripulisci(v.nome), gtin: ripulisci(v.gtin), opzioni: opzioniPulite(v.opzioni) } : v)) : p.varianti;
   return {
     ...p,
     titolo: ripulisci(p.titolo), marca: ripulisci(p.marca), descrizioneBreve: ripulisci(p.descrizioneBreve), descrizioneLunga: ripulisci(p.descrizioneLunga),

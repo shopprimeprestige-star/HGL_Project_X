@@ -10,7 +10,7 @@ import {
   type Modalita,
   type MotivoGiacenza,
 } from "../semplice-puro";
-import { fuocoEsceDalGruppo } from "./giacenza-puro";
+import { alLasciareIlGruppo } from "./giacenza-puro";
 import { CLASSI_CAMPO, CampoP, RiquadroPolaris } from "./polaris";
 import { CampoTesto, type ProprietaRiquadro } from "./RiquadroCampi";
 
@@ -81,8 +81,11 @@ export function RiquadroGiacenza({
       </div>
       <div
         onBlur={(e) =>
-          fuocoEsceDalGruppo(e.currentTarget, e.relatedTarget as Node | null) &&
-          confermaQuantita?.()
+          alLasciareIlGruppo(
+            e.currentTarget,
+            () => document.activeElement,
+            () => confermaQuantita?.(),
+          )
         }
       >
         <div className={nuovo ? "grid gap-4" : "grid gap-4 md:grid-cols-2"}>
