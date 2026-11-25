@@ -71,8 +71,8 @@ export async function prove(mod, { c, gruppo }) {
   // ── i tre controlli PRIMA del primo insert: nessuna riga nuova, mai una bozza orfana ──
   {
     const casi = [
-      ["SKU già usato da un prodotto", nuovo({ sku: "PROVA-001", ...completa }), 409, /SKU/],
-      ["indirizzo già usato", nuovo({ slug: "prodotto-di-prova", ...completa }), 409, /già usato/],
+      ["SKU già usato da un prodotto", nuovo({ sku: "PROVA-001", ...completa }), 409, /^Lo SKU “PROVA-001” è già usato da un altro prodotto\.$/],
+      ["indirizzo già usato", nuovo({ slug: "prodotto-di-prova", ...completa }), 409, /^Questo SKU o questo indirizzo è già usato da un altro prodotto\.$/],
       ["SKU uguale a quello di una VARIANTE di un altro prodotto (PROVA-001-A)", nuovo({ sku: "PROVA-001-A", ...completa }), 409, /SKU/],
       ["categoria che non esiste", nuovo({ ...completa, categorie: [uuid(0x999)] }), 400, /categoria/i],
     ];
@@ -88,6 +88,23 @@ export async function prove(mod, { c, gruppo }) {
     const sku = await POST(db, nuovo({ sku: "PROVA-001" }));
     const slug = await POST(db, nuovo({ slug: "prodotto-di-prova" }));
     c("SKU doppio: la frase di oggi con lo SKU; indirizzo doppio: quella del database di oggi", ["Lo SKU “PROVA-001” è già usato da un altro prodotto.", "Questo SKU o questo indirizzo è già usato da un altro prodotto."], [sku.json.frase, slug.json.frase]);
+    // frase giusta per ogni caso delle categorie (un elemento che non è un id non è «più di 10»)
+    const frasi = [];
+    for (const categorie of [["../x"], Array.from({ length: 11 }, (_, i) => uuid(0x100 + i))]) frasi.push((await POST(fintoDb({ tabelle: tab() }), nuovo({ ...completa, categorie }))).json.frase);
+    c("categorie: un elemento non valido e più di 10 danno la stessa frase giusta", ["Le categorie non sono valide (al massimo 10).", "Le categorie non sono valide (al massimo 10)."], frasi);
+  }
+
+  // ── il costo (valore 4242, riconoscibile) non esce da nessuna risposta di scrittura: né la chiave né il numero ──
+  // Decisione: nella SPEC e nel PIANO il costo è letto dalla scheda del CRM (`schedaProdotto().costi`, provata sotto); le risposte di
+  // `prodotto_crea` e `variante_salva` non lo ridanno (passano da `varianteDaRiga`, che non lo copia), quindi il divieto vale anche per loro.
+  {
+    const db = fintoDb({ tabelle: tab() });
+    const crea = await POST(db, nuovo({ ...completa, variante: { giacenza: 10, costoCent: 4242 } }));
+    const vs = await POST(db, { azione: "variante_salva", prodottoId: P1, variante: { id: uuid(0x300), costoCent: 4242 } });
+    const nuova = await POST(db, { azione: "variante_salva", prodottoId: P1, variante: { sku: "PROVA-001-K", nome: "K", costoCent: 4242 } });
+    const dove = [["prodotto_crea", crea], ["variante_salva (esistente)", vs], ["variante_salva (nuova)", nuova]];
+    c("…le scritture sono andate a buon fine (il costo c'è nel database)", [true, true, true, 4242], [crea.json.ok, vs.json.ok, nuova.json.ok, righeDi(db, "shop_varianti").find((v) => v.sku === "HG-E01")?.costo_cent]);
+    for (const [nome, r] of dove) c(`${nome}: la risposta non contiene «costo» né 4242`, [false, false], [/costo/i.test(JSON.stringify(r.json)), JSON.stringify(r.json).includes("4242")]);
   }
 
   // ── tutto si controlla PRIMA di scrivere: richieste storte, nessuna scrittura ──
@@ -114,11 +131,9 @@ export async function prove(mod, { c, gruppo }) {
       ["un campo della variante che non c'è (prezzoCent)", { ...completa, variante: { prezzoCent: 100 } }],
       ["`variante` non è un oggetto", { ...completa, variante: 5 }],
     ];
-    const esiti = [];
     for (const [nome, extra] of storte) {
       const db = fintoDb({ tabelle: tab() });
       const r = await POST(db, nuovo(extra));
-      esiti.push([nome, r.stato, db.scritture.length]);
       c(`${nome} → 400, nessuna scrittura`, [400, 0], [r.stato, db.scritture.length]);
     }
   }
