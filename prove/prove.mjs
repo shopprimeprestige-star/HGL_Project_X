@@ -95,6 +95,7 @@ import { proveSelezioneChat } from "./idee/selezione-chat.mjs";
 import { proveDatiFattura } from "./dati-fattura.mjs";
 import { proveFattureBulk } from "./fatture-bulk.mjs";
 import { proveEcommerce } from "./ecommerce.mjs";
+import { proveNegozio } from "./negozio.mjs";
 import { provePannelloOggi } from "./pannello-oggi.mjs";
 import { proveSpesaLead } from "./spesa-lead.mjs";
 
@@ -862,6 +863,29 @@ const MODULI = [
         .sort()
         .map((f) => `ecommerce/${f.slice(0, -3)}`)
     : []),
+  //  ── SHOP COMPLETO (commessa 2026-11-20-shop-completo, T01) ──────────────
+  //   ⚠️ Stesso schema: una voce sola per tutta la commessa. I moduli puri (`.ts`, non i `.tsx`, non i
+  //   `*.functions.ts` che sono solo l'involucro del server) di queste cartelle si trovano da soli, con la
+  //   chiave «prefisso/nome»: `shop/cms/modello`, `negozio/prodotti.server`, `tracciamento/…`,
+  //   `lib/tracciamento/nomi`, `lib/consenso`. Le prove sono in prove/negozio/ (trovate da `proveNegozio`).
+  ...[
+    ["src/shop/cms", "shop/cms/"],
+    ["src/crm/negozio", "negozio/"],
+    ["src/crm/tracciamento", "tracciamento/"],
+    ["src/lib/tracciamento", "lib/tracciamento/"],
+    //  Rilascio 2 (PIANO-R2, T40): solo `.ts`, mai `.tsx` né `*.functions.ts`. Le cartelle nascono coi compiti W1+.
+    ["src/shop/stripe", "shop/stripe/"],
+    ["src/shop/cassa", "shop/cassa/"],
+    ["src/shop/email", "shop/email/"],
+  ].flatMap(([cartella, prefisso]) =>
+    existsSync(join(radice, cartella))
+      ? readdirSync(join(radice, cartella))
+          .filter((f) => f.endsWith(".ts") && !f.endsWith(".d.ts") && !f.endsWith(".functions.ts"))
+          .sort()
+          .map((f) => `${prefisso}${f.slice(0, -3)}`)
+      : [],
+  ),
+  ...(existsSync(join(radice, "src/lib/consenso.ts")) ? ["lib/consenso"] : []),
 ];
 rmSync(dove, { recursive: true, force: true });
 mkdirSync(dove, { recursive: true });
@@ -13911,7 +13935,7 @@ function proveDelCarattere() {
   for (const p of [
     "/preventivo", "/preventivo?watch=abc", "/meetly", "/meetly/abc-defg-hij", "/videochiamata/abc",
     "/presenta", "/presentatore", "/slide", "/regia/xyz", "/webinar/abc", "/prova-capelli",
-    "/prova-anteprima/a", "/CRM/webinar", "/CRM/webinar/", "/CRM/webinar/abc", "/shop", "/nuova",
+    "/prova-anteprima/a", "/CRM/webinar", "/CRM/webinar/", "/CRM/webinar/abc", "/shop/checkout", "/nuova",
     "/consulente", "/blogger", "/CRMx", "/chatx", "/chat/altro", "/CRM/Webinar", "/crm/webinar", "/CRM/WEBINAR/?x=1",
   ]) {
     c(`Inter NON vale su ${p}`, false, CAR.usaInter(p));
@@ -19259,6 +19283,10 @@ export { PROBLEMI } from "@/landing/testi-sito";`,
   c("nessuna barra sul carrello", false, R.barraVisibile("/shop/carrello", false));
   c("nessuna barra sulla cassa", false, R.barraVisibile("/shop/checkout", false));
   c("nessuna barra sul carrello con la barra finale", false, R.barraVisibile("/shop/carrello/", false));
+  c("nessuna barra sulla pagina dell'ordine (T106)", false, R.barraVisibile("/shop/ordine/PROVA123", false));
+  c("nessuna barra sulla pagina del collaudo (T109c, T103b-8)", false, R.barraVisibile("/shop/collaudo", false));
+  c("la barra resta su un indirizzo che inizia solo per «collaudo» (/shop/collaudo-kit)", true, R.barraVisibile("/shop/collaudo-kit", false));
+  c("la barra resta su un indirizzo che inizia solo per «ordine» (/shop/ordine-kit)", true, R.barraVisibile("/shop/ordine-kit", false));
   for (const p of ["/CRM", "/CRM/nuovi-contatti", "/crm", "/meetly", "/meetly/ABC", "/preventivo", "/invito/XYZ"]) {
     c(`nessuna barra su ${p}`, false, R.barraVisibile(p, false));
   }
@@ -19895,7 +19923,7 @@ async function proveDelLinkChiuso() {
  *  prova. */
 async function proveDelPrimoEventoDellaVisita() {
   const esbuild = chiedi("esbuild");
-  gruppo("TRACCIAMENTO: IL PRIMO EVENTO DI UNA VISITA NON SI PERDE");
+  gruppo("TRACCIAMENTO: IL PRIMO EVENTO DI UNA VISITA NON SI PERDE (senza consenso nessun pixel)");
   const finta = join(dove, "supabase-finta.js");
   writeFileSync(
     finta,
@@ -19911,38 +19939,45 @@ async function proveDelPrimoEventoDellaVisita() {
     platform: "node",
     write: false,
     logLevel: "error",
-    alias: { "@/integrations/supabase/client": finta },
+    //  `@` serve a `@/lib/consenso` e `@/lib/tracciamento/*` (il cancello del consenso, Shop R1 T28).
+    alias: { "@/integrations/supabase/client": finta, "@": join(radice, "src") },
     define: {
       "import.meta.env.VITE_SUPABASE_URL": '"http://127.0.0.1:9"',
       "import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY": '"finta"',
     },
   });
-  const scenario = async (nome, { admin, cache, bloccata }) => {
+  //  Il consenso sta nell'archivio finto come lo scrive il banner v2. Senza scelta: niente chiave.
+  const CONSENSI = {
+    marketing: JSON.stringify({ v: 2, statistiche: true, marketing: true, ts: 1 }),
+    necessari: JSON.stringify({ v: 2, statistiche: false, marketing: false, ts: 1 }),
+  };
+  const scenario = async (nome, { admin, cache, bloccata, consenso }) => {
     const memoria = new Map(cache ? [["lp_admin_skip", cache]] : []);
+    const archivioLocale = new Map(consenso ? [["hgl_cookie_consent_v2", CONSENSI[consenso]]] : []);
     const pixel = [];
     const ripristina = [];
     const metti = (k, v) => {
       ripristina.push([k, Object.getOwnPropertyDescriptor(globalThis, k)]);
       Object.defineProperty(globalThis, k, { value: v, configurable: true, writable: true });
     };
-    const store = () => ({
+    const store = (m) => ({
       getItem: (k) => {
         if (bloccata) throw new Error("SecurityError");
-        return memoria.has(k) ? memoria.get(k) : null;
+        return m.has(k) ? m.get(k) : null;
       },
-      setItem: (k, v) => void memoria.set(k, String(v)),
-      removeItem: (k) => void memoria.delete(k),
+      setItem: (k, v) => void m.set(k, String(v)),
+      removeItem: (k) => void m.delete(k),
     });
     globalThis.__sb = { inserti: [], risolvi: null };
     metti("window", {
       location: { href: "https://sito.test/", search: "", pathname: "/", hostname: "sito.test" },
-      sessionStorage: store(),
-      localStorage: store(),
+      sessionStorage: store(memoria),
+      localStorage: store(archivioLocale),
       fbq: (...a) => pixel.push(a),
       addEventListener() {},
       innerWidth: 390,
     });
-    metti("document", { referrer: "", cookie: "", addEventListener() {} });
+    metti("document", { referrer: "", cookie: "_fbp=fb.1.1700.99", addEventListener() {} });
     metti("sessionStorage", globalThis.window.sessionStorage);
     metti("localStorage", globalThis.window.localStorage);
     metti("navigator", { userAgent: "Mozilla/5.0 (iPhone) Safari" });
@@ -19957,18 +19992,29 @@ async function proveDelPrimoEventoDellaVisita() {
     await prima;
     await new Promise((ok) => setTimeout(ok, 5));
     const dopo = { inserti: globalThis.__sb.inserti.length, pixel: pixel.length };
+    const fbpInserito = globalThis.__sb.inserti[0]?.fbp;
     for (const [k, d] of ripristina.reverse()) d ? Object.defineProperty(globalThis, k, d) : delete globalThis[k];
-    return { nome, durante, dopo };
+    return { nome, durante, dopo, fbpInserito };
   };
 
+  //  ⚠️ Senza consenso marketing nessun pixel, mai (cancello del consenso, D13): il conteggio interno parte lo stesso, ma senza `fbp`.
   const visitatore = await scenario("visitatore", { admin: false });
   c("in attesa della risposta non parte niente", { inserti: 0, pixel: 0 }, visitatore.durante);
-  c("risposto «non sei admin»: l'evento e il pixel partono", { inserti: 1, pixel: 1 }, visitatore.dopo);
-  const admin = await scenario("admin", { admin: true });
-  c("risposto «sei admin»: niente evento, niente pixel", { inserti: 0, pixel: 0 }, admin.dopo);
-  const noto = await scenario("noto", { cache: "0" });
-  c("controllo già noto (visita in corso): parte subito", { inserti: 1, pixel: 1 }, noto.durante);
-  const adminNoto = await scenario("adminNoto", { cache: "1" });
+  c("visitatore SENZA SCELTA, risposto «non sei admin»: il conteggio interno parte, il pixel MAI (senza consenso nessun pixel)", { inserti: 1, pixel: 0 }, visitatore.dopo);
+  c("…e la riga inserita non porta `fbp` (nemmeno con il cookie presente)", null, visitatore.fbpInserito ?? null);
+  const solo = await scenario("solo necessari", { admin: false, consenso: "necessari" });
+  c("solo necessari: il conteggio interno parte, nessun pixel", { inserti: 1, pixel: 0 }, solo.dopo);
+  const mkt = await scenario("marketing", { admin: false, consenso: "marketing" });
+  c("in attesa della risposta, anche con il consenso marketing, non parte niente", { inserti: 0, pixel: 0 }, mkt.durante);
+  c("visitatore CON MARKETING, risposto «non sei admin»: l'evento e il pixel partono", { inserti: 1, pixel: 1 }, mkt.dopo);
+  c("…e la riga inserita porta `fbp` come prima", "fb.1.1700.99", mkt.fbpInserito);
+  const admin = await scenario("admin", { admin: true, consenso: "marketing" });
+  c("risposto «sei admin»: niente evento, niente pixel (anche con tutto il consenso)", { inserti: 0, pixel: 0 }, admin.dopo);
+  const noto = await scenario("noto", { cache: "0", consenso: "marketing" });
+  c("controllo già noto (visita in corso) e consenso marketing: parte subito", { inserti: 1, pixel: 1 }, noto.durante);
+  const notoSenza = await scenario("notoSenza", { cache: "0" });
+  c("controllo già noto ma senza scelta: il conteggio parte subito, il pixel no", { inserti: 1, pixel: 0 }, notoSenza.durante);
+  const adminNoto = await scenario("adminNoto", { cache: "1", consenso: "marketing" });
   c("admin già noto: mai niente", { inserti: 0, pixel: 0 }, adminNoto.dopo);
 }
 
@@ -21659,6 +21705,7 @@ proveSelezioneChat(mod, { c, gruppo, radice });
 await proveDatiFattura(mod, { c, gruppo, radice });
 await proveFattureBulk(mod, { c, gruppo, radice });
 await proveEcommerce(mod, { c, gruppo, radice });
+await proveNegozio(mod, { c, gruppo, radice });
 provePannelloOggi(mod, { c, gruppo, radice });
 proveSpesaLead(mod, { c, gruppo, radice });
 await proveIdeeAi(mod, { c, gruppo, radice });
@@ -21986,7 +22033,7 @@ function proveDelleMigrazioniDelPromemoria() {
   const cron = readFileSync(f2, "utf8");
   c("il cron: una sola chiamata, ogni 2 minuti, sulla rotta giusta", 1, (cron.replace(/--.*$/gm, "").match(/SELECT public\.programma_hook_cron\('promemoria-whatsapp-2min', '\*\/2 \* \* \* \*', '\/hooks\/promemoria-whatsapp'\);/g) || []).length);
   c("come si spegne: scritto", true, /cron\.unschedule\('promemoria-whatsapp-2min'\)/.test(cron));
-  const ultime = readdirSync(cartella).filter((n) => n.endsWith(".sql") && !n.includes("promemoria_whatsapp") && !n.includes("manychat_") && !n.includes("sheets_ingresso") && !n.includes("chat_whatsapp_crm") && !n.includes("attesa_da_chiamare") && !n.includes("push_iscrizioni") && !n.includes("ponte_whatsapp") && !n.includes("risposte_ai") && !n.includes("riepilogo_serale") && !n.includes("ponte_invio_manuale") && !n.startsWith("20261030") && !n.startsWith("20261031") && !n.includes("chiamate_numeri_senza_scheda") && !n.includes("ponte_chat_flag")).sort();
+  const ultime = readdirSync(cartella).filter((n) => n.endsWith(".sql") && !n.includes("promemoria_whatsapp") && !n.includes("manychat_") && !n.includes("sheets_ingresso") && !n.includes("chat_whatsapp_crm") && !n.includes("attesa_da_chiamare") && !n.includes("push_iscrizioni") && !n.includes("ponte_whatsapp") && !n.includes("risposte_ai") && !n.includes("riepilogo_serale") && !n.includes("ponte_invio_manuale") && !n.startsWith("20261030") && !n.startsWith("20261031") && !n.includes("chiamate_numeri_senza_scheda") && !n.includes("ponte_chat_flag") && !n.includes("ecommerce_ordini") && !n.startsWith("202611")).sort();
   c("vengono dopo l'ultima migrazione esistente", true, "20261022140000" > ultime.at(-1).slice(0, 14));
 }
 

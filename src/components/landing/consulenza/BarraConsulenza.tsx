@@ -29,9 +29,28 @@ interface Props {
   provenienza: Provenienza;
   /** Protesi guardata, se la pagina è la scheda di una protesi. */
   prodotto?: string;
+  /** La barra sta sopra il banner dei cookie a ogni larghezza (`--banner-h`, scritta dallo shop; da 640 px il banner è una card a sinistra e la coprirebbe). Di partenza no: la landing resta com'è. */
+  sopraAlBanner?: boolean;
+  /** Hover del bottone più scuro (contrasto con il bianco ≥ 4,5:1; quello di oggi, più chiaro, arriva a 4,2:1). Di partenza no. */
+  hoverScuro?: boolean;
 }
 
-export function BarraConsulenza({ provenienza, prodotto }: Props) {
+/** Le classi della barra, calcolate qui per poterle provare a parte. Senza opzioni (o con `false`) sono quelle di sempre, byte per byte. */
+export function classiBarra({ visibile, sopraAlBanner = false, hoverScuro = false }: { visibile: boolean; sopraAlBanner?: boolean; hoverScuro?: boolean }) {
+  const contenitore = `fixed inset-x-0 bottom-0 z-40 border-t border-white/15 bg-[#081634] text-white transition-[transform,visibility] duration-200 motion-reduce:transition-none ${
+    visibile ? "translate-y-0" : "invisible translate-y-full"
+  }`;
+  const bottone =
+    "h-11 shrink-0 rounded-lg bg-brand-scuro px-3.5 text-[13px] font-semibold text-white transition-colors hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#081634] sm:px-5 sm:text-sm";
+  return {
+    //  `max-sm:` e `sm:` (due varianti, così vincono entrambe su `bottom-0`): la barra sta sopra il banner sotto E da 640 px, dove il banner è una card
+    //  a sinistra larga fino a 448 px che altrimenti la coprirebbe (T103c-1).
+    contenitore: sopraAlBanner ? `${contenitore} max-sm:bottom-[var(--banner-h,0px)] sm:bottom-[var(--banner-h,0px)]` : contenitore,
+    bottone: hoverScuro ? bottone.replace("hover:brightness-110", "hover:brightness-90") : bottone,
+  };
+}
+
+export function BarraConsulenza({ provenienza, prodotto, sopraAlBanner = false, hoverScuro = false }: Props) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const [montata, setMontata] = useState(false);
   const [chiusa, setChiusa] = useState(false);
@@ -39,6 +58,8 @@ export function BarraConsulenza({ provenienza, prodotto }: Props) {
   //  delle posizioni, fatto prima del disegno. Mai un fotogramma sopra un modulo.
   const [nascosta, setNascosta] = useState(true);
   const barra = useRef<HTMLDivElement | null>(null);
+  //  Il bottone che apre il pannello: alla chiusura il fuoco torna lì (mentre il pannello è aperto la barra è `inert` e lo perde) (T103a-6, T103c-4).
+  const bottoneApri = useRef<HTMLButtonElement | null>(null);
   const [pannelloMontato, setPannelloMontato] = useState(false);
   const [pannelloAperto, setPannelloAperto] = useState(false);
   const t = TESTI_CONSULENZA.barra;
@@ -88,6 +109,17 @@ export function BarraConsulenza({ provenienza, prodotto }: Props) {
     };
   }, [presente, pathname]);
 
+  //  Nello shop il fuoco non deve finire sotto la barra: `--barra-h` (letta da `scroll-padding-bottom`) = banner + altezza vera della barra (T103a-1).
+  useEffect(() => {
+    const el = barra.current;
+    if (!sopraAlBanner || !visibile || !el) return;
+    const radice = document.documentElement;
+    radice.style.setProperty("--barra-h", `calc(var(--banner-h, 0px) + ${el.offsetHeight}px)`);
+    return () => {
+      radice.style.removeProperty("--barra-h");
+    };
+  }, [sopraAlBanner, visibile]);
+
   useEffect(() => {
     if (visibile) traccia("consulenza_barra_vista", { provenienza }, { dedupKey: "barra" });
   }, [visibile, provenienza]);
@@ -105,6 +137,8 @@ export function BarraConsulenza({ provenienza, prodotto }: Props) {
 
   if (!montata) return null;
 
+  const classi = classiBarra({ visibile, sopraAlBanner, hoverScuro });
+
   return (
     <>
       {presente && <div aria-hidden="true" data-barra-spazio="" style={{ height: SPAZIO }} />}
@@ -117,9 +151,7 @@ export function BarraConsulenza({ provenienza, prodotto }: Props) {
           data-nascosta={visibile ? undefined : ""}
           inert={!visibile}
           style={{ height: SPAZIO, paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
-          className={`fixed inset-x-0 bottom-0 z-40 border-t border-white/15 bg-[#081634] text-white transition-[transform,visibility] duration-200 motion-reduce:transition-none ${
-            visibile ? "translate-y-0" : "invisible translate-y-full"
-          }`}
+          className={classi.contenitore}
         >
           <div className="mx-auto flex h-full max-w-6xl items-center gap-2 pl-4 pr-1">
             <p className="line-clamp-2 min-w-0 flex-1 text-[13px] leading-tight sm:text-sm">
@@ -128,8 +160,9 @@ export function BarraConsulenza({ provenienza, prodotto }: Props) {
             </p>
             <button
               type="button"
+              ref={bottoneApri}
               onClick={apri}
-              className="h-11 shrink-0 rounded-lg bg-brand-scuro px-3.5 text-[13px] font-semibold text-white transition-colors hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#081634] sm:px-5 sm:text-sm"
+              className={classi.bottone}
             >
               {t.bottone}
             </button>
@@ -154,6 +187,7 @@ export function BarraConsulenza({ provenienza, prodotto }: Props) {
             //  passa dal pannello (le due diciture servono a Vendite).
             punto={provenienza === "stock" ? "barra" : "pannello"}
             prodotto={prodotto}
+            fuocoA={() => bottoneApri.current}
           />
         </Suspense>
       )}

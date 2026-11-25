@@ -4,6 +4,7 @@
 // Deduplicazione browser/server tramite event_id univoco.
 // deno-lint-ignore-file no-explicit-any
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { decidi, normalizzaNome } from "./filtro.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -186,6 +187,41 @@ Deno.serve(async (req) => {
     { auth: { autoRefreshToken: false, persistSession: false } },
   );
 
+  // ── T29 · INIZIO · chi chiama decide cosa può mandare, e la configurazione è solo del proprietario ──
+  // (D17, nota A, D35). Un chiamante senza utente del CRM passa solo con i nomi dell'elenco (filtro.ts); il
+  // proprietario (sessione valida E presente in tracciamento_proprietario) può mandare anche Purchase.
+  // ⚠️ Una riga in tracking_config NON prova niente: chiunque abbia una sessione può scriversela. Quindi gli
+  // eventi vanno SOLO alla configurazione dei proprietari, mai a tutte le righe e mai a quella che il
+  // chiamante dichiara con admin_user_id (che qui si ignora del tutto). Tabella mancante, vuota o illeggibile:
+  // niente invio. Si decide PRIMA di ogni invio e di ogni scrittura.
+  const bearer = (req.headers.get("authorization") ?? "").replace(/^Bearer\s+/i, "").trim();
+  const { data: righeProprietari, error: erroreProprietari } = await supabase.from("tracciamento_proprietario").select("user_id");
+  const idProprietari: string[] = erroreProprietari ? [] : (righeProprietari ?? []).map((r: any) => String(r.user_id));
+  let autenticato = false;
+  let membroCrm = false;
+  if (bearer) {
+    const { data: sessione } = await supabase.auth.getUser(bearer);
+    if (sessione?.user?.id) {
+      autenticato = true;
+      membroCrm = idProprietari.includes(sessione.user.id);
+    }
+  }
+  const esito = decidi({ nome: payload.event_name, autenticato, membroCrm });
+  if (!esito.ok) {
+    return new Response(JSON.stringify({ error: "event_not_allowed" }), {
+      status: 403,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+  payload.event_name = normalizzaNome(payload.event_name);
+  if (idProprietari.length === 0) {
+    return new Response(JSON.stringify({ ok: true, sent: 0, skipped: "no_owner" }), {
+      status: 200,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+  // ── T29 · FINE ────────────────────────────────────────────────────────────────
+
   let configs: Array<{
     user_id: string;
     meta_pixel_id: string | null;
@@ -198,7 +234,9 @@ Deno.serve(async (req) => {
   let q = supabase.from("tracking_config").select(
     "user_id,meta_pixel_id,meta_access_token,meta_test_event_code,tiktok_pixel_id,tiktok_access_token",
   );
-  if (payload.admin_user_id) q = q.eq("user_id", payload.admin_user_id);
+  // ── T29 · INIZIO · la configurazione è sempre e solo quella del proprietario ─────
+  q = q.in("user_id", idProprietari);
+  // ── T29 · FINE ────────────────────────────────────────────────────────────────
   const { data, error } = await q;
   if (error) {
     return new Response(

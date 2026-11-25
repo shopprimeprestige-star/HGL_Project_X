@@ -1,6 +1,7 @@
 import { Mail, Phone } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import logo from "@/assets/logo-hair-genius.png";
+import { GestisciCookie } from "@/components/tracciamento/GestisciCookie";
 
 export function Footer() {
   return (
@@ -23,7 +24,6 @@ export function Footer() {
 
             <div className="mt-6 text-xs text-white/55 leading-relaxed">
               <div className="font-semibold text-white/80">HAIR GENIUS LABS SRLS</div>
-              <div>Via degli Scipioni 132, 00192 Roma (RM)</div>
               <div>P.IVA 18486531009</div>
             </div>
           </div>
@@ -73,6 +73,9 @@ export function Footer() {
                 <Link to="/termini-e-condizioni" className="hover:text-brand">
                   Termini e condizioni
                 </Link>
+              </li>
+              <li>
+                <GestisciCookie className="hover:text-brand" />
               </li>
             </ul>
           </div>

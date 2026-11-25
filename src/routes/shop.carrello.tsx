@@ -1,20 +1,80 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, type ErrorComponentProps } from "@tanstack/react-router";
+import { useEffect, useRef } from "react";
 import { Minus, Plus, Trash2, ShoppingBag, ArrowRight } from "lucide-react";
 import { PRODUCTS, formatPrice } from "@/shop/catalog";
 import { ShopVisual } from "@/shop/ShopVisual";
-import { useCart } from "@/shop/CartContext";
+import { useCart, type CartLine } from "@/shop/CartContext";
+import { modalitaCatalogo } from "@/shop/cms/catalogo.functions";
+import { MSG_NON_VERIFICABILE, datiEventoRighe } from "@/shop/cms/cassa";
+import { useRivalidaCarrello } from "@/shop/useRivalidaCarrello";
+import { emettiEvento } from "@/lib/tracciamento/api";
+import { ErroreRottaShop } from "@/components/shop/guscio/GuscioShop";
+import { PaginaCarrello } from "@/components/shop/pagine/PaginaCarrello";
+import type { SpedizionePubblica } from "@/shop/cassa/spedizione";
+import { tariffaSpedizione } from "@/shop/cassa/tariffe.functions";
+import { cassaPubblica, type CassaPubblica } from "@/shop/cms/cassa-pubblica.functions";
+import { contenutoShop } from "@/shop/cms/contenuto-shop.functions";
+import { confermatiDa, contenutoVuoto } from "@/shop/cms/vetrina-contenuto";
+import { vociFiducia, type VoceFiducia } from "@/shop/cms/vetrina-fiducia";
 
 export const Route = createFileRoute("/shop/carrello")({
-  component: CartPage,
+  //  Il catalogo del sito: se non risponde si pensa `codice`, cioè il carrello di oggi.
+  //  Con `codice` esattamente come oggi (`{ modo }`, nessuna chiamata in più: è l'oro). Solo con `cms` le voci di fiducia vere sotto il totale (T114),
+  //  dalle stesse fonti della scheda; un guasto di una fonte non è un errore: quella voce non c'è. La spedizione c'è solo con i tempi confermati (il costo è già nel riepilogo).
+  loader: async (): Promise<{ modo: Awaited<ReturnType<typeof modalitaCatalogo>> | "codice"; voci?: VoceFiducia[] }> => {
+    const modo = await modalitaCatalogo().catch(() => "codice" as const);
+    if (modo !== "cms") return { modo };
+    const [tariffa, contenuto, cassa] = await Promise.all([
+      tariffaSpedizione().catch((): SpedizionePubblica | null => null),
+      contenutoShop().catch(contenutoVuoto),
+      cassaPubblica().catch((): CassaPubblica | null => null),
+    ]);
+    const conTempi = tariffa?.stato === "ok" && tariffa.confermata === true && typeof tariffa.frase === "string" && tariffa.frase.trim() !== "";
+    return { modo, voci: vociFiducia({ tariffa: conTempi ? tariffa : null, testi: confermatiDa(contenuto), cassa }) };
+  },
+  errorComponent: ErroreCarrello,
+  component: Carrello,
 });
+
+//  500: con `cms` quello del guscio nuovo (senza barra), con `codice` quello di sempre. Il carrello non lancia mai un 404.
+function ErroreCarrello(props: ErrorComponentProps) {
+  return <ErroreRottaShop {...props} cms={Route.useRouteContext().modalita === "cms"} />;
+}
+
+//  Smistatore (D70): con `cms` la pagina nuova, con `codice` il carrello di oggi, che qui sotto non cambia.
+function Carrello() {
+  const { modo, voci } = Route.useLoaderData();
+  return modo === "cms" ? <PaginaCarrello voci={voci} /> : <CartPage />;
+}
+
+const prezzoCodice = (id: string) => PRODUCTS.find((pr) => pr.id === id)?.price;
 
 const SHIPPING_THRESHOLD = 59;
 const SHIPPING_COST = 4.9;
 
 function CartPage() {
   const { lines, setQty, remove, subtotal, count } = useCart();
+  const { modo } = Route.useLoaderData();
+  const { stato, avviso } = useRivalidaCarrello(modo);
+  //  Questo è il carrello di `codice` (gratis da 59 €): con `cms` la pagina è `PaginaCarrello` (la cifra viene dal server, nessuna soglia).
   const shipping = subtotal >= SHIPPING_THRESHOLD || subtotal === 0 ? 0 : SHIPPING_COST;
   const total = subtotal + shipping;
+
+  //  ViewCart: una volta per apertura, a controllo finito (il valore è quello del server)
+  const viste = useRef(lines);
+  viste.current = lines;
+  const emessa = useRef(false);
+  useEffect(() => {
+    if (stato !== "ok" || emessa.current || viste.current.length === 0) return;
+    emessa.current = true;
+    const dati = datiEventoRighe(viste.current, prezzoCodice);
+    if (dati) emettiEvento("ViewCart", dati);
+  }, [stato, count]);
+  const togli = (line: CartLine) => {
+    const dati = datiEventoRighe([line], prezzoCodice);
+    if (dati) emettiEvento("RemoveFromCart", dati);
+    remove(line.key);
+  };
 
   if (count === 0) {
     return (
@@ -35,10 +95,22 @@ function CartPage() {
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">Carrello <span className="text-white/40">({count})</span></h1>
+      {avviso && (
+        <p role="status" className="rounded-lg border border-amber-400/40 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">
+          {avviso}
+        </p>
+      )}
+      {stato === "non_verificabile" && (
+        <p role="alert" className="rounded-lg border border-red-400/40 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+          {MSG_NON_VERIFICABILE}
+        </p>
+      )}
       <div className="grid gap-8 lg:grid-cols-[1fr_340px]">
         {/* righe */}
         <div className="space-y-3">
           {lines.map((line) => {
+            //  una riga CMS (ha lo SKU) qui non si disegna: con `cms` il carrello è `PaginaCarrello`
+            if (line.sku) return null;
             const p = PRODUCTS.find((pr) => pr.id === line.productId);
             if (!p) return null;
             return (
@@ -58,7 +130,7 @@ function CartPage() {
                         </p>
                       )}
                     </div>
-                    <button onClick={() => remove(line.key)} className="text-white/40 transition hover:text-destructive">
+                    <button onClick={() => togli(line)} className="text-white/40 transition hover:text-destructive">
                       <Trash2 className="h-4 w-4" />
                     </button>
                   </div>
@@ -109,7 +181,7 @@ function CartPage() {
             to="/shop/checkout"
             className="mt-5 flex items-center justify-center gap-2 rounded-lg bg-brand py-3 font-semibold text-white transition hover:brightness-110"
           >
-            Procedi al checkout <ArrowRight className="h-4 w-4" />
+            {"Procedi al checkout"} <ArrowRight className="h-4 w-4" />
           </Link>
           <Link to="/shop" className="mt-3 block text-center text-sm text-white/50 hover:text-white">
             Continua lo shopping

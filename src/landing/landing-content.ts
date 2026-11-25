@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { NOME_PRODOTTO } from "@/landing/testi-sito";
 import { ALT_ID, CAMPI_TESTO_ID, SLOT_ID } from "@/landing/testi-invisible-derm";
+import { ALT_SHOP, CAMPI_TESTO_SHOP, SLOT_SHOP } from "@/landing/testi-shop";
 
 export type Review = {
   id: string;
@@ -173,6 +174,16 @@ export const LANDING_SCHEMA: SectionDef[] = [
       ...SLOT_ID.map((s): FieldDef => ({ key: s.chiave, label: s.label, type: s.tipo, default: "" })),
       ...Object.entries(ALT_ID).map(([key, def]): FieldDef => ({ key, label: `Descrizione per chi non vede · ${key.replace(/\.alt$/, "")}`, type: "text", default: def })),
       ...CAMPI_TESTO_ID.map((l): FieldDef => ({ key: l.chiave, label: l.label, type: l.tipo, default: "" })),
+    ],
+  },
+  // Lo shop (V1, D75, D77): slot, descrizioni e testi vengono da `testi-shop.ts`, che li deriva da `CHIAVI_TESTI`. Qui non si riscrive niente.
+  {
+    id: "shop",
+    title: "Shop (/shop)",
+    fields: [
+      ...SLOT_SHOP.map((s): FieldDef => ({ key: s.chiave, label: s.label, type: s.tipo, default: "" })),
+      ...Object.entries(ALT_SHOP).map(([key, def]): FieldDef => ({ key, label: `Descrizione per chi non vede · ${key.replace(/\.alt$/, "")}`, type: "text", default: def })),
+      ...CAMPI_TESTO_SHOP.map((l): FieldDef => ({ key: l.chiave, label: l.label, type: l.tipo, default: l.default, hint: l.hint })),
     ],
   },
 ];

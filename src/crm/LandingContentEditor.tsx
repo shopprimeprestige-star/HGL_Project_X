@@ -37,6 +37,7 @@ import {
   type Review,
   type FieldDef,
 } from "@/landing/landing-content";
+import { aiutoFotoShop, portaBrowser, riduciFotoShop } from "@/landing/ridimensiona-shop";
 
 async function uploadFile(file: File, prefix: string): Promise<string> {
   const ext = file.name.split(".").pop() || "bin";
@@ -54,11 +55,14 @@ function MediaInput({
   onChange,
   accept,
   prefix,
+  riduci,
 }: {
   value: string;
   onChange: (v: string) => void;
   accept: string;
   prefix: string;
+  /** Solo per le foto `shop.*` (D99): riduce il file prima di caricarlo. Senza, si carica com'è. */
+  riduci?: (f: File) => Promise<File>;
 }) {
   const [uploading, setUploading] = useState(false);
   const isVideo = /\.(mp4|webm|ogg|mov|m4v)(\?|#|$)/i.test(value) || (accept === "video/*");
@@ -81,7 +85,7 @@ function MediaInput({
               if (!f) return;
               setUploading(true);
               try {
-                const url = await uploadFile(f, prefix);
+                const url = await uploadFile(riduci ? await riduci(f) : f, prefix);
                 onChange(url);
                 toast.success("Caricato");
               } catch (err: any) {
@@ -277,6 +281,7 @@ function FieldRow({
   onRipristina: (k: string) => void;
 }) {
   if (def.type === "image" || def.type === "video") {
+    const aiutoShop = aiutoFotoShop(def.key);
     return (
       <div className="space-y-1.5">
         <IntestazioneCampo
@@ -289,10 +294,16 @@ function FieldRow({
           onChange={(v) => onMedia(def.key, v)}
           accept="image/*,video/*"
           prefix={`landing/${def.key}`}
+          riduci={aiutoShop ? (f) => riduciFotoShop(f, def.key, portaBrowser) : undefined}
         />
         <p className="text-[10px] text-muted-foreground">
           Puoi caricare un'immagine oppure un video — il tipo viene rilevato automaticamente.
         </p>
+        {aiutoShop && (
+          <p className="text-[11px] text-foreground/80 rounded border border-dashed bg-muted/40 px-2 py-1.5">
+            {aiutoShop}
+          </p>
+        )}
       </div>
     );
   }

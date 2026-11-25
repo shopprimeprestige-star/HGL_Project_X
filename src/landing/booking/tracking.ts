@@ -1,11 +1,45 @@
 // Tracking utilities — UTM, fbp/fbc/ttclid, session, event id
+//
+// ⚠️ IL CANCELLO DEL CONSENSO (Shop R1 · T28 · D13). Senza il consenso MARKETING (banner v2, `@/lib/consenso`):
+//   · `firePixel` e `fireCapi` non fanno NIENTE (nessun pixel, nessuna chiamata a `capi`);
+//   · `lp_events` si scrive lo stesso (è un conteggio nostro) ma SENZA fbp, fbc, fbclid, external_id e user_agent;
+//   · `captureSourceData` non legge i cookie `_fbp`/`_fbc`, non conserva i click id e non crea `lp_external_id`
+//     (restano UTM e id di campagna: vengono dall'indirizzo e non identificano il dispositivo);
+//   · la storia dei contatti a 30 giorni sta su `localStorage` solo con almeno le «statistiche», altrimenti nella
+//     sessione; i click id dentro la storia solo con il marketing.
+// «Non scelto» e il vecchio «accept» della v1 valgono «no». Nessuna funzione esportata è stata tolta.
 import { supabase } from "@/integrations/supabase/client";
+import { leggiConsenso, puoCaricare, type Consenso } from "@/lib/consenso";
+import { urlPulito } from "@/lib/tracciamento/ammesse";
 
 const SOURCE_KEY = "lp_source_data";
 const ADMIN_FLAG = "lp_admin_skip";
 const EXTERNAL_ID_KEY = "lp_external_id";
 const TOUCH_HISTORY_KEY = "lp_touch_history";
 const TOUCH_TTL_DAYS = 30;
+
+const NESSUNA_SCELTA: Consenso = { scelto: false, statistiche: false, marketing: false, ts: 0 };
+/** La scelta di adesso, letta dal browser; senza browser o con l'archivio bloccato (anche solo toccare `localStorage`
+ *  può lanciare) vale «non scelto»: chi la chiama non si blocca mai. */
+export function consensoCorrente(): Consenso {
+  if (typeof window === "undefined") return NESSUNA_SCELTA;
+  try {
+    return leggiConsenso(window.localStorage);
+  } catch {
+    return NESSUNA_SCELTA;
+  }
+}
+/** Marketing scelto: gli identificativi delle piattaforme e i pixel sono permessi. */
+const conMarketing = (c: Consenso = consensoCorrente()) => puoCaricare("meta", c);
+/** Dove sta la storia dei contatti: `localStorage` solo con le statistiche, altrimenti la sessione. */
+function archivioStoria(): Storage | null {
+  try {
+    const c = consensoCorrente();
+    return c.scelto && c.statistiche ? localStorage : sessionStorage;
+  } catch {
+    return null;
+  }
+}
 
 // ---------- Touch history (multi-touch journey, localStorage 30gg) ----------
 export interface TouchPoint {
@@ -20,8 +54,8 @@ export interface TouchPoint {
 
 function detectChannelFromUrl(src: SourceData, gclid?: string): TouchPoint["ch"] {
   const s = (src.utm_source || "").toLowerCase();
-  if (src.ttclid || s.includes("tiktok")) return "tiktok";
-  if (src.fbclid || src.fbp || src.fbc || s.includes("facebook") || s.includes("meta") || s.includes("instagram")) return "meta";
+  if (src.ttclid || src.click_canale === "tiktok" || s.includes("tiktok")) return "tiktok";
+  if (src.fbclid || src.fbp || src.fbc || src.click_canale === "meta" || s.includes("facebook") || s.includes("meta") || s.includes("instagram")) return "meta";
   if (gclid || s.includes("google")) {
     if (s.includes("organic") || s.includes("seo")) return "organic";
     return "google";
@@ -38,7 +72,7 @@ function detectChannelFromUrl(src: SourceData, gclid?: string): TouchPoint["ch"]
 export function getTouchHistory(): TouchPoint[] {
   if (typeof window === "undefined") return [];
   try {
-    const raw = localStorage.getItem(TOUCH_HISTORY_KEY);
+    const raw = archivioStoria()?.getItem(TOUCH_HISTORY_KEY);
     if (!raw) return [];
     const arr = JSON.parse(raw) as TouchPoint[];
     if (!Array.isArray(arr)) return [];
@@ -49,7 +83,8 @@ export function getTouchHistory(): TouchPoint[] {
   }
 }
 
-/** Aggiunge un touch alla history. Dedup: stesso canale + stessa campagna entro 30 min = stesso touch. */
+/** Aggiunge un touch alla history. Dedup: stesso canale + stessa campagna entro 30 min = stesso touch.
+ *  Scrive su `localStorage` solo con le statistiche (altrimenti nella sessione); il click id solo con il marketing. */
 export function appendTouch(src: SourceData): TouchPoint[] {
   if (typeof window === "undefined") return [];
   const url = typeof window !== "undefined" ? new URL(window.location.href) : null;
@@ -62,7 +97,7 @@ export function appendTouch(src: SourceData): TouchPoint[] {
     utm_source: src.utm_source,
     utm_medium: src.utm_medium,
     utm_campaign: src.utm_campaign,
-    clid: src.fbclid || src.ttclid || gclid,
+    clid: conMarketing() ? src.fbclid || src.ttclid || gclid : undefined, // il click id solo con il marketing
     page: typeof window !== "undefined" ? window.location.pathname : undefined,
   };
   const history = getTouchHistory();
@@ -79,7 +114,7 @@ export function appendTouch(src: SourceData): TouchPoint[] {
   // Cap a 50 touch
   const trimmed = history.slice(-50);
   try {
-    localStorage.setItem(TOUCH_HISTORY_KEY, JSON.stringify(trimmed));
+    archivioStoria()?.setItem(TOUCH_HISTORY_KEY, JSON.stringify(trimmed));
   } catch {
     // ignore quota / Safari ITP
   }
@@ -158,6 +193,9 @@ export interface SourceData {
   fbc?: string;
   fbclid?: string;
   ttclid?: string;
+  /** Da quale piattaforma è arrivato il click (`fbclid` o `ttclid` nell'indirizzo): serve a riconoscere il canale anche
+   *  quando, senza consenso marketing, il click id non si conserva. Non identifica nessuno. */
+  click_canale?: "meta" | "tiktok";
   // Granular Meta ad attribution (passati come URL params dalle ad)
   ad_id?: string;
   adset_id?: string;
@@ -171,6 +209,7 @@ export interface SourceData {
 // Advanced Matching su Meta CAPI e per legare lead → sessione → ad creative.
 export function getExternalId(): string {
   if (typeof window === "undefined") return "ssr";
+  if (!conMarketing()) return ""; // senza il marketing non si crea né si legge nessun identificativo del dispositivo
   try {
     const existing = localStorage.getItem(EXTERNAL_ID_KEY);
     if (existing) return existing;
@@ -205,6 +244,27 @@ export function eventId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
 }
 
+/** L'insert di `public_leads` è fallito perché le colonne del consenso non ci sono (la migrazione S3 non è applicata)?
+ *  Allora si ritenta senza: il lead nasce lo stesso, con il consenso ignoto (= niente invio alle piattaforme dal CRM).
+ *  Solo PGRST204/42703 che nominano `consenso_…`: ogni altro errore non si ritenta. */
+export function colonnaConsensoMancante(errore: { code?: string; message?: string } | null | undefined): boolean {
+  return !!errore && (errore.code === "PGRST204" || errore.code === "42703") && /consenso_(marketing|ts)/.test(errore.message ?? "");
+}
+
+/** Inserisce un lead; se mancano le colonne del consenso (S3 non applicata) ritenta UNA volta senza.
+ *  Il primo insert fallito non ha scritto niente: il lead nasce una volta sola. Ogni altro errore si restituisce così com'è,
+ *  senza nuovi tentativi. `inserisci` è la scrittura vera (`supabase.from("public_leads").insert`), qui passata come porta. */
+export async function inserisciLeadConRipiego<E extends { code?: string; message?: string }>(
+  inserisci: (riga: Record<string, unknown>) => PromiseLike<{ error: E | null }>,
+  riga: Record<string, unknown>,
+): Promise<{ error: E | null }> {
+  const primo = await inserisci(riga);
+  if (!colonnaConsensoMancante(primo.error)) return primo;
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { consenso_marketing: _cm, consenso_ts: _ct, ...senzaColonne } = riga;
+  return inserisci(senzaColonne);
+}
+
 function readCookie(name: string): string | undefined {
   if (typeof document === "undefined") return undefined;
   const m = document.cookie.match(new RegExp(`(^|;\\s*)${name}=([^;]+)`));
@@ -214,16 +274,29 @@ function readCookie(name: string): string | undefined {
 export function captureSourceData(): SourceData {
   if (typeof window === "undefined") return {};
   const url = new URL(window.location.href);
-  const stored = sessionStorage.getItem(SOURCE_KEY);
-  const prev: SourceData = stored ? JSON.parse(stored) : {};
+  // l'archivio della sessione può essere bloccato o contenere un valore rotto: allora si riparte da zero, senza lanciare
+  let prev: SourceData = {};
+  try {
+    const stored = sessionStorage.getItem(SOURCE_KEY);
+    if (stored) prev = JSON.parse(stored) as SourceData;
+  } catch {
+    prev = {};
+  }
   const q = (k: string) => url.searchParams.get(k) || undefined;
+  const marketing = conMarketing();
+
+  // Il canale del click si ricorda sempre (non è un identificativo); TikTok vince su Meta, come in detectSource.
+  const click_canale: SourceData["click_canale"] =
+    q("ttclid") || prev.click_canale === "tiktok" ? "tiktok" : q("fbclid") ? "meta" : prev.click_canale;
 
   // Meta consiglia: se in URL c'è fbclid e non esiste cookie _fbc,
-  // sintetizzalo come "fb.1.<timestamp>.<fbclid>" (formato standard).
-  const fbclid = q("fbclid") || prev.fbclid;
-  let fbcCookie = readCookie("_fbc") || prev.fbc;
-  if (!fbcCookie && fbclid) {
-    fbcCookie = `fb.1.${Date.now()}.${fbclid}`;
+  // sintetizzalo come "fb.1.<timestamp>.<fbclid>" (formato standard). Solo con il consenso marketing.
+  let fbclid: string | undefined;
+  let fbcCookie: string | undefined;
+  if (marketing) {
+    fbclid = q("fbclid") || prev.fbclid;
+    fbcCookie = readCookie("_fbc") || prev.fbc;
+    if (!fbcCookie && fbclid) fbcCookie = `fb.1.${Date.now()}.${fbclid}`;
   }
 
   const next: SourceData = {
@@ -233,10 +306,11 @@ export function captureSourceData(): SourceData {
     utm_id: q("utm_id") || prev.utm_id,
     utm_content: q("utm_content") || prev.utm_content,
     utm_term: q("utm_term") || prev.utm_term,
-    fbp: readCookie("_fbp") || prev.fbp,
+    fbp: marketing ? readCookie("_fbp") || prev.fbp : undefined,
     fbc: fbcCookie,
     fbclid,
-    ttclid: q("ttclid") || prev.ttclid,
+    ttclid: marketing ? q("ttclid") || prev.ttclid : undefined,
+    click_canale,
     // Meta dynamic URL params: configurare nelle ad come
     // ?ad_id={{ad.id}}&adset_id={{adset.id}}&campaign_id={{campaign.id}}
     // &ad_name={{ad.name}}&creative={{ad.name}}
@@ -246,10 +320,14 @@ export function captureSourceData(): SourceData {
     campaign_id: q("campaign_id") || q("utm_content") || prev.campaign_id,
     ad_name: q("ad_name") || prev.ad_name,
     creative_name: q("creative") || q("creative_name") || prev.creative_name,
-    external_id: getExternalId(),
+    external_id: marketing ? getExternalId() : undefined,
   };
-  sessionStorage.setItem(SOURCE_KEY, JSON.stringify(next));
-  // Append touch to multi-touch history (localStorage 30gg)
+  try {
+    sessionStorage.setItem(SOURCE_KEY, JSON.stringify(next));
+  } catch {
+    // archivio bloccato: i dati di questa chiamata servono lo stesso
+  }
+  // Append touch to multi-touch history (localStorage 30gg con le statistiche, altrimenti la sessione)
   try {
     appendTouch(next);
   } catch {
@@ -261,8 +339,8 @@ export function captureSourceData(): SourceData {
 export function detectSource(): "meta" | "tiktok" | "organic" {
   const s = captureSourceData();
   const src = (s.utm_source || "").toLowerCase();
-  if (src.includes("tiktok") || s.ttclid) return "tiktok";
-  if (src.includes("facebook") || src.includes("meta") || src.includes("instagram") || s.fbp || s.fbc)
+  if (src.includes("tiktok") || s.ttclid || s.click_canale === "tiktok") return "tiktok";
+  if (src.includes("facebook") || src.includes("meta") || src.includes("instagram") || s.fbp || s.fbc || s.click_canale === "meta")
     return "meta";
   return "organic";
 }
@@ -288,9 +366,20 @@ function detectBot(): boolean {
 let adminCheckPromise: Promise<boolean> | null = null;
 let adminResolved: boolean | null = null;
 
+/** Il segno «amministratore» ricordato nella sessione. Archivio bloccato = nessun segno: mai un'eccezione, perché
+ *  `isAdminLogged` sta sul percorso dell'invio del lead (dopo l'insert un'eccezione qui toglie la conferma). Senza segno
+ *  decide `getSession`, e un visitatore normale vale «non admin». */
+function leggiSegnoAdmin(): string | null {
+  try {
+    return sessionStorage.getItem(ADMIN_FLAG);
+  } catch {
+    return null;
+  }
+}
+
 export function initAdminCheck(): Promise<boolean> {
   if (typeof window === "undefined") return Promise.resolve(false);
-  const cached = sessionStorage.getItem(ADMIN_FLAG);
+  const cached = leggiSegnoAdmin();
   if (cached === "1") {
     adminResolved = true;
     return Promise.resolve(true);
@@ -331,7 +420,7 @@ export function subscribeAdminStatus(listener: (isAdmin: boolean) => void) {
 export function isAdminLogged(): boolean {
   if (typeof window === "undefined") return false;
   if (adminResolved !== null) return adminResolved;
-  const cached = sessionStorage.getItem(ADMIN_FLAG);
+  const cached = leggiSegnoAdmin();
   if (cached === "1") return true;
   if (cached === "0") return false;
   // Se non ancora risolto: avvia check ma blocca per sicurezza
@@ -376,6 +465,7 @@ export async function trackEvent(
     return;
   }
   const source = captureSourceData();
+  const marketing = conMarketing();
   try {
     await supabase.from("lp_events").insert({
       event_name: eventName,
@@ -388,9 +478,9 @@ export async function trackEvent(
       utm_id: source.utm_id ?? null,
       utm_content: source.utm_content ?? null,
       utm_term: source.utm_term ?? null,
-      fbc: source.fbc ?? null,
-      fbp: source.fbp ?? null,
-      fbclid: source.fbclid ?? null,
+      fbc: marketing ? source.fbc ?? null : null,
+      fbp: marketing ? source.fbp ?? null : null,
+      fbclid: marketing ? source.fbclid ?? null : null,
       device: detectDevice(),
       is_bot: detectBot(),
       ad_id: source.ad_id ?? null,
@@ -398,8 +488,8 @@ export async function trackEvent(
       campaign_id: source.campaign_id ?? null,
       ad_name: source.ad_name ?? null,
       creative_name: source.creative_name ?? null,
-      external_id: source.external_id ?? null,
-      user_agent: typeof navigator !== "undefined" ? navigator.userAgent.slice(0, 500) : null,
+      external_id: marketing ? source.external_id ?? null : null,
+      user_agent: marketing && typeof navigator !== "undefined" ? navigator.userAgent.slice(0, 500) : null,
     });
   } catch (e) {
     console.warn("trackEvent failed", e);
@@ -434,6 +524,7 @@ function emettiPixel(
   options: { dedupKey?: string; customName?: string },
 ) {
   if (isAdminLogged()) return;
+  if (!conMarketing()) return; // il cancello: senza marketing nessun pixel (prima del dedup, così una scelta tardiva non perde il primo evento)
   if (options.dedupKey && !markFiredOnce(`px:${event}:${options.dedupKey}`)) {
     return;
   }
@@ -471,6 +562,7 @@ export async function fireCapi(
   if (typeof window === "undefined") return;
   await attendiAdmin();
   if (isAdminLogged()) return;
+  if (!conMarketing()) return; // il cancello: senza marketing nessuna chiamata a `capi`
   const source = captureSourceData();
   try {
     await fetch(CAPI_ENDPOINT, {
@@ -483,7 +575,8 @@ export async function fireCapi(
       body: JSON.stringify({
         event_name: event,
         event_id: evtId,
-        event_source_url: window.location.href,
+        // l'indirizzo si ricostruisce (origine + percorso + sole chiavi ammesse): mai codici, frammenti o testi liberi
+        event_source_url: urlPulito(window.location.origin, window.location.pathname, window.location.search) || undefined,
         source: detectSource(),
         user_data: {
           ...userData,

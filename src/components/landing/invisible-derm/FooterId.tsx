@@ -3,6 +3,7 @@
 import { Link } from "@tanstack/react-router";
 import logo from "@/assets/logo-hair-genius.png";
 import { FOOTER, MARCHIO } from "@/landing/testi-invisible-derm";
+import { GestisciCookie } from "@/components/tracciamento/GestisciCookie";
 
 export function FooterId() {
   return (
@@ -25,6 +26,9 @@ export function FooterId() {
               </Link>
             </li>
           ))}
+          <li>
+            <GestisciCookie />
+          </li>
         </ul>
       </div>
     </footer>

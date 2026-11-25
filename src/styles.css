@@ -2129,3 +2129,83 @@ video:not([controls])::-internal-media-controls-overlay-cast-button {
 .articolo-blog a { color: var(--brand); text-decoration: underline; text-underline-offset: 3px; }
 .articolo-blog strong { font-weight: 650; }
 .articolo-blog blockquote { padding: 0.75em 1em; border-radius: var(--radius); background: var(--brand-velo); color: var(--ink-muted); }
+
+/* ── SHOP V1 · T74 · stili comuni della vetrina nuova (D100) ──────────────────
+   Un blocco solo, tutto sotto `[data-shop-v1]` (l'attributo sta su <html>, scritto da `GuscioShop`): fuori dalle cinque
+   pagine V1 non cambia niente. I @keyframes hanno nomi `shop-*` e non fanno nulla finché nessuno li usa.
+   Niente nuovi fondi, nessun'altra animazione: gli altri compiti usano queste classi e le utilità Tailwind. */
+
+/* Il fuoco non finisce mai sotto l'header (72 px) né sotto una barra fissa (`--barra-h` + 16 px).
+   `--barra-h` di partenza è il banner dei cookie (`--banner-h`): con il banner aperto e nessuna barra il fuoco sta sopra il banner.
+   Le barre (acquisto, consulenza) la riscrivono sulla radice con la propria altezza più il banner (T103a-1, T103b-3). */
+[data-shop-v1] {
+  --barra-h: var(--banner-h, 0px);
+  scroll-padding-top: 72px;
+  scroll-padding-bottom: calc(var(--barra-h, 0px) + 16px);
+}
+
+/* In fondo alla pagina c'è posto anche per il banner dei cookie: `scroll-padding` non basta, la pagina non scorre oltre la sua fine
+   e il piè di pagina resterebbe sotto il banner (R1-1). Lo spazio della barra lo riserva lei, dopo il piè di pagina; questo sta sotto di lui.
+   Senza banner `--banner-h` non c'è e vale 0. */
+[data-shop-v1] [data-guscio="nuovo"] {
+  padding-bottom: var(--banner-h, 0px);
+}
+
+/* Anello di fuoco: 2 px, scarto 2 px. Azzurro su chiaro (5,3:1), bianco su scuro (17,2:1). */
+[data-shop-v1] .shop-anello:focus-visible {
+  outline: 2px solid #006CC4;
+  outline-offset: 2px;
+}
+[data-shop-v1] .shop-anello-scuro:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+
+/* Scheletro: azzurro tenue (mai grigio) che respira piano, 0,55 ↔ 1 in 1,6 s. */
+[data-shop-v1] .shop-scheletro {
+  background-color: var(--brand-velo-10);
+}
+[data-shop-v1] .shop-respiro {
+  animation: shop-respiro 1.6s ease-in-out infinite;
+}
+@keyframes shop-respiro {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
+}
+
+/* Foglio dal basso (filtri, menu, finestre) 200 ms; sfondo che si dissolve 150 ms; mai rimbalzi. */
+[data-shop-v1] .shop-foglio {
+  animation: shop-foglio 200ms ease-out both;
+}
+@keyframes shop-foglio {
+  from { transform: translateY(100%); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+[data-shop-v1] .shop-dissolvi {
+  animation: shop-dissolvi 150ms ease-out both;
+}
+@keyframes shop-dissolvi {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Spunta di «Aggiunto»: da 0,8 a 1 in 200 ms. */
+[data-shop-v1] .shop-pop {
+  animation: shop-pop 200ms ease-out both;
+}
+@keyframes shop-pop {
+  from { transform: scale(0.8); }
+  to { transform: scale(1); }
+}
+
+/* Movimento ridotto: animazioni a zero (lo stato di arrivo è quello normale), transizioni quasi istantanee. */
+@media (prefers-reduced-motion: reduce) {
+  [data-shop-v1],
+  [data-shop-v1] *,
+  [data-shop-v1] *::before,
+  [data-shop-v1] *::after {
+    animation: none !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

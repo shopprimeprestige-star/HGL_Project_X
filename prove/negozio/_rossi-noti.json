@@ -1,0 +1,15 @@
+{
+  "_nota": "I 6 controlli ROSSI dell'Agenzia delle Entrate sul base pulito (T70b, D106). La porta d'unione non dice «6 rossi»: dice QUESTI sei, per gruppo e nome (due hanno lo stesso nome ma stanno in gruppi diversi). Qualunque altro rosso blocca l'unione. Il validatore dello schema ufficiale non gira in questo ambiente (esito `undefined` invece di `ok`): non dipendono dal codice di V1. L'elenco lo tiene aggiornato il capo.",
+  "commit": "f272c3a",
+  "rilevato": "prove/prove.mjs intero sul ramo shop-v1-t70b: «✖ 6 controlli falliti su 36055», cartella temporanea cancellata",
+  "atteso": "ok",
+  "letto": "undefined",
+  "rossi": [
+    { "gruppo": "L'XML CHE VA ALLO SDI", "nome": "passa lo schema ufficiale dell'Agenzia" },
+    { "gruppo": "L'XML CHE VA ALLO SDI", "nome": "il file resta valido per lo schema" },
+    { "gruppo": "L'AUTOFATTURA TD17", "nome": "passa lo schema ufficiale dell'Agenzia" },
+    { "gruppo": "GLI ALTRI TIPI, E QUELLO CHE SI RIFIUTA", "nome": "il TD18 passa lo schema" },
+    { "gruppo": "GLI ALTRI TIPI, E QUELLO CHE SI RIFIUTA", "nome": "il TD19 passa lo schema" },
+    { "gruppo": "GLI ALTRI TIPI, E QUELLO CHE SI RIFIUTA", "nome": "e il TD17 extra-UE" }
+  ]
+}

@@ -11,6 +11,7 @@
  *  `mod`: i moduli impacchettati da `prove/prove.mjs`. `aiuti`: { c, gruppo, radice }. */
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { delNegozio } from "../_migrazioni-negozio.mjs";
 
 const ID = "11111111-2222-4333-8444-555555555555";
 const SEG = "s".repeat(40);
@@ -511,7 +512,7 @@ export async function proveIdeeAi(mod, { c, gruppo, radice }) {
     /SENZA QUESTA MIGRAZIONE/.test(sql),
   );
   const altre = readdirSync(join(radice, "supabase/migrations"))
-    .filter((n) => n.endsWith(".sql") && n !== FILE && !n.includes("risposte_ai") && !n.includes("riepilogo_serale") && !n.includes("ponte_invio_manuale") && !n.startsWith("20261030") && !n.startsWith("20261031") && !n.includes("chiamate_numeri_senza_scheda") && !n.includes("ponte_chat_flag"))
+    .filter((n) => n.endsWith(".sql") && n !== FILE && !n.includes("risposte_ai") && !n.includes("riepilogo_serale") && !n.includes("ponte_invio_manuale") && !n.startsWith("20261030") && !n.startsWith("20261031") && !n.includes("chiamate_numeri_senza_scheda") && !n.includes("ponte_chat_flag") && !n.includes("ecommerce_ordini") && !delNegozio(n))
     .sort();
   c(
     "migrazione: viene dopo tutte le altre, tranne le sorelle della risposta AI",

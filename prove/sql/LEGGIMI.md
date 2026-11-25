@@ -168,3 +168,103 @@ Serve un database di prova con **tutte** le migrazioni applicate in ordine (la m
 Cosa prova: `ponte_wa_revoca` marca eliminata la riga del ponte con la chiave `bw:` **solo se è una nostra uscita** (una riga in entrata con quella chiave resta intatta; l'eco in entrata che punta a una nostra uscita non si marca) e il suo pari ManyChat/CRM nei due versi di `duplicato_di`; non cancella niente (stesso numero di righe); una riga già marcata non si ritocca (seconda volta: trovate 2, marcate 0); `cambiato_il` delle righe marcate si muove (realtime e lettura a pezzi); l'anteprima del contatto, `last_message_at` e `risposto_il` tornano all'ultimo messaggio / all'ultima uscita rimasti **solo se erano proprio il messaggio eliminato** (un «Fatto» a mano e un'anteprima più recente non si toccano; senza messaggi rimasti l'anteprima si svuota); numeri con e senza «+»; un altro utente con la stessa chiave non è toccato; chiave inesistente = 0 e 0; chiavi o parametri storti → errore 22023; `anon`/`authenticated` senza `EXECUTE`, SECURITY DEFINER con `search_path` fisso.
 
 Eseguito il 31/10/2026 su un Postgres 16 usa-e-getta con tutte le 81 migrazioni: `migrazioni ok=81 ko=0`, 28 `ok`.
+
+## `ecommerce-ordini.sql` (commessa 2026-11-17-crm-ecommerce, T2: M1 e M2 degli ordini)
+
+Serve un database **usa-e-getta il cui nome contiene «prova»** (lo script si ferma da solo se non è così): non si lancia mai sul database di produzione. Può essere vuoto: lo script crea i ruoli finti `anon`/`authenticated`, `auth.role()` finto, la tabella `shop_orders` com'è oggi (migrazione `20260722160000`), poi applica `20261117120000_ecommerce_ordini.sql` (M1) **due volte** e `supabase/ORDINI-SOLO-SERVER.sql` (M2) **due volte**. Dalla radice del repo (con Postgres 16 locale; nome socket breve, e `LC_ALL=C` se il locale dà noie):
+
+```sh
+createdb prova_ordini
+psql prova_ordini -v ON_ERROR_STOP=1 -f prove/sql/ecommerce-ordini.sql
+```
+
+Non c'è `ROLLBACK`: M1 e M2 hanno il loro `BEGIN/COMMIT`, quindi il database resta modificato e si butta (`dropdb prova_ordini`). Ogni controllo stampa `ok  <nome>`; al primo sbagliato si ferma con `KO <nome>: atteso …, avuto …`. Uscita attesa: 44 `ok` e in fondo `TUTTI I CONTROLLI DI M1 E M2 PASSANO`.
+
+Cosa prova: una riga «vecchia» di prima di M1 resta intatta (colonne nuove vuote, `senza_lead` false) e le righe non cambiano di numero; dopo la doppia applicazione le policy di `shop_orders` sono tre (la larga «anyone can insert shop order» è sparita, `shop_orders_insert_checkout` c'è una volta); `shop_order_eventi` ha la protezione per riga accesa e nessuna policy. L'**anonimo**: la riga del checkout (senza `created_at`) passa, anche con `senza_lead=false` o `created_at=now()`; lo stesso `id` due volte dà `23505`; **rifiutati (42501)** `pagato_il`, `pagato_importo`, `metodo_pagamento`, `lead_id`, `senza_lead=true`, `tracking`, `note_interne`, `aggiornato_il`, stato `pagato`/`spedito`, `created_at` di ieri, di 11 minuti fa, tra un'ora, tra 2 minuti; non legge, non modifica, non cancella (0 righe); non vede né scrive il registro eventi. **authenticated** dopo M1: legge e aggiorna ancora (M1 non tocca le sue policy), ma non inserisce un ordine già pagato e non vede il registro eventi; il proprietario del database (il server) lo scrive. **Dopo M2**: resta una sola policy (l'inserimento), authenticated non legge né aggiorna più, l'anonimo inserisce ancora, nessun dato toccato.
+
+## `shop-catalogo.sql` (commessa 2026-11-20-shop-completo, T02: S1, il catalogo dello shop)
+
+Serve un database **usa-e-getta il cui nome contiene «prova»** (lo script si ferma da solo se non è così): non si lancia mai sul database di produzione. Serve un utente **superutente** di quel database (crea ruoli ed estensione `dblink`) e un Postgres 15 o 16 normale con `dblink` (Homebrew e i pacchetti ufficiali ce l'hanno; non serve `supabase start`). Il database può essere vuoto: lo script crea i ruoli finti `anon`/`authenticated`/`service_role`, uno schema `storage` finto (solo `buckets` e `objects`), imita i privilegi larghi che Supabase dà di default agli oggetti nuovi di `public` (è ciò che i `REVOKE` di S1 devono annullare), poi applica `supabase/migrations/20261120120000_shop_catalogo.sql` **due volte** (e una terza dopo aver cambiato un interruttore). Dalla radice del repo:
+
+```sh
+createdb prova_shop
+psql -q prova_shop -v ON_ERROR_STOP=1 -f prove/sql/shop-catalogo.sql
+dropdb prova_shop
+```
+
+Se `dblink` non riesce a collegarsi (nessuna socket locale, Postgres solo su TCP), passa la stringa a mano: `-v conn='dbname=prova_shop host=127.0.0.1 port=5432 user=postgres'`. Con `-v s1=<file>` si prova un'altra copia della migrazione (serve a verificare che le prove si accorgano di un guasto). Non c'è `ROLLBACK`: due sessioni vere vedono solo ciò che l'altra ha confermato, quindi il database resta modificato e si butta. Ogni controllo stampa `ok  <nome>`; al primo sbagliato si ferma con `KO <nome>: atteso …, avuto …` (uscita di `psql` diversa da 0). Uscita attesa: 71 `ok` e in fondo `TUTTI I CONTROLLI DI S1 PASSANO`.
+
+Cosa prova:
+
+- **Rilancio:** S1 due volte senza errori; una tabella che esisteva (finta `shop_orders`) resta intatta; un interruttore già cambiato e un bucket `shop-media` già presente (con altri valori) **non** vengono riscritti; senza bucket, S1 lo crea (pubblico, 25 MB, sei tipi).
+- **Chiusura:** protezione per riga accesa sulle otto tabelle e **nessuna policy** (nemmeno su `storage.objects`); `anon` e `authenticated` non leggono né scrivono nessuna tabella, **nessuna delle quattro viste** (errore `42501`, anche quando le viste hanno righe) e non eseguono le quattro funzioni; `service_role` sì.
+- **Giacenza:** mai sotto zero (`giacenza_negativa`), il movimento nasce nella stessa operazione (con motivo sbagliato non resta niente a metà), `shop_giacenza_imposta` calcola il delta sotto blocco, e **due sessioni vere** insieme: con 1 pezzo la seconda **aspetta** e poi riceve `giacenza_negativa` (giacenza 0, un solo movimento); con 2 pezzi riescono entrambe (due movimenti, somma -2).
+- **Registri:** `service_role` su movimenti di giacenza e storico ha solo SELECT e INSERT; UPDATE, DELETE e TRUNCATE sono rifiutati (42501): «nessuna cancellazione» la garantisce il database.
+- **Pubblicazione (trigger):** senza descrizione breve, categoria, foto principale con alt (non rimossa, e con liberatoria se ritrae persone) o variante attiva con SKU e prezzo effettivo > 0 il prodotto **non passa a pubblicato**, né in aggiornamento né se nasce già pubblicato; prezzo prodotto 0 con variante vuota no; prodotto > 0 con variante vuota sì; prodotto 0 con variante > 0 sì; un prodotto già pubblicato si salva anche se nel frattempo non sarebbe più pubblicabile.
+- **Viste:** esce solo il pubblicato; la **foto di una bozza** (e quella di un archiviato) non esce, né come riga né come percorso; non escono foto rimosse o di persone senza liberatoria; le foto di una categoria escono solo se la categoria è visibile e ha un pubblicato; la variante di una bozza non esce; mai la giacenza (c'è solo `disponibile`), mai `bozza_modifiche`, note, fornitore, canali, origine; le caratteristiche «da confermare» non escono; il correlato in bozza non esce.
+- **Interruttori:** `shop_impostazione_imposta` con valore atteso sbagliato, uguale, vuoto o chiave inesistente non scrive; col valore giusto scrive e lascia **una** riga di storico (prima, dopo, chi).
+
+Cosa non prova: le trasformazioni di immagine o i limiti veri del bucket (qui `storage` è finto: lo schema vero lo mette Supabase), `pg_policies` su `storage.objects` di un Supabase vero (la query di controllo è nell'intestazione della migrazione), e le viste lette tramite PostgREST (qui con `SET ROLE`).
+
+Se un controllo dice `KO`, **S1 non va applicata in produzione**: l'uscita va in LAVAGNA.
+
+### Per chi applica S1 (il titolare)
+
+1. **Prima:** Supabase → Storage: controlla se esiste già un bucket `shop-media`. Se c'è, S1 **non lo cambia**: verifica tu che sia pubblico, con limite 25 MB e solo jpeg/png/webp/avif/mp4/quicktime.
+   Controlla anche, in sola lettura: `SELECT policyname, cmd, roles, qual, with_check FROM pg_policies WHERE schemaname = 'storage' AND tablename = 'objects';` (la stessa query è nell'intestazione della migrazione). Vedrai le **4 policy `landing-media`** (sono di un'altra cosa). Nessuna deve riguardare `shop-media`, e nessuna deve valere per TUTTI i bucket per `public`/`anon` (nessun `bucket_id` nel `qual` o nel `with_check`): se ne trovi una, fermati e avvisa la squadra.
+2. **Applica** il file nel SQL Editor (si può rilanciare senza danni). **Dopo**, in sola lettura: `SELECT chiave, valore FROM public.shop_impostazioni;` deve dire `catalogo_sito = "codice"` e `giacenza_bassa = 3`. Lo shop **non cambia**: il sito continua a usare il catalogo del codice.
+   **Due prove con la chiave anonima** (la chiave «anon» pubblica del progetto, quella che sta nel sito; da terminale o da un client REST): `GET <URL del progetto>/rest/v1/shop_v_prodotti` e `GET <URL del progetto>/rest/v1/shop_prodotti`, con le intestazioni `apikey: <chiave anon>` e `Authorization: Bearer <chiave anon>`. **Tutte e due devono dare un errore di permesso** (`42501`, «permission denied for view/table …», HTTP 401 o 403), **mai `[]`**: una lista vuota vorrebbe dire che l'accesso è aperto e che manca solo un dato. Se vedi `[]` o righe, fermati e avvisa la squadra.
+3. **Come si ritira una foto** (liberatoria revocata, richiesta di cancellazione di una persona ritratta): «Rimuovi» dal pannello toglie la foto dal sito ma **il file resta nello Storage**, e il bucket è pubblico: chi ha l'indirizzo la vede ancora. Quindi: Supabase → Storage → `shop-media` → cerca i **tre** file della foto (480, 960, 1600: i percorsi sono nella scheda del prodotto) → elimina; poi, nel pannello, togli la spunta «liberatoria». L'originale non si conserva: non c'è altro da cancellare.
+
+## `shop-invisible-derm.sql` (D40, commessa 2026-11-20-shop-completo)
+
+Serve un Postgres 15 o 16 normale con un database **usa-e-getta il cui nome contiene «prova»** e un utente superutente (lo script crea da sé i ruoli finti `anon`, `authenticated`, `service_role` e lo schema `storage` finto; si ferma se il nome del database non contiene «prova»). Un solo passo, dalla radice del repo:
+
+```sh
+createdb prova_derm
+psql prova_derm -v ON_ERROR_STOP=1 -f prove/sql/shop-invisible-derm.sql
+```
+
+Applica S1, prova che PRIMA Invisible Derm a prezzo 0 non si pubblica, applica `20261121120000_shop_invisible_derm.sql` **due volte** e prova il trigger con prodotti inventati: «Invisible Derm», «Invisibile Derm», lo slug `invisible-derm-…` passano; «Solvente per Invisible Derm», «Kit Invisible Derm», «Invisible Dermatologico» e un prodotto qualunque a prezzo 0 no; Invisible Derm resta rifiutato senza descrizione, categoria, foto principale (o con la foto di una persona senza liberatoria) e senza variante attiva con SKU; nessun dato cambia, i trigger restano due, la funzione resta chiusa ad `anon` e `authenticated`. Uscita attesa: tutte righe `ok` e in fondo `TUTTI I CONTROLLI DI D40 PASSANO`. Se un controllo dice `KO`, **la migrazione D40 non va applicata in produzione**.
+
+## Rilascio 2 dello shop: i quattro collaudi di S4, S4b, S5, S6 (commessa 2026-11-20-shop-completo)
+
+**Condizione di merge** (PIANO-R2 §4, consiglio C1): T41, T41b, T42 e T43 **non si approvano** senza l'uscita del loro script incollata in LAVAGNA, **con i casi rossi visti prima** (lo script lanciato contro una migrazione che manca o che ha un guasto inserito si ferma con `KO …`). Si lanciano **mai** sul database di produzione: ognuno si ferma da solo se il nome del database non contiene «prova». Serve un Postgres 15 o 16 normale con un database **usa-e-getta**, un utente superutente e l'estensione `dblink` (Homebrew e i pacchetti ufficiali la hanno). Gli script creano da sé i ruoli finti `anon`, `authenticated`, `service_role`, `auth.role()` finto, lo schema `storage` finto, la tabella `shop_orders` com'è in produzione, e applicano M1 e S1 prima della migrazione da provare.
+
+Un database usa-e-getta in pochi passi (cartella e porta a scelta; con `listen_addresses` e socket Unix disattivata si passa `conn` a mano):
+
+```sh
+initdb -D /percorso/corto/pg --auth=trust -U postgres
+pg_ctl -D /percorso/corto/pg -o "-p 54411 -c listen_addresses=127.0.0.1 -c unix_socket_directories=''" -l /percorso/corto/pg.log -w start
+createdb -h 127.0.0.1 -p 54411 -U postgres prova_pagamenti
+# … gli script …
+pg_ctl -D /percorso/corto/pg stop -m fast && rm -rf /percorso/corto/pg     # a fine collaudo: il database si butta
+```
+
+Tutti e quattro si lanciano **dalla radice del repo**, con `-q` per non stampare le etichette dei comandi (`CREATE`, `REVOKE`…), un database nuovo ogni volta (non rilanciare lo stesso: gli ordini di prova restano) e, se il server non ha socket Unix, `-v conn='dbname=… host=127.0.0.1 port=… user=…'` (serve alle due sessioni vere):
+
+| Migrazione | Comando (database `prova_…` nuovo) | Uscita attesa |
+|---|---|---|
+| **S4** · `20261122120000_shop_pagamenti.sql` | `psql -q prova_pagamenti -v ON_ERROR_STOP=1 -f prove/sql/shop-pagamenti.sql` | righe `ok …` e in fondo `TUTTI I CONTROLLI DI S4 PASSANO` |
+| **S4b** · `…20261122123000_shop_orders_protezione.sql` | `psql -q prova_protezione -v ON_ERROR_STOP=1 -f prove/sql/shop-orders-protezione.sql` | righe `ok …` e in fondo `TUTTI I CONTROLLI DI S4b PASSANO` (73 controlli all'ultima uscita, T41b) |
+| **S5** · `…20261122130000_shop_spedizioni.sql` | `psql -q prova_spedizioni -v ON_ERROR_STOP=1 -f prove/sql/shop-spedizioni.sql` | (lo scrive T42) |
+| **S6** · `…20261122140000_shop_email.sql` | `psql -q prova_email -v ON_ERROR_STOP=1 -f prove/sql/shop-email.sql` (con `-v s4vera=1` S4 e S4b sono quelle VERE del repo: è la forma richiesta come condizione di merge di S6) | in fondo `N controlli ok, 0 KO` (77 controlli; senza il flag 80 righe `ok`, con il flag 81) |
+
+I quattro file sono dichiarati qui perché `LEGGIMI.md` ha un solo proprietario nel R2 (T41): chi scrive S4b, S5 e S6 aggiunge **solo** il proprio script in `prove/sql/` e dice in LAVAGNA la riga di uscita attesa, che il revisore riporta qui.
+
+### `shop-orders-protezione.sql` (S4b: il trigger di protezione di `shop_orders`)
+
+Applica M1, S1 e S4 VERE, imita i privilegi larghi di Supabase e prova il trigger a lista bianca con ruolo e `request.jwt.claims` impostati come PostgREST: `anon` inserisce l'ordine di oggi (passa) ma non con `stato_pagamento`, `canale`, `pagato_il`, `prova` (no); con `cassa_sito = 'stripe'` ogni insert anonimo è rifiutato, con `vecchia` torna a passare; `authenticated` che cambia `pagato_il`, `status`, `items`, `email` è rifiutato, `note_interne` passa; `service_role` e `postgres` passano; con `shop_impostazioni` illeggibile l'insert di oggi passa. Due fasi: permessi di colonna di S4 come sono, poi ridati per intero (come se il REVOKE non avesse effetto): lì ferma solo il trigger (`colonna_protetta`). Uscita attesa: `TUTTI I CONTROLLI DI S4b PASSANO`. Per vedere i casi rossi: `-v ON_ERROR_STOP=0 -v s4b=/dev/null`.
+
+### `shop-pagamenti.sql` (S4: pagamenti e ordini)
+
+Un solo passo. Applica `shop_orders` com'è oggi, S1 e M1 e prova:
+
+- **Senza M1 si ferma:** S4 lanciata su un database dove manca `pagato_il` risponde col messaggio che nomina M1 e il suo file e **non scrive niente** (nessuna tabella, nessuna colonna).
+- **Doppia applicazione e righe vecchie:** S4 due volte senza errori; le righe di `shop_orders` di prima restano identiche (le 28 colonne nuove ai default: `prova` falso, `rimborsato_cent` 0, `riprova_n` 0, `giacenza_da_verificare` falso, `fattura_richiesta` falso, `email_inviate` `{}`, `avvisi` `[]`); i tre semi (`cassa_sito` «vecchia», `pagamento_sicuro` falso, `metodi_pagamento` `[]`) non vengono riscritti se il titolare li ha già cambiati.
+- **S4 da sola è inerte:** nessuna policy nuova, nessun trigger; l'insert esatto del checkout di oggi come `anon` passa; un update di `authenticated` passa come oggi.
+- **Chiusura:** protezione per riga accesa sulle 5 tabelle nuove, nessuna policy; `anon` e `authenticated` non leggono né scrivono niente (42501); `service_role` **legge ma non scrive** (INSERT, UPDATE, DELETE, TRUNCATE tolti: ogni scrittura passa da una funzione); le 14 funzioni sono `SECURITY DEFINER SET search_path = public`, chiuse ad `anon` e `authenticated`, eseguibili da `service_role`, e nessuna contiene DELETE, DROP o TRUNCATE.
+- **Gli scenari dei soldi** (`prove/negozio/_scenari-soldi.json`, 44 scenari con il marcatore `-- SCENARIO: nome`; una prova di `npm test` controlla che i nomi coincidano): pagato due volte, importo e valuta diversi, ultimo pezzo, SKU che non si risolve, sessione sconosciuta, sessione sostituita (l'evento della prima sessione, arrivato dopo la seconda, paga), doppio pagamento, pagato dopo annullo e dopo scadenza, ordine non pagabile, chiusura di sessione vecchia o non registrata, riprova con due clic, riapertura da pagato o da annullato, creazione due volte e con lista bianca, riferimento doppio, rimborso oltre il pagato / stessa chiave / chiave di un altro ordine / non ammesso / riconciliato / fallito / orfano, rimessa in magazzino idempotente e dai soli movimenti, idempotenza degli eventi, limite con finestra scaduta (la stessa riga riparte da 1, nessun DELETE), lettura della cassa; **T53b:** chiusura senza sessione solo a `scade_il` passato, rifiuto di un rimborso da parte di Stripe (riga `fallito` senza id inventato, evento, massimo liberato; un `riuscito` o un `richiesto` con id Stripe non si tocca; codice ripulito) e riattivazione di un ordine annullato (rifiutata con un rimborso richiesto, riuscito o `rimborsato_cent` > 0; `giacenza_da_verificare` solo se i pezzi erano rimessi; lo storico lo scrive la funzione); **R3a:** la riconciliazione dei rimborsi cambia lo stato di una riga solo come fa Stripe (richiesto → riuscito o fallito, riuscito → fallito: ricalcola il rimborsato e l'ordine torna `pagato`), lo stesso stato non riscrive niente (solo l'id di Stripe se manca) e ogni altro cambio (riuscito → in corso, fallito → riuscito) è ignorato con l'avviso `rimborso_transizione_ignorata`, una volta sola per cambio; unica eccezione, un `fallito` senza id di Stripe (orfana chiusa da noi o rifiuto) si riapre se Stripe dice che il rimborso è riuscito o in corso: prende l'id, il rimborsato si ricalcola, nessun avviso.
+- **Sessioni vere (dblink)** per le corse che il finto non vede: lo stesso pagamento consegnato due volte insieme (una sola scalatura), due ordini insieme sull'ultimo pezzo, due rimborsi insieme oltre il pagato (uno solo), la stessa chiave di rimborso insieme (una riga), due «Riprova» insieme (una sola `riprova_n`), la stessa creazione insieme («esistente», non un errore), due richieste insieme sull'ultimo posto del limite, **«riattiva» e «prenota» insieme** sullo stesso ordine annullato nei due ordini di arrivo (o il rimborso c'è e la riattivazione è rifiutata, o l'ordine è già `nuovo`: mai annullato con un rimborso nato dopo la lettura) e «riapri» con «chiudi senza sessione» insieme (la chiusura trova l'ordine già riaperto e risponde `ignorato`).
+
+Se un controllo dice `KO`, **S4 non va applicata in produzione**: l'uscita va in LAVAGNA. S4 si applica **prima** di S4b; S4b va applicata con l'ordine di prova subito dopo (passo del titolare, PIANO-R2 §9).

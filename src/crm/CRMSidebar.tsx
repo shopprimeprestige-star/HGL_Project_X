@@ -96,6 +96,7 @@ import {
   PhoneCall,
   Search,
   Settings,
+  ShoppingBag,
   Smartphone,
   Store,
   Sun,
@@ -156,6 +157,9 @@ import type { Lead } from "./types";
 //  Il numeretto di «WhatsApp» (chat in attesa di risposta): il criterio e la
 //  lettura leggera stanno in quel file, qui si disegna soltanto.
 import { useDaRispondere } from "./chatwa/useDaRispondere";
+//  Il numeretto di «E-commerce» (ordini nuovi da lavorare): la lettura leggera e
+//  le regole stanno in quel file, qui si disegna soltanto.
+import { useOrdiniNuovi } from "./ecommerce/useOrdiniNuovi";
 //  ── IL NUMERO DI «DA FARE OGGI» LO CALCOLA LA PAGINA STESSA ────────────────
 //   Non un secondo conto scritto qui: `costruisciRighe` è la funzione pura da
 //   cui quella pagina fa nascere le sue righe, cose scritte a mano comprese, e
@@ -178,7 +182,7 @@ import logoBrand from "@/assets/logo-hair-genius-dark.png";
 
 /** Le code dei lead e delle pose vengono da ui.tsx; questa viene dai contatti
  *  WhatsApp (non sono lead) e per questo si aggiunge qui, senza toccare ui.tsx. */
-export type ChiaveBadgeMenu = ChiaveConteggio | "wa_da_rispondere";
+export type ChiaveBadgeMenu = ChiaveConteggio | "wa_da_rispondere" | "ecommerce_nuovi";
 
 export interface VoceMenu {
   /** nome corto, quello che si legge nella barra */
@@ -530,6 +534,23 @@ export const GRUPPI_MENU: GruppoMenu[] = [
         scheme: "leads",
         permesso: "preventivi",
         alias: "fattura fatturazione xml sdi",
+      },
+      {
+        //  ── GLI ORDINI DELLO SHOP ──────────────────────────────────────────
+        //   Sotto «Fatture» perché è dove stanno già i soldi. Il permesso è
+        //   `pagamenti` (indirizzi e incassi) e NON `preventivi`: chi fa
+        //   consulenze lo ha, chi sta al telefono no.
+        //   ⚠️ Il numeretto conta gli ordini «nuovo» di sempre, non quelli di
+        //    oggi: un ordine nuovo è lavoro finché qualcuno non lo tocca. Si
+        //    legge solo se la voce si vede (vedi `vedeEcommerce`).
+        titolo: "E-commerce",
+        descrizione: "Ordini dello shop: da lavorare, incassi, prodotti più venduti",
+        url: "/CRM/ecommerce",
+        icon: ShoppingBag,
+        scheme: "leads",
+        permesso: "pagamenti",
+        alias: "shop negozio ordini vendite patch spedizioni incassato",
+        badge: "ecommerce_nuovi",
       },
       {
         /*  ── ⚠️ IL WEBINAR NON È UNA CONSULENZA CON PIÙ POSTI ──────────────
@@ -1168,6 +1189,19 @@ export function CRMSidebar() {
   const vedeChat =
     !!voceChat && (!voceChat.scheme || canAccess(voceChat.scheme)) && puoVedere(voceChat);
   const chatInAttesa = useDaRispondere(vedeChat);
+  //  ── «E-COMMERCE · ORDINI NUOVI» ──────────────────────────────────────────
+  //   Stessa regola della chat: chi non vede la voce non fa nessuna richiesta.
+  //   ⚠️ E il numero si legge con la STESSA condizione: `useOrdiniNuovi` tiene
+  //   l'ultimo valore buono anche quando `attivo` torna falso, e a chi ha perso
+  //   il permesso un numero ancora acceso direbbe che esistono ordini.
+  const voceEcommerce = GRUPPI_MENU.flatMap((g) => g.voci).find(
+    (v) => v.badge === "ecommerce_nuovi",
+  );
+  const vedeEcommerce =
+    !!voceEcommerce &&
+    (!voceEcommerce.scheme || canAccess(voceEcommerce.scheme)) &&
+    puoVedere(voceEcommerce);
+  const ordiniNuovi = useOrdiniNuovi(vedeEcommerce);
   const tuttiIConti: Record<ChiaveBadgeMenu, ContoBadge> = {
     ...conteggi,
     wa_da_rispondere: {
@@ -1176,6 +1210,17 @@ export function CRMSidebar() {
       titolo: chatInAttesa
         ? `${plurale(chatInAttesa, "chat aspetta", "chat aspettano")} una risposta · si aggiorna ogni minuto`
         : "Chat in attesa di risposta",
+    },
+    ecommerce_nuovi: {
+      n: vedeEcommerce ? (ordiniNuovi ?? 0) : 0,
+      //  Rosa: sono ordini di clienti che aspettano di essere lavorati.
+      urgenza: "ritardo",
+      titolo:
+        vedeEcommerce && ordiniNuovi
+          ? `${plurale(ordiniNuovi, "ordine nuovo", "ordini nuovi")} da lavorare · si aggiorna ogni minuto`
+          : ordiniNuovi === null
+            ? "Ordini dello shop" // mai letto o lettura fallita: non si sa se ce ne sono
+            : "Nessun ordine nuovo da lavorare",
     },
   };
 

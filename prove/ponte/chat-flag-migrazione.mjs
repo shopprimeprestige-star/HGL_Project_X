@@ -20,6 +20,7 @@
 import { createHash } from "node:crypto";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { delNegozio } from "../_migrazioni-negozio.mjs";
 
 const FILE = "20261113120000_ponte_chat_flag.sql";
 const FILE_SCRIVI = "20261030160000_ponte_tutte_le_chat.sql";
@@ -342,6 +343,6 @@ export async function provePonteChatFlagMigrazione(_mod, { c, gruppo, radice }) 
       /COME SI ANNULLA/.test(grezzo),
     ],
   );
-  const altre = readdirSync(cartella).filter((n) => n.endsWith(".sql") && n !== FILE);
+  const altre = readdirSync(cartella).filter((n) => n.endsWith(".sql") && n !== FILE && !n.includes("ecommerce_ordini") && !delNegozio(n)); // e-commerce (17/11) viene dopo: ha il suo ordine
   c("il nome viene dopo l'ultima migrazione esistente", true, FILE > altre.sort().at(-1));
 }

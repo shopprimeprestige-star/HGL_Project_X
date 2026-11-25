@@ -33,12 +33,15 @@ import { haptic, sound, setAudioMode, setReverbWet } from "@/hooks/use-haptic";
 import {
   buildJourneySnapshot,
   captureSourceData,
+  consensoCorrente,
   detectSource,
   eventId as makeEventId,
   fireCapi,
   firePixel,
+  inserisciLeadConRipiego,
   trackEvent,
 } from "./tracking";
+import { emettiEvento } from "@/lib/tracciamento/api";
 import { PROBLEMI, TESTI_CONSULENZA, type IdProblema } from "@/landing/testi-sito";
 import {
   MAX_TESTO_LIBERO,
@@ -204,6 +207,7 @@ export function BookingFunnel({ variant = "light" }: Props) {
   const problemaRef = useRef<HTMLDivElement | null>(null);
   // Exit-intent popup rimosso su richiesta utente
   const funnelStartRef = useRef<number>(Date.now());
+  const emessiRef = useRef(new Set<string>());
   // Hidratato → evita flicker e duplicati nel salvataggio LS
   const hydratedRef = useRef(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -361,9 +365,7 @@ export function BookingFunnel({ variant = "light" }: Props) {
     // Modalità "low" durante il funnel: volume e wet ridotti, riverbero impercettibile.
     try { setAudioMode("low"); } catch { /* ignore */ }
     try { setReverbWet(0.03); } catch { /* ignore */ }
-    const pvId = makeEventId();
-    firePixel("PageView", {}, pvId, { dedupKey: "global" });
-    void fireCapi("PageView", pvId, {}, {});
+    // Il PageView verso le piattaforme non parte da qui: lo emette il provider globale a ogni cambio di rotta (D19).
     const vcId = makeEventId();
     firePixel("ViewContent", { content_name: "booking_funnel" }, vcId, {
       dedupKey: "booking_funnel",
@@ -449,16 +451,22 @@ export function BookingFunnel({ variant = "light" }: Props) {
     return !(y === today.getFullYear() && m === today.getMonth());
   })();
 
+  /** Un evento di consulenza alle piattaforme, una volta sola per apertura del modulo (come il vecchio `dedupKey`).
+   *  `null` se non è partito (nessun consenso, pagina non ammessa, già emesso). */
+  const emettiUnaVolta = (nome: "BookingDatePick" | "BookingTimePick"): string | null => {
+    if (emessiRef.current.has(nome)) return null;
+    const id = emettiEvento(nome);
+    if (id) emessiRef.current.add(nome);
+    return id;
+  };
+
   const handleDatePick = (date: Date) => {
     haptic("date");
     const iso = isoFromDate(date);
     setForm((f) => ({ ...f, date: iso, time: "" }));
-    const id = makeEventId();
-    firePixel("AddToCart", { content_name: "date_pick", value: 0 }, id, {
-      dedupKey: "date_pick",
-      customName: CUSTOM_EVENTS.selezionaData,
-    });
-    void fireCapi("AddToCart", id, {}, { content_name: "date_pick" });
+    // Alle piattaforme esce come «BookingDatePick» (custom), non più «AddToCart»: l'AddToCart è dello shop (D18).
+    // Il conteggio INTERNO resta «AddToCart»/date_pick: il CRM (lp-performance.ts) legge quello.
+    const id = emettiUnaVolta("BookingDatePick") ?? makeEventId();
     trackEvent("AddToCart", 1, { date: iso, content_name: "date_pick", event_id: id, custom_event: CUSTOM_EVENTS.selezionaData }, { dedupKey: "date_pick" });
     trackEvent("FunnelStep", 1, { step_name: "date_picked", date: iso, custom_event: CUSTOM_EVENTS.selezionaData }, { dedupKey: "fstep:1:date" });
     requestAnimationFrame(() => setTimeout(() => scrollToEl(timeRef.current), 80));
@@ -467,12 +475,7 @@ export function BookingFunnel({ variant = "light" }: Props) {
   const handleTimePick = (t: string) => {
     haptic("time");
     setForm((f) => ({ ...f, time: t }));
-    const id = makeEventId();
-    firePixel("AddToCart", { content_name: "time_pick" }, id, {
-      dedupKey: "time_pick",
-      customName: CUSTOM_EVENTS.selezionaOrario,
-    });
-    void fireCapi("AddToCart", id, {}, { content_name: "time_pick" });
+    const id = emettiUnaVolta("BookingTimePick") ?? makeEventId();
     trackEvent("AddToCart", 1, { time: t, content_name: "time_pick", event_id: id, custom_event: CUSTOM_EVENTS.selezionaOrario }, { dedupKey: "time_pick" });
     goNext(1);
   };
@@ -562,6 +565,10 @@ export function BookingFunnel({ variant = "light" }: Props) {
             prodotto: scelta?.prodotto,
           }
         : null;
+    // Il consenso dato nel banner, scritto sul lead (D32): il CRM manda il lead a Meta/TikTok solo con «sì».
+    // È dichiarato dal browser: un'attestazione, non una prova. Gli identificativi delle piattaforme solo con il marketing.
+    const consenso = consensoCorrente(); // protetta: un archivio bloccato vale «non scelto», il lead parte lo stesso
+    const marketing = consenso.scelto && consenso.marketing;
     const baseDisagio = form.disagio || 5;
     const finalDisagio = form.portatore === "si" ? Math.min(10, baseDisagio + 2) : baseDisagio;
     const insertPayload: Record<string, unknown> = {
@@ -583,16 +590,18 @@ export function BookingFunnel({ variant = "light" }: Props) {
       utm_id: source.utm_id ?? null,
       utm_content: source.utm_content ?? null,
       utm_term: source.utm_term ?? null,
-      fbp: source.fbp,
-      fbc: source.fbc,
-      fbclid: source.fbclid ?? null,
-      ttclid: source.ttclid,
+      fbp: marketing ? source.fbp : undefined,
+      fbc: marketing ? source.fbc : undefined,
+      fbclid: marketing ? source.fbclid ?? null : null,
+      ttclid: marketing ? source.ttclid : undefined,
       ad_id: source.ad_id ?? null,
       adset_id: source.adset_id ?? null,
       campaign_id: source.campaign_id ?? null,
       ad_name: source.ad_name ?? null,
       creative_name: source.creative_name ?? null,
-      external_id: source.external_id ?? null,
+      external_id: marketing ? source.external_id ?? null : null,
+      consenso_marketing: marketing,
+      consenso_ts: consenso.scelto && consenso.ts > 0 ? new Date(consenso.ts).toISOString() : null,
       user_agent: typeof navigator !== "undefined" ? navigator.userAgent : null,
       event_id: evt_id,
       touch_history: journey.touch_history as never,
@@ -603,7 +612,9 @@ export function BookingFunnel({ variant = "light" }: Props) {
       days_to_convert: journey.days_to_convert,
       hours_to_convert: journey.hours_to_convert,
     };
-    const { error: err } = await supabase.from("public_leads").insert(insertPayload as never);
+    // Se la migrazione S3 non è applicata ritenta una volta senza le colonne del consenso: il lead nasce lo stesso,
+    // con il consenso ignoto (il CRM non lo manda alle piattaforme).
+    const { error: err } = await inserisciLeadConRipiego((riga) => supabase.from("public_leads").insert(riga as never), insertPayload);
     setSubmitting(false);
     if (err) {
       setError("Errore invio: " + err.message);

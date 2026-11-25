@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, notFound, useNavigate, useRouter } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { Star, ShieldCheck, Truck, RotateCcw, Check, Minus, Plus, ChevronRight, ShoppingBag } from "lucide-react";
 import { CATEGORIES, PRODUCTS, formatPrice, getProduct } from "@/shop/catalog";
@@ -8,53 +8,258 @@ import { toast } from "sonner";
 import { traccia } from "@/landing/consulenza/eventi";
 import { BoxProdottoGiusto } from "@/components/landing/consulenza/BoxProdottoGiusto";
 import { PopupUscita } from "@/components/landing/consulenza/PopupUscita";
+import { SITO } from "@/seo/regole";
+import { emettiEvento } from "@/lib/tracciamento/api";
+import { EVENTO_CONSENSO } from "@/lib/consenso";
+import { modalitaCatalogo, schedaProdotto } from "@/shop/cms/catalogo.functions";
+import { ErroreShop, NonTrovataShop, useStatoPagina } from "@/components/shop/guscio/GuscioShop";
+import { PaginaScheda } from "@/components/shop/pagine/PaginaScheda";
+import { RiquadroAnteprima } from "@/components/shop/scheda/RiquadroAnteprima";
+import type { SpedizionePubblica } from "@/shop/cassa/spedizione";
+import { tariffaSpedizione } from "@/shop/cassa/tariffe.functions";
+import { cassaPubblica, type CassaPubblica } from "@/shop/cms/cassa-pubblica.functions";
+import { contenutoShop } from "@/shop/cms/contenuto-shop.functions";
+import type { ProdottoPubblico } from "@/shop/cms/modello";
+import { contenutoVuoto, type ContenutoShop } from "@/shop/cms/vetrina-contenuto";
+import { modalitaCertaDelServer } from "@/shop/cms/modalita-certa.functions";
+import { daPubblicoAProdotto, varianteDaOpzioni } from "@/shop/cms/adattatore";
+import { emettiUnaVolta, suScelta } from "@/shop/cms/elenco";
+import { cercaScheda, datiEventoCodice, datiEventoScheda, intestazioniScheda, primaVolta, senzaPrezzo, testataScheda, type Scheda } from "@/shop/cms/scheda";
+
+/** Cosa ha deciso il caricamento (T20): la scheda e se l'indirizzo porta `?anteprima=`. Un guasto del database NON arriva qui: è un errore temporaneo; «non trovato» nemmeno: è `notFound()` (risposta 404).
+ *  Con `codice` esattamente com'è oggi. Solo con `cms` (V1 · T97a) in più le tre fonti della pagina nuova: tariffa, testi del contenuto, cassa.
+ *  `anteprima` con `cms` è vero SOLO se il server ha riconosciuto la chiave (la scheda porta `anteprima`): un `?anteprima=` a caso su un prodotto pubblicato non toglie la vendita. */
+type Caricato = {
+  scheda: Exclude<Scheda, { tipo: "temporaneo" | "non_trovato" }>;
+  anteprima: boolean;
+  tariffa?: SpedizionePubblica | null;
+  testi?: ContenutoShop;
+  cassa?: CassaPubblica | null;
+};
 
 export const Route = createFileRoute("/shop/prodotto/$slug")({
+  validateSearch: (raw: Record<string, unknown>): { anteprima?: string } => ({ anteprima: typeof raw.anteprima === "string" && raw.anteprima ? raw.anteprima.slice(0, 300) : undefined }),
+  loaderDeps: ({ search }) => ({ anteprima: search.anteprima ?? "" }),
+  loader: async ({ params, deps, context }): Promise<Caricato> => {
+    const cms = context?.modalita === "cms"; //  `?.`: senza contesto (chiamate delle prove vecchie) vale `codice`, come oggi
+    //  Solo con `cms` le tre fonti in più: partono insieme alla scheda (una scheda che non c'è non le aspetta) e un guasto di una non è mai un errore al pubblico.
+    //  Con `codice` non si chiama NIENTE di nuovo: il valore e le chiamate di oggi sono l'oro (`codice-identico-v1.mjs`).
+    const altre = cms
+      ? Promise.all([
+          tariffaSpedizione().catch((): SpedizionePubblica | null => null),
+          contenutoShop().catch(contenutoVuoto),
+          cassaPubblica().catch((): CassaPubblica | null => null),
+        ])
+      : null;
+    const scheda = await cercaScheda(
+      {
+        //  con `cms` la modalità l'ha già letta il guscio (`beforeLoad` di `/shop`): non si richiede al server
+        modalita: cms ? async () => "cms" : () => modalitaCatalogo(),
+        modalitaCerta: () => modalitaCertaDelServer(),
+        scheda: (slug, chiave) => schedaProdotto({ data: { slug, chiave } }),
+        nelCodice: (slug) => Boolean(getProduct(slug)),
+      },
+      params.slug,
+      deps.anteprima,
+    );
+    // un guasto non è «non trovato»: errore temporaneo (la risposta non si ferma in nessuna memoria)
+    if (scheda.tipo === "temporaneo") throw new Error("catalogo-temporaneamente-non-raggiungibile");
+    // un indirizzo che non c'è risponde 404 (prima era una pagina 200 che diceva «non trovato»: per Google è un errore morbido)
+    if (scheda.tipo === "non_trovato") throw notFound();
+    if (!altre || scheda.tipo !== "cms") return { scheda, anteprima: Boolean(deps.anteprima) };
+    const [tariffa, testi, cassa] = await altre;
+    return { scheda, anteprima: Boolean(scheda.prodotto.anteprima), tariffa, testi, cassa };
+  },
+  // con il catalogo `codice` la testata resta quella di `shop.tsx`; con il CMS: titolo, descrizione, immagine, canonical e JSON-LD (non in anteprima)
+  head: ({ loaderData, match }) => {
+    if (match?.status === "notFound") {
+      const nt = testataScheda(null, false, SITO);
+      return { meta: nt.meta, links: nt.links, scripts: nt.scripts };
+    }
+    if (!loaderData || loaderData.scheda.tipo === "codice") return {};
+    const t = testataScheda(loaderData.scheda.tipo === "cms" ? loaderData.scheda.prodotto : null, loaderData.anteprima, SITO);
+    return { meta: t.meta, links: t.links, scripts: t.scripts };
+  },
+  //  Guasto (loader lanciato: `match.status` «error», nessun `loaderData`) → `no-store`; anteprima → `private, no-store`.
+  headers: ({ loaderData, match }) => intestazioniScheda({ anteprima: Boolean(loaderData?.anteprima), errore: match?.status === "error" }),
+  errorComponent: ErroreScheda,
+  notFoundComponent: NonTrovataScheda,
   component: ProductDetail,
 });
 
+/** Come si vede un bottone spento (solo con il CMS: con `codice` la pagina resta com'era). */
+const SPENTO = " disabled:cursor-not-allowed disabled:opacity-50";
+
+function NonTrovato() {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/[0.03] py-20 text-center">
+      <p className="text-white/60">Prodotto non trovato.</p>
+      <Link to="/shop" className="mt-4 inline-block text-brand hover:underline">
+        Torna al catalogo
+      </Link>
+    </div>
+  );
+}
+
+function ErroreTemporaneo() {
+  const router = useRouter();
+  return (
+    <div role="alert" className="rounded-2xl border border-white/10 bg-white/[0.03] py-20 text-center">
+      <p className="text-white/70">Non riusciamo a mostrarti questo prodotto in questo momento.</p>
+      <p className="mt-1 text-sm text-white/45">Non è sparito: riprova tra qualche istante.</p>
+      <button onClick={() => router.invalidate()} className="mt-5 rounded-lg border border-brand bg-brand/10 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-brand/20">
+        Riprova
+      </button>
+      <Link to="/shop" className="mt-4 block text-sm text-brand hover:underline">
+        Torna al catalogo
+      </Link>
+    </div>
+  );
+}
+
+//  Con `cms` (V1) 404 e 500 sono quelli del guscio nuovo: dicono al guscio il loro stato, così sotto non compare la barra della consulenza.
+//  Con `codice` (o se il contesto manca) restano quelli di oggi.
+function NonTrovataScheda() {
+  return Route.useRouteContext().modalita === "cms" ? <NonTrovataShop /> : <NonTrovato />;
+}
+
+function ErroreScheda({ error }: { error: Error }) {
+  return Route.useRouteContext().modalita === "cms" ? <ErroreShop error={error} /> : <ErroreTemporaneo />;
+}
+
+//  Lo smistatore: la pagina nuova solo con `cms` nel contesto E con una scheda `cms` (se la modalità si è letta male per un attimo la scheda
+//  può essere `codice`, e allora la pagina di oggi, che sa gestirla, senza chiamare niente di nuovo).
+//  `key={slug}`: passando da una scheda all'altra la scelta di variante e quantità riparte da zero.
 function ProductDetail() {
   const { slug } = Route.useParams();
-  const product = getProduct(slug);
+  const { modalita } = Route.useRouteContext();
+  const dati = Route.useLoaderData();
+  return modalita === "cms" && dati.scheda.tipo === "cms" ? <SchedaNuova key={slug} dati={dati} prodotto={dati.scheda.prodotto} /> : <SchedaVista key={slug} slug={slug} />;
+}
+
+/** La scheda V1: il riquadro d'anteprima (solo con chiave riconosciuta) sopra `PaginaScheda`, e gli eventi della visita. */
+function SchedaNuova({ dati, prodotto }: { dati: Caricato; prodotto: ProdottoPubblico }) {
+  const anteprima = dati.anteprima;
+  //  anteprima e prodotto che non si compra: niente barra, né d'acquisto né di consulenza (T93)
+  useStatoPagina(anteprima || !prodotto.acquistabile ? "non_in_vendita" : "normale");
+  const slug = prodotto.slug;
+  //  Una scheda vista: solo un conteggio (non in anteprima). Come oggi.
+  useEffect(() => {
+    if (anteprima) return;
+    traccia("stock_vista_scheda", { prodotto: slug }, { dedupKey: `scheda:${slug}` });
+  }, [slug, anteprima]);
+  //  ViewContent: una volta per prodotto e sessione, mai in anteprima, mai per Invisible Derm né per un prodotto senza prezzo (D39).
+  //  `AddToCart` NON è qui: lo emette `useAcquisto` (dentro la pagina), una volta per clic.
+  useEffect(() => {
+    if (anteprima || !prodotto.acquistabile || senzaPrezzo(prodotto.nome, prodotto.slug)) return;
+    const evento = datiEventoScheda(prodotto, prodotto.varianti[0]?.sku ?? null);
+    //  Con i cookie bloccati già solo nominare l'archivio di sessione del browser lancia: senza archivio `primaVolta` dice «prima volta» (come con l'archivio chiuso) e la pagina resta in piedi.
+    let archivio: Storage | null = null;
+    try {
+      archivio = window.sessionStorage;
+    } catch {
+      /* cookie bloccati */
+    }
+    if (!evento) return;
+    //  `emettiEvento` senza consenso non parte e non segna: `emettiUnaVolta` segna la visita solo se l'evento è partito davvero, e `suScelta` riprova
+    //  quando il visitatore sceglie sul banner (anche dopo l'apertura della scheda), come home e categoria. `fatto`: senza archivio non si raddoppia.
+    let fatto = false;
+    const prova = () => {
+      if (!fatto) emettiUnaVolta(archivio, `scheda:${slug}`, () => { const id = emettiEvento("ViewContent", evento); fatto = id !== null; return id; });
+    };
+    prova();
+    return suScelta(window, EVENTO_CONSENSO, prova);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- una volta per prodotto: la variante scelta dopo non rifà l'evento
+  }, [slug, anteprima]);
+  return (
+    <>
+      {anteprima && <RiquadroAnteprima nascosti={prodotto.anteprima?.nascosti} />}
+      <PaginaScheda scheda={dati.scheda} tariffa={dati.tariffa} testi={dati.testi} cassa={dati.cassa} anteprima={anteprima} />
+    </>
+  );
+}
+
+function SchedaVista({ slug }: { slug: string }) {
+  const { scheda, anteprima } = Route.useLoaderData();
+  const cms = scheda.tipo === "cms" ? scheda.prodotto : null;
+  const product = cms ? daPubblicoAProdotto(cms) : getProduct(slug);
   const navigate = useNavigate();
   const { add } = useCart();
   const [qty, setQty] = useState(1);
   const [variant, setVariant] = useState<Record<string, string>>(() => {
     const init: Record<string, string> = {};
-    getProduct(slug)?.variants?.forEach((v) => (init[v.label] = v.options[0]));
+    product?.variants?.forEach((v) => (init[v.label] = v.options[0]));
     return init;
   });
+  //  Con il CMS la riga è la VARIANTE: lo SKU di quella scelta (o `null`: combinazione che non esiste).
+  const skuScelto = cms ? varianteDaOpzioni(cms, product?.variants?.length ? variant : {}) : null;
+  const scelta = cms?.varianti.find((v) => v.sku === skuScelto) ?? null;
+  const fuoriVendita = Boolean(cms && (anteprima || cms.anteprima)); // una bozza vista con la chiave non si compra
+  //  Il prezzo che si vede: quello della variante scelta, altrimenti il «da» del prodotto. `null` = il server non lo manda (D39).
+  const prezzoCent = cms ? (scelta ? scelta.prezzoCent : cms.prezzoDaCent) : null;
+  const senzaCifra = Boolean(cms && (!cms.acquistabile || prezzoCent === null || senzaPrezzo(cms.nome, cms.slug)));
 
-  //  Una scheda vista: solo un conteggio, con il nome pubblico del prodotto.
+  //  Una scheda vista: solo un conteggio, con il nome pubblico del prodotto (non in anteprima).
   useEffect(() => {
-    if (!getProduct(slug)) return;
+    if (!product || anteprima) return;
     traccia("stock_vista_scheda", { prodotto: slug }, { dedupKey: `scheda:${slug}` });
-  }, [slug]);
+  }, [slug, product, anteprima]);
 
-  if (!product) {
-    return (
-      <div className="rounded-2xl border border-white/10 bg-white/[0.03] py-20 text-center">
-        <p className="text-white/60">Prodotto non trovato.</p>
-        <Link to="/shop" className="mt-4 inline-block text-brand hover:underline">
-          Torna al catalogo
-        </Link>
-      </div>
-    );
-  }
+  //  ViewContent: una volta per prodotto e sessione, mai in anteprima, mai per Invisible Derm.
+  useEffect(() => {
+    if (!product || anteprima || senzaCifra || (cms && cms.anteprima)) return;
+    const dati = cms ? datiEventoScheda(cms, scelta?.sku ?? cms.varianti[0]?.sku ?? null) : datiEventoCodice(product);
+    if (dati && primaVolta(window.sessionStorage, `hg_vc_${slug}`)) emettiEvento("ViewContent", dati);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- una volta per prodotto: la variante scelta dopo non rifà l'evento
+  }, [slug, anteprima]);
+
+  if (!product) return <NonTrovato />;
 
   const category = CATEGORIES.find((c) => c.key === product.category);
-  //  Il box «Non è il prodotto giusto per te?» e il pop-up stanno solo sulle protesi.
-  const eProtesi = product.category === "toupee";
-  const related = PRODUCTS.filter((p) => p.category === product.category && p.id !== product.id).slice(0, 4);
+  //  Il box «Non è il prodotto giusto per te?» e il pop-up stanno solo sulle protesi (con il CMS: dove il titolare ha acceso il box).
+  const eProtesi = cms ? cms.boxConsulenza : product.category === "toupee";
+  const related = cms ? [] : PRODUCTS.filter((p) => p.category === product.category && p.id !== product.id).slice(0, 4);
+  const prezzo = cms ? (prezzoCent ?? 0) / 100 : product.price;
+  const esaurito = cms ? Boolean(scelta && !scelta.disponibile) : false;
+  const nonAcquistabile = Boolean(cms && (fuoriVendita || senzaCifra || !scelta || esaurito));
 
   const addToCart = (go: boolean) => {
-    add(product, qty, product.variants?.length ? variant : undefined);
+    if (cms) {
+      if (nonAcquistabile || !scelta || scelta.prezzoCent === null) return;
+      const foto = cms.media.find((m) => m.slot === "principale")?.src ?? null;
+      add(product, qty, product.variants?.length ? variant : undefined, {
+        sku: scelta.sku,
+        snap: { nome: cms.nome, slug: cms.slug, prezzoCent: scelta.prezzoCent, foto, varianteNome: scelta.nome === scelta.sku ? null : scelta.nome },
+      });
+    } else {
+      add(product, qty, product.variants?.length ? variant : undefined);
+    }
+    // lo stesso `event_id` va al browser e al server (lo fa `emettiEvento`); mai in anteprima
+    const dati = cms ? datiEventoScheda(cms, scelta?.sku ?? null, qty) : datiEventoCodice(product, qty);
+    if (dati && !anteprima) emettiEvento("AddToCart", dati);
     if (go) navigate({ to: "/shop/carrello" });
     else toast.success(`${product.name} × ${qty} aggiunto al carrello`);
   };
 
   return (
     <div className="space-y-12">
+      {/* anteprima del CMS: la bozza vista con la chiave. Non si compra, non va a Google, non si traccia. */}
+      {cms?.anteprima && (
+        <div role="status" className="rounded-xl border border-amber-400/40 bg-amber-400/10 p-4 text-sm text-amber-100">
+          <p className="font-medium">Anteprima: questa scheda non è ancora visibile al pubblico.</p>
+          {cms.anteprima.nascosti.length > 0 && (
+            <>
+              <p className="mt-2 text-amber-100/80">Cosa i clienti non vedrebbero adesso:</p>
+              <ul className="mt-1 list-disc space-y-0.5 pl-5 text-amber-100/80">
+                {cms.anteprima.nascosti.map((n) => (
+                  <li key={`${n.blocco}-${n.motivo}`}>{n.motivo}</li>
+                ))}
+              </ul>
+            </>
+          )}
+        </div>
+      )}
+
       {/* breadcrumb */}
       <nav className="flex items-center gap-1.5 text-xs text-white/45">
         <Link to="/shop" className="hover:text-white">Shop</Link>
@@ -68,6 +273,8 @@ function ProductDetail() {
         {/* visual */}
         <div className="space-y-3">
           <ShopVisual product={product} className="aspect-square w-full" />
+          {/* tre promesse del vecchio catalogo: con il CMS non si ripetono (ogni frase ha bisogno del dato vero del titolare) */}
+          {!cms && (
           <div className="grid grid-cols-3 gap-3 text-center">
             <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
               <ShieldCheck className="mx-auto mb-1 h-5 w-5 text-brand" />
@@ -82,6 +289,7 @@ function ProductDetail() {
               <span className="text-[11px] text-white/60">Reso 14 giorni</span>
             </div>
           </div>
+          )}
         </div>
 
         {/* info */}
@@ -90,7 +298,7 @@ function ProductDetail() {
             <span className="text-xs uppercase tracking-[0.2em] text-brand">{category?.label}</span>
             <h1 className="text-3xl font-bold tracking-tight">{product.name}</h1>
             {/* Stelle e numero di recensioni sono dati d'esempio: nelle protesi, dove c'è il box, si nascondono (i dati restano nel catalogo). */}
-            {!eProtesi && (
+            {!eProtesi && product.reviews > 0 && (
               <div className="flex items-center gap-2 text-sm">
                 <span className="flex items-center gap-0.5 text-amber-300">
                   {Array.from({ length: 5 }).map((_, i) => (
@@ -102,8 +310,11 @@ function ProductDetail() {
             )}
           </div>
 
+          {senzaCifra ? (
+            <p className="text-white/70">Il costo lo vedi in consulenza.</p>
+          ) : (
           <div className="flex items-end gap-3">
-            <span className="text-3xl font-bold">{formatPrice(product.price)}</span>
+            <span className="text-3xl font-bold">{formatPrice(prezzo)}</span>
             {product.compareAt && (
               <>
                 <span className="pb-1 text-lg text-white/40 line-through">{formatPrice(product.compareAt)}</span>
@@ -113,6 +324,7 @@ function ProductDetail() {
               </>
             )}
           </div>
+          )}
 
           <p className="text-white/70">{product.description}</p>
 
@@ -141,6 +353,7 @@ function ProductDetail() {
           ))}
 
           {/* Il blocco d'acquisto: la barra della consulenza non lo copre mai (si nasconde quando gli arriva sotto). */}
+          {!senzaCifra && (
           <div data-barra-nascondi="fondo" className="space-y-5">
             {/* qty + add */}
             <div className="flex items-center gap-3 pt-1">
@@ -155,33 +368,40 @@ function ProductDetail() {
               </div>
               <button
                 onClick={() => addToCart(false)}
-                className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-brand bg-brand/10 px-5 py-3 font-medium text-white transition hover:bg-brand/20"
+                disabled={nonAcquistabile}
+                className={`flex flex-1 items-center justify-center gap-2 rounded-lg border border-brand bg-brand/10 px-5 py-3 font-medium text-white transition hover:bg-brand/20${cms ? SPENTO : ""}`}
               >
-                <ShoppingBag className="h-4 w-4" /> Aggiungi al carrello
+                <ShoppingBag className="h-4 w-4" /> {esaurito ? "Esaurita" : "Aggiungi al carrello"}
               </button>
             </div>
             <button
               onClick={() => addToCart(true)}
-              className="w-full rounded-lg bg-brand py-3 font-semibold text-white transition hover:brightness-110"
+              disabled={nonAcquistabile}
+              className={`w-full rounded-lg bg-brand py-3 font-semibold text-white transition hover:brightness-110${cms ? SPENTO : ""}`}
             >
               Acquista ora
             </button>
+            {cms && !scelta && !senzaCifra && <p className="text-xs text-white/50">Questa combinazione non è disponibile: scegline un'altra.</p>}
           </div>
+          )}
 
+          {!senzaCifra && (
           <p className="text-xs text-white/40">
-            {product.stock > 0 ? (
+            {(cms ? Boolean(scelta?.disponibile) : product.stock > 0) ? (
               <span className="text-emerald-300">● Disponibile</span>
             ) : (
               <span className="text-white/40">Esaurito</span>
-            )}{" "}
-            · Spedizione gratuita per ordini superiori a €59
+            )}
+            {!cms && " · Spedizione gratuita per ordini superiori a €59"}
           </p>
+          )}
 
           {eProtesi && <BoxProdottoGiusto prodotto={product.name} />}
 
-          {/* bullets */}
+          {/* bullets (con il CMS: «cosa trovi nella confezione») */}
+          {product.bullets.length > 0 && (
           <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
-            <span className="mb-2 block text-sm font-medium text-white/80">Caratteristiche</span>
+            <span className="mb-2 block text-sm font-medium text-white/80">{cms ? "Nella confezione" : "Caratteristiche"}</span>
             <ul className="space-y-2">
               {product.bullets.map((b) => (
                 <li key={b} className="flex items-start gap-2 text-sm text-white/65">
@@ -190,6 +410,7 @@ function ProductDetail() {
               ))}
             </ul>
           </div>
+          )}
 
           {/* specifiche tecniche */}
           {product.specs && product.specs.length > 0 && (
@@ -230,6 +451,24 @@ function ProductDetail() {
               </Link>
             ))}
           </div>
+        </section>
+      )}
+
+      {/* con il CMS: «Ti serve anche», un solo prodotto, mai Invisible Derm e mai la sua cifra */}
+      {cms?.correlato && (
+        <section>
+          <h2 className="mb-4 text-lg font-semibold">Ti serve anche</h2>
+          <Link
+            to="/shop/prodotto/$slug"
+            params={{ slug: cms.correlato.slug }}
+            className="group flex max-w-sm items-center gap-4 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03] p-3 transition hover:border-brand/60"
+          >
+            {cms.correlato.foto && <img src={cms.correlato.foto.w480} alt="" className="h-20 w-20 rounded-xl object-cover" loading="lazy" />}
+            <div>
+              <span className="line-clamp-2 text-sm font-medium text-white transition group-hover:text-brand">{cms.correlato.nome}</span>
+              {cms.correlato.prezzoDaCent !== null && !senzaPrezzo(cms.correlato.nome, cms.correlato.slug) && <span className="text-sm font-bold text-white/80">{formatPrice(cms.correlato.prezzoDaCent / 100)}</span>}
+            </div>
+          </Link>
         </section>
       )}
 

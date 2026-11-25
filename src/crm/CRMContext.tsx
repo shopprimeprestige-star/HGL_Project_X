@@ -32,7 +32,9 @@ import { soloNeiKpi } from "./conta-nei-kpi";
 //  la stessa domanda non si riscrive in ogni punto che sceglie una persona.
 import { soloConsulenti } from "./chi-fa-la-consulenza";
 import { risolviModifica, type Modifica } from "./patch-scheda";
-import { leadRevenue, shouldDispatchLeadToAds } from "./lead-analytics";
+import { leadRevenue, puoInviareAlleAds } from "./lead-analytics";
+import { corpoLead, corpoPurchase } from "./lead-ads";
+import { SITO } from "@/lib/sito";
 //  «Ha già una stanza Meetly?»: unica definizione, vedi crm/whatsapp.
 import { codiceStanzaDi, haStanzaNostra, impostaLinkPreventivi } from "./whatsapp";
 import { linkPerOgniCliente } from "./preventivi/link-nei-messaggi";
@@ -197,27 +199,6 @@ export interface EsitoRimozione {
  *  selezionate. */
 const AVVISO_ELIMINA = "lead-non-eliminato";
 
-/** ── L'IDENTIFICATIVO CON CUI META RICONOSCE UN EVENTO ────────────────────
- *  Serve alla deduplica: due invii con lo stesso `event_id` e lo stesso nome
- *  evento sono lo STESSO fatto, e Meta ne conta uno.
- *
- *  ⚠️ QUI SI GENERAVA UN NUMERO A CASO A OGNI CHIAMATA, e così la deduplica
- *   non poteva funzionare nemmeno volendo: lo stesso acquisto rimandato —
- *   perché la vendita era stata riaperta, o perché la prima volta la rete era
- *   caduta — arrivava a Meta con un identificativo mai visto, cioè come un
- *   secondo acquisto. Un identificativo casuale è utile solo se lo si
- *   CONSERVA; generarlo e buttarlo via è il contrario di ciò che serve.
- *   Adesso è l'id del lead: stabile per sempre, uguale a ogni invio, e quindi
- *   la rete di sicurezza di Meta lavora insieme alla nostra (`adsPurchaseIl`).
- *  Resta prioritario `tracking.event_id`, quando c'è: è quello con cui il
- *  pixel del browser ha già annunciato lo stesso fatto, e cambiarlo qui
- *  spezzerebbe la deduplica fra pixel e server, che è la ragione per cui quel
- *  campo esiste. */
-function buildCrmEventId(lead: Lead): string {
-  if (lead.data.tracking?.event_id) return lead.data.tracking.event_id;
-  return `crm-lead-${lead.id}`;
-}
-
 export function CRMProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   //  Chi sta lavorando adesso, per firmare i cambi di stato: vedi `statoDa` in
@@ -253,55 +234,38 @@ export function CRMProvider({ children }: { children: ReactNode }) {
 
   const dispatchToCapi = useCallback(async (body: Record<string, unknown>) => {
     try {
+      //  ── IL JWT DI CHI È ENTRATO NEL CRM ────────────────────────────────
+      //  `capi` fa passare dal sito solo i nomi di navigazione (Lead compreso). Un `Purchase` — la nostra Offline
+      //  Conversion — passa solo se la richiesta porta la sessione del proprietario (D17/D35). Senza sessione si
+      //  manda comunque con la sola `apikey`: il `Lead` passa, il `Purchase` prende 403 e lo si legge nel log.
+      const { data } = await supabase.auth.getSession();
+      const token = data.session?.access_token;
       const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/capi`;
-      await fetch(url, {
+      const risposta = await fetch(url, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         keepalive: true,
         body: JSON.stringify(body),
       });
+      if (!risposta.ok) console.warn("CAPI risposta", risposta.status, body.event_name);
     } catch (error) {
       console.warn("CAPI dispatch failed", error);
     }
   }, []);
 
+  //  ── SENZA CONSENSO NON PARTE NIENTE (D32) ───────────────────────────
+  //  Il corpo si costruisce con `corpoLead` (crm/lead-ads): se la scheda non ha `consenso_marketing === true`
+  //  non c'è corpo e non c'è richiesta. L'indirizzo che esce è quello del sito, non del CRM.
   const dispatchLeadToAds = useCallback(
     async (lead: Lead) => {
-      if (!user || typeof window === "undefined" || !shouldDispatchLeadToAds(lead)) return;
-      const t = lead.data.tracking;
-      await dispatchToCapi({
-        event_name: "Lead",
-        event_id: buildCrmEventId(lead),
-        event_source_url: window.location.href,
-        admin_user_id: user.id,
-        user_data: {
-          email: lead.data.email,
-          phone: lead.data.telefono,
-          first_name: lead.data.nome,
-          last_name: lead.data.cognome,
-          city: lead.data.citta,
-          fbp: t?.fbp,
-          fbc: t?.fbc,
-          ttclid: t?.ttclid,
-          external_id: t?.external_id,
-          user_agent: typeof navigator !== "undefined" ? navigator.userAgent : undefined,
-        },
-        custom_data: {
-          value: 1,
-          currency: "EUR",
-          content_name: "crm_lead",
-          ad_id: t?.ad_id,
-          adset_id: t?.adset_id,
-          campaign_id: t?.campaign_id,
-          ad_name: t?.ad_name,
-          creative_name: t?.creative_name,
-          utm_source: t?.utm_source,
-          utm_campaign: t?.utm_campaign,
-        },
-      });
+      if (!user || typeof window === "undefined" || !puoInviareAlleAds(lead)) return;
+      const corpo = corpoLead(lead, user.id, SITO, typeof navigator !== "undefined" ? navigator.userAgent : undefined);
+      if (!corpo) return;
+      await dispatchToCapi(corpo);
     },
     [user, dispatchToCapi],
   );
@@ -310,55 +274,10 @@ export function CRMProvider({ children }: { children: ReactNode }) {
   // diventa "venduto" o "acconto", con il valore reale del CRM.
   const dispatchPurchaseToAds = useCallback(
     async (lead: Lead, value: number) => {
-      if (!user || typeof window === "undefined" || !shouldDispatchLeadToAds(lead)) return;
-      if (!value || value <= 0) return;
-      const t = lead.data.tracking;
-      await dispatchToCapi({
-        event_name: "Purchase",
-        event_id: `${buildCrmEventId(lead)}-purchase`,
-        event_source_url: window.location.href,
-        admin_user_id: user.id,
-        source: t?.source,
-        user_data: {
-          email: lead.data.email,
-          phone: lead.data.telefono,
-          first_name: lead.data.nome,
-          last_name: lead.data.cognome,
-          city: lead.data.citta,
-          fbp: t?.fbp,
-          fbc: t?.fbc,
-          ttclid: t?.ttclid,
-          external_id: t?.external_id,
-        },
-        custom_data: {
-          value,
-          currency: "EUR",
-          //  ── ⚠️ QUI ANDAVA `payment.prodotto`, E NON DOVEVA ────────────
-          //   Sulla carta quel campo è «il prodotto». Nei dati veri di questo
-          //   CRM contiene gli appunti della consulenza, e uno dei valori oggi
-          //   in archivio è: «53 anni marittimo 16 x 26 x 19 90% densità … ha
-          //   malattia a lavoro per il video … 2 IMPIANTI».
-          //   Questa chiamata manda l'evento a Meta INSIEME a email, telefono,
-          //   nome, cognome e città della stessa persona: significava spedire a
-          //   una piattaforma pubblicitaria età, mestiere, misure della testa e
-          //   uno stato di salute, agganciati a un'identità. È vietato dalle
-          //   condizioni di Meta ed è un dato particolare ai sensi del GDPR —
-          //   la categoria che richiede un consenso esplicito che qui nessuno
-          //   ha raccolto.
-          //   ⚠️ QUESTO CAMPO SERVE A RAGGRUPPARE LE CONVERSIONI, non a
-          //    descrivere il singolo cliente: un'etichetta fissa fa esattamente
-          //    il suo mestiere. Se un giorno serviranno più categorie, si
-          //    scelgano da un elenco chiuso — mai da un campo scritto a mano.
-          content_name: "protesi capillare",
-          ad_id: t?.ad_id,
-          adset_id: t?.adset_id,
-          campaign_id: t?.campaign_id,
-          ad_name: t?.ad_name,
-          creative_name: t?.creative_name,
-          utm_source: t?.utm_source,
-          utm_campaign: t?.utm_campaign,
-        },
-      });
+      if (!user || typeof window === "undefined" || !puoInviareAlleAds(lead)) return;
+      const corpo = corpoPurchase(lead, value, user.id, SITO);
+      if (!corpo) return;
+      await dispatchToCapi(corpo);
     },
     [user, dispatchToCapi],
   );

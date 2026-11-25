@@ -1,6 +1,6 @@
 /*  ── ⚠️ DOVE VALE IL CARATTERE INTER ──────────────────────────────────────
     Inter (famiglia `InterHGL`, vedi `styles.css`) vale solo dove la radice mette
-    `<html data-carattere="inter">`: homepage, blog e CRM. Le schermate della
+    `<html data-carattere="inter">`: homepage, blog, CRM e le cinque pagine della vetrina V1. Le schermate della
     chiamata (preventivo, Meetly, prova capelli, presentazione, slide) restano
     col carattere di sempre fino alla fase 4: Inter è un po' più largo, e prima
     di vederlo su una cifra del preventivo lo si vuole provare in una chiamata
@@ -24,19 +24,28 @@ function normalizza(percorso: string): string {
   return pulito === "" ? "/" : pulito;
 }
 
+/** Le cinque pagine della vetrina V1: `/shop`, `/shop/c/<slug>`, `/shop/cerca`, `/shop/prodotto/<slug>`, `/shop/carrello`.
+ *  ⚠️ Stessa lista di `guscioPerPercorso` (vetrina-barre.ts): cassa (`/shop/checkout`), ordine e collaudo restano
+ *  com'erano, nel carattere e nella lingua, fino a V2. Il percorso è già normalizzato. */
+function paginaVetrinaV1(p: string): boolean {
+  return p === "/shop" || p === "/shop/cerca" || p === "/shop/carrello" || /^\/shop\/(c|prodotto)\/[^/]+$/.test(p);
+}
+
 /** true solo per "/", "/blog", "/blog/*", "/CRM", "/CRM/*" tranne "/CRM/webinar" e "/CRM/webinar/*",
- *  "/chat" (la chat WhatsApp del CRM da sola, che deve avere lo stesso aspetto)
- *  e "/invisible-derm" (la landing, che ha la grammatica della home). */
+ *  "/chat" (la chat WhatsApp del CRM da sola, che deve avere lo stesso aspetto),
+ *  "/invisible-derm" (la landing, che ha la grammatica della home) e le cinque pagine della vetrina V1. */
 export function usaInter(percorso: string): boolean {
   const p = normalizza(percorso);
   if (p === "/" || p === "/chat" || p === "/invisible-derm" || p === "/invisible-derm-v1") return true;
+  if (paginaVetrinaV1(p)) return true;
   if (p === "/blog" || p.startsWith("/blog/")) return true;
   if (p === "/crm/webinar" || p.startsWith("/crm/webinar/")) return false;
   return p === "/crm" || p.startsWith("/crm/");
 }
 
-/** true per le pagine scritte in italiano da capo a fondo (`lang="it"`); le altre restano come sono. */
+/** true per le pagine scritte in italiano da capo a fondo (`lang="it"`): le due landing e le cinque pagine della vetrina V1;
+ *  le altre restano come sono. */
 export function paginaInItaliano(percorso: string): boolean {
   const p = normalizza(percorso);
-  return p === "/invisible-derm" || p === "/invisible-derm-v1";
+  return p === "/invisible-derm" || p === "/invisible-derm-v1" || paginaVetrinaV1(p);
 }

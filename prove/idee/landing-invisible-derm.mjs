@@ -95,7 +95,7 @@ export function proveLandingInvisibleDerm(mod, { c, gruppo, radice }) {
   /* Carattere, lingua e il resto del sito */
   c("Inter vale su /invisible-derm", [true, true, true], ["/invisible-derm", "/invisible-derm/", "/Invisible-Derm?x=1#top"].map(CAR.usaInter));
   c("Inter NON vale su rotte simili", [false, false], ["/invisible-dermx", "/invisible-derm/altro"].map(CAR.usaInter));
-  c("lang=\"it\" solo per questa rotta", [true, false, false, false], ["/invisible-derm", "/", "/shop", "/blog"].map(CAR.paginaInItaliano));
+  c("lang=\"it\" solo per questa rotta", [true, false, false, false], ["/invisible-derm", "/", "/shop/checkout", "/blog"].map(CAR.paginaInItaliano));
   c("la radice usa paginaInItaliano", true, /lang=\{paginaInItaliano\(percorso\) \? "it" : "en"\}/.test(leggi("src/routes/__root.tsx")));
   const faq = leggi("src/components/landing/FaqAccordion.tsx");
   c("FAQ: aria-expanded e aria-controls", true, /aria-expanded=\{isOpen\}/.test(faq) && /aria-controls=/.test(faq));

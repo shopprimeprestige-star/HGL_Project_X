@@ -32,6 +32,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { detectPublicLeadSource, type PublicLead, type LeadData } from "@/crm/types";
+import { consensoDaRiga } from "@/crm/lead-ads";
 import { formatDate } from "@/lib/date-format";
 import {
   AlertTriangle,
@@ -291,6 +292,10 @@ function NuoviLeadPage() {
         campaign_id: p.campaign_id ?? undefined,
         ad_name: p.ad_name ?? undefined,
         creative_name: p.creative_name ?? undefined,
+        //  ── IL CONSENSO VIAGGIA CON LA SCHEDA (D32) ─────────────────────────
+        //  Il sito lo scrive su `public_leads` (colonna di S3); il CRM manda `Lead` e `Purchase` a Meta e TikTok solo
+        //  se qui c'è `true`. Colonna assente, riga di prima o da Meta Lead Ads: `undefined` = ignoto = non parte niente.
+        consenso_marketing: consensoDaRiga(p),
       },
       publicLeadId: p.id,
     };

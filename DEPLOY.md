@@ -28,7 +28,9 @@ l'archivio vive sul computer di chi pubblica. Pubblicare a mano con
 ## 1. Prerequisiti
 
 1. Assicurati che il repo sia su GitHub e pushato sul branch `main`
-2. Applica le migrazioni `supabase/migrations/*` al tuo progetto Supabase (`supabase db push`)
+2. Applica le migrazioni al tuo progetto Supabase **dal SQL Editor, una alla volta, nell'ordine qui sotto**.
+   **Non usare `supabase db push`** in questo progetto: applicherebbe tutto in blocco e nell'ordine dei nomi dei file, che non è
+   quello giusto. Il dettaglio è nella sezione «Migrazioni dello shop» più sotto.
 
 ## 2. Cloudflare — Create application
 
@@ -71,6 +73,9 @@ Espandi la sezione **Variables and Secrets** e aggiungi:
 | `PONTE_WA_TOKEN` | *(chiave segreta del ponte WhatsApp sul Mac, **almeno 32 caratteri**: `openssl rand -hex 32 \| pbcopy`, poi `npx wrangler secret put PONTE_WA_TOKEN` e incolla; la stessa va sul Mac con `installa.sh chiave`; vedi `docs/ponte-whatsapp-setup.md`)* |
 | `MEETLY_SFU_APP_ID` | *(Meetly via server Cloudflare: **ID** dell'app Cloudflare Realtime SFU dedicata a Meetly, **SEPARATA da quella del webinar**: si crea una app nuova in Cloudflare → Realtime. Poi `npx wrangler secret put MEETLY_SFU_APP_ID` e incolla. Senza questa e la prossima l'interruttore resta su «diretto» e il pannello delle Impostazioni lo dice)* |
 | `MEETLY_SFU_APP_TOKEN` | *(il **token** (secret) della stessa app Meetly: `npx wrangler secret put MEETLY_SFU_APP_TOKEN` e incolla. Mai nel codice, mai in un file `.env` committato)* |
+| `STRIPE_SECRET_KEY` | *(cassa dello shop: la chiave segreta di Stripe, **di prova** `sk_test_…` o chiave ristretta `rk_test_…` finché non si decide il passaggio ai pagamenti veri: `npx wrangler secret put STRIPE_SECRET_KEY` e incolla. Mai nel codice, mai in un file `.env` committato, mai in chat. Senza, la cassa nuova resta chiusa e il pannello «Cassa» del CRM dice «non collegato»)* |
+| `STRIPE_WEBHOOK_SECRET` | *(il segreto di firma del webhook, `whsec_…`, lo dà Stripe quando si crea il webhook: `npx wrangler secret put STRIPE_WEBHOOK_SECRET`. Senza, il webhook risponde 503 e nessun pagamento viene registrato)* |
+| `SHOP_EMAIL_INDIRIZZO` | *(l'indirizzo da cui partono le email dello shop, sul dominio del titolare, per esempio `ordini@…`: `npx wrangler secret put SHOP_EMAIL_INDIRIZZO`. Il nome del mittente è fisso: «Hair Genius Labs». `RESEND_FROM` non si tocca e `RESEND_API_KEY` c'è già)* |
 
 > ⚠️ **Meetly via server Cloudflare (SFU) — prima di accendere l'interruttore** (nota N5 del piano):
 > 1. Lo si accende solo dopo una prova a mano con un **iPhone** (Safari) e con una **rete strozzata**
@@ -93,6 +98,51 @@ Espandi la sezione **Variables and Secrets** e aggiungi:
 2. **Custom domain**: Workers → Settings → **Domains & Routes** → Add custom domain.
 3. **Google OAuth redirect URI**: aggiungi `https://<tuo-dominio>/api/google-oauth-callback`
    nelle Authorized redirect URIs della Google Cloud Console.
+
+## 4b. Shop: migrazioni, webhook di Stripe e prima prova
+
+I passi «a mano» per il titolare, scritti in frasi brevi, stanno in `RILASCIO-2-PASSI-DEL-TITOLARE.md` (cartella della commessa).
+Qui sotto c'è la parte tecnica.
+
+**Vetrina V1 (pagine nuove di `/shop`): nessuna migrazione del database e nessuna variabile da impostare.** Per le sue pagine vedi `RILASCIO-V1-PASSI-DEL-TITOLARE.md`.
+- `SHOP_CATALOGO_FORZA` (variabile del Worker, letta in `src/shop/cms/catalogo.functions.ts` e `modalita-certa.functions.ts`): «cms» o «codice» forza la modalità della vetrina e **vince sull'interruttore del CRM**. **Non impostarla in produzione**: serve solo per le prove.
+- `SHOP_CASSA_FORZA`: vale solo in locale (`import.meta.env.DEV`); in produzione si ignora.
+
+### Migrazioni dello shop (Supabase → SQL Editor, una alla volta, in quest'ordine)
+**Non `supabase db push`.** Copia ogni file nel SQL Editor, premi «Run», controlla che non ci siano errori e passa al successivo.
+
+| Passo | File in `supabase/migrations/` | Cosa fa |
+|---|---|---|
+| M1 | `20261117120000_ecommerce_ordini.sql` | la dashboard e-commerce del CRM (ordini) |
+| R1 · S1 | `20261120120000_shop_catalogo.sql` | tabelle del catalogo |
+| R1 · S2 *(facoltativa)* | `20261120130000_shop_catalogo_import.sql` | copia in bozza i prodotti del vecchio catalogo |
+| R1 · D40 | `20261121120000_shop_invisible_derm.sql` | permette di pubblicare Invisible Derm senza prezzo |
+| R1 · S3 | `20261120140000_tracciamento.sql` | consensi e tracciamento (poi l'`INSERT` del proprietario, vedi `RILASCIO-1-PASSI-DEL-TITOLARE.md`) |
+| S4 | `20261122120000_shop_pagamenti.sql` | pagamenti e ordini della cassa nuova. Da sola non cambia niente per i clienti |
+| S4b | `20261122123000_shop_orders_protezione.sql` | il blocco che impedisce di scrivere «pagato» dal browser. **Subito dopo: un ordine di prova dalla cassa vecchia** (nome «PROVA-ELIMINARE») per vedere che arriva ancora |
+| S5 | `20261122130000_shop_spedizioni.sql` | tariffa di spedizione (seme: 4,90 €, provvisoria) |
+| S6 | `20261122140000_shop_email.sql` | i cinque modelli email, tutti spenti |
+
+**Dopo S3: `supabase functions deploy capi`.** La funzione `capi` è cambiata con il tracciamento: senza `tracciamento_proprietario` chiude gli eventi. Va ridistribuita subito dopo la migrazione S3 e l'`INSERT` del proprietario (come in `RILASCIO-1-PASSI-DEL-TITOLARE.md`).
+
+Se S4 si ferma con un messaggio sulla colonna `pagato_il`, M1 non è stata applicata: si applica M1 e si rilancia S4.
+Nessuna migrazione cancella o cambia dati esistenti. Per tornare indietro si spegne la cassa nuova dal CRM; le migrazioni restano (la cassa vecchia non le legge).
+
+### Webhook di Stripe
+1. Stripe → Sviluppatori → Webhook → «Aggiungi endpoint». Indirizzo: `https://hair-genius-hub.hair/api/public/stripe-webhook`.
+2. Eventi (otto, né di più né di meno):
+   `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.async_payment_failed`,
+   `checkout.session.expired`, `charge.refunded`, `refund.updated`, `refund.failed`, `charge.dispute.created`.
+3. Il segreto che Stripe mostra (`whsec_…`) va in `STRIPE_WEBHOOK_SECRET` con `npx wrangler secret put` (mai in chat né nel codice).
+4. Come risponde la rotta (utile per leggere i log e il pannello Stripe):
+   - firma sbagliata, vecchia (oltre 5 minuti) o assente: **400**; corpo oltre 1 MB: **413**; segreto non impostato: **503** (non si accetta mai senza firma);
+   - evento non gestito: **200**; guasto del database: **500** (Stripe ritenta fino a tre giorni);
+   - casi senza rimedio (per esempio email non configurata o rifiutata in modo definitivo da Resend): **200** con un avviso sull'ordine, che il CRM mostra in rosso.
+   Il corpo si legge a pezzi con un tetto di 1 MB e si firma sui byte arrivati.
+5. Cloudflare: se il piano lo prevede, una regola di limite per le rotte pubbliche nuove (`/api/public/shop-cassa*` e `/api/public/shop-collaudo`); **non** su `/api/public/stripe-webhook`, che deve ricevere tutto ciò che Stripe manda.
+
+### Prima prova (con chiavi di prova)
+Una vendita di prova col collaudo con chiave dal CRM (scheda «Cassa»): il link dura 2 ore e vale per chiunque lo abbia, quindi si cancella il messaggio che lo contiene dopo l'uso. Il pubblico continua a vedere la cassa vecchia.
 
 ## 5. Note
 
