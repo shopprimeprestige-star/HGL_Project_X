@@ -43,8 +43,10 @@ export async function prove(_mod, { c, gruppo, radice }) {
   }
   c("polaris.tsx esporta i cinque pezzi", true, ["PaginaScheda", "RiquadroPolaris", "BadgeStato", "Banner", "CampoP"].every((n) => new RegExp(`export function ${n}\\(`).test(src["polaris.tsx"])));
   c("pezzi.tsx esporta i quattro pezzi spostati dal guscio", true, ["Campo", "VoceLink", "Caratteristiche", "Domande"].every((n) => new RegExp(`export function ${n}\\(`).test(src["pezzi.tsx"])));
-  c("i campi sono alti 44 px sul telefono e 36 sul computer (min-h-11, md:min-h-9)", true, /min-h-11/.test(src["polaris.tsx"]) && /md:min-h-9/.test(src["polaris.tsx"]));
-  c("il testo dei campi è 16 px sul telefono (niente zoom di iOS)", true, /text-\[16px\]/.test(src["polaris.tsx"]));
+  // le classi del CAMPO (la costante), non un `min-h-11` qualunque del file: altrimenti un campo a 36 px ovunque resterebbe verde
+  const classiCampo = src["polaris.tsx"].match(/export const CLASSI_CAMPO =\s*"([^"]*)"/)?.[1] ?? "";
+  c("i campi sono alti 44 px sul telefono e 36 sul computer (CLASSI_CAMPO: min-h-11, md:min-h-9)", [true, true], [/(^|\s)min-h-11(\s|$)/.test(classiCampo), /(^|\s)md:min-h-9(\s|$)/.test(classiCampo)]);
+  c("il testo dei campi è 16 px sul telefono (CLASSI_CAMPO)", true, /(^|\s)text-\[16px\](\s|$)/.test(classiCampo));
   c("riquadri: bordo sottile, angoli di 12 px (rounded-xl) e fondo bianco", true, /rounded-xl border border-border bg-card/.test(src["polaris.tsx"]));
   c("titolo del riquadro 14 px grassetto", true, /text-\[14px\] font-semibold/.test(src["polaris.tsx"]));
   c("focus visibile su tutto ciò che si tocca", true, (src["polaris.tsx"].match(/focus-visible:ring-2/g) ?? []).length >= 2);
@@ -134,12 +136,21 @@ export async function prove(_mod, { c, gruppo, radice }) {
   const vuoto = await vc("Caratteristiche", { modulo: { caratteristiche: [] }, cambia: () => {}, avvisi: [] });
   c("Caratteristiche vuote: dice che non ce n'è nessuna, con il tasto per aggiungerne", true, leggibile(vuoto).includes("Non c'è ancora nessuna caratteristica.") && leggibile(vuoto).includes("Aggiungi una caratteristica"));
   const hk = await vc("Caratteristiche", { modulo, cambia: () => {}, errore: "Una caratteristica è a metà.", avvisi: [] });
-  c("Caratteristiche: ancora f-caratteristiche, due righe, due «Togli la riga»", [true, 2], [/id="f-caratteristiche"/.test(hk), (hk.match(/Togli la riga/g) ?? []).length]);
+  c("Caratteristiche: ancora f-caratteristiche, due righe, due «Togli la riga»", [true, 2], [/id="f-caratteristiche"/.test(hk), (leggibile(hk).match(/Togli la riga/g) ?? []).length]);
   c("Caratteristiche: ogni campo ha la sua etichetta (Nome, Valore, Stato, Fonte × 2)", 8, (hk.match(/<label/g) ?? []).length);
   c("Caratteristiche: l'errore è scritto a parole", true, /role="alert"[^>]*>[\s\S]*Una caratteristica è a metà\./.test(hk));
+  c("Caratteristiche: ogni campo e ogni «Togli la riga» dice il numero di riga (aria-label)", true,
+    ["Nome, riga 1", "Valore, riga 1", "Stato, riga 1", "Fonte, riga 1", "Nome, riga 2", "Valore, riga 2", "Togli la riga 2"].every((t) => attr(hk, "aria-label").includes(t)));
+  c("Caratteristiche: il contenitore richiama errore e avvisi (aria-describedby)", true, /id="f-caratteristiche"[^>]*aria-describedby="f-caratteristiche-errore f-caratteristiche-avvisi"/.test(
+    (await vc("Caratteristiche", { modulo, cambia: () => {}, errore: "Una caratteristica è a metà.", avvisi: ["Evita questa parola."] }))));
+  c("Caratteristiche: senza errore né avvisi niente aria-describedby sul contenitore", false, /id="f-caratteristiche"[^>]*aria-describedby/.test(await vc("Caratteristiche", { modulo, cambia: () => {}, avvisi: [] })));
+  c("Caratteristiche e Domande: dopo «Vai» il focus si vede (anello su :focus, non outline-none nudo)", [true, true], [hk, await vc("Domande", { modulo, cambia: () => {}, avvisi: [] })].map((h) => /<div id="f-(caratteristiche|faq)"[^>]*tabindex="-1"[^>]*focus:ring-2/.test(h) && !/<div id="f-(caratteristiche|faq)"[^>]*class="[^"]*(^|\s)outline-none/.test(h)));
   c("Caratteristiche: le righe non sono riquadri dentro il riquadro", false, /rounded-lg border|rounded-xl border|rounded-md border p-/.test(hk.replace(/<(input|select|textarea)[^>]*>/g, "")));
   const hd = await vc("Domande", { modulo, cambia: () => {}, avvisi: [] });
   c("Domande: ancora f-faq, domanda e risposta con le etichette", true, /id="f-faq"/.test(hd) && leggibile(hd).includes("Domanda") && leggibile(hd).includes("Risposta") && leggibile(hd).includes("Aggiungi una domanda"));
+  c("Domande: aria-label col numero di riga e aria-describedby di errore e avvisi", true,
+    ["Domanda 1", "Risposta 1", "Togli la domanda 1"].every((t) => attr(hd, "aria-label").includes(t)) &&
+      /id="f-faq"[^>]*aria-describedby="f-faq-errore f-faq-avvisi"/.test(await vc("Domande", { modulo, cambia: () => {}, errore: "Una domanda è a metà.", avvisi: ["Evita."] })));
   c("Domande: «Togli la domanda», mai «Elimina»", true, leggibile(hd).includes("Togli la domanda") && !/Elimina/.test(hd));
   // «da confermare» è il nome dello stato di una caratteristica nel CRM (esiste già nel guscio): è vietato sulla vetrina, non qui
   c("pezzi: nessuna parola vietata nel testo disegnato", [], trovaParoleVietate(leggibile(hc + hb + hi + vuoto + hk + hd)).filter((p) => p !== "da confermare"));

@@ -88,6 +88,14 @@ export function VoceLink({
   );
 }
 
+/** Il contenitore a cui porta «Vai» prende il focus con il codice: l'anello deve vedersi anche così (`focus`, non solo `focus-visible`). */
+const CLASSI_ARRIVO =
+  "flex flex-col gap-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-ring";
+/** Gli `id` dell'errore e degli avvisi che `MessaggiCampo` scrive sotto il contenitore (nessuno = nessun `aria-describedby`). */
+const descrizione = (id: string, errore?: string, avvisi?: string[]) =>
+  [errore && `${id}-errore`, avvisi?.length && `${id}-avvisi`].filter(Boolean).join(" ") ||
+  undefined;
+
 const ETICHETTA_CAMPO = "flex flex-col gap-1.5 text-[13px] font-medium";
 
 /** Le caratteristiche: una riga per voce (nome, valore, stato, fonte). Solo le «confermate» escono sul sito. */
@@ -106,7 +114,12 @@ export function Caratteristiche({
   const imposta = (k: number, p: Partial<Riga>) =>
     cambia({ caratteristiche: righe.map((r, i) => (i === k ? { ...r, ...p } : r)) });
   return (
-    <div id={idCampo("caratteristiche")} tabIndex={-1} className="flex flex-col gap-3 outline-none">
+    <div
+      id={idCampo("caratteristiche")}
+      tabIndex={-1}
+      aria-describedby={descrizione(idCampo("caratteristiche"), errore, avvisi)}
+      className={CLASSI_ARRIVO}
+    >
       <p className="text-[13px] text-muted-foreground">
         Le righe «da confermare» non si mostrano mai ai clienti. Per confermarne una serve la fonte
         (la scheda del fornitore).
@@ -122,6 +135,7 @@ export function Caratteristiche({
               <label className={ETICHETTA_CAMPO}>
                 Nome
                 <input
+                  aria-label={`Nome, riga ${k + 1}`}
                   value={r.etichetta}
                   onChange={(e) => imposta(k, { etichetta: e.target.value })}
                   className={CLASSI_CAMPO}
@@ -130,6 +144,7 @@ export function Caratteristiche({
               <label className={ETICHETTA_CAMPO}>
                 Valore
                 <input
+                  aria-label={`Valore, riga ${k + 1}`}
                   value={r.valore}
                   onChange={(e) => imposta(k, { valore: e.target.value })}
                   className={CLASSI_CAMPO}
@@ -138,6 +153,7 @@ export function Caratteristiche({
               <label className={ETICHETTA_CAMPO}>
                 Stato
                 <select
+                  aria-label={`Stato, riga ${k + 1}`}
                   value={r.stato}
                   onChange={(e) => imposta(k, { stato: e.target.value as Riga["stato"] })}
                   className={CLASSI_CAMPO}
@@ -149,6 +165,7 @@ export function Caratteristiche({
               <label className={ETICHETTA_CAMPO}>
                 Fonte
                 <input
+                  aria-label={`Fonte, riga ${k + 1}`}
                   value={r.fonte ?? ""}
                   onChange={(e) => imposta(k, { fonte: e.target.value })}
                   className={CLASSI_CAMPO}
@@ -158,6 +175,7 @@ export function Caratteristiche({
                 type="button"
                 variant="outline"
                 className={CLASSI_TASTO}
+                aria-label={`Togli la riga ${k + 1}`}
                 onClick={() => cambia({ caratteristiche: righe.filter((_, i) => i !== k) })}
               >
                 Togli la riga
@@ -205,7 +223,12 @@ export function Domande({
   const imposta = (k: number, p: Partial<{ d: string; r: string }>) =>
     cambia({ faq: righe.map((f, i) => (i === k ? { ...f, ...p } : f)) });
   return (
-    <div id={idCampo("faq")} tabIndex={-1} className="flex flex-col gap-3 outline-none">
+    <div
+      id={idCampo("faq")}
+      tabIndex={-1}
+      aria-describedby={descrizione(idCampo("faq"), errore, avvisi)}
+      className={CLASSI_ARRIVO}
+    >
       <h3 className="text-[13px] font-medium">Domande frequenti</h3>
       {righe.length > 0 && (
         <ul className="flex flex-col divide-y divide-border">
@@ -214,6 +237,7 @@ export function Domande({
               <label className={ETICHETTA_CAMPO}>
                 Domanda
                 <input
+                  aria-label={`Domanda ${k + 1}`}
                   value={f.d}
                   onChange={(e) => imposta(k, { d: e.target.value })}
                   className={CLASSI_CAMPO}
@@ -223,6 +247,7 @@ export function Domande({
                 Risposta
                 <textarea
                   rows={3}
+                  aria-label={`Risposta ${k + 1}`}
                   value={f.r}
                   onChange={(e) => imposta(k, { r: e.target.value })}
                   className={cn(CLASSI_CAMPO, "py-2")}
@@ -233,6 +258,7 @@ export function Domande({
                   type="button"
                   variant="outline"
                   className={CLASSI_TASTO}
+                  aria-label={`Togli la domanda ${k + 1}`}
                   onClick={() => cambia({ faq: righe.filter((_, i) => i !== k) })}
                 >
                   Togli la domanda
