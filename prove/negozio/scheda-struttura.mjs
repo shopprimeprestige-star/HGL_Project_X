@@ -9,6 +9,7 @@
  *  Le ancore delle prove vecchie (`scheda-sorgente.mjs`, `pagina-negozio.mjs`) NON si toccano: restano verdi da sole. Dati inventati, nessuna rete. */
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
+import { buildSync } from "esbuild";
 import { trovaParoleVietate } from "./_dati-vetrina.mjs";
 import { rendiComponente } from "./_rende.mjs";
 
@@ -41,6 +42,20 @@ function tagBottoni(src) {
     out.push({ inizio: m.index, testo: src.slice(m.index, i + 1) });
   }
   return out;
+}
+
+/** Impacchetta un modulo `src` (anche `.tsx`) e lo carica: serve a provare le funzioni pure e i gestori degli eventi senza un browser. */
+const caricaBundle = (percorso, radice) => {
+  const r = buildSync({ entryPoints: [percorso], bundle: true, format: "esm", write: false, jsx: "automatic", loader: { ".tsx": "tsx" }, alias: { "@": join(radice, "src") }, logLevel: "silent" });
+  return import(`data:text/javascript;base64,${Buffer.from(r.outputFiles[0].text).toString("base64")}`);
+};
+/** Dispiega un albero React senza disegnarlo: chiama i componenti-funzione (senza hook) e raccoglie gli elementi veri (input, div…). */
+function dispiega(n, out = []) {
+  if (n == null || typeof n === "boolean" || typeof n === "string" || typeof n === "number") return out;
+  if (Array.isArray(n)) return (n.forEach((x) => dispiega(x, out)), out);
+  if (typeof n.type === "function") return dispiega(n.type(n.props), out);
+  out.push(n);
+  return dispiega(n.props?.children, out);
 }
 
 const ISTANTE = "2026-11-25T10:00:00.000Z";
@@ -118,7 +133,7 @@ export async function prove(_mod, { c, gruppo, radice }) {
   c("un solo tasto pieno per schermata: nel guscio i tasti pieni sono due (computer e telefono) e fanno tutti «Pubblica»", [2, 2], [pieni.length, pieni.filter((b) => /void pubblica\(\)/.test(b.testo)).length]);
   c("i due tasti pieni non si vedono insieme: uno solo dal computer, l'altro solo sul telefono", true, pieni.some((b) => /hidden md:/.test(b.testo)) && /md:hidden[\s\S]{0,1200}void pubblica\(\)/.test(k));
   const giacenza = senzaCommenti(readFileSync(join(dir, "scheda/RiquadroGiacenza.tsx"), "utf8"));
-  c("la quantità si conferma uscendo dal campo: il riquadro Giacenza ha `onBlur={confermaQuantita}` e il guscio gliela passa", [true, true], [/onBlur=\{confermaQuantita\}/.test(giacenza), /confermaQuantita=\{confermaQuantita\}/.test(k)]);
+  c("la quantità si conferma uscendo dal gruppo quantità+motivo: il guscio passa `confermaQuantita` al riquadro Giacenza", [true, true], [/onBlur=/.test(giacenza) && /confermaQuantita/.test(giacenza), /confermaQuantita=\{confermaQuantita\}/.test(k)]);
   c("la striscia «Hai modifiche non pubblicate» ha il suo «Pubblica le modifiche» di contorno", true, /Hai modifiche non pubblicate[\s\S]{0,900}variant="outline"[\s\S]{0,300}void pubblica\(\)/.test(k));
 
   // ════ LA VARIANTE «UNICA»: COSTO, SKU, CREAZIONE, PASSAGGIO ALLE OPZIONI ════
@@ -132,6 +147,54 @@ export async function prove(_mod, { c, gruppo, radice }) {
   c("il costo e lo SKU della Unica viaggiano nel salvataggio automatico (un solo posto che scrive)", true, /creaAutosalva(<[^>]*>)?\(/.test(k) && /costo/.test(k.slice(k.indexOf("creaAutosalva<"), k.indexOf("creaAutosalva<") + 2500)));
   c("il «Prezzo di base» sta dentro EditorVarianti (E8): il guscio passa `prezzoBase` solo con le opzioni, legato al prezzo del modulo e al tasto «Applica» (una sola volta)", [true, true, true, 1], [/prezzoBase:/.test(k), /testo:\s*modulo\.prezzo/.test(k) && /azione:\s*pubblicato \? azionePrezzo/.test(k), /modalita === "opzioni" && !senzaPrezzo/.test(k), conta(k, /void applicaPrezzo\(\)/g)]);
   c("costi e costoDisponibile arrivano all'editor delle varianti", true, /costi:\s*dati\.costi/.test(k) && /costoDisponibile:\s*costoDisp/.test(k) && /<EditorVarianti[\s\S]{0,700}\.\.\.propsNuoveVarianti/.test(k));
+
+
+  // ════ LA QUANTITÀ: QUANDO SI SCRIVE E COSA (correzioni di E7) ════
+  const fileGiac = join(dir, "scheda/giacenza-puro.ts");
+  const G = existsSync(fileGiac) ? await caricaBundle(fileGiac, radice) : {};
+  const ha = (n) => typeof G[n] === "function";
+  c("giacenza-puro.ts esporta testoQuantita, movimentoDaScrivere, fuocoEsceDalGruppo", [true, true, true], ["testoQuantita", "movimentoDaScrivere", "fuocoEsceDalGruppo"].map(ha));
+  if (ha("movimentoDaScrivere")) {
+    c("campo NON toccato: segue il magazzino (arriva un ordine, 10 → 7: il campo dice 7)", ["7", "10"], [G.testoQuantita({ letta: 7, testo: "10", toccata: false }), G.testoQuantita({ letta: 7, testo: "10", toccata: true })]);
+    c("campo non toccato col testo vecchio («10», il magazzino è 7): NON si scrive niente", null, G.movimentoDaScrivere({ letta: 7, testo: "10", toccata: false, motivo: null }));
+    c("toccato, 10 → 12: carico di 12 (il motivo si propone dal verso)", { valore: 12, motivo: "carico" }, G.movimentoDaScrivere({ letta: 10, testo: "12", toccata: true, motivo: null }));
+    c("toccato, 10 → 4 con motivo scelto «reso»: vale la scelta, non la proposta", { valore: 4, motivo: "reso" }, G.movimentoDaScrivere({ letta: 10, testo: "4", toccata: true, motivo: "reso" }));
+    c("toccato ma uguale al magazzino, o non è un intero: niente", [null, null, null], [G.movimentoDaScrivere({ letta: 10, testo: "10", toccata: true, motivo: null }), G.movimentoDaScrivere({ letta: 10, testo: "12,5", toccata: true, motivo: null }), G.movimentoDaScrivere({ letta: 10, testo: "", toccata: true, motivo: null })]);
+    const gruppo = { contains: (n) => n === "motivo" || n === "quantita" };
+    c("il fuoco passa al motivo (dentro il gruppo): non esce; va altrove o fuori dalla pagina: esce", [false, true, true], [G.fuocoEsceDalGruppo(gruppo, "motivo"), G.fuocoEsceDalGruppo(gruppo, "altro"), G.fuocoEsceDalGruppo(gruppo, null)]);
+  }
+  // il riquadro vero: i gestori, chiamati con eventi finti (niente browser)
+  const fileRiq = join(dir, "scheda/RiquadroGiacenza.tsx");
+  if (existsSync(fileRiq)) {
+    const R = await caricaBundle(fileRiq, radice);
+    let scritture = 0;
+    const albero = dispiega(R.RiquadroGiacenza({ modulo: { sku: "HG-T01", gtin: "" }, cambia: () => {}, errori: {}, avvisi: {}, modalita: "semplice", invisibleDerm: false, nuovo: false, skuBloccato: false, giacenzaAttuale: 10, quantita: "10", cambiaQuantita: () => {}, motivo: "carico", cambiaMotivo: () => {}, soglia: null, confermaQuantita: () => { scritture++; } }));
+    const gruppoEl = albero.find((e) => typeof e.props?.onBlur === "function");
+    const campo = albero.find((e) => e.type === "input" && e.props.id === "f-giacenza");
+    c("riquadro Giacenza: un contenitore ascolta l'uscita del fuoco (onBlur) e il campo quantità non scrive da solo", [true, true], [!!gruppoEl, !!campo && campo.props.onBlur === undefined]);
+    if (gruppoEl && campo) {
+      const motivoEl = {};
+      const contenitore = { contains: (n) => n === motivoEl || n === campo };
+      gruppoEl.props.onBlur({ currentTarget: contenitore, relatedTarget: motivoEl });
+      c("dalla quantità al menu «Motivo»: NON parte il movimento (così «Reso» si può scegliere)", 0, scritture);
+      gruppoEl.props.onBlur({ currentTarget: contenitore, relatedTarget: {} });
+      c("il fuoco esce dal gruppo: parte una volta", 1, scritture);
+      gruppoEl.props.onBlur({ currentTarget: contenitore, relatedTarget: null });
+      c("il fuoco esce dalla pagina (relatedTarget nullo): parte", 2, scritture);
+      let sfocato = 0;
+      campo.props.onKeyDown?.({ key: "Enter", currentTarget: { blur: () => sfocato++ }, preventDefault() {} });
+      campo.props.onKeyDown?.({ key: "a", currentTarget: { blur: () => sfocato++ }, preventDefault() {} });
+      c("Invio nel campo toglie il fuoco (un solo percorso: lo stesso dell'uscita); un altro tasto no", 1, sfocato);
+    }
+  }
+  c("il guscio: il campo segue il magazzino finché non lo si tocca, la scrittura parte solo dopo un tocco e il segno si azzera prima di scrivere", [true, true, true], [/testoQuantita\(/.test(k), /movimentoDaScrivere\(/.test(k), /setToccata\(false\)[\s\S]{0,300}"giacenza_imposta"/.test(k)]);
+  c("quantità con la Unica assente: una frase («salva prima il prodotto»), non il silenzio", true, /salva prima il prodotto/i.test(k));
+
+  // ════ L'APERTURA DI UNA BOZZA SCRIVE; QUELLA DI UN PUBBLICATO MAI ════
+  const corpoRiparo = k.slice(k.indexOf("const riparata = useRef"), k.indexOf("[]); // eslint-disable-line"));
+  c("la riparazione della Unica all'apertura parte solo per una BOZZA e non per il vecchio catalogo (sorgente)", [true, true], [/prodotto0\.stato !== "bozza"/.test(corpoRiparo), /prodotto0\.origine === "codice"/.test(corpoRiparo)]);
+  c("se la riparazione fallisce rilegge e mostra l'errore solo se la Unica manca ancora (un'altra persona può averla già creata)", true, /await rileggi\(\)[\s\S]{0,400}statoUnica\(viva\.current\.varianti[\s\S]{0,300}setEsito/.test(corpoRiparo));
+  c("lo SKU della Unica si allinea solo se il prodotto non è mai stato pubblicato (sorgente)", true, /if \(\s*unica &&\s*!v\.prodotto\.pubblicatoIl &&\s*unica\.sku !== sku\s*\)/.test(k));
 
   // ════ IL DISEGNO ════
   const file = join(dir, "SchedaProdotto.tsx");
@@ -194,6 +257,10 @@ export async function prove(_mod, { c, gruppo, radice }) {
   c("pubblicato con una bozza di modifica · la striscia c'è, «Pubblica le modifiche» si accende (testata, barra, striscia)", [true, 3, true], [/Hai modifiche non pubblicate/.test(h6), tastoPubblica(h6, "Pubblica le modifiche").length, tastoPubblica(h6, "Pubblica le modifiche").every((b) => !spento(b))]);
   c("pubblicato con bozza · un solo tasto pieno per schermata (due in tutto: computer e telefono)", 2, pieniNelDisegno(h6).length);
   c("pubblicato con bozza · nessun id doppio", [], idDoppi(h6));
+
+  const fotoPub = h5.slice(h5.indexOf('id="sez-foto"'), h5.indexOf('id="sez-prezzo"'));
+  c("pubblicato · il riquadro Foto dice «si applica subito» (come la vecchia scheda); in bozza no", [true, false], [fotoPub.includes("si applica subito"), h1.slice(h1.indexOf('id="sez-foto"'), h1.indexOf('id="sez-prezzo"')).includes("si applica subito")]);
+  c("la frase «Costo e tempi di spedizione si impostano insieme alla cassa…» c'è, una volta, nel riquadro Reso (anche con le opzioni)", [1, true, 1], [conta(leggibile(h1), /Costo e tempi di spedizione si impostano insieme alla cassa: non servono per pubblicare adesso\./g), h1.indexOf('id="f-spedizione"') > h1.indexOf('id="sez-reso"'), conta(leggibile(h3), /Costo e tempi di spedizione si impostano insieme alla cassa/g)]);
 
   // 6 · il vecchio catalogo: «Rendi mio» e Pubblica spento
   const h7 = await vedi(scheda({ prodotto: prodotto({ origine: "codice" }) }));

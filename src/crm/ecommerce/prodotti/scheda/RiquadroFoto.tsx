@@ -9,14 +9,17 @@ import type { SegnoRiquadroProps } from "./RiquadroCampi";
 export function RiquadroFoto({
   nuovo,
   segno,
+  subito,
   children,
 }: {
   nuovo: boolean;
   segno?: SegnoRiquadroProps;
+  /** Un prodotto pubblicato: le foto cambiano il sito subito. */
+  subito?: boolean;
   children?: ReactNode;
 }) {
   return (
-    <RiquadroPolaris id="foto" titolo="Foto e video" segno={segno}>
+    <RiquadroPolaris id="foto" titolo="Foto e video" segno={segno} subito={subito}>
       {nuovo ? <Banner tono="info">Premi Salva bozza per aggiungere le foto.</Banner> : children}
     </RiquadroPolaris>
   );

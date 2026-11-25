@@ -153,6 +153,10 @@ export function RiquadroContenuto({
             </select>
           )}
         </CampoP>
+        <p id="f-spedizione" className="text-[13px] text-muted-foreground">
+          Costo e tempi di spedizione si impostano insieme alla cassa: non servono per pubblicare
+          adesso.
+        </p>
       </RiquadroPolaris>
     </>
   );

@@ -63,6 +63,7 @@ import {
   type EsitoScheda,
 } from "./scheda/AvvisiScheda";
 import { ColonnaLaterale } from "./scheda/ColonnaLaterale";
+import { movimentoDaScrivere, testoQuantita } from "./scheda/giacenza-puro";
 import { FinestraAnteprima, FinestraArchivia, type VistaAnteprima } from "./scheda/FinestreScheda";
 import { PrimaDiPubblicare } from "./scheda/PrimaDiPubblicare";
 import { RiquadroContenuto, type RiquadroRichiudibile } from "./scheda/RiquadroContenuto";
@@ -203,7 +204,8 @@ export function SchedaAperta({
   const [modulo, setModulo] = useState<Modulo>(() => moduloDaProdotto(prodotto0));
   const [costo, setCosto] = useState(() => eCosto(unica0 ? scheda.costi?.[unica0.id] : null));
   const [seo, setSeo] = useState(seo0);
-  const [quantita, setQuantita] = useState(String(unica0?.giacenza ?? 0));
+  const [quantita, setQuantita] = useState("");
+  const [toccata, setToccata] = useState(false);
   const [motivoGiac, setMotivoGiac] = useState<MotivoGiacenza | null>(null);
   const [soglia, setSoglia] = useState<number | null>(null);
   const [stato, setStato] = useState(prodotto0.stato);
@@ -401,8 +403,12 @@ export function SchedaAperta({
             prodottoId: id,
             variante: { sku: prodotto0.sku, nome: "Unica", opzioni: {} },
           });
-      if (!r.ok) return setEsito({ tono: "errore", testo: r.errore.messaggio });
+      //  Anche dopo un errore si rilegge: un'altra persona può aver sistemato la Unica un attimo prima (SKU «duplicato»). L'errore si
+      //  mostra solo se la Unica manca ancora: chi ha solo aperto la scheda non deve vedere un errore per ciò che non ha fatto.
       await rileggi();
+      const ancora = statoUnica(viva.current.varianti, prodotto0.sku);
+      if (!r.ok && (ancora === "assente" || ancora === "disattivata"))
+        setEsito({ tono: "errore", testo: r.errore.messaggio });
     });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -504,28 +510,45 @@ export function SchedaAperta({
       ? "Scrivi il costo in euro, per esempio 10,40."
       : undefined;
   const giacenzaAttuale = unica?.giacenza ?? 0;
-  const proposta = cambioQuantita(giacenzaAttuale, quantita);
+  const testoQ = testoQuantita({ letta: giacenzaAttuale, testo: quantita, toccata });
+  const proposta = cambioQuantita(giacenzaAttuale, testoQ);
   const motivo: MotivoGiacenza =
     motivoGiac ?? (proposta.ok ? proposta.motivo : null) ?? "rettifica";
-  /** Si esce dal campo: se la quantità è cambiata, ora diventa un movimento registrato (mai a ogni cifra). */
+  /** Il fuoco esce da quantità + motivo: se la quantità è stata toccata e cambia, ora diventa un movimento registrato. */
   const confermaQuantita = () => {
-    if (!proposta.ok || proposta.differenza === 0 || conflitto || !unica) return;
-    const valore = giacenzaAttuale + proposta.differenza;
+    const m = movimentoDaScrivere({
+      letta: giacenzaAttuale,
+      testo: quantita,
+      toccata,
+      motivo: motivoGiac,
+    });
+    if (!m || conflitto) return;
+    if (!unica)
+      return setEsito({
+        tono: "errore",
+        testo: "Questo prodotto non ha ancora la sua variante: salva prima il prodotto.",
+      });
+    setToccata(false); // prima di scrivere: un secondo «esci dal campo» non rimanda lo stesso movimento
     void (async () => {
-      const r = await scrivi("giacenza_imposta", { varianteId: unica.id, valore, motivo });
+      const r = await scrivi("giacenza_imposta", {
+        varianteId: unica.id,
+        valore: m.valore,
+        motivo: m.motivo,
+      });
       if (!r.ok) return setEsito({ tono: "errore", testo: r.errore.messaggio });
       setMotivoGiac(null);
       await rileggi();
       setEsito({
         tono: "ok",
-        testo: `Giacenza aggiornata: ${valore} ${valore === 1 ? "pezzo" : "pezzi"}.`,
+        testo: `Giacenza aggiornata: ${m.valore} ${m.valore === 1 ? "pezzo" : "pezzi"}.`,
       });
     })();
   };
 
   /* ── andare al campo ── */
   const vaiA = (v: Voce) => {
-    const riquadro = riquadroDi(v, ctxRiquadri);
+    //  La frase sulla spedizione sta in «Reso, consulenza e consegna» (come nella scheda di prima)
+    const riquadro = v.campo === "spedizione" ? "reso" : riquadroDi(v, ctxRiquadri);
     if (Object.hasOwn(aperti, riquadro)) setAperti((a) => ({ ...a, [riquadro]: true }));
     //  Il campo di una voce può non esserci (la variante mancante senza opzioni sta nello SKU): si ripiega, alla fine, sul pannello del riquadro.
     const ids = [
@@ -909,7 +932,7 @@ export function SchedaAperta({
                 )
               }
             />
-            <RiquadroFoto nuovo={false} segno={segno("foto")}>
+            <RiquadroFoto nuovo={false} segno={segno("foto")} subito={pubblicato}>
               <EditorMedia
                 prodotto={{ id, nome: modulo.nome, pubblicato }}
                 media={dati.media}
@@ -938,9 +961,10 @@ export function SchedaAperta({
               nuovo={false}
               skuBloccato={bloccoSkuIndirizzo}
               giacenzaAttuale={giacenzaAttuale}
-              quantita={quantita}
+              quantita={testoQ}
               cambiaQuantita={(t) => {
                 setQuantita(t);
+                setToccata(true);
                 setEsito(null);
               }}
               motivo={motivo}

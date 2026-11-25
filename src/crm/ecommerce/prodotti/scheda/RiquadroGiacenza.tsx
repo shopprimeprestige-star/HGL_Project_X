@@ -10,6 +10,7 @@ import {
   type Modalita,
   type MotivoGiacenza,
 } from "../semplice-puro";
+import { fuocoEsceDalGruppo } from "./giacenza-puro";
 import { CLASSI_CAMPO, CampoP, RiquadroPolaris } from "./polaris";
 import { CampoTesto, type ProprietaRiquadro } from "./RiquadroCampi";
 
@@ -44,7 +45,7 @@ export function RiquadroGiacenza({
   soglia: number | null;
   /** Il link alle impostazioni, costruito dal chiamante (il router non è affare dei riquadri). */
   linkSoglia?: ReactNode;
-  /** Si esce dal campo della quantità: è il momento in cui il guscio scrive il movimento (mai a ogni tasto: ogni cifra sarebbe un movimento). */
+  /** Il fuoco esce dal gruppo quantità + motivo (o Invio nella quantità): è il momento in cui il guscio scrive il movimento (mai a ogni tasto, mai passando al motivo). */
   confermaQuantita?: () => void;
 }) {
   if (!riquadriVisibili({ modalita, invisibleDerm }).includes("giacenza")) return null;
@@ -78,7 +79,12 @@ export function RiquadroGiacenza({
           inputMode="numeric"
         />
       </div>
-      <div>
+      <div
+        onBlur={(e) =>
+          fuocoEsceDalGruppo(e.currentTarget, e.relatedTarget as Node | null) &&
+          confermaQuantita?.()
+        }
+      >
         <div className={nuovo ? "grid gap-4" : "grid gap-4 md:grid-cols-2"}>
           <CampoP
             id="f-giacenza"
@@ -92,7 +98,7 @@ export function RiquadroGiacenza({
                 inputMode="numeric"
                 value={quantita}
                 onChange={(e) => cambiaQuantita(e.target.value)}
-                onBlur={confermaQuantita}
+                onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
                 className={CLASSI_CAMPO}
               />
             )}
