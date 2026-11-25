@@ -30,16 +30,23 @@ export async function prove(mod, { c, gruppo, radice }) {
   const MIGRAZIONE_VISTE = join(radice, "supabase", "migrations", "20261120120000_shop_catalogo.sql");
   /** Il punto da cui il ramo è partito: se `main` va avanti, «uguale a main» non diventa rosso per colpa di altri. */
   let base = "";
-  try { base = git("merge-base", "HEAD", "origin/main").trim(); } catch { /* resta vuoto: i controlli sulla base diranno rosso */ }
+  try { base = git("merge-base", "HEAD", "origin/main").trim(); } catch { /* senza `origin/main` (clone senza remoto): niente base */ }
+  /** Senza `origin/main`, o con la base uguale a HEAD (main dopo l'unione: non c'è più «il ramo» da confrontare), i controlli che si leggono
+   *  dal diff NON hanno senso: si dichiara il salto (riga «SALTATO»), non si va in rosso. Restano attivi quelli che leggono solo file. */
+  let head = "";
+  try { head = git("rev-parse", "HEAD").trim(); } catch { /* idem */ }
+  const conBase = /^[0-9a-f]{40}$/.test(base) && base !== head;
+  const dalDiff = (nome, atteso, letto) =>
+    conBase ? c(nome, atteso, typeof letto === "function" ? letto() : letto) : c(`SALTATO (${base ? "base = HEAD, siamo su main dopo l'unione" : "manca origin/main"}): ${nome}`, true, true);
   const cambiati = (...f) => { try { return git("diff", "--name-only", base, "--", ...f).split("\n").filter(Boolean); } catch { return ["git non risponde"]; } };
-  const nuovi = (() => {
+  const nuovi = !conBase ? [] : (() => {
     try {
       const aggiunti = git("diff", "--name-only", "--diff-filter=A", base).split("\n");
       const nonTracciati = git("ls-files", "--others", "--exclude-standard").split("\n");
       return [...new Set([...aggiunti, ...nonTracciati])].filter(Boolean);
     } catch { return []; }
   })();
-  const codiceNuovo = nuovi.filter((f) => /^(src\/.*\.tsx?|strumenti\/scheda-finta\/.*\.(mjs|tsx?|html))$/.test(f));
+  const codiceNuovo = (conBase ? nuovi : filesDi(join(radice, "strumenti", "scheda-finta")).map((f) => relative(radice, f))).filter((f) => /^(src\/.*\.tsx?|strumenti\/scheda-finta\/.*\.(mjs|tsx?|html))$/.test(f));
 
   /* ══ 1 · LA SCHEDA FINTA NON PUÒ TOCCARE IL DATABASE VERO ═════════════════════════════════════════════ */
   gruppo("EDITOR PRODOTTI · E11 · LA SCHEDA FINTA (salvaguardie)");
@@ -101,13 +108,14 @@ export async function prove(mod, { c, gruppo, radice }) {
    *  (la tariffa: `costo_cent` di `shop_spedizioni_tariffe`), non del costo del prodotto. Si prova quindi che (1) la commessa non ha toccato nessun file di
    *  `src/shop/**` e (2) chi nomina il costo è solo la tariffa: un decimo file, o uno dei moduli del catalogo (`righe`, `pubblico`, `catalogo`), è rosso. */
   const TARIFFA = ["src/shop/useTariffa.ts", "src/shop/cassa/cassa.server.ts", "src/shop/cassa/tariffa-carrello.ts", "src/shop/cassa/spedizione.ts", "src/shop/cassa/tariffe.server.ts", "src/shop/cassa/cassa-client.ts", "src/shop/cms/vetrina-fiducia.ts", "src/shop/stripe/sessione.ts", "src/shop/cms/vetrina-carrello.ts"];
-  c("la commessa non ha toccato nessun file di `src/shop/**` (il sito pubblico non cambia)", [], cambiati("src/shop"));
+  dalDiff("la commessa non ha toccato nessun file di `src/shop/**` (il sito pubblico non cambia)", [], () => cambiati("src/shop"));
   c("`costo_cent`/`costoCent` in `src/shop/**` solo nei nove file della TARIFFA di spedizione, mai nei moduli del catalogo", [TARIFFA.sort(), true], [sorgentiShop.filter((f) => /costo_cent|costoCent/.test(readFileSync(f, "utf8"))).map((f) => relative(radice, f)).sort(), sorgentiShop.length > 20]);
 
   /* ══ 3 · SOLO AGGIUNTE ════════════════════════════════════════════════════════════════════════════════ */
   gruppo("EDITOR PRODOTTI · E11 · SOLO AGGIUNTE");
-  c("c'è un punto di partenza (merge-base con origin/main) e ci sono file nuovi da guardare", [true, true], [/^[0-9a-f]{40}$/.test(base), codiceNuovo.length > 10]);
-  c("`package.json` e i lockfile (package-lock.json, bun.lockb) sono identici a quelli di origin/main: nessun pacchetto nuovo", [], cambiati("package.json", "package-lock.json", "bun.lockb"));
+  dalDiff("c'è un punto di partenza (merge-base con origin/main) e ci sono file nuovi da guardare", [true, true], [conBase, codiceNuovo.length > 10]);
+  c("c'è comunque qualcosa da guardare per `console.` e DELETE: i file dello strumento (o tutti i nuovi, se c'è la base)", true, codiceNuovo.length >= 6);
+  dalDiff("`package.json` e i lockfile (package-lock.json, bun.lockb) sono identici a quelli di origin/main: nessun pacchetto nuovo", [], () => cambiati("package.json", "package-lock.json", "bun.lockb"));
   const sql = existsSync(MIGRAZIONE) ? senzaCommenti(readFileSync(MIGRAZIONE, "utf8")) : "";
   c("la migrazione `20261125120000` c'è e non ha DELETE, DROP, TRUNCATE (commenti compresi nel controllo)", [true, false], [sql.length > 500, /\b(DELETE|DROP|TRUNCATE)\b/i.test(readFileSync(MIGRAZIONE, "utf8"))]);
   const conParole = codiceNuovo.filter((f) => /\b(DELETE|DROP|TRUNCATE)\b|\.(delete|truncate)\(/.test(senzaCommenti(readFileSync(join(radice, f), "utf8"))));
@@ -115,8 +123,9 @@ export async function prove(mod, { c, gruppo, radice }) {
   const conConsole = codiceNuovo.filter((f) => /\bconsole\./.test(senzaCommenti(readFileSync(join(radice, f), "utf8"))));
   c("nessun `console.` nei file nuovi (src e strumento: il lanciatore scrive con `process.stdout`)", [], conConsole);
   const viste = existsSync(MIGRAZIONE_VISTE) ? readFileSync(MIGRAZIONE_VISTE, "utf8") : "";
-  c("le quattro viste `shop_v_*` stanno nella migrazione di S1, che è IDENTICA a quella di origin/main, e nessuna nomina il costo", [4, [], false], [(senzaCommenti(viste).match(/CREATE\s+(?:OR\s+REPLACE\s+)?VIEW\s+public\.shop_v_\w+/gi) || []).length, cambiati("supabase/migrations/20261120120000_shop_catalogo.sql"), /costo_cent|costoCent/.test(viste)]);
-  c("nessun'altra migrazione (nuova o vecchia) ridefinisce una vista `shop_v_*`: la nuova non le nomina e nessuna migrazione nuova le tocca", [0, []], [(sql.match(/shop_v_/g) || []).length, nuovi.filter((f) => f.startsWith("supabase/migrations/") && /shop_v_/.test(senzaCommenti(readFileSync(join(radice, f), "utf8"))))]);
+  c("le quattro viste `shop_v_*` stanno nella migrazione di S1 e nessuna nomina il costo", [4, false], [(senzaCommenti(viste).match(/CREATE\s+(?:OR\s+REPLACE\s+)?VIEW\s+public\.shop_v_\w+/gi) || []).length, /costo_cent|costoCent/.test(viste)]);
+  c("la nuova migrazione non nomina `shop_v_` nel codice (non ridefinisce nessuna vista)", 0, (sql.match(/shop_v_/g) || []).length);
+  dalDiff("la migrazione delle viste (S1) è IDENTICA a quella di origin/main e nessuna migrazione nuova nomina `shop_v_`", [[], []], () => [cambiati("supabase/migrations/20261120120000_shop_catalogo.sql"), nuovi.filter((f) => f.startsWith("supabase/migrations/") && /shop_v_/.test(senzaCommenti(readFileSync(join(radice, f), "utf8"))))]);
 
   /* ══ 4 · LE 33 BOZZE DEL FINTO ════════════════════════════════════════════════════════════════════════ */
   gruppo("EDITOR PRODOTTI · E11 · LE 33 BOZZE DEL FINTO");
