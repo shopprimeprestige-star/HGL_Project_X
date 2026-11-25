@@ -77,6 +77,16 @@ export interface Modulo {
   canali: Canali;
   seoTitolo: string;
   seoDescrizione: string;
+  /** Editor prodotti (E5): i campi del prodotto semplice e delle colonne laterali, tutti come testo che si scrive. */
+  gtin: string;
+  mpn: string;
+  categoriaGoogle: string;
+  /** Grammi, intero («250»). */
+  pesoG: string;
+  classeSpedizione: string;
+  fornitore: string;
+  noteInterne: string;
+  notaTitolare: string;
 }
 export type CampoModulo = keyof Modulo;
 
@@ -104,6 +114,14 @@ export interface CampiScheda {
   canali: Canali;
   seoTitolo: string | null;
   seoDescrizione: string | null;
+  gtin: string | null;
+  mpn: string | null;
+  categoriaGoogle: string | null;
+  pesoG: number | null;
+  classeSpedizione: string | null;
+  fornitore: string | null;
+  noteInterne: string | null;
+  notaTitolare: string | null;
 }
 export type Errori = Partial<Record<CampoModulo, string>>;
 
@@ -148,6 +166,14 @@ export function moduloDaProdotto(p: Prodotto): Modulo {
     },
     seoTitolo: e.seoTitolo ?? "",
     seoDescrizione: e.seoDescrizione ?? "",
+    gtin: e.gtin ?? "",
+    mpn: e.mpn ?? "",
+    categoriaGoogle: e.categoriaGoogle ?? "",
+    pesoG: e.pesoG === null || e.pesoG === undefined ? "" : String(e.pesoG),
+    classeSpedizione: e.classeSpedizione ?? "",
+    fornitore: e.fornitore ?? "",
+    noteInterne: e.noteInterne ?? "",
+    notaTitolare: e.notaTitolare ?? "",
   };
 }
 
@@ -163,6 +189,7 @@ const CARATTERISTICHE_MAX = 40;
 const FAQ_MAX = 20;
 const GIORNI_RESO_MAX = 365;
 const MAX_SEO = { titolo: 300, descrizione: 500 } as const;
+const MAX_PESO_G = 1_000_000;
 
 const righeDi = (t: string): string[] =>
   t
@@ -194,6 +221,14 @@ const CAMPI_TESTO: readonly CampoModulo[] = [
   "faq",
   "seoTitolo",
   "seoDescrizione",
+  // il server cerca le frasi vietate in OGNI campo che riceve: qui lo stesso (E5)
+  "gtin",
+  "mpn",
+  "categoriaGoogle",
+  "classeSpedizione",
+  "fornitore",
+  "noteInterne",
+  "notaTitolare",
 ];
 
 /** Accanto a ogni campo di testo: i BLOCCHI (non si scrive) e gli AVVISI (parole da non usare). Un campo pulito non compare. */
@@ -262,6 +297,29 @@ export function campiDaModulo(m: Modulo): { campi: Partial<CampiScheda>; errori:
   if (seoT !== undefined) campi.seoTitolo = seoT;
   const seoD = opz("seoDescrizione", m.seoDescrizione, MAX_SEO.descrizione, "La descrizione");
   if (seoD !== undefined) campi.seoDescrizione = seoD;
+  // i campi del prodotto semplice e delle colonne laterali (stessi massimi di `VALIDA` del server)
+  const gtin = opz("gtin", m.gtin, 20, "Il barcode");
+  if (gtin !== undefined) campi.gtin = gtin;
+  const mpn = opz("mpn", m.mpn, 40, "Il codice produttore");
+  if (mpn !== undefined) campi.mpn = mpn;
+  const catGoogle = opz("categoriaGoogle", m.categoriaGoogle, 200, "La categoria Google");
+  if (catGoogle !== undefined) campi.categoriaGoogle = catGoogle;
+  const classe = opz("classeSpedizione", m.classeSpedizione, 40, "La classe di spedizione");
+  if (classe !== undefined) campi.classeSpedizione = classe;
+  const fornitore = opz("fornitore", m.fornitore, 200, "Il fornitore");
+  if (fornitore !== undefined) campi.fornitore = fornitore;
+  const noteInterne = opz("noteInterne", m.noteInterne, 5000, "La nota interna");
+  if (noteInterne !== undefined) campi.noteInterne = noteInterne;
+  const notaTitolare = opz("notaTitolare", m.notaTitolare, 2000, "La nota del titolare");
+  if (notaTitolare !== undefined) campi.notaTitolare = notaTitolare;
+  const peso = m.pesoG.trim();
+  if (!peso) campi.pesoG = null;
+  else if (!/^\d{1,7}$/.test(peso) || Number(peso) > MAX_PESO_G)
+    errore(
+      "pesoG",
+      `Il peso è un numero intero di grammi, da 0 a ${MAX_PESO_G} (per esempio 250).`,
+    );
+  else campi.pesoG = Number(peso);
 
   // prezzo: vuoto = ancora zero (una bozza); il resto passa da centDaEuro
   const prezzo = m.prezzo.trim();
