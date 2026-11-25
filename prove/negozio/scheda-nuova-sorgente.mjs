@@ -75,7 +75,7 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("le proposte dal titolo passano da `applicaCambio` (SKU e indirizzo seguono il titolo finché non li cambi a mano)", true, /applicaCambio\(/.test(k.scheda) && /slugDa\(/.test(k.puro) && /propostaSku\(/.test(k.puro));
   c("il tasto «Salva bozza» è uno solo per schermata: pieno dal computer, in una barra fissa sul telefono", [true, true], [/md:hidden/.test(scheda) && /fixed inset-x-0 bottom-0/.test(scheda), /hidden md:/.test(scheda)]);
   c("l'avviso di uscita c'è, ma SOLO dietro `eScritta`: il `beforeunload` (non in invio) e la conferma di «← Prodotti»", [true, true, true, true],
-    [/addEventListener\("beforeunload"/.test(k.scheda), /if \(!scritta \|\| invio[^)]*\) return;[\s\S]{0,120}addEventListener\("beforeunload"/.test(k.scheda), /const scritta = eScritta\(dati\)/.test(k.scheda), /scritta && !window\.confirm\(/.test(k.scheda)]);
+    [/addEventListener\("beforeunload"/.test(k.scheda), /if \(!scritta \|\| invio[^)]*\) return;[\s\S]{0,120}addEventListener\("beforeunload"/.test(k.scheda), /const scritta = eScritta\(dati\)/.test(k.scheda), /scritta &&\s*!window\.confirm\(/.test(k.scheda)]);
   c("niente popstate né history: il tasto indietro del browser resta fuori (dichiarato)", false, /popstate|history\./.test(k.scheda));
   c("`salva` decide con `dopoCreazione` (apri o avviso) e non guarda `mancanti` da sé; `creaBozza` sta in try/finally (il tasto non resta «Salvo…»)", [true, false, true],
     [/dopoCreazione\(esito\)/.test(k.scheda), /mancanti\.length/.test(k.scheda), /try \{[\s\S]*?await creaBozza\([\s\S]*?\} finally \{[\s\S]*?setInvio\(false\)/.test(k.scheda)]);
@@ -273,7 +273,7 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("«Aggiungi prodotto» apre la scheda nuova (senza scrivere) e «Importa» apre la finestra dell'import",
     [true, true, true], [/<SchedaNuova\b/.test(nuovoSrc) && /setNuovo\(true\)/.test(nuovoSrc), /<FinestraImporta\b[\s\S]*?aperta=\{importa\}/.test(nuovoSrc), /setImporta\(true\)/.test(nuovoSrc)]);
   c("il telefono ha il suo tasto fisso «Aggiungi prodotto»", true, /fixed inset-x-4[^"]*md:hidden[\s\S]{0,400}Aggiungi prodotto/.test(elenco));
-  c("tornando dalla scheda nuova il cursore va al tasto «Aggiungi prodotto» visibile (computer o telefono)", [2, true], [conta(nuovoSrc, /data-aggiungi-prodotto/g), /eraNuovo\.current && !nuovo[\s\S]{0,160}getClientRects\(\)\.length > 0[\s\S]{0,40}focus\(\)/.test(nuovoSrc)]);
+  c("tornando dalla scheda nuova il cursore va al tasto «Aggiungi prodotto» visibile (computer o telefono): due tasti marcati e il selettore", [3, true], [conta(nuovoSrc, /data-aggiungi-prodotto/g), /eraNuovo\.current && !nuovo[\s\S]{0,160}getClientRects\(\)\.length > 0[\s\S]{0,40}focus\(\)/.test(nuovoSrc)]);
   c("l'import: la finestra riceve un `negozio` il cui `esegui` NON rilegge l'elenco (`eseguiAzione`), e l'elenco si rilegge UNA volta, alla chiusura",
     [true, true, true], [/eseguiAzione\(fetchCRM, azione, dati\)/.test(nuovoSrc), /negozio=\{negozioImporta\}/.test(nuovoSrc), /const chiudiImporta = \(\) => \{[^}]*setImporta\(false\)[^}]*aggiorna\(\)/.test(nuovoSrc)]);
   c("l'elenco non scrive direttamente: nessun fetch( (la rete passa da eseguiAzione e negozio)", false, /\bfetch\(/.test(nuovoSrc));
