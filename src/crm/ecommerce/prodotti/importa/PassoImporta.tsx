@@ -13,11 +13,15 @@ import {
   type Analisi,
   type StatoImporta,
 } from "./importa-flusso";
+import { avanzamentoFoto, fraseFoto, nonRiuscite, type StatoFoto } from "./importa-foto";
 
 export function PassoImporta({
   analisi,
   stato,
   inCorso,
+  foto = null,
+  fotoInCorso = false,
+  riprovaFoto,
   interrompi,
   riprendi,
   scaricaErrori,
@@ -27,6 +31,10 @@ export function PassoImporta({
   analisi: Analisi;
   stato: StatoImporta;
   inCorso: boolean;
+  /** Le foto dell'import (E13): `null` finché non partono, o se il file non ne ha. */
+  foto?: StatoFoto | null;
+  fotoInCorso?: boolean;
+  riprovaFoto?: () => void;
   interrompi: () => void;
   riprendi: () => void;
   scaricaErrori: () => void;

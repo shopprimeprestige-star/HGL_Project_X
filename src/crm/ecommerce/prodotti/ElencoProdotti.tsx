@@ -42,6 +42,7 @@ import { Avviso } from "@/crm/ecommerce/Avviso";
 import {
   SEGMENTI,
   eseguiAzione,
+  leggiScheda,
   type ErroreNegozio,
   type FiltriElenco,
   type RigaElenco,
@@ -152,10 +153,12 @@ export function ElencoProdotti({ negozio, apri, categorieAggiornate = 0 }: Props
 
   //  L'import scrive a gruppi: con l'`esegui` del negozio l'elenco si rileggerebbe dopo OGNI gruppo (fino a 60 letture, e la lista sfarfalla sotto
   //  la finestra). Questo `esegui` manda l'azione e basta; l'elenco si rilegge una volta sola, quando la finestra si chiude.
+  //  `scheda` (sola lettura) serve alle foto dell'import (E13): un prodotto già presente che ha già foto si salta.
   const negozioImporta = useMemo(
     () => ({
       esegui: (azione: string, dati?: Record<string, unknown>) =>
         eseguiAzione(fetchCRM, azione, dati),
+      scheda: (id: string) => leggiScheda(fetchCRM, id),
     }),
     [],
   );

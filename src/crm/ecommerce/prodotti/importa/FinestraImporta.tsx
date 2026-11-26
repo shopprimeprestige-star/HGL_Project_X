@@ -7,14 +7,16 @@
  *  · Fino a «Importa» il server riceve solo la verifica (sola lettura): nessuna scrittura.
  *  · Mentre i gruppi partono la finestra non si chiude; «Interrompi» ferma dopo il gruppo in corso e «Riprendi» non rimanda ciò che è già entrato.
  *  · La rete passa SOLO da `negozio.esegui` (lo stesso di ogni altra azione del negozio): niente chiamate dirette da qui.
+ *  · Le foto (E13): finiti i prodotti, salgono dal browser con la pipeline della scheda (`importa-foto.ts`, porte in `foto-browser.ts`);
+ *    anche intanto la finestra non si chiude, e «Riprova le foto non riuscite» rifà solo quelle.
  *
  *  ── LE PROPS ────────────────────────────────────────────────────────────────
  *   · `aperta` / `chiudi`  la finestra si apre dal tasto «Importa» dell'elenco.
- *   · `negozio`            `Pick<Negozio, "esegui">`: quello di `useNegozio()`, passato dal guscio.
+ *   · `negozio`            `Pick<Negozio, "esegui" | "scheda">`: passato dall'elenco (la scheda serve a sapere se un già presente ha foto).
  *   · `apriProdotto`       apre la scheda di un prodotto già presente (facoltativo).
  *   · `vaiAiProdotti`      «Vai ai prodotti importati» (facoltativo: senza, chiude la finestra; l'elenco si rilegge da solo dopo ogni scrittura).
  *  ⚠️ Nessun log da qui, mai. */
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Check } from "lucide-react";
 import {
   Dialog,
@@ -26,10 +28,13 @@ import {
 import { costruisciModello, NOME_FILE_MODELLO } from "@/crm/negozio/csv-modello";
 import { cn } from "@/lib/utils";
 import type { Negozio } from "../tipi";
+import { porteFotoBrowser } from "./foto-browser";
+import { avviaFoto, eseguiFoto, riprovaFoto, type StatoFoto } from "./importa-foto";
 import {
   AZIONE_IMPORTA,
   NOME_FILE_DA_CORREGGERE,
   analizzaFile,
+  avanzamento,
   avviaImporta,
   csvDaCorreggere,
   eseguiGruppi,
@@ -45,7 +50,14 @@ import { PassoScegli } from "./PassoScegli";
 type Fase =
   | { passo: "scegli"; leggo?: boolean; errore?: string }
   | { passo: "controllo"; analisi: Analisi }
-  | { passo: "importa"; analisi: Analisi; stato: StatoImporta; inCorso: boolean };
+  | {
+      passo: "importa";
+      analisi: Analisi;
+      stato: StatoImporta;
+      inCorso: boolean;
+      foto: StatoFoto | null;
+      fotoInCorso: boolean;
+    };
 
 const INIZIO: Fase = { passo: "scegli" };
 const PASSI = [
@@ -75,7 +87,7 @@ export function FinestraImporta({
 }: {
   aperta: boolean;
   chiudi: () => void;
-  negozio: Pick<Negozio, "esegui">;
+  negozio: Pick<Negozio, "esegui" | "scheda">;
   apriProdotto?: (id: string) => void;
   vaiAiProdotti?: () => void;
 }) {
@@ -106,7 +118,8 @@ export function FinestraImporta({
     passoPrima.current = fase.passo;
   }, [fase.passo]);
 
-  const occupata = fase.passo === "importa" && fase.inCorso;
+  const occupata = fase.passo === "importa" && (fase.inCorso || fase.fotoInCorso);
+  const porteFoto = useMemo(() => porteFotoBrowser(negozio), [negozio]);
 
   const scegli = async (file: File) => {
     const mio = ++giro.current;
@@ -121,18 +134,41 @@ export function FinestraImporta({
   const manda = async (analisi: Analisi, inizio: StatoImporta) => {
     const mio = ++giro.current;
     ferma.current = false;
-    setFase({ passo: "importa", analisi, stato: inizio, inCorso: true });
+    const metti = (stato: StatoImporta, inCorso: boolean) =>
+      setFase({ passo: "importa", analisi, stato, inCorso, foto: null, fotoInCorso: false });
+    metti(inizio, true);
     const fine = await eseguiGruppi(
       inizio,
       (prodotti) => negozio.esegui(AZIONE_IMPORTA, { prodotti }),
       {
         interrompi: () => ferma.current,
         aggiorna: (stato) => {
-          if (mio === giro.current) setFase({ passo: "importa", analisi, stato, inCorso: true });
+          if (mio === giro.current) metti(stato, true);
         },
       },
     );
-    if (mio === giro.current) setFase({ passo: "importa", analisi, stato: fine, inCorso: false });
+    if (mio !== giro.current) return;
+    metti(fine, false);
+    // Le foto partono solo a prodotti finiti (non dopo un fermo: prima si riprende).
+    const a = avanzamento(fine);
+    const foto = avviaFoto(analisi, fine);
+    if (!fine.fermo && a.gruppiFatti === a.gruppiTotali && foto.prodotti.length > 0)
+      await caricaFoto(analisi, fine, foto);
+  };
+
+  const caricaFoto = async (analisi: Analisi, stato: StatoImporta, inizio: StatoFoto) => {
+    const mio = ++giro.current;
+    ferma.current = false;
+    const metti = (foto: StatoFoto, fotoInCorso: boolean) =>
+      setFase({ passo: "importa", analisi, stato, inCorso: false, foto, fotoInCorso });
+    metti(inizio, true);
+    const fine = await eseguiFoto(inizio, porteFoto, {
+      interrompi: () => ferma.current,
+      aggiorna: (foto) => {
+        if (mio === giro.current) metti(foto, true);
+      },
+    });
+    if (mio === giro.current) metti(fine, false);
   };
 
   const scaricaErrori = () => {
@@ -155,8 +191,8 @@ export function FinestraImporta({
         <DialogHeader>
           <DialogTitle>Importa prodotti da un file</DialogTitle>
           <DialogDescription>
-            Il file si legge nel tuo browser e non viene salvato. Tutto entra in bozza, senza foto:
-            le foto si aggiungono dalla scheda.
+            Il file si legge nel tuo browser e non viene salvato. Tutto entra in bozza; le foto di
+            Shopify (fino a 5 per prodotto) si caricano subito dopo i prodotti.
           </DialogDescription>
         </DialogHeader>
 
@@ -219,6 +255,11 @@ export function FinestraImporta({
             analisi={fase.analisi}
             stato={fase.stato}
             inCorso={fase.inCorso}
+            foto={fase.foto}
+            fotoInCorso={fase.fotoInCorso}
+            riprovaFoto={() => {
+              if (fase.foto) void caricaFoto(fase.analisi, fase.stato, riprovaFoto(fase.foto));
+            }}
             interrompi={() => {
               ferma.current = true;
             }}
