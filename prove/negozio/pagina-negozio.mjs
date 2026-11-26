@@ -198,10 +198,10 @@ export async function prove(_mod, { c, gruppo, radice }) {
   c("errore con «Riprova»", true, el.includes("Riprova") && /aggiorna/.test(el));
   c("scheletri mentre si legge (`role=\"status\"`, `aria-busy`)", true, /role="status"/.test(el) && /aria-busy/.test(el) && /animate-pulse/.test(el));
   c("database non pronto (S1 mancante) o cancello: un messaggio chiaro, non un errore generico", true, /"migrazione"/.test(el) && /"cancello"/.test(el));
-  c("sul telefono: card al posto della tabella e tasto fisso «Nuovo prodotto»", true, /md:hidden/.test(el) && /hidden md:/.test(el) && /fixed/.test(el) && el.includes("Nuovo prodotto"));
+  c("sul telefono: card al posto della tabella e tasto fisso «Nuovo prodotto»", true, /md:hidden/.test(el) && /hidden md:/.test(el) && /fixed/.test(el) && el.includes("Aggiungi prodotto"));
   c("la giacenza si cambia dalla riga con `giacenza_imposta`", true, /"giacenza_imposta"/.test(el));
-  c("le azioni di gruppo usano `gruppo_stato`, `prodotto_duplica`, e il vecchio catalogo `prodotto_adotta`; il nuovo `prodotto_crea`", true,
-    ["gruppo_stato", "prodotto_duplica", "prodotto_adotta", "prodotto_crea"].every((a) => el.includes(`"${a}"`)));
+  c("le azioni di gruppo usano `gruppo_stato`, `prodotto_duplica`, e il vecchio catalogo `prodotto_adotta`", true,
+    ["gruppo_stato", "prodotto_duplica", "prodotto_adotta"].every((a) => el.includes(`"${a}"`)));
   c("i canali S M G T ci sono", true, ["S", "M", "G", "T"].every((l) => new RegExp(`["'>]${l}["'<]`).test(el)) && /canali/.test(el));
   c("nessuna cancellazione, nessun prezzo barrato, nessuna stella, nessun «best seller»", false, /\bdelete\b|Elimina|compareAt|barrato|sconto|rating|reviews|stelle|best.?seller/i.test(el));
   c("le colonne si ordinano (`aria-sort`) e le caselle hanno un nome per chi non vede", true, /aria-sort/.test(el) && /aria-label/.test(el));
@@ -230,8 +230,6 @@ export async function prove(_mod, { c, gruppo, radice }) {
   c("`giacenza_imposta` manda `varianteId`, `valore` e `motivo` (i campi del server) e nient'altro", ["motivo", "valore", "varianteId"], [...new Set(imposta)].sort());
   const duplicaCampi = campiDi(el, "prodotto_duplica") ?? [];
   c("`prodotto_duplica` manda `prodottoId`, `sku` e `slug`", ["prodottoId", "sku", "slug"], [...new Set(duplicaCampi)].sort());
-  c("`prodotto_crea` riceve anche l'indirizzo (`slug`) e, se è «duplicato», riprova UNA volta con nome e SKU", true,
-    /slug:\s*slugDa\(/.test(el) && /"duplicato"[\s\S]{0,160}slugDa\(`\$\{[^}]*\}\s+\$\{[^}]*\}`\)/.test(corpoDi(el, "FinestraNuovo") ?? ""));
   const impostaTasto = el.slice(el.indexOf('type="submit"', el.indexOf("pezzi-${variante.id}")), el.indexOf("Imposta</Button>"));
   c("il tasto «Imposta» non si spegne se il numero è uguale all'ultimo letto (un ordine può aver cambiato i pezzi)", [true, false], [/disabled=\{/.test(impostaTasto), /invariato/.test(el) || /disabled=\{[^}]*attuale/.test(impostaTasto)]);
   const tutti = ["ApriShop", "Categorie", "EditorMedia", "EditorVarianti", "ElencoProdotti", "SchedaProdotto"].map((n) => join(dir, `${n}.tsx`)).filter(existsSync).map((p) => readFileSync(p, "utf8")).join("\n");

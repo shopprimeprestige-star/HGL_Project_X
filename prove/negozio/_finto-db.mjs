@@ -78,6 +78,7 @@ export const PARAMETRI_FUNZIONI = {
   shop_email_modello_acceso: ["p_chiave", "p_acceso", "p_chi"],
   shop_email_prenota: ["p_ordine", "p_chiave"],
   shop_email_esito: ["p_ordine", "p_chiave", "p_stato", "p_codice"],
+  shop_import_prodotto: ["p_prodotto", "p_varianti", "p_categorie", "p_chi"], // editor prodotti (E1): l'import di UN prodotto, tutto o niente
 };
 /** Le colonne che S4 aggiunge a `shop_orders` e il valore che hanno su una riga VECCHIA dopo la migrazione (default costante o vuoto). */
 export const COLONNE_S4 = {
@@ -169,7 +170,7 @@ const CHECK = {
     pieno(r.sku) && pieno(r.slug) && pieno(r.nome) && ["patch", "cura", "kit"].includes(r.tipo) &&
     (r.origine == null || r.origine === "codice") && tipoJson(r.caratteristiche, "array") && tipoJson(r.contenuto, "oggetto") &&
     tipoJson(r.canali, "oggetto") && tipoJson(r.bozza_modifiche, "oggetto"),
-  shop_varianti: (r) => nonNeg(r.giacenza) && nonNeg(r.prezzo_cent) && pieno(r.sku) && tipoJson(r.opzioni, "oggetto"),
+  shop_varianti: (r) => nonNeg(r.giacenza) && nonNeg(r.prezzo_cent) && nonNeg(r.costo_cent) && pieno(r.sku) && tipoJson(r.opzioni, "oggetto"),
   shop_giacenza_movimenti: (r) => r.motivo == null || MOTIVI.includes(r.motivo),
   shop_orders: (r) => r.stato_pagamento == null || r.stato_pagamento === "" || STATI_PAGAMENTO.includes(r.stato_pagamento),
   shop_rimborsi: (r) => Number.isInteger(r.importo_cent) && r.importo_cent > 0 && pieno(r.motivo) && ["richiesto", "riuscito", "fallito"].includes(r.stato) && ["crm", "stripe"].includes(r.origine),
@@ -252,8 +253,9 @@ function confronta(a, b, asc) {
  * @param {Record<string, object|function>} [o.errori]  «tabella.operazione» o «rpc.funzione» → `{ error }` o `{ lancia }` (anche funzione che lo decide)
  * @param {Record<string, function>} [o.prima]  stesse chiavi → funzione `(tabelle, query)` eseguita subito PRIMA (simula un altro che scrive)
  * @param {() => string} [o.adesso]  l'ora dei movimenti e dello storico (ISO)
+ * @param {string[]} [o.senzaFunzioni]  funzioni SQL che nel database non ci sono (migrazione non applicata): rispondono PGRST202 come una funzione assente
  */
-export function fintoDb({ tabelle = {}, mancante = false, codiceMancante = "42P01", senzaColonne = {}, errori = {}, prima = {}, adesso = () => "2026-11-20T12:00:00.000Z" } = {}) {
+export function fintoDb({ tabelle = {}, mancante = false, codiceMancante = "42P01", senzaColonne = {}, senzaFunzioni = [], errori = {}, prima = {}, adesso = () => "2026-11-20T12:00:00.000Z" } = {}) {
   const dati = Object.fromEntries(Object.entries(tabelle).map(([t, righe]) => [t, structuredClone(righe)]));
   const registro = [];
   let seq = 0;
@@ -719,6 +721,91 @@ export function fintoDb({ tabelle = {}, mancante = false, codiceMancante = "42P0
       return { data: true };
     }],
   };
+  /* ══ EDITOR PRODOTTI · la funzione SQL dell'import (migrazione 20261125120000, compito E1) ═══════════════════════════════
+   *  `shop_import_prodotto(p_prodotto jsonb, p_varianti jsonb, p_categorie uuid[], p_chi text) → jsonb`: STESSA logica del SQL, stessi
+   *  controlli nello stesso ordine, stesse sigle di `motivo`. Gli scenari sono in `_scenari-import.json` (finto e Postgres usa-e-getta).
+   *  Una sola transazione: qualunque errore del database (categoria che non esiste = 23503, regola della tabella…) annulla TUTTO e risponde
+   *  `non_valido` col solo codice SQLSTATE (mai il messaggio). Lo stato è sempre «bozza», i campi si leggono uno per uno (id, origine,
+   *  canali, id_codice, correlato_id dell'input non entrano mai). La giacenza entra solo come movimento «carico» con nota «Import CSV».
+   *  Esiti: creato {prodotto_id, varianti:[{sku, id}]} · gia_presente {prodotto_id, nome} · sku_usato {sku, prodotto_nome} · non_valido {motivo}. */
+  const TESTO_SKU = /^[A-Z0-9][A-Z0-9._-]{1,39}$/;
+  const CAMPI_IMPORT_PRODOTTO = [ // [campo, obbligatorio, tipo (t testo, n intero ≥ 0), massimo, forma]
+    ["nome", true, "t", 120], ["slug", true, "t", 80, /^[a-z0-9]+(-[a-z0-9]+)*$/], ["sku", true, "t", 40, TESTO_SKU], ["tipo", true, "t", 10, /^(patch|cura|kit)$/],
+    ["marca", false, "t", 80], ["descrizione_breve", false, "t", 300], ["descrizione_lunga", false, "t", 5000], ["categoria_google", false, "t", 200],
+    ["fornitore", false, "t", 200], ["seo_titolo", false, "t", 300], ["seo_descrizione", false, "t", 500], ["gtin", false, "t", 20], ["nota_titolare", false, "t", 2000],
+    ["prezzo_cent", true, "n", 2147483647], ["peso_g", false, "n", 1000000],
+  ];
+  const CAMPI_IMPORT_VARIANTE = [
+    ["sku", true, "t", 40, TESTO_SKU], ["nome", false, "t", 120], ["gtin", false, "t", 20], ["prezzo_cent", false, "n", 2147483647],
+    ["peso_g", false, "n", 1000000], ["costo_cent", false, "n", 2147483647], ["giacenza", false, "n", 1000000], ["ordine", false, "n", 1000],
+  ];
+  const campoImportOk = (val, [, obbl, tipo, massimo, forma]) => {
+    if (val === undefined || val === null) return !obbl;
+    if (tipo === "t") return typeof val === "string" && [...val].length <= massimo && (!obbl || val.trim() !== "") && (!forma || forma.test(val));
+    return typeof val === "number" && Number.isInteger(val) && val >= 0 && val <= massimo;
+  };
+  const oggettoImport = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
+  const pienoONull = (v) => (typeof v === "string" && v.trim() !== "" ? v.trim() : null); // NULLIF(btrim(x), '')
+  function importaProdotto(a) {
+    const p = a.p_prodotto;
+    const vs = a.p_varianti;
+    const cats = a.p_categorie ?? [];
+    const non = (motivo) => ({ data: { esito: "non_valido", motivo } });
+    if (!oggettoImport(p)) return non("prodotto");
+    if (!Array.isArray(vs)) return non("varianti");
+    if (vs.length < 1 || vs.length > 50) return non("varianti_numero");
+    if (cats.length > 10) return non("categorie_numero");
+    const sbagliato = CAMPI_IMPORT_PRODOTTO.find((k) => !campoImportOk(p[k[0]], k))
+      ?? vs.flatMap((v) => CAMPI_IMPORT_VARIANTE.map((k) => [v, k])).find(([v, k]) => !campoImportOk(oggettoImport(v) ? v[k[0]] : undefined, k))?.[1];
+    if (sbagliato) return non(CAMPI_IMPORT_PRODOTTO.includes(sbagliato) ? sbagliato[0] : `varianti.${sbagliato[0]}`);
+    const opzioniStorte = (v) => v.opzioni !== undefined && v.opzioni !== null && (!oggettoImport(v.opzioni) || Object.keys(v.opzioni).length > 3 || Object.values(v.opzioni).some((x) => typeof x !== "string"));
+    if (vs.some(opzioniStorte)) return non("varianti.opzioni");
+    const skus = vs.map((v) => v.sku);
+    if (new Set(skus).size !== skus.length) return non("sku_doppio");
+    const chi = chiDi(a.p_chi);
+    const gia = righe("shop_prodotti").find((x) => x.slug === p.slug);
+    if (gia) return { data: { esito: "gia_presente", prodotto_id: gia.id, nome: gia.nome } };
+    const mie = [...skus, p.sku];
+    const usati = [
+      ...righe("shop_prodotti").filter((x) => mie.includes(x.sku)).map((x) => ({ o: 1, sku: x.sku, nome: x.nome })),
+      ...righe("shop_varianti").filter((x) => mie.includes(x.sku)).map((x) => ({ o: 2, sku: x.sku, nome: righe("shop_prodotti").find((q) => q.id === x.prodotto_id)?.nome ?? null })),
+    ].sort((x, y) => x.o - y.o || (x.sku < y.sku ? -1 : x.sku > y.sku ? 1 : 0));
+    if (usati.length) return { data: { esito: "sku_usato", sku: usati[0].sku, prodotto_nome: usati[0].nome } };
+
+    const nuovo = ins("shop_prodotti", {
+      sku: p.sku, slug: p.slug, nome: p.nome, tipo: p.tipo, stato: "bozza", prezzo_cent: p.prezzo_cent, marca: pienoONull(p.marca),
+      descrizione_breve: pienoONull(p.descrizione_breve), descrizione_lunga: pienoONull(p.descrizione_lunga), categoria_google: pienoONull(p.categoria_google),
+      fornitore: pienoONull(p.fornitore), seo_titolo: pienoONull(p.seo_titolo), seo_descrizione: pienoONull(p.seo_descrizione), peso_g: p.peso_g ?? null,
+      gtin: pienoONull(p.gtin), nota_titolare: pienoONull(p.nota_titolare),
+    });
+    storico("prodotto", nuovo.id, "creato", null, { sku: p.sku, slug: p.slug, nome: p.nome, tipo: p.tipo }, chi);
+    const creati = [];
+    vs.forEach((v, k) => {
+      const riga = ins("shop_varianti", {
+        prodotto_id: nuovo.id, sku: v.sku, nome: v.nome ?? "", opzioni: oggettoImport(v.opzioni) ? v.opzioni : {}, prezzo_cent: v.prezzo_cent ?? null, giacenza: 0,
+        peso_g: v.peso_g ?? null, attiva: true, gtin: pienoONull(v.gtin), costo_cent: v.costo_cent ?? null, ordine: v.ordine ?? k + 1,
+      });
+      if ((v.giacenza ?? 0) > 0) {
+        const m = muovi(riga.id, v.giacenza, "carico", "Import CSV", chi, null);
+        if (m.error) throw new ErroreSql(m.error);
+      }
+      storico("variante", riga.id, "creata", null, { sku: v.sku, nome: v.nome ?? "" }, chi);
+      creati.push({ sku: v.sku, id: riga.id });
+    });
+    for (const categoria of new Set(cats.filter((x) => x != null))) {
+      if (!righe("shop_categorie").some((x) => x.id === categoria)) throw new ErroreSql(ERR("23503", "insert or update on table \"shop_prodotti_categorie\" violates foreign key constraint"));
+      ins("shop_prodotti_categorie", { prodotto_id: nuovo.id, categoria_id: categoria });
+    }
+    return { data: { esito: "creato", prodotto_id: nuovo.id, varianti: creati } };
+  }
+  /** Una transazione; ogni errore del database annulla tutto e diventa `non_valido` col solo SQLSTATE (come il `WHEN OTHERS` del SQL). */
+  const E1 = {
+    shop_import_prodotto: (a) => {
+      const r = transazione(importaProdotto, a);
+      return r.error ? { data: { esito: "non_valido", motivo: r.error.code }, scrisse: false } : r;
+    },
+  };
+
   /** A quale migrazione appartiene ogni funzione, e quale tabella dice che è applicata. */
   const GUIDA = { S4: "shop_stripe_sessioni", S5: "shop_spedizioni_tariffe", S6: "shop_email_modelli" };
   const applicata = (m) => !manca(GUIDA[m]) && !(m === "S4" && (senzaColonne.shop_orders ?? []).includes("stato_pagamento"));
@@ -770,8 +857,8 @@ export function fintoDb({ tabelle = {}, mancante = false, codiceMancante = "42P0
         const r2 = R2[nome];
         const argomenti = PARAMETRI_FUNZIONI[nome];
         if (argomenti && Object.keys(args ?? {}).some((k) => !argomenti.includes(k))) return { error: ERR("PGRST202", `Could not find the function public.${nome}(${Object.keys(args).sort().join(", ")}) in the schema cache`) };
-        if (mancante === true || (!funzioni[nome] && !r2) || (r2 && !applicata(r2[0]))) return { error: ERR("PGRST202", `Could not find the function public.${nome} in the schema cache`) };
-        return r2 ? transazione(r2[1], args) : funzioni[nome](args);
+        if (mancante === true || (!funzioni[nome] && !r2 && !E1[nome]) || (r2 && !applicata(r2[0])) || senzaFunzioni.includes(nome)) return { error: ERR("PGRST202", `Could not find the function public.${nome} in the schema cache`) };
+        return E1[nome] ? E1[nome](args) : r2 ? transazione(r2[1], args) : funzioni[nome](args);
       });
     },
 
