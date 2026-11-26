@@ -4,7 +4,9 @@
  *   - Si raggruppa per Handle (come Shopify: la prima riga è il prodotto e la prima variante, le altre sono varianti);
  *   - colonne e gruppi stanno in `Map`: un'intestazione o un handle «__proto__» è solo un nome;
  *   - ogni cella ha un tetto di 6000 segni (qui, non nel lettore); i prezzi passano da `centDaEuro`;
- *   - un prodotto con un errore NON entra (nemmeno le altre varianti); gli altri sì. Tutto entra in bozza, senza foto, senza prezzo barrato. */
+ *   - un prodotto con un errore NON entra (nemmeno le altre varianti); gli altri sì. Tutto entra in bozza, senza prezzo barrato;
+ *   - le foto (E13) si leggono a parte (`foto`, per handle) e NON entrano nel `ProdottoImport`: al server non arrivano mai. Le carica il browser
+ *     dopo i prodotti, solo da `HOST_FOTO`, al massimo 5 per prodotto (principale + foto2..foto5). */
 import { slugDa } from "@/shop/cms/modello";
 import { eInvisibleDerm } from "@/shop/cms/pubblico";
 import { MAX_CELLA } from "./csv-lettore";
@@ -28,8 +30,21 @@ export interface Conteggi {
   importabili: number;
   conErrori: number;
   avvisi: number;
-  immaginiIgnorate: number;
+  /** Le foto dei prodotti importabili che il browser caricherà (al massimo 5 per prodotto). */
+  fotoDaCaricare: number;
+  /** Oltre la quinta di un prodotto: non si caricano. */
+  fotoOltre: number;
+  /** Con un indirizzo che non è di `HOST_FOTO`: non si aprono. */
+  fotoSaltate: number;
   prodottiConBarrato: number;
+}
+/** Una foto da caricare: `posizione` 1 = principale, 2..5 = foto2..foto5. `alt` vuoto = lo propone il browser. Resta nel browser. */
+export interface FotoImport {
+  url: string;
+  alt: string;
+  posizione: number;
+  /** La riga del file da cui viene. */
+  riga: number;
 }
 export interface LetturaProdotti {
   /** Solo quelli SENZA errori: sono gli unici che si possono importare. */
@@ -39,15 +54,33 @@ export interface LetturaProdotti {
   avvisi: AvvisoRiga[];
   colonneIgnorate: string[];
   conteggi: Conteggi;
+  /** Handle → le sue foto in ordine, solo per i prodotti senza errori. */
+  foto: Map<string, FotoImport[]>;
 }
 export interface OpzioniLettura {
   /** Le categorie che esistono già (le conosce il server, la verifica le porta al browser). */
   categorie: readonly { id: string; slug: string; nome: string }[];
 }
 
-const NIENTE: Conteggi = { righe: 0, prodotti: 0, varianti: 0, importabili: 0, conErrori: 0, avvisi: 0, immaginiIgnorate: 0, prodottiConBarrato: 0 };
+const NIENTE: Conteggi = { righe: 0, prodotti: 0, varianti: 0, importabili: 0, conErrori: 0, avvisi: 0, fotoDaCaricare: 0, fotoOltre: 0, fotoSaltate: 0, prodottiConBarrato: 0 };
 const fermo = (riga: number, frase: string, colonneIgnorate: string[] = [], righe = 0): LetturaProdotti =>
-  ({ prodotti: [], respinti: [], errori: [{ riga, frase }], avvisi: [], colonneIgnorate, conteggi: { ...NIENTE, righe } });
+  ({ prodotti: [], respinti: [], errori: [{ riga, frase }], avvisi: [], colonneIgnorate, conteggi: { ...NIENTE, righe }, foto: new Map() });
+
+/** L'elenco CHIUSO degli indirizzi da cui il browser scarica le foto (niente server che apre indirizzi del file: niente SSRF). */
+export const HOST_FOTO: readonly string[] = ["cdn.shopify.com"];
+export const MAX_FOTO_PRODOTTO = 5;
+/** Solo `https://` verso un host dell'elenco, senza utente né porta. */
+export function urlFotoAmmesso(t: string): boolean {
+  let u: URL;
+  try {
+    u = new URL(t);
+  } catch {
+    return false;
+  }
+  return u.protocol === "https:" && HOST_FOTO.includes(u.hostname) && !u.username && !u.password && u.port === "";
+}
+/** Due indirizzi della stessa foto: Shopify cambia solo il «?v=». */
+const chiaveFoto = (t: string): string => { const u = new URL(t); return `${u.hostname}${u.pathname}`; };
 
 /** Le colonne che possono contenere a capo (testi lunghi): in un'altra, un a capo è il segno di una virgoletta spaiata. */
 const COLONNE_LUNGHE = new Set<ChiaveColonna>(["corpo", "breve", "seoDescrizione", "altra"]);
@@ -112,8 +145,7 @@ export function leggiProdottiCsv(record: readonly (readonly string[])[], opz: Op
 
   /* ── 2. ogni gruppo → un prodotto ── */
   const categorieNote = opz.categorie.map((c) => ({ slug: c.slug, nome: c.nome.trim().toLowerCase() }));
-  const costruiti: { g: Gruppo; p: ProdottoImport; errori: ErroreRiga[]; avvisi: AvvisoRiga[]; titolo: string }[] = [];
-  let immagini = 0;
+  const costruiti: { g: Gruppo; p: ProdottoImport; errori: ErroreRiga[]; avvisi: AvvisoRiga[]; titolo: string; foto: FotoImport[]; fotoSaltate: number }[] = [];
   let conBarrato = 0;
   let pubblicati = 0;
 
@@ -133,13 +165,31 @@ export function leggiProdottiCsv(record: readonly (readonly string[])[], opz: Op
       if (lunga >= 0) {
         err(r.riga, `La cella «${(record[0][lunga] ?? "").trim() || `colonna ${lunga + 1}`}» ha ${r.celle[lunga].length} segni: il massimo è ${MAX_CELLA}.`);
       }
-      if (cella(r.celle, "immagine")) immagini++;
-      if (cella(r.celle, "immagineVariante")) immagini++;
       if (cella(r.celle, "barrato")) barrato = true;
       if (VERO.test(cella(r.celle, "pubblicato")) || /^active$/i.test(cella(r.celle, "stato"))) pub = true;
     }
     if (barrato) conBarrato++;
     if (pub) pubblicati++;
+
+    // le foto: prima quelle con Image Position (in ordine, poi quelle senza), poi le Variant Image nuove; niente doppioni; solo HOST_FOTO
+    const candidate: { url: string; alt: string; pos: number; riga: number }[] = [];
+    for (const r of g.righe) {
+      const url = cella(r.celle, "immagine");
+      const pos = Number.parseInt(cella(r.celle, "immaginePos"), 10);
+      if (url) candidate.push({ url, alt: uno(cella(r.celle, "immagineAlt")), pos: pos > 0 ? pos : Infinity, riga: r.riga });
+    }
+    candidate.sort((a, b) => (a.pos === b.pos ? 0 : a.pos - b.pos)); // stabile: a parità resta l'ordine del file
+    for (const r of g.righe) { const url = cella(r.celle, "immagineVariante"); if (url) candidate.push({ url, alt: "", pos: Infinity, riga: r.riga }); }
+    const viste = new Set<string>();
+    const fotoBuone: FotoImport[] = [];
+    let fotoSaltate = 0;
+    for (const f of candidate) {
+      if (!urlFotoAmmesso(f.url)) { fotoSaltate++; avv(f.riga, "Foto saltata: indirizzo non di Shopify (carico solo le foto di cdn.shopify.com)."); continue; }
+      const k = chiaveFoto(f.url);
+      if (viste.has(k)) continue;
+      viste.add(k);
+      fotoBuone.push({ url: f.url, alt: f.alt, posizione: fotoBuone.length + 1, riga: f.riga });
+    }
 
     const rawHandle = cella(prima.celle, "handle");
     if (rawHandle && g.handle && rawHandle !== g.handle) avv(riga1, `L'indirizzo «${mostra(rawHandle)}» è diventato «${g.handle}».`);
@@ -298,7 +348,7 @@ export function leggiProdottiCsv(record: readonly (readonly string[])[], opz: Op
     const esito = validaProdottoImport(prodotto, {});
     E.push(...esito.errori);
     A.push(...esito.avvisi);
-    costruiti.push({ g, p: prodotto, errori: E, avvisi: A, titolo });
+    costruiti.push({ g, p: prodotto, errori: E, avvisi: A, titolo, foto: fotoBuone, fotoSaltate });
   }
 
   /* ── 3. SKU scritto due volte nel file, su prodotti diversi (l'errore è del secondo) ── */
@@ -320,11 +370,23 @@ export function leggiProdottiCsv(record: readonly (readonly string[])[], opz: Op
   const respinti: ProdottoRespinto[] = [];
   const errori: ErroreRiga[] = [...erroriFile];
   const avvisi: AvvisoRiga[] = [];
+  const foto = new Map<string, FotoImport[]>();
   let nVarianti = 0;
+  let fotoDaCaricare = 0;
+  let fotoOltre = 0;
+  let fotoSaltate = 0;
   for (const c of costruiti) {
     nVarianti += c.p.varianti.length;
     avvisi.push(...c.avvisi);
-    if (c.errori.length === 0) { prodotti.push(c.p); continue; }
+    if (c.errori.length === 0) {
+      prodotti.push(c.p);
+      const tenute = c.foto.slice(0, MAX_FOTO_PRODOTTO);
+      if (tenute.length) foto.set(c.p.handle, tenute);
+      fotoDaCaricare += tenute.length;
+      fotoOltre += c.foto.length - tenute.length;
+      fotoSaltate += c.fotoSaltate;
+      continue;
+    }
     const tutte = c.g.righe.map((r) => r.riga);
     respinti.push({ handle: c.g.handle, titolo: c.titolo, riga: tutte[0] });
     errori.push(...c.errori.map((e) => ({ ...e, righeProdotto: tutte })));
@@ -334,7 +396,8 @@ export function leggiProdottiCsv(record: readonly (readonly string[])[], opz: Op
 
   const generali: AvvisoRiga[] = [];
   if (conBarrato) generali.push({ riga: 0, frase: `${conBarrato} ${conBarrato === 1 ? "prodotto aveva" : "prodotti avevano"} un prezzo barrato: non è stato importato (nello shop non ci sono prezzi barrati).` });
-  if (immagini) generali.push({ riga: 0, frase: `${immagini} ${immagini === 1 ? "immagine non importata" : "immagini non importate"}: le foto si caricano a mano dalla scheda del prodotto.` });
+  if (fotoDaCaricare || fotoOltre)
+    generali.push({ riga: 0, frase: `${fotoDaCaricare} foto da caricare${fotoOltre ? `, ${fotoOltre} oltre le 5 per prodotto (non entrano)` : ""}: le carico dopo i prodotti.` });
   if (pubblicati) generali.push({ riga: 0, frase: "Il file chiede di pubblicare alcuni prodotti (Published o Status): tutto entra in bozza, si pubblica dalla scheda." });
   if (aCapoStrani) generali.push({ riga: primoStrano, frase: `Alla riga ${primoStrano} c'è un a capo dove non dovrebbe (o più celle del previsto): forse una virgoletta spaiata ha unito più righe. Ho letto ${righe} righe e ${gruppi.size} prodotti: controlla che siano quelli che ti aspetti.` });
   if (mappa.doppie.length) generali.push({ riga: 1, frase: `Le colonne ${mappa.doppie.map((x) => `«${x}»`).join(", ")} sono scritte due volte: vale la prima.` });
@@ -346,6 +409,7 @@ export function leggiProdottiCsv(record: readonly (readonly string[])[], opz: Op
     errori,
     avvisi,
     colonneIgnorate: mappa.ignorate,
-    conteggi: { righe, prodotti: gruppi.size, varianti: nVarianti, importabili: prodotti.length, conErrori: respinti.length, avvisi: avvisi.length, immaginiIgnorate: immagini, prodottiConBarrato: conBarrato },
+    conteggi: { righe, prodotti: gruppi.size, varianti: nVarianti, importabili: prodotti.length, conErrori: respinti.length, avvisi: avvisi.length, fotoDaCaricare, fotoOltre, fotoSaltate, prodottiConBarrato: conBarrato },
+    foto,
   };
 }

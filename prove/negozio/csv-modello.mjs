@@ -58,7 +58,8 @@ export async function prove(_mod, { c, gruppo, radice }) {
   ].join("\n");
   const sh = anteprima(utf8(shopify));
   c("un'esportazione di Shopify si carica così com'è: 1 prodotto, 1 variante, 0 errori", [1, 1, 0], [sh.conteggi.prodotti, sh.conteggi.varianti, sh.errori.length]);
-  c("…in bozza, senza foto né prezzo barrato, con gli avvisi che lo dicono", [1590, 4, 500, "kit", true, true, true], [sh.prodotti[0].prezzoCent, sh.prodotti[0].varianti[0].giacenza, sh.prodotti[0].varianti[0].costoCent, sh.prodotti[0].tipo, sh.avvisi.some((x) => /1 prodotto aveva un prezzo barrato/.test(x.frase)), sh.avvisi.some((x) => /2 immagini non importate/.test(x.frase)), sh.avvisi.some((x) => /tutto entra in bozza/.test(x.frase))]);
+  //  E13 (titolare, 26/11/2026): le foto si leggono; queste sono di un indirizzo finto, non di Shopify, quindi si saltano con l'avviso.
+  c("…in bozza, senza foto (indirizzi non di Shopify) né prezzo barrato, con gli avvisi che lo dicono", [1590, 4, 500, "kit", true, true, true], [sh.prodotti[0].prezzoCent, sh.prodotti[0].varianti[0].giacenza, sh.prodotti[0].varianti[0].costoCent, sh.prodotti[0].tipo, sh.avvisi.some((x) => /1 prodotto aveva un prezzo barrato/.test(x.frase)), sh.avvisi.filter((x) => /Foto saltata: indirizzo non di Shopify/.test(x.frase)).length === 2, sh.avvisi.some((x) => /tutto entra in bozza/.test(x.frase))]);
   c("…la descrizione HTML diventa testo con i paragrafi", true, /^Una colla\.\s*\n+\s*Due righe\.$/.test(sh.prodotti[0].descrizioneLunga));
   c("…il costo «5.00» è letto da centDaEuro; nessun campo «stato» nel prodotto", [500, false], [sh.prodotti[0].varianti[0].costoCent, "stato" in sh.prodotti[0]]);
 
