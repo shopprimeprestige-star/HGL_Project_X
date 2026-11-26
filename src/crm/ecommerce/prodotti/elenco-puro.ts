@@ -4,8 +4,34 @@
  *  Si prova in `prove/negozio/pagina-negozio.mjs` (compilato con esbuild: per questo nessun import di codice, solo tipi). */
 import type { RigaElenco, Segmento } from "@/crm/negozio/client";
 
-/** Quanti prodotti si possono cambiare in una volta (lo stesso tetto di `gruppo_stato` sul server). */
+/** Quanti prodotti vanno al server in una richiesta (lo stesso tetto di `gruppo_stato` sul server). Si possono SCEGLIERE tutti:
+ *  l'elenco li manda a pezzi di questa misura (`aGruppi`) e unisce le risposte (`uniscoGruppi`). */
 export const MAX_GRUPPO = 20;
+
+/** Divide gli id in pezzi da `n` (doppioni tolti, ordine tenuto). */
+export function aGruppi(ids: readonly string[], n = MAX_GRUPPO): string[][] {
+  const unici = [...new Set(ids)];
+  const pezzi: string[][] = [];
+  for (let i = 0; i < unici.length; i += n) pezzi.push(unici.slice(i, i + n));
+  return pezzi;
+}
+
+/** Somma le risposte di più `gruppo_stato` in una sola, della stessa forma (così `riepilogoGruppo` non cambia). */
+export function uniscoGruppi(
+  azione: "pubblicato" | "bozza",
+  risposte: readonly unknown[],
+): Record<string, unknown> {
+  const chiave = azione === "pubblicato" ? "pubblicati" : "bozze";
+  let n = 0;
+  const restano: unknown[] = [];
+  for (const r of risposte) {
+    if (!eOggetto(r)) continue;
+    const x = r[chiave];
+    if (typeof x === "number" && Number.isSafeInteger(x) && x > 0) n += x;
+    if (Array.isArray(r.restano)) restano.push(...r.restano);
+  }
+  return { [chiave]: n, restano };
+}
 
 export const ETICHETTE_SEGMENTO: Record<Segmento, string> = {
   tutti: "Tutti",
@@ -82,7 +108,12 @@ export function chipProdotto(r: RigaElenco): ChipProdotto {
 
 /** I canali accesi, in italiano («Sito, Meta»). Nessuno acceso, o un valore illeggibile: «Nessun canale». */
 export function etichettaCanali(canali: RigaElenco["canali"] | null | undefined): string {
-  const nomi = [["sito", "Sito"], ["meta", "Meta"], ["google", "Google"], ["tiktok", "TikTok"]] as const;
+  const nomi = [
+    ["sito", "Sito"],
+    ["meta", "Meta"],
+    ["google", "Google"],
+    ["tiktok", "TikTok"],
+  ] as const;
   const accesi = nomi.filter(([k]) => canali?.[k] === true).map(([, n]) => n);
   return accesi.length ? accesi.join(", ") : "Nessun canale";
 }
