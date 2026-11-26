@@ -48,6 +48,20 @@ export async function prove(_mod, { c, gruppo, radice }) {
   const ok = (f) => typeof f === "function";
   c("elenco-puro.ts esporta le funzioni che l'elenco usa", true, ["cercaRighe", "ordinaRighe", "chipProdotto", "proponiCopia", "riepilogoGruppo", "riepilogoDuplica", "prezzoDaCent", "etichettaCanali", "etichettaGiacenza"].every((n) => ok(P[n])) && P.MAX_GRUPPO === 20);
 
+  // ── «scegli tutti» (26/11/2026): si sceglie tutto, al server vanno pezzi da 20 e le risposte si sommano ──
+  if (ok(P.aGruppi) && ok(P.uniscoGruppi)) {
+    const ids = Array.from({ length: 79 }, (_, k) => `p${k}`);
+    c("aGruppi: 79 prodotti → pezzi da 20, 20, 20, 19 (tutti, nell'ordine)", [[20, 20, 20, 19], ids], [P.aGruppi(ids).map((x) => x.length), P.aGruppi(ids).flat()]);
+    c("aGruppi: doppioni tolti, vuoto → nessun pezzo", [[["a", "b"]], []], [P.aGruppi(["a", "b", "a"]), P.aGruppi([])]);
+    c("uniscoGruppi: somma i pubblicati e mette insieme chi è rimasto fuori", { pubblicati: 35, restano: [{ id: "x", motivo: "m" }, { id: "y", motivo: "n" }] },
+      P.uniscoGruppi("pubblicato", [{ pubblicati: 20, restano: [] }, { pubblicati: 15, restano: [{ id: "x", motivo: "m" }, { id: "y", motivo: "n" }] }, null, "strano"]));
+    c("uniscoGruppi: per la bozza conta «bozze»", { bozze: 3, restano: [] }, P.uniscoGruppi("bozza", [{ bozze: 1 }, { bozze: 2, restano: [] }]));
+  } else c("elenco-puro.ts esporta aGruppi e uniscoGruppi", true, false);
+  {
+    const sorg = readFileSync(join(dir, "ElencoProdotti.tsx"), "utf8");
+    c("ElencoProdotti: «scegli tutti» sceglie tutto l'elenco e nessuna casella si spegne al ventesimo", [false, false, true], [/slice\(0, MAX_GRUPPO\)/.test(sorg), /disabled=\{!scelto && pieno\}/.test(sorg), /aGruppi\(ids\)/.test(sorg)]);
+  }
+
   if (ok(P.cercaRighe)) {
     const r = [riga("a1", { nome: "Patch Rosa", sku: "HG-T01" }), riga("a2", { nome: "Cura notte", sku: "HG-C02" }), riga("a3", { nome: "Kit ROSA", sku: "HG-K03" })];
     c("cerca per nome, senza badare alle maiuscole né agli spazi attorno", ["a1", "a3"], P.cercaRighe(r, "  rosa ").map((x) => x.id));
