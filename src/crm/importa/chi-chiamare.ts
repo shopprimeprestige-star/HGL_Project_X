@@ -49,7 +49,7 @@ import {
 import { etichettaRisposta } from "@/crm/modulo-lead";
 import { eLivelloCaldo, temperaturaLead } from "@/crm/temperatura-lead";
 import { daTelefonareOggi, giornoPromesso, promessaPerDopo } from "./da-telefonare";
-import { eContattatoWhatsApp, eDaDecidere, eRimandato } from "./ricarico";
+import { eContattatoWhatsApp, eDaDecidere, eRimandato, patchConferma } from "./ricarico";
 import { eSaltato } from "./saltati";
 
 export type LeadLike = { id: string; data?: Partial<LeadData> | null };
@@ -484,6 +484,11 @@ export function patchEsito(
   if (stato === "non_risponde" || stato === "segreteria") {
     patch.noRispondeCount = (Number(d?.noRispondeCount) || 0) + 1;
   }
+  //  ⚠️ «NON INTERESSATO» CHIUDE ANCHE LA DOMANDA DI RITORNO (26/11/2026). Con
+  //   `daDecidere` ancora acceso `inLista` lo riproponeva in cima alla coda
+  //   («decidi adesso») subito dopo il no: il contatto «tornava» da solo. È la
+  //   stessa chiusura di «Conferma» (`patchConferma`), con lo stato scelto.
+  if (stato === "annullato" && d?.ricarico?.daDecidere) Object.assign(patch, patchConferma(d));
   return patch;
 }
 
