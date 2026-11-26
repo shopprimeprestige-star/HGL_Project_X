@@ -37,24 +37,32 @@ export function proveSenzaNomeRitornano(mod, { c, gruppo }) {
   });
   c("tornato prima del 30/10 e rimasto «Non interessato»: resta", null, RIC.patchRitornoRimastoIndietro(vecchio, ORA));
 
-  gruppo("SENZA NOME · IL NO DATO DALLA CODA TOGLIE LA DOMANDA DI RITORNO");
+  gruppo("SENZA NOME · IL NO DATO DA QUALUNQUE SCHERMATA CHIUDE LA DOMANDA DI RITORNO");
+  //  `updateLead` scrive `stato` e `statoDal` (crm/stato-dal) da qualunque schermata:
+  //  scheda del lead, kanban, elenchi, coda, chat, cambio in massa. Qui si fa lo stesso, senza `patchEsito`.
   const tornato = senzaNome("non_risponde", {
+    statoDal: "2026-11-20T09:00:00Z",
     ricarico: { volte: 1, ultimo: "2026-11-25T09:00:00Z", daDecidere: true, statoAllora: "non_risponde" },
   });
   const lead = (d) => ({ id: "x1", data: d });
   c("prima del no è in lista (di ritorno)", true, CH.inLista(lead(tornato), ORA));
-  const dopoNo = { ...tornato, ...CH.patchEsito(tornato, "annullato") };
-  c("dopo «Non interessato» non è più in lista", false, CH.inLista(lead(dopoNo), ORA));
-  c("lo stato è «Non interessato»", "annullato", dopoNo.stato);
+  const dopoNo = { ...tornato, stato: "annullato", statoDal: "2026-11-26T09:00:00Z" };
+  c("dopo «Non interessato» (solo stato + statoDal) non è più in lista", false, CH.inLista(lead(dopoNo), ORA));
+  c("…non è più «da decidere» e non sta nel reparto «Di ritorno»", [false, null, false], [RIC.eDaDecidere(lead(dopoNo)), RIC.repartoDelRitorno(lead(dopoNo)), RIC.aspettaUnaDecisione(lead(dopoNo))]);
+  c("…neanche se il ritorno è del file appena letto (idRitorno)", false, CH.inLista(lead(dopoNo), ORA, { idRitorno: new Set(["x1"]) }));
   c("la storia del ritorno resta (contatore)", 1, dopoNo.ricarico?.volte);
-  c("«Vedi dopo» e «Contatta su WhatsApp» spenti insieme alla domanda", [undefined, undefined], [dopoNo.ricarico?.rimandatoIl, dopoNo.ricarico?.whatsappIl]);
-  const nr = { ...tornato, ...CH.patchEsito(tornato, "non_risponde") };
-  c("gli altri esiti non cambiano: «Non risponde» lascia la domanda aperta", true, nr.ricarico?.daDecidere);
+  const viaEsito = { ...tornato, ...CH.patchEsito(tornato, "annullato"), statoDal: "2026-11-26T09:00:00Z" };
+  c("anche dall'esito della coda (patchEsito + statoDal di updateLead)", false, CH.inLista(lead(viaEsito), ORA));
+  const nr = { ...tornato, ...CH.patchEsito(tornato, "non_risponde"), statoDal: "2026-11-26T09:00:00Z" };
+  c("gli altri stati non chiudono la domanda: «Non risponde» resta in lista", true, CH.inLista(lead(nr), ORA));
+  c("un no dato PRIMA del ritorno non lo chiude (statoDal più vecchio di ultimo)", true, CH.inLista(lead({ ...dopoNo, statoDal: "2026-11-24T09:00:00Z" }), ORA));
+  c("senza data dello stato non si sa: la domanda resta aperta", true, CH.inLista(lead({ ...dopoNo, statoDal: undefined, statoPrecedenteIl: undefined }), ORA));
   c("un esito su chi non è di ritorno non inventa un ricarico", false, "ricarico" in CH.patchEsito(senzaNome("da_contattare"), "annullato"));
 
   gruppo("SENZA NOME · SE RISCRIVE DAVVERO SI SEGNALA, NON SI SPOSTA");
-  const poi = { ...dopoNo, ...RIC.patchRicarico(dopoNo, "Foglio", ORA) };
+  const poi = { ...dopoNo, ...RIC.patchRicarico(dopoNo, "Foglio", new Date("2026-11-27T10:00:00Z")) };
   c("lo stato resta «Non interessato»", "annullato", poi.stato);
-  c("la domanda si riapre (è in lista come un appuntamento che torna)", true, CH.inLista(lead(poi), ORA));
+  c("la domanda si riapre (è in lista come un appuntamento che torna)", true, CH.inLista(lead(poi), new Date("2026-11-27T10:00:00Z")));
+  c("…ed è di nuovo «da decidere», nel reparto «Di ritorno»", [true, "ritorno"], [RIC.eDaDecidere(lead(poi)), RIC.repartoDelRitorno(lead(poi))]);
   c("e il contatore sale a 2", 2, poi.ricarico?.volte);
 }

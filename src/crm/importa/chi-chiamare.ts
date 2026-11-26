@@ -49,7 +49,7 @@ import {
 import { etichettaRisposta } from "@/crm/modulo-lead";
 import { eLivelloCaldo, temperaturaLead } from "@/crm/temperatura-lead";
 import { daTelefonareOggi, giornoPromesso, promessaPerDopo } from "./da-telefonare";
-import { eContattatoWhatsApp, eDaDecidere, eRimandato, patchConferma } from "./ricarico";
+import { eContattatoWhatsApp, eDaDecidere, eRimandato, noDatoDopoIlRitorno } from "./ricarico";
 import { eSaltato } from "./saltati";
 
 export type LeadLike = { id: string; data?: Partial<LeadData> | null };
@@ -94,6 +94,8 @@ const GIORNI = ["domenica", "lunedì", "martedì", "mercoledì", "giovedì", "ve
  *  secondo: premere «Vedi dopo» e ritrovarselo davanti sarebbe un tasto muto. */
 function eDiRitorno(l: LeadLike, o?: OpzioniChiamata): boolean {
   if (eDaDecidere(l)) return true;
+  //  Un «Non interessato» dato dopo il ritorno chiude la domanda anche per il file appena letto.
+  if (noDatoDopoIlRitorno(l.data)) return false;
   return !!o?.idRitorno?.has(l.id) && !eRimandato(l) && !eContattatoWhatsApp(l);
 }
 
@@ -484,11 +486,6 @@ export function patchEsito(
   if (stato === "non_risponde" || stato === "segreteria") {
     patch.noRispondeCount = (Number(d?.noRispondeCount) || 0) + 1;
   }
-  //  ⚠️ «NON INTERESSATO» CHIUDE ANCHE LA DOMANDA DI RITORNO (26/11/2026). Con
-  //   `daDecidere` ancora acceso `inLista` lo riproponeva in cima alla coda
-  //   («decidi adesso») subito dopo il no: il contatto «tornava» da solo. È la
-  //   stessa chiusura di «Conferma» (`patchConferma`), con lo stato scelto.
-  if (stato === "annullato" && d?.ricarico?.daDecidere) Object.assign(patch, patchConferma(d));
   return patch;
 }
 
