@@ -121,7 +121,26 @@ export function volteRicaricato(d?: Partial<LeadData> | null): number {
  *   quel pulsante serve a ottenere. */
 export function eDaDecidere(l?: Lead | { data?: Partial<LeadData> | null } | null): boolean {
   const r = ricaricoDi(l?.data);
-  return !!r?.daDecidere && !r?.rimandatoIl && !r?.whatsappIl;
+  return !!r?.daDecidere && !r?.rimandatoIl && !r?.whatsappIl && !noDatoDopoIlRitorno(l?.data);
+}
+
+/** ── IL «NON INTERESSATO» DATO DOPO IL RITORNO È UNA DECISIONE (26/11/2026) ──
+ *  Segnalazione del titolare: «anche se metto non interessato, dopo un po'
+ *  ritorna». Il no si dà da molte schermate (coda, scheda del lead, kanban,
+ *  chat, cambio in massa) e nessuna spegne `ricarico.daDecidere`: la scheda
+ *  restava in cima alla coda «decidi adesso». Si legge allora dai fatti, senza
+ *  riscrivere niente: stato «Non interessato» e `statoDal` — che `updateLead`
+ *  scrive a ogni cambio di stato, da qualunque schermata (crm/stato-dal) —
+ *  successivo all'ultimo ritorno (`ricarico.ultimo`) = la domanda è chiusa.
+ *  Un nuovo ritorno porta un `ultimo` più recente e la riapre da solo.
+ *  ⚠️ Senza `ultimo` o senza data dello stato non si sa: la domanda resta aperta.
+ *  shortcut: ripiego su `statoPrecedenteIl` per le schede senza `statoDal`;
+ *  da togliere quando tutte le schede hanno `statoDal`. */
+export function noDatoDopoIlRitorno(d?: Partial<LeadData> | null): boolean {
+  if (d?.stato !== "annullato") return false;
+  const ultimo = Date.parse(String(ricaricoDi(d)?.ultimo ?? ""));
+  const dal = Date.parse(String(d.statoDal ?? d.statoPrecedenteIl ?? ""));
+  return Number.isFinite(ultimo) && Number.isFinite(dal) && dal > ultimo;
 }
 
 /** Messo da parte con «Vedi dopo»: la domanda è aperta, ma non adesso.
@@ -223,7 +242,7 @@ export function eSiFaVivoLui(l?: Lead | { data?: Partial<LeadData> | null } | nu
 export function aspettaUnaDecisione(
   l?: Lead | { data?: Partial<LeadData> | null } | null,
 ): boolean {
-  return !!ricaricoDi(l?.data)?.daDecidere;
+  return !!ricaricoDi(l?.data)?.daDecidere && !noDatoDopoIlRitorno(l?.data);
 }
 
 /** ── ⚠️ IN QUALE ELENCO STA, E IN UNO SOLO ────────────────────────────────
@@ -258,7 +277,7 @@ export function repartoDelRitorno(
   l?: Lead | { data?: Partial<LeadData> | null } | null,
 ): RepartoRitorno {
   const r = ricaricoDi(l?.data);
-  if (!r?.daDecidere) return null;
+  if (!r?.daDecidere || noDatoDopoIlRitorno(l?.data)) return null;
   if (eSaltato(l as Lead)) return "daparte";
   if (r.whatsappIl) return "whatsapp";
   if (r.rimandatoIl) return "rimandato";

@@ -49,7 +49,7 @@ import {
 import { etichettaRisposta } from "@/crm/modulo-lead";
 import { eLivelloCaldo, temperaturaLead } from "@/crm/temperatura-lead";
 import { daTelefonareOggi, giornoPromesso, promessaPerDopo } from "./da-telefonare";
-import { eContattatoWhatsApp, eDaDecidere, eRimandato } from "./ricarico";
+import { eContattatoWhatsApp, eDaDecidere, eRimandato, noDatoDopoIlRitorno } from "./ricarico";
 import { eSaltato } from "./saltati";
 
 export type LeadLike = { id: string; data?: Partial<LeadData> | null };
@@ -94,6 +94,8 @@ const GIORNI = ["domenica", "lunedì", "martedì", "mercoledì", "giovedì", "ve
  *  secondo: premere «Vedi dopo» e ritrovarselo davanti sarebbe un tasto muto. */
 function eDiRitorno(l: LeadLike, o?: OpzioniChiamata): boolean {
   if (eDaDecidere(l)) return true;
+  //  Un «Non interessato» dato dopo il ritorno chiude la domanda anche per il file appena letto.
+  if (noDatoDopoIlRitorno(l.data)) return false;
   return !!o?.idRitorno?.has(l.id) && !eRimandato(l) && !eContattatoWhatsApp(l);
 }
 

@@ -23,9 +23,18 @@ import {
  *   chi ha comprato e chi è «Già cliente nostro»: lì il ritorno è una richiesta
  *   del cliente su una pratica viva, e lo stato dice cose che «Attesa WhatsApp»
  *   cancellerebbe (per l'ultimo, la scheda tornerebbe nella coda del setter).
+ *  ⚠️ NEMMENO CHI È «NON INTERESSATO» (26/11/2026). Segnalazione del titolare:
+ *   «i contatti senza nome, anche se metto non interessato, dopo un po' ritorna
+ *   continuamente». Il contatto si riconosce dal numero (non dal nome), e ogni
+ *   riga nuova con quel numero (foglio Meta, file) lo riportava in «Attesa
+ *   WhatsApp», cioè in lavorazione: un no messo a mano veniva cancellato da una
+ *   riga arrivata dopo. Adesso resta «Non interessato»; il ritorno si segnala
+ *   come per gli altri stati chiusi (`ricarico.daDecidere` acceso, contatore
+ *   +1): chi decide è una persona («Conferma» o «Rimettilo fra i da contattare»).
  *  `ricarico.inAttesaIl` dice che lo stato l'ha cambiato il ritorno: serve a
  *  raccontare il «prima» e a non spostare la stessa scheda due volte. */
 export const STATI_CHE_RESTANO_AL_RITORNO: LeadStatus[] = [
+  "annullato",
   ...STATI_APPUNTAMENTO,
   "viene_in_sede",
   "in_attesa_acconto",

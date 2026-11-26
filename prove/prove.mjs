@@ -40,6 +40,7 @@ import { FILE_DELLA_PAGINA, proveLeadSemplicePagina, sorgentePagina } from "./le
 import { proveIdeeRighe } from "./idee/righe.mjs";
 import { proveAttesaERitorno } from "./idee/attesa-ritorno.mjs";
 import { proveRitornoInAttesa } from "./idee/ritorno-in-attesa.mjs";
+import { proveSenzaNomeRitornano } from "./idee/senza-nome-ritornano.mjs";
 import { proveOrariDurata } from "./idee/orari-durata.mjs";
 import { proveIdeeDafare } from "./idee/dafare.mjs";
 import { proveAttesaPalla } from "./idee/attesa-palla.mjs";
@@ -21695,6 +21696,7 @@ await proveDelChiamaSoloItalia();
 proveIdeeRighe(mod, { c, gruppo, radice });
 proveAttesaERitorno(mod, { c, gruppo, radice });
 proveRitornoInAttesa(mod, { c, gruppo, radice });
+proveSenzaNomeRitornano(mod, { c, gruppo });
 proveOrariDurata(mod, { c, gruppo });
 proveIdeeDafare(mod, { c, gruppo, radice });
 proveSceltaWhatsapp(mod, { c, gruppo, radice });
