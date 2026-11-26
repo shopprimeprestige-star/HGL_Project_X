@@ -160,7 +160,8 @@ export async function prove(_mod, { c, gruppo, radice }) {
   const br = senzaCommenti(leggi(`${DIR}/foto-browser.ts`));
   const ed = senzaCommenti(leggi("src/crm/ecommerce/prodotti/EditorMedia.tsx"));
   c("importa-foto.ts: UN solo `fetch(`, dentro `scaricaFoto`, dopo il controllo `urlFotoAmmesso`, con cors e senza credenziali", [1, true, true],
-    [(fo.match(/\bfetch\(/g) ?? []).length, /if \(!urlFotoAmmesso\(url\)\)[\s\S]{0,200}\bfetch\(url, \{ mode: "cors", credentials: "omit" \}\)/.test(fo), /urlFotoAmmesso\(r\.url\)/.test(fo)]);
+    [(fo.match(/\bfetch\(/g) ?? []).length, /if \(!urlFotoAmmesso\(url\)\)[\s\S]{0,200}\bfetch\(url, \{\s*mode: "cors",\s*credentials: "omit",\s*redirect: "error",\s*referrerPolicy: "no-referrer",?\s*\}\)/.test(fo), /urlFotoAmmesso\(r\.url\)/.test(fo)]);
+  c("importa-foto.ts: una foto fatta lascia andare le sue misure (`lavoro: null`), niente rimbalzi verso altri host", [true, true], [/stato: "fatta", frase: null, lavoro: null/.test(fo), /redirect: "error"/.test(fo)]);
   c("foto-browser.ts: nessun `fetch(` (scarica con `scaricaFoto`)", [false, true], [/\bfetch\(/.test(br), /scaricaFoto/.test(br)]);
   for (const [nome, s] of [["importa-foto.ts", fo], ["foto-browser.ts", br]]) {
     c(`${nome}: nessun innerHTML, outerHTML, dangerouslySetInnerHTML, document.write, eval`, false, /innerHTML|outerHTML|dangerouslySetInnerHTML|insertAdjacentHTML|document\.write|\beval\(|new Function/.test(s));

@@ -174,7 +174,10 @@ export async function eseguiFoto(
       const esito = await eseguiLavoro(v.lavoro, porte.carico);
       Object.assign(
         v,
-        esito.ok ? { stato: "fatta", frase: null } : { stato: "fallita", frase: esito.frase },
+        //  Fatta: le tre misure (decine di MB su 155 foto) si lasciano andare subito.
+        esito.ok
+          ? { stato: "fatta", frase: null, lavoro: null }
+          : { stato: "fallita", frase: esito.frase },
       );
     } catch (e) {
       Object.assign(v, {
@@ -272,7 +275,12 @@ export async function scaricaFoto(url: string): Promise<Blob> {
   if (!urlFotoAmmesso(url)) throw new Error(FRASE_HOST);
   let r: Response;
   try {
-    r = await fetch(url, { mode: "cors", credentials: "omit" });
+    r = await fetch(url, {
+      mode: "cors",
+      credentials: "omit",
+      redirect: "error",
+      referrerPolicy: "no-referrer",
+    });
   } catch {
     throw new Error(FRASE_SCARICA);
   }
