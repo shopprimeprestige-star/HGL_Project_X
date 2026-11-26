@@ -2,7 +2,8 @@
  *  Commessa 2026-11-25-editor-prodotti, E10 (SPEC §2.3, §6.4). L'anteprima: il riepilogo («12 prodotti · 41 varianti · 9 nuovi · …»), la tabella dei
  *  prodotti con il filtro «solo gli errori», gli errori riga per riga (numero di riga come in Excel), gli avvisi e le colonne ignorate.
  *  Qui NON è stato scritto niente: il tasto «Importa» è l'unico che scrive, ed è l'unico pieno. Solo presentazione, niente rete.
- *  Il tasto resta spento, con la frase, se manca la funzione del database o se non c'è niente di nuovo. */
+ *  Il tasto resta spento, con la frase, se manca la funzione del database o se non c'è niente di nuovo. Le foto di Shopify (E13) si contano qui;
+ *  un file già importato con foto si può ricaricare per le sole foto («Carica N foto»: vanno solo ai prodotti che non ne hanno). */
 import { useState } from "react";
 import { AlertTriangle, CheckCircle2, CircleAlert, FileDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -18,6 +19,7 @@ import {
   type Analisi,
   type RigaTabella,
 } from "./importa-flusso";
+import { fotoPreviste } from "./importa-foto";
 
 /** Quante righe di errori e di avvisi si scrivono a schermo. shortcut: tetto fisso, da alzare se serve; gli altri stanno nel file delle righe da correggere. */
 const MAX_MOSTRATE = 100;
@@ -136,10 +138,12 @@ export function PassoControllo({
   const [soloErr, setSoloErr] = useState(false);
   const { nuovi, errori, avvisi, righe, lettura, importaDisponibile } = analisi;
   const visibili = soloErr ? soloErrori(righe) : righe;
-  const puoImportare = importaDisponibile && nuovi.length > 0;
+  const nFoto = fotoPreviste(analisi);
+  const soloFoto = nuovi.length === 0 && nFoto > 0;
+  const puoImportare = importaDisponibile && (nuovi.length > 0 || soloFoto);
   const perche = !importaDisponibile
     ? FRASE_NON_DISPONIBILE
-    : nuovi.length === 0
+    : !puoImportare
       ? "Non c'è niente di nuovo da importare: i prodotti del file sono già presenti oppure hanno errori."
       : null;
 
@@ -151,6 +155,13 @@ export function PassoControllo({
           File «{analisi.nomeFile}». Non è stato scritto niente: i prodotti entrano solo quando
           premi «Importa».
         </p>
+        {nFoto > 0 && (
+          <p className="mt-0.5 text-[13px] text-muted-foreground">
+            {nuovi.length > 0 ? "Dopo i prodotti carico" : "Carico"} fino a {nFoto} foto da Shopify
+            (al massimo 5 per prodotto). I prodotti già presenti che hanno già delle foto si
+            saltano.
+          </p>
+        )}
       </div>
 
       {errori.length > 0 && (
@@ -260,9 +271,11 @@ export function PassoControllo({
             aria-describedby={perche ? "perche-spento" : undefined}
             onClick={importa}
           >
-            {nuovi.length === 1
-              ? "Importa 1 prodotto in bozza"
-              : `Importa ${nuovi.length} prodotti in bozza`}
+            {soloFoto
+              ? `Carica ${nFoto} foto`
+              : nuovi.length === 1
+                ? "Importa 1 prodotto in bozza"
+                : `Importa ${nuovi.length} prodotti in bozza`}
           </Button>
           {perche && (
             <p id="perche-spento" className="max-w-xs text-right text-[12px] text-muted-foreground">

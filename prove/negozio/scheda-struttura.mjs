@@ -104,6 +104,8 @@ export async function prove(_mod, { c, gruppo, radice }) {
     "EditorMedia.tsx": [/\*\s*100\b/, /\bfetch\(/],
     "scheda-pura.ts": [/\bdelete\b/],
     "Categorie.tsx": [/\bfetch\(/],
+    //  E13 (capo progetto, 26/11/2026): l'unico scaricamento delle foto dell'import, solo verso `HOST_FOTO` (cdn.shopify.com), senza credenziali.
+    "importa/importa-foto.ts": [/\bfetch\(/],
   };
   const VIETATE = [/compareAt/i, /prezzo\s+barrato/i, /\brating\b/i, /best\s*seller/i, /\bstelle\b/i, /sconto/i, /\bdelete\b/, /Elimina/, /parseFloat/, /\*\s*100\b/, /\bfetch\(/];
   const tutti = filesDi(dir);
@@ -113,7 +115,7 @@ export async function prove(_mod, { c, gruppo, radice }) {
     const nome = relative(dir, f);
     for (const v of VIETATE) if (v.test(t) && !(NOTI[nome] ?? []).some((n) => n.source === v.source)) colpevoli.push(`${nome}: ${v}`);
   }
-  c("nessuna parola vietata e nessun fetch( in nessun file di prodotti/ (commenti esclusi; solo i tre usi già esistenti, elencati)", [], colpevoli);
+  c("nessuna parola vietata e nessun fetch( in nessun file di prodotti/ (commenti esclusi; solo gli usi noti, elencati)", [], colpevoli);
   c("gli usi già esistenti sono ancora lì (se spariscono si toglie l'eccezione)", [], Object.entries(NOTI).flatMap(([nome, re]) => re.filter((r) => !r.test(senzaCommenti(readFileSync(join(dir, nome), "utf8")))).map((r) => `${nome}: ${r}`)));
 
   // ════ IL GUSCIO USA I RIQUADRI ════

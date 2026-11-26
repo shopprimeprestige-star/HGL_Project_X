@@ -74,7 +74,10 @@ export interface StatoFoto {
 }
 
 type PerAnteprima = Pick<Analisi, "nuovi" | "giaPresenti"> & {
-  lettura: { prodotti: readonly { handle: string; titolo: string }[]; foto: Map<string, FotoImport[]> };
+  lettura: {
+    prodotti: readonly { handle: string; titolo: string }[];
+    foto: Map<string, FotoImport[]>;
+  };
 };
 
 /** Quante foto potrei caricare (passo 2): quelle dei nuovi e dei già presenti; chi ha già foto si saprà dopo. */
@@ -91,7 +94,11 @@ export function avviaFoto(a: PerAnteprima, s: Pick<StatoImporta, "gruppi">): Sta
   for (const g of s.gruppi)
     for (const r of g.risultati)
       if (r.esito !== "errore" && r.prodottoId)
-        chi.push({ handle: r.handle, prodottoId: r.prodottoId, giaPresente: r.esito === "gia_presente" });
+        chi.push({
+          handle: r.handle,
+          prodottoId: r.prodottoId,
+          giaPresente: r.esito === "gia_presente",
+        });
   for (const g of a.giaPresenti) chi.push({ ...g, giaPresente: true });
   const visti = new Set<string>();
   const prodotti: ProdottoFoto[] = [];
@@ -143,7 +150,8 @@ export async function eseguiFoto(
   async function una(p: ProdottoFoto, v: VoceFoto): Promise<void> {
     try {
       if (!v.lavoro) {
-        if (!urlFotoAmmesso(v.url)) return void Object.assign(v, { stato: "fallita", frase: FRASE_HOST });
+        if (!urlFotoAmmesso(v.url))
+          return void Object.assign(v, { stato: "fallita", frase: FRASE_HOST });
         const blob = await porte.scarica(v.url);
         const idoneo = controllaFile({ tipo: "foto", mime: blob.type, byte: blob.size });
         if (!idoneo.ok) return void Object.assign(v, { stato: "fallita", frase: idoneo.frase });
@@ -164,9 +172,15 @@ export async function eseguiFoto(
         });
       }
       const esito = await eseguiLavoro(v.lavoro, porte.carico);
-      Object.assign(v, esito.ok ? { stato: "fatta", frase: null } : { stato: "fallita", frase: esito.frase });
+      Object.assign(
+        v,
+        esito.ok ? { stato: "fatta", frase: null } : { stato: "fallita", frase: esito.frase },
+      );
     } catch (e) {
-      Object.assign(v, { stato: "fallita", frase: e instanceof Error && e.message ? e.message : FRASE_PREPARA });
+      Object.assign(v, {
+        stato: "fallita",
+        frase: e instanceof Error && e.message ? e.message : FRASE_PREPARA,
+      });
     }
   }
 
@@ -206,7 +220,12 @@ export const riprovaFoto = (s: StatoFoto): StatoFoto => ({
     ...p,
     foto: p.foto.map((v) =>
       v.stato === "fallita"
-        ? { ...v, stato: "da_fare" as const, frase: null, lavoro: v.lavoro?.finale ? null : v.lavoro }
+        ? {
+            ...v,
+            stato: "da_fare" as const,
+            frase: null,
+            lavoro: v.lavoro?.finale ? null : v.lavoro,
+          }
         : v,
     ),
   })),

@@ -188,6 +188,16 @@ export async function prove(_mod, { c, gruppo, radice }) {
   const hFine = await p3({ foto: sg, fotoInCorso: false });
   c("passo 3, foto finite con errori: «Foto caricate 7 · non riuscite 3», l'elenco (prodotto + posizione) e «Riprova le foto non riuscite», un solo tasto pieno",
     [true, true, true, 1, "Carico le foto: 12 di 12"], [leggibile(hFine).includes("Foto caricate 7 · non riuscite 3"), leggibile(hFine).includes("Spazzola uno · foto 2"), leggibile(hFine).includes("Riprova le foto non riuscite"), pieni(hFine), statoFoto(hFine)]);
+  // ── il passo 2: quante foto, e il file ricaricato per le sole foto ──
+  const tasto = (html, testo) => [...html.matchAll(/<button\b[^>]*>[\s\S]*?<\/button>/g)].map((m) => m[0]).find((b) => leggibile(b).includes(testo));
+  const spento = (b) => b === undefined || /\sdisabled(=""|\s|>)/.test(b);
+  const base2 = { nomeFile: "f.csv", errori: [], avvisi: [], righe: [], nProdottiConErrori: 0, importaDisponibile: true, lettura: { ...analisi.lettura, colonneIgnorate: [], conteggi: { prodotti: 6, varianti: 6 } } };
+  const p2 = async (a) => (await rendiComponente(radice, join(DIR, "PassoControllo.tsx"), "PassoControllo", { analisi: { ...base2, ...a }, cambiaFile: nulla, scaricaErrori: nulla, importa: nulla })).html;
+  const h2 = await p2({ nuovi: analisi.nuovi, giaPresenti: analisi.giaPresenti });
+  c("passo 2: dice quante foto verranno caricate dopo i prodotti (13), il tasto resta «Importa 4 prodotti in bozza»", [true, true, 1], [/Dopo i prodotti carico fino a 13 foto da Shopify/.test(leggibile(h2)), !spento(tasto(h2, "Importa 4 prodotti in bozza")), pieni(h2)]);
+  const hSolo = await p2({ nuovi: [], giaPresenti: analisi.giaPresenti });
+  c("passo 2, file già importato ma con foto: «Carica 4 foto» acceso (per i già presenti senza foto), un solo tasto pieno", [true, 1], [!spento(tasto(hSolo, "Carica 4 foto")), pieni(hSolo)]);
+
   const hNo = await p3({});
   c("passo 3 senza foto: nessuna seconda barra (come prima)", [undefined, false], [statoFoto(hNo), /Carico le foto/.test(hNo)]);
 }
