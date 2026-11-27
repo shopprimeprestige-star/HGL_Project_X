@@ -17,7 +17,7 @@
  *   lo blocca, così un articolo con una cifra in euro non arriva online.
  *  ───────────────────────────────────────────────────────────────────────── */
 
-export const SITO = "https://hair-genius-hub.hair";
+export const SITO = "https://hairgeniuslabs.hair";
 export const MARCHIO = "Hair Genius Labs";
 
 /** Pagine pubbliche fisse che vanno nella mappa del sito. */
@@ -219,7 +219,7 @@ function inLinea(riga: string): string {
     //   barre rovesciate o spazi.
     const buono = !/[\\\s]/.test(url) && /^(https:\/\/|mailto:|tel:|\/(?![/\\]))/.test(url);
     if (!buono) return testo;
-    //  «https://hair-genius-hub.hair.altro.it» non è il nostro sito.
+    //  «https://hairgeniuslabs.hair.altro.it» non è il nostro sito.
     const esterno = url.startsWith("https://") && url !== SITO && !url.startsWith(`${SITO}/`);
     return `<a href="${url}"${esterno ? ' rel="noopener" target="_blank"' : ""}>${testo}</a>`;
   });

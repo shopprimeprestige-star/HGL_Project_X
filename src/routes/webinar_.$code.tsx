@@ -65,7 +65,7 @@ const OG_DESC = "Un tocco e sei nella sala. Dal browser, senza installare niente
  *  cache l'immagine per INDIRIZZO, e con un indirizzo identico continuano a
  *  mostrare i byte vecchi anche dopo aver riletto la pagina. */
 const ogImmagine = (code: string) =>
-  `https://hair-genius-hub.hair/api/og/anteprima/webinar/${encodeURIComponent(code)}.jpg?v=${VERSIONE_SCHEDA}`;
+  `https://hairgeniuslabs.hair/api/og/anteprima/webinar/${encodeURIComponent(code)}.jpg?v=${VERSIONE_SCHEDA}`;
 
 export const Route = createFileRoute("/webinar_/$code")({
   head: ({ params }) => ({

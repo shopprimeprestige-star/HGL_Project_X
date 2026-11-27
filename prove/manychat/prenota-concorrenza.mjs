@@ -360,7 +360,7 @@ function problemiStanza(m, iniziali) {
     const codice = String(s.data.linkMeeting ?? "")
       .split("/")
       .pop();
-    if (dopo && s.data.linkMeeting?.includes("hair-genius-hub") && dopo.code !== codice)
+    if (dopo && s.data.linkMeeting?.includes("hairgeniuslabs.hair") && dopo.code !== codice)
       out.push(`la stanza di ${id} non è quella del link in scheda`);
     //  La riga «fascia» (stesso consulente, stessa ora) deve esserci e puntare
     //  alla stanza di chi ha prenotato quell'ora.

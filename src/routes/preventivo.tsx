@@ -224,7 +224,7 @@ export const Route = createFileRoute("/preventivo")({
       persona: cerca?.persona,
     });
     const { titolo: T, descrizione: D } = testoAnteprimaPreventivo(persona);
-    const IMG = `https://hair-genius-hub.hair/api/og/anteprima/preventivo/${encodeURIComponent(rif)}.jpg`;
+    const IMG = `https://hairgeniuslabs.hair/api/og/anteprima/preventivo/${encodeURIComponent(rif)}.jpg`;
     return {
       meta: [
         { title: T },

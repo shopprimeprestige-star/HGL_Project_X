@@ -365,7 +365,7 @@ export async function chiamaOpenRouter(o: {
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${o.chiave}`,
-        "HTTP-Referer": "https://hair-genius-hub.hair",
+        "HTTP-Referer": "https://hairgeniuslabs.hair",
         "X-Title": "Fatture da screenshot",
       },
       body: JSON.stringify(corpoRichiesta(o.immagini)),

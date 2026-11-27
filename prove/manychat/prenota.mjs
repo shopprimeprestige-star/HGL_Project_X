@@ -60,7 +60,7 @@ export async function proveDellOrchestratorePrenota(mod, { c, gruppo, radice }) 
   const dati = (m, n = 1) => m.scheda(ID(n)).data;
   /** le righe della stanza (meet, fascia, attesi) */
   const righeStanza = (m) => [...m.righe.keys()].filter((k) => /^(meet|fascia|attesi):/.test(k)).sort();
-  const LINK = /https:\/\/hair-genius-hub\.hair\/meetly\/[a-z]{3}-[a-z]{4}-[a-z]{3}/;
+  const LINK = /https:\/\/hairgeniuslabs\.hair\/meetly\/[a-z]{3}-[a-z]{4}-[a-z]{3}/;
   /** tutto quello che la funzione ha detto o scritto in giro (risposte, avvisi) */
   const dettoIn = [];
   const nota = (m, r) => {
@@ -647,12 +647,12 @@ export async function proveDellOrchestratorePrenota(mod, { c, gruppo, radice }) 
     c("…con l'avviso (solo codice)", true, m.avvisi.length > 0 && m.avvisi.every((x) => TI.CODICI_LOG.includes(x)));
 
     //  Il codice stanza si riusa su una riprenotazione.
-    const conStanza = cliente({ linkMeeting: "https://hair-genius-hub.hair/meetly/bcd-fghj-kmn" });
+    const conStanza = cliente({ linkMeeting: "https://hairgeniuslabs.hair/meetly/bcd-fghj-kmn" });
     const sessione = JSON.stringify({ code: "bcd-fghj-kmn", leadId: ID(1), consultantId: "c-bea", quando: "2026-10-20T15:00", durata: 60, createdAt: "2026-10-18T10:00:00.000Z" });
     ({ m } = await conProposta({ schede: [conStanza], righe: { [`meet:${ID(1)}`]: sessione, [`meet:${ID(1)}:c-bea`]: sessione } }));
     r = nota(m, await tocca(m, 2));
     d = dati(m);
-    c("riprenotazione con una stanza già partita: stesso codice e stesso link", ["https://hair-genius-hub.hair/meetly/bcd-fghj-kmn", true], [d.linkMeeting, r.testo.includes("meetly/bcd-fghj-kmn")]);
+    c("riprenotazione con una stanza già partita: stesso codice e stesso link", ["https://hairgeniuslabs.hair/meetly/bcd-fghj-kmn", true], [d.linkMeeting, r.testo.includes("meetly/bcd-fghj-kmn")]);
     c("…la riga meet del lead non cambia codice", "bcd-fghj-kmn", JSON.parse(m.righe.get(`meet:${ID(1)}`)).code);
     c("…e c'è la riga della fascia col codice", "bcd-fghj-kmn", JSON.parse(m.righe.get("fascia:c-fil:2026-10-28T17:00")).code);
     void prima;
@@ -672,7 +672,7 @@ export async function proveDellOrchestratorePrenota(mod, { c, gruppo, radice }) 
           dataMeeting: "2026-10-28",
           oraMeeting: "17:00",
           durataMeeting: 60,
-          linkMeeting: "https://hair-genius-hub.hair/meetly/bcd-fghj-kmn",
+          linkMeeting: "https://hairgeniuslabs.hair/meetly/bcd-fghj-kmn",
           prenotatoChat: { il: ADESSO.toISOString(), g: "2026-10-28", o: "17:00" },
         });
       }

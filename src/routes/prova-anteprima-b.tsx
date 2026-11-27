@@ -20,7 +20,7 @@
  */
 import { createFileRoute } from "@tanstack/react-router";
 
-const IMG = "https://hair-genius-hub.hair/api/og/anteprima/invito/A3AK-X6DV-RTDN.jpg";
+const IMG = "https://hairgeniuslabs.hair/api/og/anteprima/invito/A3AK-X6DV-RTDN.jpg";
 const T = "Prova anteprima B — Hair Genius Labs";
 const D = "Pagina di prova: se vedi l'immagine qui sopra, l'anteprima funziona.";
 
@@ -33,7 +33,7 @@ export const Route = createFileRoute("/prova-anteprima-b")({
       { property: "og:site_name", content: "Hair Genius Labs" },
       { property: "og:title", content: T },
       { property: "og:description", content: D },
-      { property: "og:url", content: "https://hair-genius-hub.hair/prova-anteprima-b" },
+      { property: "og:url", content: "https://hairgeniuslabs.hair/prova-anteprima-b" },
       { property: "og:image", content: IMG },
       { property: "og:image:secure_url", content: IMG },
       { property: "og:image:type", content: "image/jpeg" },

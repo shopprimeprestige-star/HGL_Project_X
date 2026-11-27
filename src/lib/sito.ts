@@ -12,7 +12,14 @@
  *  ⚠️ Perché resti vero, questo dominio deve puntare all'applicazione. Se un
  *  giorno cambiasse, si cambia questa riga e cambiano tutti i link insieme.
  */
-export const SITO = "https://hair-genius-hub.hair";
+export const SITO = "https://hairgeniuslabs.hair";
+
+/** Il dominio di prima (fino al 27/11/2026). Resta collegato allo stesso sito su
+ *  Cloudflare: i link già mandati ai clienti, i webhook (Stripe, Meta) e i
+ *  modelli WhatsApp già approvati da Meta puntano ancora qui.
+ *  ⚠️ Non staccarlo da Cloudflare finché i modelli non sono stati riapprovati
+ *   col dominio nuovo. */
+export const SITO_PRECEDENTE = "https://hair-genius-hub.hair";
 
 /** Unisce il dominio pubblico a un percorso, senza doppie barre né barre
  *  mancanti — l'errore più banale e più frequente quando si compongono link. */

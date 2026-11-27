@@ -87,7 +87,7 @@ const D = "Una foto, scegli il taglio e ti vedi subito. Il viso non si tocca —
  *  l'immagine per INDIRIZZO. Rifare la scheda senza cambiare indirizzo non
  *  serve a niente — «scrape again» rilegge la pagina, ritrova lo stesso
  *  `og:image` e continua a mostrare i byte vecchi. Vedi prova/versione-scheda. */
-const OG_IMMAGINE = `https://hair-genius-hub.hair/api/og/anteprima/capelli/generale.jpg?v=${VERSIONE_SCHEDA}`;
+const OG_IMMAGINE = `https://hairgeniuslabs.hair/api/og/anteprima/capelli/generale.jpg?v=${VERSIONE_SCHEDA}`;
 
 /** La voce scelta di un gruppo. ⚠️ `Composto` ha campi noti ma i gruppi si
  *  scorrono per chiave: senza questo passaggio servirebbe un `any`, e un `any`

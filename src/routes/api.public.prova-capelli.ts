@@ -567,7 +567,7 @@ export const Route = createFileRoute("/api/public/prova-capelli")({
             headers: {
               "Content-Type": "application/json",
               Authorization: `Bearer ${k}`,
-              "HTTP-Referer": "https://hair-genius-hub.hair",
+              "HTTP-Referer": "https://hairgeniuslabs.hair",
               "X-Title": "Prova capelli",
             },
             body: JSON.stringify({

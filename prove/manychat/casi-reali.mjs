@@ -648,8 +648,8 @@ export async function proveCasiReali(mod, { c, gruppo, radice }) {
     );
     c(
       "testo col link della pagina dei media: preview_url vero",
-      { preview_url: true, body: "Ecco i casi: https://hair-genius-hub.hair/media/336A-7DUU-4RDM grazie" },
-      testo("Ecco i casi: https://hair-genius-hub.hair/media/336A-7DUU-4RDM grazie"),
+      { preview_url: true, body: "Ecco i casi: https://hairgeniuslabs.hair/media/336A-7DUU-4RDM grazie" },
+      testo("Ecco i casi: https://hairgeniuslabs.hair/media/336A-7DUU-4RDM grazie"),
     );
     c(
       "…vale per http e https, in qualunque punto del testo, anche a capo e con maiuscole",
@@ -664,7 +664,7 @@ export async function proveCasiReali(mod, { c, gruppo, radice }) {
     c(
       "…non vale per chi nomina un dominio senza protocollo o scrive «http» e basta",
       [false, false, false],
-      ["vedi hair-genius-hub.hair/media/abc", "il protocollo http è vecchio", "https:// vuoto"].map(
+      ["vedi hairgeniuslabs.hair/media/abc", "il protocollo http è vecchio", "https:// vuoto"].map(
         (s) => testo(s).preview_url,
       ),
     );

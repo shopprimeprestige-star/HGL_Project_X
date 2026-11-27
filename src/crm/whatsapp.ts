@@ -245,7 +245,7 @@ export const INDIRIZZO_SEDE = "Via degli Scipioni 132, Roma";
  *  ⚠️ È un indirizzo pubblico e statico (routes/media.$codice): chi lo riceve
  *   lo apre quando vuole, anche fra tre giorni. Non è il link «solo media»
  *   della diretta, che vale mentre il consulente sta mostrando qualcosa. */
-export const LINK_RISULTATI = "https://hair-genius-hub.hair/media/DPKW-3JHV-RC77";
+export const LINK_RISULTATI = "https://hairgeniuslabs.hair/media/DPKW-3JHV-RC77";
 
 /** ── IL MESSAGGIO DI CHI STA DECIDENDO ────────────────────────────────────
  *
