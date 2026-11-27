@@ -53,10 +53,11 @@ export const COLONNE: readonly Colonna[] = [
   c("barcode", "Variant Barcode"),
   c("costo", "Cost per item"),
   ign("barrato", "Variant Compare At Price"),
-  ign("immagine", "Image Src"),
-  ign("immaginePos", "Image Position"),
-  ign("immagineAlt", "Image Alt Text"),
-  ign("immagineVariante", "Variant Image"),
+  // Le foto (E13): si leggono, ma non vanno al server; le carica il browser dopo i prodotti (`importa-foto.ts`).
+  c("immagine", "Image Src"),
+  c("immaginePos", "Image Position"),
+  c("immagineAlt", "Image Alt Text"),
+  c("immagineVariante", "Variant Image"),
   ign("pubblicato", "Published"),
   ign("stato", "Status"),
   // Le altre che Shopify esporta: si ignorano e si elencano una volta sola nell'anteprima.

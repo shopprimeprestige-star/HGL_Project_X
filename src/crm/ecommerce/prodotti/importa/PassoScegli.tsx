@@ -113,15 +113,16 @@ export function PassoScegli({
             <p className="text-muted-foreground">
               Titolo e indirizzo (Handle), descrizione (diventa testo semplice), marca, tipo,
               categorie, fornitore, testi per i motori di ricerca, opzioni e varianti, SKU, prezzo,
-              giacenza, peso, barcode e costo.
+              giacenza, peso, barcode e costo. Le foto di Shopify (fino a 5 per prodotto) le carico
+              dopo i prodotti.
             </p>
           </div>
           <div>
             <h3 className="font-semibold">Ignoro</h3>
             <p className="text-muted-foreground">
-              Foto e video: si aggiungono a mano dalla scheda del prodotto. Published e Status:
-              tutto entra in bozza e si pubblica dalla scheda. Compare At Price, Tags e le altre
-              colonne che il negozio non usa.
+              Foto e video che non vengono da Shopify: si aggiungono a mano dalla scheda del
+              prodotto. Published e Status: tutto entra in bozza e si pubblica dalla scheda. Compare
+              At Price, Tags e le altre colonne che il negozio non usa.
             </p>
           </div>
           <div>

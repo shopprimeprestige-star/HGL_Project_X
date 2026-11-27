@@ -153,9 +153,10 @@ export async function prove(_mod, { c, gruppo, radice }) {
   ), { categorie: [] });
   c("Published=TRUE, prezzo barrato e foto: importa tutto, senza errori", [2, 0], [ig.prodotti.length, ig.errori.length]);
   c("…niente prezzo barrato, niente foto, niente stato nel risultato", [false, false, false, false], [JSON.stringify(ig.prodotti).includes("20"), "stato" in ig.prodotti[0], /barrat|compare|immagin|image/i.test(Object.keys(ig.prodotti[0]).join()), JSON.stringify(ig.prodotti).includes("esempio.invalid")]);
-  c("…e gli avvisi che lo dicono (prezzo barrato su 2 prodotti, 2 immagini, tutto in bozza)", [true, true, true], [ig.avvisi.some((x) => /2 prodotti avevano un prezzo barrato: non è stato importato/.test(x.frase)), ig.avvisi.some((x) => /2 immagini non importate/.test(x.frase)), ig.avvisi.some((x) => /tutto entra in bozza/.test(x.frase))]);
-  c("le colonne ignorate sono elencate una volta (anche quella sconosciuta)", ["Variant Compare At Price", "Image Src", "Published", "Status", "Tags", "Variant Taxable", "Colonna mia"], ig.colonneIgnorate);
-  c("conteggi: 2 immagini ignorate, 2 prodotti con prezzo barrato", [2, 2], [ig.conteggi.immaginiIgnorate, ig.conteggi.prodottiConBarrato]);
+  //  E13 (titolare, 26/11/2026): le foto non sono più ignorate; queste due non sono di Shopify, quindi si saltano con un avviso ciascuna.
+  c("…e gli avvisi che lo dicono (prezzo barrato su 2 prodotti, 2 foto saltate perché non di Shopify, tutto in bozza)", [true, true, true], [ig.avvisi.some((x) => /2 prodotti avevano un prezzo barrato: non è stato importato/.test(x.frase)), ig.avvisi.filter((x) => /Foto saltata: indirizzo non di Shopify/.test(x.frase)).length === 2, ig.avvisi.some((x) => /tutto entra in bozza/.test(x.frase))]);
+  c("le colonne ignorate sono elencate una volta (anche quella sconosciuta); Image Src si legge (E13)", ["Variant Compare At Price", "Published", "Status", "Tags", "Variant Taxable", "Colonna mia"], ig.colonneIgnorate);
+  c("conteggi: 2 foto saltate (E13: non di Shopify), 0 da caricare, 2 prodotti con prezzo barrato", [2, 0, 2], [ig.conteggi.fotoSaltate, ig.conteggi.fotoDaCaricare, ig.conteggi.prodottiConBarrato]);
 
   // ── categorie ──
   const cg = L([{ Handle: "cg", Title: "Cg", Categories: "cura-capelli|Inesistente|PATCH|patch", "Variant SKU": "CG", "Variant Price": "1" }]);

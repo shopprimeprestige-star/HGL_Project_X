@@ -42,6 +42,7 @@ import { Avviso } from "@/crm/ecommerce/Avviso";
 import {
   SEGMENTI,
   eseguiAzione,
+  leggiScheda,
   type ErroreNegozio,
   type FiltriElenco,
   type RigaElenco,
@@ -49,7 +50,8 @@ import {
 import type { Variante } from "@/shop/cms/modello";
 import {
   ETICHETTE_SEGMENTO,
-  MAX_GRUPPO,
+  aGruppi,
+  uniscoGruppi,
   chipProdotto,
   cercaRighe,
   etichettaCanali,
@@ -147,15 +149,16 @@ export function ElencoProdotti({ negozio, apri, categorieAggiornate = 0 }: Props
   const nomi = useMemo(() => Object.fromEntries(prodotti.map((r) => [r.id, r.nome])), [prodotti]);
   //  Chi non si vede più (filtro cambiato, prodotto sparito) non resta selezionato di nascosto.
   const selezionati = useMemo(() => visibili.filter((r) => scelti.has(r.id)), [visibili, scelti]);
-  const pieno = selezionati.length >= MAX_GRUPPO;
   const filtrato = segmento !== "tutti" || categoria !== "" || q.trim() !== "";
 
   //  L'import scrive a gruppi: con l'`esegui` del negozio l'elenco si rileggerebbe dopo OGNI gruppo (fino a 60 letture, e la lista sfarfalla sotto
   //  la finestra). Questo `esegui` manda l'azione e basta; l'elenco si rilegge una volta sola, quando la finestra si chiude.
+  //  `scheda` (sola lettura) serve alle foto dell'import (E13): un prodotto già presente che ha già foto si salta.
   const negozioImporta = useMemo(
     () => ({
       esegui: (azione: string, dati?: Record<string, unknown>) =>
         eseguiAzione(fetchCRM, azione, dati),
+      scheda: (id: string) => leggiScheda(fetchCRM, id),
     }),
     [],
   );
@@ -188,10 +191,8 @@ export function ElencoProdotti({ negozio, apri, categorieAggiornate = 0 }: Props
     }));
   const alterna = (insieme: ReadonlySet<string>, id: string): ReadonlySet<string> =>
     insieme.has(id) ? new Set([...insieme].filter((x) => x !== id)) : new Set(insieme).add(id);
-  const tuttiScelti =
-    visibili.length > 0 && visibili.slice(0, MAX_GRUPPO).every((r) => scelti.has(r.id));
-  const scegliTutti = () =>
-    setScelti(tuttiScelti ? new Set() : new Set(visibili.slice(0, MAX_GRUPPO).map((r) => r.id)));
+  const tuttiScelti = visibili.length > 0 && visibili.every((r) => scelti.has(r.id));
+  const scegliTutti = () => setScelti(tuttiScelti ? new Set() : new Set(visibili.map((r) => r.id)));
 
   /** Una azione alla volta: i tasti restano spenti finché non è finita. */
   const lavora = async (f: () => Promise<void>) => {
@@ -208,9 +209,26 @@ export function ElencoProdotti({ negozio, apri, categorieAggiornate = 0 }: Props
   const cambiaStato = (stato: "pubblicato" | "bozza") =>
     lavora(async () => {
       const ids = selezionati.map((r) => r.id);
-      const r = await esegui("gruppo_stato", { ids, stato });
-      if (!r.ok) return setEsito({ tono: "errore", riga: r.errore.messaggio, fuori: [] });
-      const rie = riepilogoGruppo(stato, ids, r.dati, nomi);
+      //  Si possono scegliere tutti: al server vanno a pezzi di 20 (il suo tetto), uno dopo l'altro.
+      const pezzi = aGruppi(ids);
+      const risposte: unknown[] = [];
+      for (let k = 0; k < pezzi.length; k++) {
+        const r = await esegui("gruppo_stato", { ids: pezzi[k], stato });
+        if (!r.ok) {
+          //  Quelli già mandati sono fatti; chi non è partito resta scelto, così si riprova solo su di loro.
+          const fatti = pezzi.slice(0, k).flat().length;
+          setScelti(new Set(pezzi.slice(k).flat()));
+          return setEsito({
+            tono: "errore",
+            riga: fatti
+              ? `${r.errore.messaggio} (i primi ${fatti} sono già fatti: restano scelti gli altri)`
+              : r.errore.messaggio,
+            fuori: [],
+          });
+        }
+        risposte.push(r.dati);
+      }
+      const rie = riepilogoGruppo(stato, ids, uniscoGruppi(stato, risposte), nomi);
       setEsito({ tono: rie.fuori.length ? "attenzione" : "ok", riga: rie.riga, fuori: rie.fuori });
       setScelti(new Set(rie.fuori.map((f) => f.id))); // chi è rimasto fuori resta selezionato: lo si vede e si sistema
     });
@@ -418,12 +436,6 @@ export function ElencoProdotti({ negozio, apri, categorieAggiornate = 0 }: Props
             {selezionati.length === 1
               ? "1 prodotto scelto"
               : `${selezionati.length} prodotti scelti`}
-            {pieno && (
-              <span className="font-normal text-muted-foreground">
-                {" "}
-                · al massimo {MAX_GRUPPO} alla volta
-              </span>
-            )}
           </span>
           <Button
             type="button"
@@ -520,7 +532,7 @@ export function ElencoProdotti({ negozio, apri, categorieAggiornate = 0 }: Props
                   <th scope="col" className="w-10 px-3 py-2 align-middle">
                     <input
                       type="checkbox"
-                      aria-label="Scegli i primi prodotti dell'elenco"
+                      aria-label="Scegli tutti i prodotti dell'elenco"
                       checked={tuttiScelti}
                       onChange={scegliTutti}
                       className="h-4 w-4 accent-sky-600"
@@ -561,7 +573,6 @@ export function ElencoProdotti({ negozio, apri, categorieAggiornate = 0 }: Props
                             type="checkbox"
                             aria-label={`Scegli ${r.nome}`}
                             checked={scelto}
-                            disabled={!scelto && pieno}
                             onChange={() => setScelti(alterna(scelti, r.id))}
                             className="h-4 w-4 accent-sky-600"
                           />
@@ -637,7 +648,6 @@ export function ElencoProdotti({ negozio, apri, categorieAggiornate = 0 }: Props
                         type="checkbox"
                         aria-label={`Scegli ${r.nome}`}
                         checked={scelto}
-                        disabled={!scelto && pieno}
                         onChange={() => setScelti(alterna(scelti, r.id))}
                         className="h-5 w-5 accent-sky-600"
                       />

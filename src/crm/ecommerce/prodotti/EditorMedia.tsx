@@ -114,11 +114,41 @@ interface Bozza {
 }
 type Messaggio = { tono: "ok" | "avviso" | "errore"; testo: string };
 
-const porte = (esegui: Negozio["esegui"]): PorteCarico => ({
+//  Le porte e la preparazione delle foto le usa anche l'import (E13, `importa/foto-browser.ts`): una sola pipeline, nessuna copia.
+// eslint-disable-next-line react-refresh/only-export-components
+export const porte = (esegui: Negozio["esegui"]): PorteCarico => ({
   permesso: (f) => chiediPermesso(fetchCRM, f),
   carica: (p, blob) => caricaConPermesso((u, i) => fetch(u, i), p as PermessoCaricamento, blob),
   esegui: (azione, dati) => esegui(azione, dati),
 });
+
+/** Dal file ai blob delle misure (nel browser; l'originale resta qui). */
+async function misureFoto(sorgente: Blob, punto: { x: number; y: number }): Promise<FileMisura[]> {
+  const img = await leggiImmagine(sorgente);
+  try {
+    const piano = pianoFoto(img.larghezza, img.altezza, punto);
+    if (!piano.ok) throw new Error(piano.frase);
+    return await disegnaMisure(img.sorgente, piano.piano, portaCanvas);
+  } finally {
+    img.chiudi();
+  }
+}
+
+/** Una foto pronta da caricare: le tre misure col loro nome di misura. */
+// eslint-disable-next-line react-refresh/only-export-components
+export async function fotoDaCaricare(
+  sorgente: Blob,
+  punto: { x: number; y: number },
+): Promise<FileDaCaricare[]> {
+  const misure = await misureFoto(sorgente, punto);
+  return misure.map((m) => ({
+    chiave: String(m.lato),
+    tipo: "foto" as const,
+    blob: m.blob,
+    mime: "image/jpeg",
+    per: m.per,
+  }));
+}
 
 export function EditorMedia({ prodotto, media, esegui, aggiorna }: PropsEditorMedia) {
   const [bozze, setBozze] = useState<Bozza[]>([]);
@@ -308,26 +338,7 @@ export function EditorMedia({ prodotto, media, esegui, aggiorna }: PropsEditorMe
 
   /** Dal file scelto ai blob delle misure (nel browser; l'originale resta qui). */
   async function preparaFile(b: Bozza): Promise<FileDaCaricare[]> {
-    const dal = async (sorgente: Blob, punto: { x: number; y: number }): Promise<FileMisura[]> => {
-      const img = await leggiImmagine(sorgente);
-      try {
-        const piano = pianoFoto(img.larghezza, img.altezza, punto);
-        if (!piano.ok) throw new Error(piano.frase);
-        return await disegnaMisure(img.sorgente, piano.piano, portaCanvas);
-      } finally {
-        img.chiudi();
-      }
-    };
-    if (b.tipo === "foto") {
-      const misure = await dal(b.file, b.punto);
-      return misure.map((m) => ({
-        chiave: String(m.lato),
-        tipo: "foto" as const,
-        blob: m.blob,
-        mime: "image/jpeg",
-        per: m.per,
-      }));
-    }
+    if (b.tipo === "foto") return fotoDaCaricare(b.file, b.punto);
     if (!b.pulito)
       throw new Error("Non riesco a preparare questo video: esportalo di nuovo dal telefono.");
     const file: FileDaCaricare[] = [
@@ -335,7 +346,7 @@ export function EditorMedia({ prodotto, media, esegui, aggiorna }: PropsEditorMe
     ];
     if (b.copertina) {
       //  shortcut: la copertina si ritaglia al centro e si carica alla misura 960 (un solo file); da rendere spostabile se serve.
-      const misure = await dal(b.copertina, { x: 0.5, y: 0.5 });
+      const misure = await misureFoto(b.copertina, { x: 0.5, y: 0.5 });
       const m = misure.find((x) => x.per.includes(960)) ?? misure[misure.length - 1];
       file.push({
         chiave: "copertina",

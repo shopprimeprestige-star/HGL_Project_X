@@ -113,8 +113,11 @@ export async function prove(mod, { c, gruppo, radice }) {
 
   /* ══ 3 · SOLO AGGIUNTE ════════════════════════════════════════════════════════════════════════════════ */
   gruppo("EDITOR PRODOTTI · E11 · SOLO AGGIUNTE");
-  dalDiff("c'è un punto di partenza (merge-base con origin/main) e ci sono file nuovi da guardare", [true, true], [conBase, codiceNuovo.length > 10]);
-  c("c'è comunque qualcosa da guardare per `console.` e DELETE: i file dello strumento (o tutti i nuovi, se c'è la base)", true, codiceNuovo.length >= 5);
+  //  26/11/2026: la soglia «più di 10 file nuovi» valeva solo per il ramo dell'editor; ogni ramo piccolo nato da main dopo era rosso.
+  //  Ora basta un file nuovo (guardia contro un diff letto a vuoto); un ramo senza file di codice nuovi lo dichiara SALTATO.
+  if (conBase && codiceNuovo.length === 0) c("SALTATO (il ramo non aggiunge file di codice): file nuovi da guardare", true, true);
+  else dalDiff("c'è un punto di partenza (merge-base con origin/main) e ci sono file nuovi da guardare", [true, true], [conBase, codiceNuovo.length > 0]);
+  if (!(conBase && codiceNuovo.length === 0)) c("c'è comunque qualcosa da guardare per `console.` e DELETE: i file dello strumento (o tutti i nuovi, se c'è la base)", true, codiceNuovo.length >= (conBase ? 1 : 5));
   dalDiff("`package.json` e i lockfile (package-lock.json, bun.lockb) sono identici a quelli di origin/main: nessun pacchetto nuovo", [], () => cambiati("package.json", "package-lock.json", "bun.lockb"));
   const sql = existsSync(MIGRAZIONE) ? senzaCommenti(readFileSync(MIGRAZIONE, "utf8")) : "";
   c("la migrazione `20261125120000` c'è e non ha DELETE, DROP, TRUNCATE (commenti compresi nel controllo)", [true, false], [sql.length > 500, /\b(DELETE|DROP|TRUNCATE)\b/i.test(readFileSync(MIGRAZIONE, "utf8"))]);
