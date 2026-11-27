@@ -525,7 +525,7 @@ export function ElencoProdotti({ negozio, apri, categorieAggiornate = 0 }: Props
         <Vuoto
           icona={PackageOpen}
           titolo="Non c'è ancora nessun prodotto."
-          testo="Crea il primo con «Aggiungi prodotto»: lo completi con calma, in bozza, e lo pubblichi quando è pronto. Se hai già un catalogo in un file, usa «Importa»."
+          testo="Crea il primo con «Aggiungi prodotto»: lo completi con calma, in bozza, e lo pubblichi quando è pronto. Se hai già un catalogo in un file, usa «Importa». Se li hai spostati nel Cestino, li trovi lì."
         />
       ) : visibili.length === 0 && segmento === "cestino" && !q.trim() && !categoria ? (
         <Vuoto icona={Trash2} titolo="Il Cestino è vuoto." />
