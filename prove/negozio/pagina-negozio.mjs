@@ -56,6 +56,8 @@ export async function prove(_mod, { c, gruppo, radice }) {
     c("uniscoGruppi: somma i pubblicati e mette insieme chi è rimasto fuori", { pubblicati: 35, restano: [{ id: "x", motivo: "m" }, { id: "y", motivo: "n" }] },
       P.uniscoGruppi("pubblicato", [{ pubblicati: 20, restano: [] }, { pubblicati: 15, restano: [{ id: "x", motivo: "m" }, { id: "y", motivo: "n" }] }, null, "strano"]));
     c("uniscoGruppi: per la bozza conta «bozze»", { bozze: 3, restano: [] }, P.uniscoGruppi("bozza", [{ bozze: 1 }, { bozze: 2, restano: [] }]));
+    c("E14 · uniscoGruppi: per il Cestino conta «archiviati»", { archiviati: 23, restano: [{ id: "x", motivo: "m" }] },
+      P.uniscoGruppi("archiviato", [{ archiviati: 20, restano: [] }, { archiviati: 3, restano: [{ id: "x", motivo: "m" }] }]));
   } else c("elenco-puro.ts esporta aGruppi e uniscoGruppi", true, false);
   {
     const sorg = readFileSync(join(dir, "ElencoProdotti.tsx"), "utf8");
@@ -120,6 +122,10 @@ export async function prove(_mod, { c, gruppo, radice }) {
     c("una risposta storta non rompe il riepilogo: 0 cambiati, nessuno fuori", [0, []], [storta.cambiati, storta.fuori]);
     const senzaNome = P.riepilogoGruppo("pubblicato", ["zz"], { pubblicati: 0, restano: [{ id: "zz", motivo: "Manca il prezzo." }] }, nomi);
     c("un id senza nome noto resta leggibile (mai «undefined»)", false, /undefined/.test(JSON.stringify(senzaNome)));
+    // E14: «Elimina» = sposta nel Cestino
+    const ces = P.riepilogoGruppo("archiviato", ["a", "b", "c"], { archiviati: 3, restano: [] }, nomi);
+    c("E14 · riepilogo «archiviato»: «3 prodotti spostati nel Cestino.», «1 prodotto spostato…», «Nessun prodotto spostato…»", [3, "3 prodotti spostati nel Cestino.", "1 prodotto spostato nel Cestino.", "Nessun prodotto spostato nel Cestino. 1 era già così."],
+      [ces.cambiati, ces.riga, P.riepilogoGruppo("archiviato", ["a"], { archiviati: 1, restano: [] }, nomi).riga, P.riepilogoGruppo("archiviato", ["a"], { archiviati: 0, restano: [] }, nomi).riga]);
   }
   if (ok(P.riepilogoDuplica)) {
     const r = P.riepilogoDuplica([{ id: "a", ok: true }, { id: "b", ok: false, frase: "Lo SKU è già usato." }], { a: "Patch", b: "Cura" });
@@ -208,6 +214,23 @@ export async function prove(_mod, { c, gruppo, radice }) {
   c("i cinque segmenti del Design (Tutti, Pubblicati, Bozze, Da sistemare, Vecchio catalogo) si leggono dal client", true,
     /SEGMENTI\.map/.test(el) && /ETICHETTE_SEGMENTO\[/.test(el));
   c("…e le etichette sono quelle del Design, nell'ordine", ["Tutti", "Pubblicati", "Bozze", "Da sistemare", "Vecchio catalogo"], P.ETICHETTE_SEGMENTO && ["tutti", "pubblicati", "bozze", "da_sistemare", "vecchio_catalogo"].map((k) => P.ETICHETTE_SEGMENTO[k]));
+  c("E14 · la linguetta «Cestino» c'è, in fondo", ["Cestino", true], [P.ETICHETTE_SEGMENTO?.cestino, /"vecchio_catalogo",\s*"cestino"\]/.test(readFileSync(join(radice, "src/crm/negozio/client.ts"), "utf8"))]);
+  {
+    // E14: «Elimina» apre una conferma e non scrive al clic; solo «Sposta nel Cestino» manda `cambiaStato("archiviato")`
+    const tasto = (testo) => el.match(new RegExp(`<Button(?:(?!<Button)[\\s\\S])*?${testo}\\s*</Button>`))?.[0] ?? "";
+    const elimina = tasto("Elimina");
+    c("E14 · «Elimina»: contorno, testo rosso scuro, icona cestino; al clic apre la conferma e NON scrive", [true, true, true, true, false],
+      [/variant="outline"/.test(elimina), /text-rose-800/.test(elimina), /<Trash2\b/.test(elimina), /onClick=\{\(\) => setCestino\(/.test(elimina), /cambiaStato|esegui/.test(elimina)]);
+    const fin = corpoDi(el, "FinestraCestino") ?? "";
+    c("E14 · la conferma: titolo, testo, «Annulla» e «Sposta nel Cestino»; durante l'invio non si chiude", [true, true, true, true, true],
+      [/Spostare \$\{n\} prodotti nel Cestino\?/.test(fin), fin.includes("Spariscono dal sito e dall'elenco. Non si cancella niente: li ritrovi nel Cestino e li puoi rimettere in bozza."), /Annulla/.test(fin) && /Sposta nel Cestino/.test(fin), /onOpenChange=\{\(v\) => !v && !occupato && chiudi\(\)\}/.test(fin), (fin.match(/disabled=\{occupato\}/g) ?? []).length === 2]);
+    c("E14 · solo la conferma sposta nel Cestino (cambiaStato(\"archiviato\") una volta, dentro <FinestraCestino>)", [1, true],
+      [(el.match(/cambiaStato\("archiviato"\)/g) ?? []).length, /<FinestraCestino[\s\S]*?conferma=\{[^}]*cambiaStato\("archiviato"\)/.test(el)]);
+    const ramo = el.match(/segmento === "cestino" \? \(([\s\S]*?)\) : \(/)?.[1] ?? "";
+    c("E14 · nel Cestino la barra ha solo «Rimetti in bozza» (bozza) e «Togli la scelta»: niente Pubblica, Duplica, Elimina", [true, true, false],
+      [/Rimetti in bozza/.test(ramo), /cambiaStato\("bozza"\)/.test(ramo), /Pubblica|Duplica|Elimina|archiviato/.test(ramo)]);
+    c("E14 · Cestino vuoto: «Il Cestino è vuoto.»", true, el.includes("Il Cestino è vuoto."));
+  }
   c("stato vuoto con la frase del Design", true, el.includes("Non c'è ancora nessun prodotto."));
   c("errore con «Riprova»", true, el.includes("Riprova") && /aggiorna/.test(el));
   c("scheletri mentre si legge (`role=\"status\"`, `aria-busy`)", true, /role="status"/.test(el) && /aria-busy/.test(el) && /animate-pulse/.test(el));
@@ -217,7 +240,8 @@ export async function prove(_mod, { c, gruppo, radice }) {
   c("le azioni di gruppo usano `gruppo_stato`, `prodotto_duplica`, e il vecchio catalogo `prodotto_adotta`", true,
     ["gruppo_stato", "prodotto_duplica", "prodotto_adotta"].every((a) => el.includes(`"${a}"`)));
   c("i canali S M G T ci sono", true, ["S", "M", "G", "T"].every((l) => new RegExp(`["'>]${l}["'<]`).test(el)) && /canali/.test(el));
-  c("nessuna cancellazione, nessun prezzo barrato, nessuna stella, nessun «best seller»", false, /\bdelete\b|Elimina|compareAt|barrato|sconto|rating|reviews|stelle|best.?seller/i.test(el));
+  // E14 (27/11/2026): «Elimina» ora c'è, ma UNA volta sola ed è il tasto che apre la conferma del Cestino (stato «archiviato», D5): la cancellazione resta vietata
+  c("nessuna cancellazione, nessun prezzo barrato, nessuna stella, nessun «best seller»", [false, 1], [/\bdelete\b|compareAt|barrato|sconto|rating|reviews|stelle|best.?seller/i.test(el), (el.match(/Elimina/gi) ?? []).length]);
   c("le colonne si ordinano (`aria-sort`) e le caselle hanno un nome per chi non vede", true, /aria-sort/.test(el) && /aria-label/.test(el));
   c("nessun log: i prodotti non vanno in console", false, /console\./.test(el));
 

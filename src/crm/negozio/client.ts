@@ -31,7 +31,7 @@ const TETTO_CARICAMENTO_MS = 120_000;
 
 /* ══ GLI INDIRIZZI ══════════════════════════════════════════════════════════ */
 
-export const SEGMENTI = ["tutti", "pubblicati", "bozze", "da_sistemare", "vecchio_catalogo"] as const;
+export const SEGMENTI = ["tutti", "pubblicati", "bozze", "da_sistemare", "vecchio_catalogo", "cestino"] as const;
 export type Segmento = (typeof SEGMENTI)[number];
 export interface FiltriElenco {
   segmento?: Segmento;

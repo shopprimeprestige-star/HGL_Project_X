@@ -30,9 +30,18 @@ import {
   Plus,
   RefreshCw,
   Search,
+  Trash2,
   Upload,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { fetchCRM } from "@/crm/AuthContext";
 import { Chip, Segmento, Vuoto } from "@/crm/ui";
@@ -61,6 +70,7 @@ import {
   proponiCopia,
   riepilogoDuplica,
   riepilogoGruppo,
+  type AzioneGruppo,
   type Colonna,
   type Direzione,
   type Fuori,
@@ -126,6 +136,8 @@ export function ElencoProdotti({ negozio, apri, categorieAggiornate = 0 }: Props
   const [esito, setEsito] = useState<EsitoGruppo | null>(null);
   const [nuovo, setNuovo] = useState(false);
   const [importa, setImporta] = useState(false);
+  //  La conferma di «Elimina» (E14): `n` resta quello del clic, così il titolo non cambia mentre la finestra si chiude.
+  const [cestino, setCestino] = useState({ aperta: false, n: 0 });
   const eraNuovo = useRef(false);
   const [categorie, setCategorie] = useState<{ id: string; nome: string }[]>([]);
 
@@ -206,7 +218,7 @@ export function ElencoProdotti({ negozio, apri, categorieAggiornate = 0 }: Props
     }
   };
 
-  const cambiaStato = (stato: "pubblicato" | "bozza") =>
+  const cambiaStato = (stato: AzioneGruppo) =>
     lavora(async () => {
       const ids = selezionati.map((r) => r.id);
       //  Si possono scegliere tutti: al server vanno a pezzi di 20 (il suo tetto), uno dopo l'altro.
@@ -437,36 +449,63 @@ export function ElencoProdotti({ negozio, apri, categorieAggiornate = 0 }: Props
               ? "1 prodotto scelto"
               : `${selezionati.length} prodotti scelti`}
           </span>
-          <Button
-            type="button"
-            size="sm"
-            className="h-11 text-[12px] md:h-8"
-            disabled={occupato}
-            onClick={() => void cambiaStato("pubblicato")}
-          >
-            Pubblica
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className="h-11 text-[12px] md:h-8"
-            disabled={occupato}
-            onClick={() => void cambiaStato("bozza")}
-          >
-            Metti in bozza
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className="h-11 text-[12px] md:h-8"
-            disabled={occupato}
-            onClick={() => void duplica()}
-          >
-            <Copy className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
-            Duplica
-          </Button>
+          {/* Nel Cestino (E14) si può solo rimettere in bozza: niente Pubblica, Duplica, Elimina. */}
+          {segmento === "cestino" ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-11 text-[12px] md:h-8"
+              disabled={occupato}
+              onClick={() => void cambiaStato("bozza")}
+            >
+              Rimetti in bozza
+            </Button>
+          ) : (
+            <>
+              <Button
+                type="button"
+                size="sm"
+                className="h-11 text-[12px] md:h-8"
+                disabled={occupato}
+                onClick={() => void cambiaStato("pubblicato")}
+              >
+                Pubblica
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-11 text-[12px] md:h-8"
+                disabled={occupato}
+                onClick={() => void cambiaStato("bozza")}
+              >
+                Metti in bozza
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-11 text-[12px] md:h-8"
+                disabled={occupato}
+                onClick={() => void duplica()}
+              >
+                <Copy className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
+                Duplica
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-11 text-[12px] text-rose-800 hover:text-rose-900 md:h-8"
+                disabled={occupato}
+                onClick={() => setCestino({ aperta: true, n: selezionati.length })}
+              >
+                <Trash2 className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
+                Elimina
+              </Button>
+            </>
+          )}
           <Button
             type="button"
             size="sm"
@@ -488,6 +527,8 @@ export function ElencoProdotti({ negozio, apri, categorieAggiornate = 0 }: Props
           titolo="Non c'è ancora nessun prodotto."
           testo="Crea il primo con «Aggiungi prodotto»: lo completi con calma, in bozza, e lo pubblichi quando è pronto. Se hai già un catalogo in un file, usa «Importa»."
         />
+      ) : visibili.length === 0 && segmento === "cestino" && !q.trim() && !categoria ? (
+        <Vuoto icona={Trash2} titolo="Il Cestino è vuoto." />
       ) : visibili.length === 0 ? (
         <Vuoto
           icona={PackageOpen}
@@ -706,6 +747,15 @@ export function ElencoProdotti({ negozio, apri, categorieAggiornate = 0 }: Props
         </Button>
       </div>
 
+      <FinestraCestino
+        aperta={cestino.aperta}
+        n={cestino.n}
+        occupato={occupato}
+        chiudi={() => setCestino((x) => ({ ...x, aperta: false }))}
+        conferma={() =>
+          void cambiaStato("archiviato").finally(() => setCestino((x) => ({ ...x, aperta: false })))
+        }
+      />
       <FinestraImporta
         aperta={importa}
         chiudi={chiudiImporta}
@@ -721,6 +771,58 @@ export function ElencoProdotti({ negozio, apri, categorieAggiornate = 0 }: Props
 }
 
 /* ══ PEZZI PICCOLI ══════════════════════════════════════════════════════════ */
+
+/** «Elimina» chiede prima (E14): i prodotti vanno nel Cestino (stato «archiviato»), non si cancella niente (D5).
+ *  Mentre si scrive la finestra non si chiude (né Esc, né clic fuori, né la X) e i due tasti sono spenti. */
+function FinestraCestino({
+  aperta,
+  n,
+  occupato,
+  chiudi,
+  conferma,
+}: {
+  aperta: boolean;
+  n: number;
+  occupato: boolean;
+  chiudi: () => void;
+  conferma: () => void;
+}) {
+  return (
+    <Dialog open={aperta} onOpenChange={(v) => !v && !occupato && chiudi()}>
+      <DialogContent className="crm-theme bg-white text-foreground">
+        <DialogHeader>
+          <DialogTitle>
+            {n === 1 ? "Spostare 1 prodotto nel Cestino?" : `Spostare ${n} prodotti nel Cestino?`}
+          </DialogTitle>
+          <DialogDescription>
+            {n === 1
+              ? "Sparisce dal sito e dall'elenco. Non si cancella niente: lo ritrovi nel Cestino e lo puoi rimettere in bozza."
+              : "Spariscono dal sito e dall'elenco. Non si cancella niente: li ritrovi nel Cestino e li puoi rimettere in bozza."}
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter className="gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            className="h-11 text-[13px] md:h-9"
+            disabled={occupato}
+            onClick={chiudi}
+          >
+            Annulla
+          </Button>
+          <Button
+            type="button"
+            className="h-11 text-[13px] md:h-9"
+            disabled={occupato}
+            onClick={conferma}
+          >
+            Sposta nel Cestino
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 function Intestazione({
   colonna,
