@@ -316,6 +316,16 @@ export const VOCE_DA_RECUPERARE: VoceFiltro = {
   spiega: "I clienti assenti alla consulenza: da ricontattare per fissarla di nuovo.",
 };
 
+/** «Attesa acconto» (28/11/2026, titolare: «nella sezione di WhatsApp aggiungi il filtro attesa acconto, e lì
+ *  ci sono tutti i lead attesa acconto proprio effettivi»): i lead la cui scheda è OGGI nello stato «Attesa
+ *  acconto». È la stessa voce di «Altri stati» (`stato:in_attesa_acconto`, vedi perStato.ts) portata in riga:
+ *  nessuna regola nuova, solo lo stato della scheda (non chi ha già versato, non chi è in sospeso). */
+export const VOCE_ATTESA_ACCONTO: VoceFiltro = {
+  ...voceDelloStato("in_attesa_acconto"),
+  nome: "Attesa acconto",
+  spiega: "Tutti i lead in stato «Attesa acconto»: hanno detto sì e manca il versamento.",
+};
+
 /** «In sospeso» (06/11/2026): clienti (stessa definizione di «Clienti») con uno stato fermo in attesa.
  *  Elenco esplicito degli stati con fase «in sospeso» (vedi LEAD_STATUS_PHASE in crm/types.ts) più
  *  «Attesa WhatsApp», «In valutazione» e «Da ricontattare». Se cambia la fase di uno stato, si aggiorna qui. */
@@ -354,6 +364,7 @@ export const VOCI_RIGA: readonly VoceFiltro[] = [
   VOCE_RICONTATTI,
   VOCE_DA_RECUPERARE,
   VOCE_CLIENTI,
+  VOCE_ATTESA_ACCONTO,
   VOCE_IN_SOSPESO_CLIENTI,
 ];
 
