@@ -10,6 +10,7 @@
  *  messaggio) dice cosa guarda la fila — non più la sola icona del calendario.
  *  Uno acceso alla volta; ritoccare quello acceso torna a «Tutti». Il numero su ogni voce lo calcola
  *  la pagina (`conta`, la stessa funzione dell'elenco). Quale data guarda: giorno.ts. */
+import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { FUOCO } from "./PannelloFiltri";
 import { SEGMENTI_GIORNO, type GiornoChat } from "./giorno";
@@ -27,6 +28,8 @@ interface Props {
   /** I segmenti da mostrare: i sette di sempre, o solo Tutti/Oggi/Ieri/Più vecchi per i filtri «a
    *  messaggio» (Compito 3). Omesso = i sette di sempre. */
   segmenti?: readonly { v: GiornoChat; nome: string }[];
+  /** In fondo alla fila, dopo i segmenti (28/11/2026: il tasto dell'ordine, solo con «Ricontatti» o «Attesa acconto»). */
+  fine?: ReactNode;
 }
 
 export function RigaGiorno({
@@ -36,6 +39,7 @@ export function RigaGiorno({
   data,
   etichetta,
   segmenti = SEGMENTI_GIORNO,
+  fine,
 }: Props) {
   return (
     <div
@@ -76,6 +80,7 @@ export function RigaGiorno({
           </button>
         );
       })}
+      {fine}
     </div>
   );
 }

@@ -39,7 +39,21 @@ export function quandoUltimo(c: ChatConOra): number {
   return ms(c.contact?.last_message_at) || ms(c.contact?.ultimo_in_entrata_il);
 }
 
-/** Dal più recente al più vecchio. A pari ora resta l'ordine di prima (`sort` è stabile). Non muta. */
-export function ordinaComeWhatsapp<T extends ChatConOra>(righe: readonly T[]): T[] {
-  return [...righe].sort((a, b) => quandoUltimo(b) - quandoUltimo(a));
+/** Da che parte si ordina (28/11/2026): `nuovi` = dal più recente (com'è sempre stato), `vecchi` = dal più vecchio. */
+export type VersoOrdine = "nuovi" | "vecchi";
+
+/** Dal più recente al più vecchio (o, con `vecchi`, al contrario). A pari ora resta l'ordine di prima
+ *  (`sort` è stabile, anche invertito). Chi non ha un'ora sta sempre in fondo. Non muta. */
+export function ordinaComeWhatsapp<T extends ChatConOra>(
+  righe: readonly T[],
+  verso: VersoOrdine = "nuovi",
+): T[] {
+  return [...righe].sort((a, b) => {
+    const x = quandoUltimo(a);
+    const y = quandoUltimo(b);
+    if (x === y) return 0;
+    if (x === 0) return 1;
+    if (y === 0) return -1;
+    return verso === "vecchi" ? x - y : y - x;
+  });
 }

@@ -91,6 +91,9 @@ import {
   type GiornoChat,
 } from "./giorno";
 import { RigaGiorno } from "./RigaGiorno";
+import { TastoOrdine } from "./TastoOrdine";
+import { filtroConOrdine, type VersoOrdine } from "./ordineFiltri";
+import { useOrdineFiltri } from "./useFiltriChat";
 
 /** I chip dello «Stato della chiamata» (con «Da chiamare» acceso): «Tutti» + uno per stato. */
 const CHIP_SOTTOFILTRI: { v: Sottofiltro; l: string }[] = [
@@ -218,6 +221,12 @@ function ElencoChatBase({ api, onCreaScheda: creaSchedaProp }: ElencoChatProps) 
     [filtriSalvati, consulentiNoti, io],
   );
   const consulente = filtri.consulente;
+  //  Il verso di «Ricontatti» e «Attesa acconto» (28/11/2026): un tasto nella fila dei giorni, ricordato
+  //  per ciascun filtro. Con un altro filtro (o nessuno) non c'è tasto e l'ordine è quello di sempre.
+  const { user: utenteOrdine } = useAuth();
+  const { ordine, setOrdine } = useOrdineFiltri(utenteOrdine?.id);
+  const filtroOrdine = filtroConOrdine(filtri);
+  const verso: VersoOrdine = filtroOrdine ? ordine[filtroOrdine] : "nuovi";
   const nomeConsulente = (id: string) =>
     String(consultants.find((x) => x.id === id)?.data?.nome ?? "").trim() || "Senza nome";
   const accesi = contaAccesi(filtri);
@@ -289,14 +298,17 @@ function ElencoChatBase({ api, onCreaScheda: creaSchedaProp }: ElencoChatProps) 
   //  gruppo parte chiuso. Restano dentro i filtri (esito, data, ricerca) come gli altri.
   const { visibili: ricPrincipali, nascosti: ricNascosti } =
     tutte && filtri.ricontatti
-      ? dividiNascosti(ordinaRicontatti(trovate))
+      ? dividiNascosti(ordinaRicontatti(trovate, verso))
       : { visibili: [], nascosti: [] };
   const [apertoNascosti, setApertoNascosti] = useState(false);
   const elencoTutte = !tutte
     ? []
     : filtri.ricontatti
       ? ricPrincipali
-      : ordinaComeWhatsapp(trovate.filter((c) => !inBloccoTel.has(c.phone)));
+      : ordinaComeWhatsapp(
+          trovate.filter((c) => !inBloccoTel.has(c.phone)),
+          verso,
+        );
   //  Quante chat si vedono davvero: in «Ricontatti» i nascosti stanno a parte e non si contano qui.
   const nTrovate = trovate.length - ricNascosti.length;
   const inScadenza =
@@ -674,7 +686,9 @@ function ElencoChatBase({ api, onCreaScheda: creaSchedaProp }: ElencoChatProps) 
         aria-label={
           filtri.coda === "da-chiamare"
             ? "Chat da chiamare, per stato"
-            : "Ricontatti, dal lead più recente; in cima quelli in priorità"
+            : verso === "vecchi"
+              ? "Ricontatti, dal lead più vecchio; in cima quelli in priorità"
+              : "Ricontatti, dal lead più recente; in cima quelli in priorità"
         }
       >
         {g.chats.map((c) => riga(c, c.daRispondere?.attesa ? "attesa" : "normale", mostraFinestra))}
@@ -950,6 +964,14 @@ function ElencoChatBase({ api, onCreaScheda: creaSchedaProp }: ElencoChatProps) 
             )
           }
           onCambia={(giorno) => setFiltri({ ...filtri, giorno })}
+          fine={
+            filtroOrdine && (
+              <TastoOrdine
+                verso={verso}
+                onCambia={(v) => setOrdine({ ...ordine, [filtroOrdine]: v })}
+              />
+            )
+          }
         />
       )}
 
@@ -1054,8 +1076,12 @@ function ElencoChatBase({ api, onCreaScheda: creaSchedaProp }: ElencoChatProps) 
               <ul
                 aria-label={
                   filtri.ricontatti
-                    ? "Ricontatti, dal lead più recente; in cima quelli in priorità"
-                    : "Tutte le chat, dall'ultimo messaggio"
+                    ? verso === "vecchi"
+                      ? "Ricontatti, dal lead più vecchio; in cima quelli in priorità"
+                      : "Ricontatti, dal lead più recente; in cima quelli in priorità"
+                    : verso === "vecchi"
+                      ? "Tutte le chat, dal messaggio più vecchio"
+                      : "Tutte le chat, dall'ultimo messaggio"
                 }
               >
                 {/*  Come WhatsApp: nessuna riga sbiadita, il grassetto solo per chi aspetta. */}

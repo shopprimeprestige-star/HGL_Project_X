@@ -24,6 +24,7 @@
 import { giornoParlato, oraNormale } from "@/crm/promemoria/formati";
 import { QUANDO_PER_STATO } from "@/crm/quando-per-stato";
 import type { LeadStatus } from "@/crm/types";
+import type { VersoOrdine } from "./ordineWhatsapp";
 import { etichettaRichiamo } from "./richiamo";
 
 /** Stati che non hanno la data nella tabella del «quando» ma la portano lo stesso. */
@@ -87,9 +88,13 @@ export function arrivoMs(c: ChatRicontatto): number | null {
 export const ePrioritario = (c: ChatRicontatto): boolean =>
   !!c.lead?.data?.ricontattoPrioritaIl && !eNascosto(c);
 
-/** In cima chi è in priorità; poi dal lead arrivato più di recente al più vecchio, senza arrivo in
- *  fondo. Non muta l'ingresso. */
-export function ordinaRicontatti<T extends ChatRicontatto>(chats: readonly T[]): T[] {
+/** In cima chi è in priorità; poi dal lead arrivato più di recente al più vecchio (o, con `vecchi`, al
+ *  contrario: 28/11/2026), senza arrivo sempre in fondo. A pari arrivo resta l'ordine dell'elenco, anche
+ *  invertito. Non muta l'ingresso. */
+export function ordinaRicontatti<T extends ChatRicontatto>(
+  chats: readonly T[],
+  verso: VersoOrdine = "nuovi",
+): T[] {
   return chats
     .map((c) => ({ c, p: ePrioritario(c), t: arrivoMs(c) }))
     .sort((a, b) => {
@@ -97,7 +102,7 @@ export function ordinaRicontatti<T extends ChatRicontatto>(chats: readonly T[]):
       if (a.t === b.t) return 0;
       if (a.t === null) return 1;
       if (b.t === null) return -1;
-      return b.t - a.t;
+      return verso === "vecchi" ? a.t - b.t : b.t - a.t;
     })
     .map((x) => x.c);
 }
