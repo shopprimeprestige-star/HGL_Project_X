@@ -18,7 +18,7 @@ import { creaFinto, creaOrologio, esiti, PERCORSI } from "./finto.mjs";
 const NUMERO = "393331234567";
 const TOKEN_FINTO = "EAAG-TOKEN-FINTO-9f8e7d6c5b4a";
 const PHONE_ID_FINTO = "109876543210987";
-const TESTO = "Ecco la pagina: https://hair-genius-hub.hair/media/abc123 a presto";
+const TESTO = "Ecco la pagina: https://hairgeniuslabs.hair/media/abc123 a presto";
 const BASE = Date.parse("2026-10-31T10:00:00+01:00");
 const iso = (s) => new Date(s * 1000).toISOString();
 
@@ -456,7 +456,7 @@ export async function proveAnteprimaLink(mod, { c, gruppo, radice }) {
     const r = await P.inviaWhatsapp(x.porte, {
       ...manuale,
       anteprimaLink: undefined,
-      testo: "Siamo in diretta: https://hair-genius-hub.hair/w/abc",
+      testo: "Siamo in diretta: https://hairgeniuslabs.hair/w/abc",
     });
     c(
       "testo con link, interruttore acceso, finestra aperta, ma senza il campo: ManyChat",

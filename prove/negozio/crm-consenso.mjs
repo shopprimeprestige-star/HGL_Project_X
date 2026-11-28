@@ -9,7 +9,7 @@ import { transformSync } from "esbuild";
 
 const caricaTs = (percorso) =>
   import(`data:text/javascript;base64,${Buffer.from(transformSync(readFileSync(percorso, "utf8"), { loader: "ts", format: "esm" }).code).toString("base64")}`);
-const SITO = "https://hair-genius-hub.hair";
+const SITO = "https://hairgeniuslabs.hair";
 
 /** Il testo senza commenti (di riga e di blocco): si cerca nel codice, non nei cartelli. */
 const senzaCommenti = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:"'`])\/\/.*$/gm, "$1");

@@ -194,7 +194,7 @@ async function chiediAllAi(i: { file: string[] } | { testo: string }): Promise<s
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${cfg.apiKey}`,
-        "HTTP-Referer": "https://hair-genius-hub.hair",
+        "HTTP-Referer": "https://hairgeniuslabs.hair",
         "X-Title": "Dati fattura",
       },
       body: JSON.stringify({

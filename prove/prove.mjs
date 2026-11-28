@@ -70,6 +70,7 @@ import { proveScontoOpzione } from "./idee/sconto-opzione.mjs";
 import { provePrezziNegativi } from "./idee/prezzi-negativi.mjs";
 import { proveFiltriRitocchi } from "./idee/filtri-ritocchi.mjs";
 import { proveMeetlyStallo } from "./idee/meetly-stallo.mjs";
+import { proveVideoOspite } from "./idee/video-ospite.mjs";
 import { proveMeetlyAvvio } from "./idee/meetly-avvio.mjs";
 import { proveMeetlyRifiniture } from "./idee/meetly-rifiniture.mjs";
 import { proveMeetlyOfferte } from "./idee/meetly-offerte.mjs";
@@ -805,6 +806,8 @@ const MODULI = [
   //  La scatola nera dei collegamenti Meetly (31/10/2026): prove in prove/idee/scatola-nera.mjs.
   "shop/scatola-nera",
   "shop/scatola-nera-browser",
+  //  Il video condiviso in Meetly si vede su ogni telefono (17/11/2026): prove in prove/idee/video-ospite.mjs.
+  "shop/video-ospite",
   //  Media della consulenza Meetly dall'SFU di Cloudflare, dietro interruttore (commessa
   //   2026-10-31-meetly-connessione, Parte B). Le regole pure (T1) ci sono; gli altri tre
   //   (nucleo del server e client Cloudflare: T2; client SFU: T3) entrano nel pacchetto quando il file esiste.
@@ -3833,7 +3836,7 @@ function proveDelTeleprompter() {
  *  Esce dal gestionale e arriva su WhatsApp a una persona che sta valutando un
  *  trattamento. Un errore qui non e' un pixel storto. */
 function proveDellInvito() {
-  const base = { titolo: "Domande e risposte", link: "https://hair-genius-hub.hair/webinar/bcd-fghj-kmn" };
+  const base = { titolo: "Domande e risposte", link: "https://hairgeniuslabs.hair/webinar/bcd-fghj-kmn" };
   const m = MI.messaggioInvitoWebinar({ ...base, nome: "marco rossi" });
 
   c("saluta col solo nome, maiuscolo", true, m.startsWith("Ciao Marco,"));
@@ -6156,7 +6159,7 @@ function proveDiTuttiIMessaggi() {
     dataMeeting: "2026-09-22", oraMeeting: "15:30",
     dataRicontatto: "2026-09-22", oraRicontatto: "11:00",
     dataVieneInSede: "2026-09-23", oraVieneInSede: "10:00",
-    linkMeeting: "https://hair-genius-hub.hair/meetly/kfr-mbqd-tzp",
+    linkMeeting: "https://hairgeniuslabs.hair/meetly/kfr-mbqd-tzp",
   };
   //  ⚠️ Gli emoji si buggano su WhatsApp Business e il committente li ha fatti
   //   togliere tutti: questa riga impedisce che rientrino da una modifica.
@@ -7073,7 +7076,7 @@ function proveDeiMessaggiPerStato() {
   c("senza stanza il promemoria non lascia «Link:» a vuoto", true, /poco prima/.test(promSenza));
   c("e non resta nessun segnaposto nel testo", 0, WA.segnapostiResidui(promSenza).length);
   //  Con la stanza, il link c'e' davvero.
-  const conStanza = { id: "x", data: { ...senzaStanza.data, linkMeeting: "https://hair-genius-hub.hair/meetly/abc-def-ghi" } };
+  const conStanza = { id: "x", data: { ...senzaStanza.data, linkMeeting: "https://hairgeniuslabs.hair/meetly/abc-def-ghi" } };
   c("con la stanza il link e' quello vero", true, /meetly\/abc-def-ghi/.test(buildMeetReminderMessage(conStanza, "", OGGIP)));
 
   /*  ── ⚠️ I NOMI DEI GIORNI SONO ITALIANI SEMPRE ──────────────────────────
@@ -11228,7 +11231,7 @@ function proveDelLinkPerCiascuno() {
       Il committente ha riprovato e ha trovato lo stesso link di prima: «continua
       a non generare link univoco». Una regola provata da sola non basta — qui
       si prova il MESSAGGIO che parte davvero. */
-  const stessaStanza = "https://hair-genius-hub.hair/meetly/abc-defg-hij";
+  const stessaStanza = "https://hairgeniuslabs.hair/meetly/abc-defg-hij";
   const scheda = (id, nome) => ({
     id,
     data: {
@@ -11252,7 +11255,7 @@ function proveDelLinkPerCiascuno() {
     !!gettoneDalLink(linkDi(messaggioA).split("?")[1] || ""));
 
 
-  const stanza = "https://hair-genius-hub.hair/meetly/abc-defg-hij";
+  const stanza = "https://hairgeniuslabs.hair/meetly/abc-defg-hij";
 
   /*  Segnalazione del committente: «quando invio il link alle 3 persone della
       consulenza deve generare un link univoco per ogni persona, perché ora
@@ -12395,7 +12398,7 @@ function proveDeiLinkNeiMessaggi() {
   const { preventiviDaMandare, linkDelPreventivo, bloccoDeiLink, bloccoPerIlMessaggio,
           linkPerOgniCliente, ETICHETTA_UNO, ETICHETTA_PIU, MAX_LINK } = LNM;
   gruppo("IL PREVENTIVO DENTRO IL MESSAGGIO");
-  const SITO = "https://hair-genius-hub.hair";
+  const SITO = "https://hairgeniuslabs.hair";
 
   const q = (ref, tel, status = "nuovo", creato = "2026-09-01") => ({
     quote_ref: ref, telefono: tel, status, created_at: creato,
@@ -14143,8 +14146,8 @@ function proveDellaSeo() {
   c("markdown: le virgolette non escono dall'href", false, md('[x](https://a.it/"onmouseover=alert(1))').includes('"onmouseover'));
   c("markdown: //altro sito scartato", false, md("[x](//altro.it)").includes("href"));
   c("markdown: /\\altro sito scartato", false, md("[x](/\\altro.it)").includes("href"));
-  c("markdown: un dominio che imita il nostro è esterno", true, md("[x](https://hair-genius-hub.hair.altro.it/a)").includes('rel="noopener"'));
-  c("markdown: il nostro sito resta interno", false, md("[x](https://hair-genius-hub.hair/blog)").includes('rel="noopener"'));
+  c("markdown: un dominio che imita il nostro è esterno", true, md("[x](https://hairgeniuslabs.hair.altro.it/a)").includes('rel="noopener"'));
+  c("markdown: il nostro sito resta interno", false, md("[x](https://hairgeniuslabs.hair/blog)").includes('rel="noopener"'));
   c("markdown: un # nel corpo non diventa H1", false, md("# Titolo").includes("<h1"));
   c("data in italiano", "11 ottobre 2026", SEO.dataItaliana("2026-10-11T22:30:00Z"));
 }
@@ -21754,6 +21757,7 @@ proveChiamateAzzera(mod, { c, gruppo, radice });
 proveScontoOpzione(mod, { c, gruppo, radice });
 provePrezziNegativi(mod, { c, gruppo, radice });
 proveMeetlyStallo(mod, { c, gruppo, radice });
+await proveVideoOspite(mod, { c, gruppo, radice });
 proveMeetlyAvvio(mod, { c, gruppo, radice });
 await proveMeetlyRifiniture(mod, { c, gruppo, radice });
 await proveMeetlyOfferte(mod, { c, gruppo, radice });

@@ -37,7 +37,7 @@ const STATI_DI_RIPRESA = ["da_ricontattare", "sta_valutando", "richiamo"];
 /** La pagina con i lavori. ⚠️ Una costante e non una stringa sparsa nei
  *  messaggi: il giorno che l'indirizzo cambia, un link vecchio incollato in
  *  venti testi porta venti clienti su una pagina che non c'è più. */
-export const LINK_LAVORI = "https://hair-genius-hub.hair/media/F7MJ-A9WH-HVAW";
+export const LINK_LAVORI = "https://hairgeniuslabs.hair/media/F7MJ-A9WH-HVAW";
 
 const GIORNI = ["domenica", "lunedì", "martedì", "mercoledì", "giovedì", "venerdì", "sabato"];
 const MESI = [

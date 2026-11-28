@@ -92,7 +92,7 @@ export const Route = createFileRoute("/api/crm/documento")({
             headers: {
               "Content-Type": "application/json",
               Authorization: `Bearer ${cfg.apiKey}`,
-              "HTTP-Referer": "https://hair-genius-hub.hair",
+              "HTTP-Referer": "https://hairgeniuslabs.hair",
               "X-Title": "Lettura documento",
             },
             body: JSON.stringify({
