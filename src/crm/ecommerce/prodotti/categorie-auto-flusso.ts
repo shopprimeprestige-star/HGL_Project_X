@@ -29,9 +29,9 @@ import {
 
 /** Quanti prodotti si fanno insieme (e, nell'anteprima, quante schede si leggono insieme). */
 export const GRUPPO = 5;
-/** Gli errori dopo i quali provare con i prodotti dopo è inutile: si ferma (come l'elenco). */
 /** Il «per cento» della barra (la costante, come nell'import: i file di prodotti/ non moltiplicano per 100 «a vista»). */
-const CENTO = 100;
+export const CENTO = 100;
+/** Gli errori dopo i quali provare con i prodotti dopo è inutile: si ferma (come l'elenco). */
 const FERMANO = ["sessione", "permesso", "migrazione", "rete"];
 
 export interface Porte {
@@ -333,8 +333,7 @@ export interface Riepilogo {
   breve: number;
   sito: number;
   errori: { nome: string; frase: string }[];
-  /** Gli indirizzi (e i nomi) delle categorie create in questa corsa. */
-  create: string[];
+  /** I nomi delle categorie create in questa corsa. */
   nomiCreate: string[];
   /** Quello che resta da fare a mano, un elenco di voci per prodotto fatto. */
   resto: Voce[][];
@@ -350,7 +349,6 @@ export function riepilogo(scelte: readonly Scelta[], corsa: Corsa): Riepilogo {
         ? [{ nome: s.nome, frase: corsa.esiti[s.id].frase ?? FRASE_FORMA }]
         : [],
     ),
-    create: corsa.create,
     nomiCreate: corsa.create.map(
       (slug) => CATEGORIE_AUTO.find((k) => k.slug === slug)?.nome ?? slug,
     ),

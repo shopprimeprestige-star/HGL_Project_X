@@ -34,6 +34,7 @@ import {
   type Opzioni,
 } from "./categorie-auto";
 import {
+  CENTO,
   applica,
   avanzamento,
   corsaVuota,
@@ -45,8 +46,6 @@ import {
   type Porte,
   type Scelta,
 } from "./categorie-auto-flusso";
-
-const CENTO = 100;
 
 export interface ProdottoScelto {
   id: string;
@@ -111,23 +110,27 @@ export function FinestraCategorieAuto({
     );
     if (mio !== giro.current) return;
     setLetture(lette);
-    // la proposta usa l'indirizzo che la categoria ha davvero nel catalogo (può chiamarsi diversamente da quello che diamo noi)
-    setScelte(
+    // la proposta usa l'indirizzo che la categoria ha davvero nel catalogo (può chiamarsi diversamente da quello che diamo noi);
+    // chi ha già una scelta (fatta a mano) la tiene: «Rileggi i prodotti» non la azzera
+    setScelte((prima) =>
       Object.fromEntries(
         prodotti.map((p) => {
+          if (p.id in prima) return [p.id, prima[p.id]];
           const slug = proponiCategoria(p.nome, p.tipo);
           return [p.id, slug ? (trovaCategoria(slug, elenco)?.slug ?? slug) : ""];
         }),
       ),
     );
-    setOpz({ breve: true, sito: true });
     corsaCorrente.current = corsaVuota();
     setFase({ passo: "anteprima" });
   };
 
   useEffect(() => {
-    if (aperta) void carica();
-    else giro.current++;
+    if (aperta) {
+      setScelte({});
+      setOpz({ breve: true, sito: true });
+      void carica();
+    } else giro.current++;
     // si rilegge solo all'apertura: i prodotti scelti sono quelli del clic
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [aperta]);
@@ -142,34 +145,36 @@ export function FinestraCategorieAuto({
     () => prodotti.map((p) => ({ id: p.id, nome: p.nome, categoria: scelte[p.id] || null })),
     [prodotti, scelte],
   );
-  const daCreare = useMemo(
-    () =>
-      categorieDaCreare(
-        lista.map((s) => s.categoria),
-        note,
-      ),
-    [lista, note],
-  );
-  /** Per ogni prodotto letto: cosa farebbe, e cosa resterebbe a mano. */
+  /** Per ogni prodotto letto: cosa farebbe, e cosa resterebbe a mano. `scrivi` = è una bozza e c'è qualcosa da scrivere: solo questi si fanno e si contano. */
   const piano = useMemo(
     () =>
       lista.map((s) => {
         const letto = letture[s.id];
-        if (!letto?.ok) return { s, letto: null, d: null, resto: [] };
+        if (!letto?.ok) return { s, letto: null, d: null, resto: [], scrivi: false };
         const id = s.categoria
           ? (trovaCategoria(s.categoria, note)?.id ?? `nuova-${s.categoria}`)
           : null;
         const d = decidi(letto.lettura, id, opz);
-        return { s, letto: letto.lettura, d, resto: restaAMano(letto.lettura, d) };
+        const scrivi = d.aggiungi.length > 0 || d.breve !== null || d.sito;
+        return { s, letto: letto.lettura, d, resto: restaAMano(letto.lettura, d), scrivi };
       }),
     [lista, letture, note, opz],
+  );
+  const daScrivere = useMemo(() => piano.filter((x) => x.scrivi).map((x) => x.s), [piano]);
+  const daCreare = useMemo(
+    () =>
+      categorieDaCreare(
+        piano.filter((x) => x.scrivi).map((x) => x.s.categoria),
+        note,
+      ),
+    [piano, note],
   );
   const nonLetti = prodotti.filter((p) => !letture[p.id]?.ok);
   const fraseNonLetti = nonLetti.flatMap((p) => {
     const l = letture[p.id];
     return l && !l.ok ? [l.frase] : [];
   })[0];
-  const conProposta = lista.filter((s) => s.categoria).length;
+  const conCategoria = piano.filter((x) => x.d && x.d.aggiungi.length > 0).length;
   /** Dove la casella farebbe qualcosa (campo vuoto, bozza): non dipende dalla casella stessa, così il numero resta leggibile anche spenta. */
   const nBreve = piano.filter(
     (x) => x.letto && decidi(x.letto, null, { breve: true, sito: false }).breve !== null,
@@ -181,11 +186,13 @@ export function FinestraCategorieAuto({
 
   const occupata = fase.passo === "scrivo";
   const esci = () => chiudi(Object.keys(corsaCorrente.current.esiti).length > 0);
+  /** I prodotti di questa corsa: fissati al primo «Metti le categorie», così «Riprova» fa gli stessi. */
+  const lavoro = useRef<Scelta[]>([]);
   const scrivi = async () => {
     const mio = ++giro.current;
     const parte: Corsa = corsaCorrente.current;
     setFase({ passo: "scrivo", corsa: parte });
-    const fine = await applica(porte, lista, opz, parte, {
+    const fine = await applica(porte, lavoro.current, opz, parte, {
       aggiorna: (c) => {
         corsaCorrente.current = c;
         if (mio === giro.current) setFase({ passo: "scrivo", corsa: c });
@@ -233,9 +240,6 @@ export function FinestraCategorieAuto({
               : `${letti?.letti ?? 0} di ${letti?.totale ?? 0} prodotti`}
           </p>
         </div>
-        <p className="sr-only" role="status">
-          {nome}
-        </p>
         <div
           role="progressbar"
           aria-label={nome}
@@ -265,8 +269,9 @@ export function FinestraCategorieAuto({
   };
 
   const fineCorsa = fase.passo === "scrivo" || fase.passo === "fine" ? fase.corsa : null;
-  const rie = fineCorsa ? riepilogo(lista, fineCorsa) : null;
-  const mancano = fineCorsa ? mancanti(lista, fineCorsa) : [];
+  const rie = fineCorsa ? riepilogo(lavoro.current, fineCorsa) : null;
+  const mancano = fineCorsa ? mancanti(lavoro.current, fineCorsa) : [];
+  const av = avanzamento(fineCorsa ?? corsaVuota());
   const restoFinale = rie ? fraseDaFareAMano(rie.resto) : null;
 
   return (
@@ -303,9 +308,9 @@ export function FinestraCategorieAuto({
 
         {fase.passo === "anteprima" && (
           <div className="flex flex-col gap-4">
-            <p className="text-[13.5px]" aria-live="polite">
-              {frasePiu(prodotti.length, "prodotto", "prodotti")}: {conProposta} con una categoria,{" "}
-              {prodotti.length - conProposta} senza (restano come sono).
+            <p className="text-[13.5px]">
+              {frasePiu(prodotti.length, "prodotto", "prodotti")}: {conCategoria} con una categoria
+              da mettere, {daScrivere.length} con qualcosa da scrivere. Gli altri restano come sono.
             </p>
 
             {nonLetti.length > 0 && (
@@ -377,7 +382,7 @@ export function FinestraCategorieAuto({
                 </span>
               </label>
               <p className="text-[12.5px] text-muted-foreground">
-                Sulle bozze soltanto: un prodotto già pubblicato non lo cambio.
+                Sulle bozze soltanto: un prodotto già pubblicato non lo cambio in nessun modo.
               </p>
             </fieldset>
 
@@ -385,7 +390,8 @@ export function FinestraCategorieAuto({
               aria-label="Prodotti e categoria proposta"
               className="max-h-[38vh] divide-y divide-border overflow-y-auto rounded-lg border border-border"
             >
-              {piano.map(({ s, letto }) => {
+              {piano.map(({ s, letto, d }) => {
+                const fermo = !letto || letto.stato !== "bozza";
                 const gia =
                   letto?.categorie
                     .map((id) => note.find((k) => k.id === id)?.nome)
@@ -397,21 +403,34 @@ export function FinestraCategorieAuto({
                     className="grid gap-1.5 px-3 py-2 sm:grid-cols-[minmax(0,1fr)_14rem] sm:items-center sm:gap-3"
                   >
                     <div className="min-w-0">
-                      <label htmlFor={idSelect} className="block truncate text-[13px] font-medium">
+                      <label
+                        htmlFor={idSelect}
+                        title={s.nome}
+                        className="line-clamp-2 text-[13px] font-medium"
+                      >
                         {s.nome}
                       </label>
                       <p className="truncate text-[12px] text-muted-foreground">
                         {!letto
                           ? "Non letto: non lo cambio."
-                          : gia.length
-                            ? `Ha già: ${gia.join(", ")}`
-                            : "Nessuna categoria per ora"}
+                          : letto.stato === "pubblicato"
+                            ? "Già pubblicato: non lo cambio."
+                            : letto.stato !== "bozza"
+                              ? "Non è una bozza: non lo cambio."
+                              : gia.length
+                                ? `Ha già: ${gia.join(", ")}`
+                                : "Nessuna categoria per ora"}
                       </p>
+                      {d?.breve != null && (
+                        <p className="truncate text-[12px] text-muted-foreground" title={d.breve}>
+                          Breve: «{d.breve}»
+                        </p>
+                      )}
                     </div>
                     <select
                       id={idSelect}
-                      value={scelte[s.id] ?? ""}
-                      disabled={!letto}
+                      value={fermo ? "" : (scelte[s.id] ?? "")}
+                      disabled={fermo}
                       onChange={(e) => setScelte({ ...scelte, [s.id]: e.target.value })}
                       className={cn(
                         "h-11 w-full rounded-md border border-border bg-card px-2 text-[12.5px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:h-8",
@@ -446,10 +465,11 @@ export function FinestraCategorieAuto({
               <Button
                 type="button"
                 className="h-11 text-[13px] md:h-9"
-                disabled={
-                  piano.every((x) => !x.letto) || (conProposta === 0 && !opz.breve && !opz.sito)
-                }
-                onClick={() => void scrivi()}
+                disabled={daScrivere.length === 0}
+                onClick={() => {
+                  lavoro.current = daScrivere;
+                  void scrivi();
+                }}
               >
                 Metti le categorie
               </Button>
@@ -464,8 +484,8 @@ export function FinestraCategorieAuto({
               <div className="flex flex-col gap-1 text-[13.5px]">
                 <p className="text-[15px] font-semibold" role="status">
                   {rie.errori.length === 0 && !fineCorsa.fermo
-                    ? `Fatto: ${frasePiu(avanzamento(fineCorsa).fatti, "prodotto sistemato", "prodotti sistemati")}.`
-                    : `Fatti ${avanzamento(fineCorsa).fatti} di ${avanzamento(fineCorsa).totale}: ${frasePiu(mancano.length, "prodotto manca", "prodotti mancano")}.`}
+                    ? `Fatto: ${frasePiu(av.fatti, "prodotto sistemato", "prodotti sistemati")}.`
+                    : `Fatti ${av.fatti} di ${av.totale}: ${frasePiu(mancano.length, "prodotto manca", "prodotti mancano")}.`}
                 </p>
                 <p>
                   Categoria messa a {rie.categorie} · descrizione breve scritta in {rie.breve} ·

@@ -229,6 +229,17 @@ export async function prove(_mod, { c, gruppo, radice }) {
   const lunga = `${"Una frase di prova abbastanza lunga da riempire. ".repeat(5)}${"Seconda frase che fa superare i trecento segni del tetto. ".repeat(2)}Fine.`;
   const tagliata = A.proponiBreve(lunga, "");
   c("oltre 300 segni si taglia a fine frase (mai a metà parola)", [true, true], [tagliata.length <= 300, /[.!?]$/.test(tagliata)]);
+  // i limiti del tetto (300): la breve non lo supera MAI, nemmeno di uno (il server rifiuta oltre 300)
+  const frase = (n) => `${"x".repeat(n - 1)}.`;
+  const lim = [299, 300, 301].map((n) => A.proponiBreve(frase(n), "")?.length);
+  c("breve ai limiti: una frase di 299 e 300 segni resta intera; di 301 si accorcia a 300 o meno", [299, 300, true], [lim[0], lim[1], lim[2] <= 300]);
+  const limLunga = [299, 300, 301].map((n) => A.proponiBreve("", `${frase(n)} Seconda frase.`)?.length);
+  c("lo stesso dalla descrizione lunga (prima frase di 299, 300, 301 segni)", [299, 300, true], [limLunga[0], limLunga[1], limLunga[2] <= 300]);
+  c("una frase di 301 segni con spazi: taglio sull'ultima parola, con i puntini, entro 300", [true, true], [A.proponiBreve(`${"ab ".repeat(120).trim().slice(0, 300)}.`, "").length <= 300, A.proponiBreve(`${"ab ".repeat(120).trim().slice(0, 300)}.`, "").endsWith("…")]);
+  c("qualunque lunghezza da 250 a 400: mai oltre 300", true, Array.from({ length: 151 }, (_, k) => 250 + k).every((n) => { const b = A.proponiBreve(`${"ab ".repeat(200).slice(0, n - 1).trim()}.`, ""); return b !== null && b.length <= 300; }));
+  c("«ca.» non chiude la frase: «Ideale per i capelli, ca. 3 cm. Ottimo.» → la frase intera", "Ideale per i capelli, ca. 3 cm.", A.proponiBreve("", "Ideale per i capelli, ca. 3 cm. Ottimo."));
+  c("il titoletto senza punto non si fonde con la frase dopo: si parte dal paragrafo che ha una frase", "Frase uno.", A.proponiBreve("", "DESCRIZIONE\n\nFrase uno. Frase due."));
+  c("un solo paragrafo con a capo semplice: una frase sola, senza a capo", "Prima riga seconda riga.", A.proponiBreve("", "Prima riga\nseconda riga. Altro."));
   const senzaPunti = A.proponiBreve("parola ".repeat(80), "");
   c("senza fine di frase si taglia sull'ultima parola e finisce con i puntini", [true, true], [senzaPunti.length <= 300, senzaPunti.endsWith("…")]);
   c("niente da proporre → null; un testo che il negozio non pubblica (sconto) → null, non si scrive", [null, null], [A.proponiBreve("", ""), A.proponiBreve("Sconto del 20% oggi.", "")]);
@@ -244,7 +255,8 @@ export async function prove(_mod, { c, gruppo, radice }) {
   const lPiena = A.leggiProdotto(sch({ prodotto: { descrizioneBreve: "La mia frase.", canali: { sito: false, meta: true, google: false, tiktok: false } }, categorie: ["k1", "k2"] }));
   c("MAI SOVRASCRIVERE: la breve già scritta resta, un canale già acceso blocca la regola, la categoria che c'è non si rimette", { aggiungi: [], breve: null, sito: false }, A.decidi(lPiena, "k1", tutto));
   c("una categoria nuova si aggiunge alle altre (l'insieme resta quello di prima più lei)", ["k3"], A.decidi(lPiena, "k3", tutto).aggiungi);
-  c("un prodotto pubblicato non riceve breve né canale (andrebbero nelle «modifiche non pubblicate»)", { breve: null, sito: false }, (({ breve, sito }) => ({ breve, sito }))(A.decidi(A.leggiProdotto(sch({ prodotto: { stato: "pubblicato" } })), null, tutto)));
+  c("PUBBLICATO: non si tocca mai: né categoria, né breve, né canale (la categoria andrebbe subito sul sito vivo)", { aggiungi: [], breve: null, sito: false }, A.decidi(A.leggiProdotto(sch({ prodotto: { stato: "pubblicato" } })), "k1", tutto));
+  c("anche un archiviato (Cestino) non si tocca", { aggiungi: [], breve: null, sito: false }, A.decidi(A.leggiProdotto(sch({ prodotto: { stato: "archiviato" } })), "k1", tutto));
   c("il canale: anche un solo canale acceso (Meta) lascia il «sito» com'è", false, A.decidi(A.leggiProdotto(sch({ prodotto: { canali: { sito: false, meta: true } } })), null, tutto).sito);
 
   /* ── 6. «Da fare a mano» ── */
@@ -320,7 +332,7 @@ export async function prove(_mod, { c, gruppo, radice }) {
     const dopo = await F.applica(s.porte, scelte, { breve: false, sito: false }, { ...fine, fermo: null });
     const nuove = s.log.slice(prima);
     c("RIPRENDI: la ripresa tocca solo p2 (nessuna scrittura su p1, p3, p4, p5) e non ricrea le categorie", [["p2"], 0], [[...new Set(nuove.filter((x) => x.dati.prodottoId).map((x) => x.dati.prodottoId))], nuove.filter((x) => x.azione === "categoria_salva").length]);
-    c("dopo la ripresa tutti fatti, nessun errore, e il riepilogo lo dice", [5, 0, ["styling", "protezione-cute"]], [Object.values(dopo.esiti).filter((e) => e.stato === "fatto").length, F.riepilogo(scelte, dopo).errori.length, F.riepilogo(scelte, dopo).create]);
+    c("dopo la ripresa tutti fatti, nessun errore, e il riepilogo lo dice", [5, 0, ["styling", "protezione-cute"]], [Object.values(dopo.esiti).filter((e) => e.stato === "fatto").length, F.riepilogo(scelte, dopo).errori.length, dopo.create]);
   }
   {
     // una categoria che esiste già con un altro nome/indirizzo non si ricrea; e se un altro la crea nel frattempo non si va in doppio
@@ -367,7 +379,7 @@ export async function prove(_mod, { c, gruppo, radice }) {
     c("il prodotto vuoto riceve breve (dalla descrizione per Google) e sito acceso, con gli altri tre canali com'erano", ["Descrizione per Google del primo.", { sito: true, meta: false, google: false, tiktok: false }], [s.db.get("vuoto").breve, s.db.get("vuoto").canali]);
     c("la breve già scritta NON si tocca; il canale si accende lo stesso", ["La mia frase.", true], [s.db.get("conBreve").breve, s.db.get("conBreve").canali.sito]);
     c("con Meta già acceso il «sito» resta spento e Meta resta acceso; la breve arriva", [false, true, "Terza descrizione."], [s.db.get("conMeta").canali.sito, s.db.get("conMeta").canali.meta, s.db.get("conMeta").breve]);
-    c("un prodotto pubblicato: solo la categoria, né breve né canali", ["", false, ["k-sh"]], [s.db.get("pubblicato").breve, s.db.get("pubblicato").canali.sito, s.db.get("pubblicato").categorie]);
+    c("un prodotto pubblicato: NESSUNA scrittura (né categoria, né breve, né canali) e nessuna richiesta di scrittura su di lui", ["", false, [], 0], [s.db.get("pubblicato").breve, s.db.get("pubblicato").canali.sito, s.db.get("pubblicato").categorie, s.scritture().filter((x) => x.dati.prodottoId === "pubblicato").length]);
     const salva = s.scritture().filter((x) => x.azione === "prodotto_salva");
     c("breve e canale vanno in UNA sola scrittura per prodotto, con la versione appena avanzata dalle categorie", [true, 3], [salva.filter((x) => x.dati.prodottoId === "vuoto").length === 1 && "descrizioneBreve" in salva.find((x) => x.dati.prodottoId === "vuoto").dati.campi && "canali" in salva.find((x) => x.dati.prodottoId === "vuoto").dati.campi, salva.length]);
     const prima = s.scritture().length;
@@ -399,6 +411,11 @@ export async function prove(_mod, { c, gruppo, radice }) {
   c("l'elenco ha il tasto «Metti le categorie», che apre la finestra, e non è nel Cestino", [true, true], [/Metti le categorie/.test(elenco) && /<FinestraCategorieAuto/.test(elenco), /segmento === "cestino" \?[\s\S]*?Rimetti in bozza[\s\S]*?\) : \([\s\S]*?Metti le categorie/.test(elenco)]);
   c("la finestra dice «Creo le categorie:», «Da fare a mano» e ha «Riprova»; la barra è una progressbar", [true, true, true, true], [/Creo le categorie:/.test(finestra), /Da fare a mano|fraseDaFareAMano/.test(finestra), /Riprova/.test(finestra), /role="progressbar"/.test(finestra)]);
   c("le caselle della breve e del canale sono già spuntate", true, /useState<Opzioni>\(\{ breve: true, sito: true \}\)|breve: true, sito: true/.test(finestra));
+  c("la riga di un pubblicato è spenta e dice «Già pubblicato: non lo cambio.»; il testo promette «nessun modo»", [true, true, true], [/Già pubblicato: non lo cambio\./.test(finestra), /disabled=\{fermo\}/.test(finestra), /non lo cambio in nessun modo/.test(finestra)]);
+  c("la breve proposta si vede nella riga, accorciata, col testo intero nel title; i nomi lunghi hanno il title", [true, true], [/title=\{d\.breve\}/.test(finestra), /title=\{s\.nome\}/.test(finestra)]);
+  c("lo stato si annuncia una volta sola (l'esito finale), non a ogni prodotto", 1, (finestra.match(/role="status"/g) ?? []).length);
+  c("«Rileggi i prodotti» tiene le scelte fatte a mano (p.id in prima) e solo l'apertura le azzera", [true, true], [/p\.id in prima/.test(finestra), /setScelte\(\{\}\)/.test(finestra)]);
+  c("si fanno e si contano solo i prodotti con qualcosa da scrivere (bozze letti): `lavoro` = daScrivere", true, /lavoro\.current = daScrivere/.test(finestra));
   c("la finestra non si chiude mentre scrive", true, /onOpenChange=\{\(v\) => !v && !occupata/.test(finestra));
   c("niente cancellazioni: né delete né l'azione che toglie categorie da sola; si usa solo l'azione esistente `prodotto_categorie` con l'insieme completo", [false, true, true, true], [/\bdelete\b|prodotto_elimina|categoria_elimina/i.test(flusso + finestra), /"prodotto_categorie"/.test(flusso), /"categoria_salva"/.test(flusso), /\.\.\.l\.categorie|\.\.\.lettura\.categorie/.test(flusso)]);
   c("nessuna rete diretta: né fetch né log", [false, false], [/\bfetch\(/.test(flusso + finestra), /console\./.test(flusso + finestra)]);

@@ -11,7 +11,7 @@
  *    indirizzo (slug) o per nome: non se ne crea una seconda.
  *  · Mai sovrascrivere: la categoria si AGGIUNGE a quelle che ha, la descrizione breve e il canale «sito» si riempiono solo dove sono vuoti, e solo
  *    sulle bozze (su un prodotto pubblicato un testo finirebbe tra le «modifiche non pubblicate»). */
-import { TETTI, slugDa } from "@/shop/cms/modello";
+import { TETTI, slugDa, type TipoProdotto } from "@/shop/cms/modello";
 import type { Voce } from "@/shop/cms/pubblicazione";
 import { controllaTesto } from "@/shop/cms/testi";
 
@@ -69,9 +69,11 @@ const REGOLE: readonly { slug: string; parole: RegExp }[] = [
   { slug: "accessori", parole: /\bCOLORE\b/ },
 ];
 
+const PATCH: TipoProdotto = "patch";
+
 /** L'indirizzo della categoria proposta per un prodotto, o `null` se nessuna regola combacia. `tipo` è il «Type» di Shopify (o il tipo dello shop). */
 export function proponiCategoria(nome: unknown, tipo?: unknown): string | null {
-  if (typeof tipo === "string" && (norma(tipo) === "PROTESI CAPELLI" || tipo === "patch"))
+  if (typeof tipo === "string" && (norma(tipo) === "PROTESI CAPELLI" || tipo === PATCH))
     return "toupee";
   if (typeof nome !== "string") return null;
   const n = norma(nome);
@@ -111,21 +113,38 @@ export function categorieDaCreare(
 
 const pulito = (t: unknown) => (typeof t === "string" ? t.replace(/\s+/g, " ").trim() : "");
 
-/** Taglia a `max` segni: fine di frase se ce n'è una, altrimenti l'ultima parola intera con i puntini. */
+/** Taglia a `max` segni, MAI oltre: fine di frase se ce n'è una (il segno finale conta), altrimenti l'ultima parola intera con i puntini. */
 function taglia(t: string, max: number): string {
   if (t.length <= max) return t;
-  const frase = new RegExp(`^[\\s\\S]{1,${max}}[.!?](?=\\s|$)`).exec(t)?.[0];
+  const frase = new RegExp(`^[\\s\\S]{1,${max - 1}}[.!?](?=\\s|$)`).exec(t)?.[0];
   if (frase) return frase;
   const corto = t.slice(0, max - 1);
   return `${corto.slice(0, Math.max(corto.lastIndexOf(" "), 1)).replace(/[\s,;:.]+$/, "")}…`;
+}
+
+/** Dopo queste sigle il punto non chiude la frase («ca. 3 cm», «es. rosso»). */
+const SIGLE = /\b(ca|n|nr|es|ecc|cfr|max|min|circa|pag|tel|vs)\.$/i;
+
+/** La prima frase del primo paragrafo che ne ha una (il titoletto senza punto non si fonde con la frase dopo); senza sigle che la spezzano. */
+function primaFrase(lunga: unknown): string {
+  if (typeof lunga !== "string") return "";
+  const paragrafi = lunga
+    .split(/\n\s*\n/)
+    .map(pulito)
+    .filter(Boolean);
+  const p = paragrafi.find((x) => /[.!?](\s|$)/.test(x)) ?? paragrafi[0] ?? "";
+  for (const m of p.matchAll(/[.!?](?=\s|$)/g)) {
+    const fino = p.slice(0, m.index + 1);
+    if (!SIGLE.test(fino)) return fino;
+  }
+  return p;
 }
 
 /** La descrizione breve proposta: la «descrizione per Google» già salvata, altrimenti la prima frase della descrizione lunga.
  *  `null` se non c'è niente da proporre o se il testo ha una frase che il negozio non pubblica (cifre vicino a Invisible Derm, sconti). */
 export function proponiBreve(seoDescrizione: unknown, descrizioneLunga: unknown): string | null {
   const seo = pulito(seoDescrizione);
-  const lunga = pulito(descrizioneLunga);
-  const base = seo || /^.+?[.!?](?=\s|$)/.exec(lunga)?.[0] || lunga;
+  const base = seo || primaFrase(descrizioneLunga);
   if (!base) return null;
   const testo = taglia(base, TETTI.breve);
   return controllaTesto(testo).bloccanti.length ? null : testo;
@@ -197,7 +216,7 @@ export interface Opzioni {
   sito: boolean;
 }
 export interface Decisione {
-  /** Gli id di categoria da AGGIUNGERE (vuoto se il prodotto la ha già o non ce n'è una scelta). */
+  /** Gli id di categoria da AGGIUNGERE (vuoto se il prodotto la ha già, non ce n'è una scelta o non è una bozza). */
   aggiungi: string[];
   /** Il testo da scrivere nella descrizione breve, o `null` (già piena, non una bozza, niente da proporre). */
   breve: string | null;
@@ -209,7 +228,8 @@ export interface Decisione {
 export function decidi(l: Lettura, idCategoria: string | null, opz: Opzioni): Decisione {
   const bozza = l.stato === "bozza";
   return {
-    aggiungi: idCategoria && !l.categorie.includes(idCategoria) ? [idCategoria] : [],
+    // un prodotto pubblicato (o archiviato) non si tocca mai: nemmeno la categoria, che andrebbe subito sul sito vivo
+    aggiungi: idCategoria && bozza && !l.categorie.includes(idCategoria) ? [idCategoria] : [],
     breve: opz.breve && bozza && !l.breve ? proponiBreve(l.seo, l.lunga) : null,
     sito: opz.sito && bozza && !Object.values(l.canali).some(Boolean),
   };
