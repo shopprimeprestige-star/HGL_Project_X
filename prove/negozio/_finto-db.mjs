@@ -823,6 +823,8 @@ export function fintoDb({ tabelle = {}, mancante = false, codiceMancante = "42P0
     const chi = chiDi(a.p_chi);
     const vecchio = righe("shop_prodotti").find((x) => x.slug === p.slug);
     if (!vecchio) return { data: { esito: "non_trovato" } };
+    const senzaPrezzo = /^\s*invisibi?l[ei][\s_./&-]*derm\b(?!atolog)/i.test(p.nome) || /^\s*invisible-derm/i.test(p.slug);
+    if (vecchio.stato === "pubblicato" && !senzaPrezzo && !vs.some((v) => (v.prezzo_cent ?? p.prezzo_cent) > 0)) return { data: { esito: "non_valido", motivo: "prezzo_pubblicato" } };
     const mie = [...skus, p.sku];
     const usati = [
       ...righe("shop_prodotti").filter((x) => mie.includes(x.sku) && x.id !== vecchio.id).map((x) => ({ o: 1, sku: x.sku, nome: x.nome })),
@@ -830,7 +832,7 @@ export function fintoDb({ tabelle = {}, mancante = false, codiceMancante = "42P0
     ].sort((x, y) => x.o - y.o || (x.sku < y.sku ? -1 : x.sku > y.sku ? 1 : 0));
     if (usati.length) return { data: { esito: "sku_usato", sku: usati[0].sku, prodotto_nome: usati[0].nome } };
 
-    const prima = { sku: vecchio.sku, nome: vecchio.nome, tipo: vecchio.tipo, prezzo_cent: vecchio.prezzo_cent, stato: vecchio.stato, bozza_modifiche: vecchio.bozza_modifiche != null };
+    const prima = { sku: vecchio.sku, nome: vecchio.nome, tipo: vecchio.tipo, prezzo_cent: vecchio.prezzo_cent, stato: vecchio.stato, bozza_modifiche: vecchio.bozza_modifiche ?? null };
     const statoPrima = vecchio.stato;
     const oPrima = (nuovo, vecchia) => pienoONull(nuovo) ?? vecchia ?? null;
     Object.assign(vecchio, {

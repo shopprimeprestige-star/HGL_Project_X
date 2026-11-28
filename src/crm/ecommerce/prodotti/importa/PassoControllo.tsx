@@ -140,6 +140,7 @@ export function PassoControllo({
   const visibili = soloErr ? soloErrori(righe) : righe;
   const nFoto = fotoPreviste(analisi);
   const daInviare = nuovi.length + daAggiornare.length;
+  const online = analisi.giaPresenti.filter((g) => g.pubblicato).length;
   const soloFoto = daInviare === 0 && nFoto > 0;
   const puoImportare = importaDisponibile && (daInviare > 0 || soloFoto);
   const perche = !importaDisponibile
@@ -166,6 +167,14 @@ export function PassoControllo({
           File «{analisi.nomeFile}». Non è stato scritto niente: i prodotti entrano solo quando
           premi «Importa».
         </p>
+        {online > 0 && (
+          <p className="mt-0.5 text-[13px] text-muted-foreground">
+            {online === 1
+              ? "1 prodotto da sovrascrivere è pubblicato: le modifiche si vedono subito sul sito."
+              : `${online} prodotti da sovrascrivere sono pubblicati: le modifiche si vedono subito sul sito.`}{" "}
+            Le modifiche in bozza non ancora pubblicate di quei prodotti si perdono.
+          </p>
+        )}
         {nFoto > 0 && (
           <p className="mt-0.5 text-[13px] text-muted-foreground">
             {daInviare > 0 ? "Dopo i prodotti carico" : "Carico"} fino a {nFoto} foto da Shopify (al

@@ -267,8 +267,14 @@ export async function prove(mod, { c, gruppo, radice }) {
   Object.assign(p70(), { stato: "pubblicato" });
   const ancora = await importa([nuovoFile], { db: db3 });
   c("un prodotto pubblicato sovrascritto resta pubblicato", ["aggiornato", "pubblicato"], [ancora.corpo.risultati[0].esito, p70().stato]);
+  const aZero = await importa([prodotto(70, { titolo: "A zero", prezzoCent: 0, varianti: [variante(2, "SOV-1", { prezzoCent: null })] })], { db: db3 });
+  c("pubblicato e nel file senza prezzo → respinto con la frase, il prodotto online resta com'era (prezzo e nome)", [["errore"], true, 2500, "Prodotto rifatto"], [aZero.corpo.risultati.map((r) => r.esito), /online e nel file non ha un prezzo/.test(aZero.corpo.risultati[0].errori?.[0]?.frase ?? ""), p70().prezzo_cent, p70().nome]);
+  Object.assign(p70(), { stato: "bozza" });
+  const bozzaZero = await importa([prodotto(70, { titolo: "A zero", prezzoCent: 0, varianti: [variante(2, "SOV-1", { prezzoCent: null })] })], { db: db3 });
+  c("in bozza invece il prezzo 0 del file passa (come per un prodotto nuovo, che entra in bozza)", ["aggiornato", 0], [bozzaZero.corpo.risultati[0].esito, p70().prezzo_cent]);
+  Object.assign(p70(), { stato: "pubblicato", prezzo_cent: 2500 });
   const rubaSku = await importa([prodotto(70, { varianti: [variante(2, "PROVA-001-A")] })], { db: db3 });
-  c("sovrascrivere con lo SKU di un ALTRO prodotto → errore col suo nome, il prodotto resta com'era", [["errore"], ["Lo SKU PROVA-001-A è già usato dal prodotto «Prodotto di prova»."], "Prodotto rifatto", true], [rubaSku.corpo.risultati.map((r) => r.esito), rubaSku.corpo.risultati[0].errori.map((e) => e.frase), p70().nome, v70("SOV-1").attiva]);
+  c("sovrascrivere con lo SKU di un ALTRO prodotto → errore col suo nome, il prodotto resta com'era", [["errore"], ["Lo SKU PROVA-001-A è già usato dal prodotto «Prodotto di prova»."], "A zero", true], [rubaSku.corpo.risultati.map((r) => r.esito), rubaSku.corpo.risultati[0].errori.map((e) => e.frase), p70().nome, v70("SOV-1").attiva]);
   const db4 = fintoDb({ tabelle: tabelleProva(), senzaFunzioni: ["shop_import_sovrascrivi"] });
   await importa([vecchio], { db: db4 });
   const nScritte = scritte(db4);

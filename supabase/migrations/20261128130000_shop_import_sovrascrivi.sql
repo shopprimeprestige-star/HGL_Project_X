@@ -10,7 +10,10 @@
 --   shop_import_prodotto (che resta com'è). Trova il prodotto per indirizzo e, tutto o niente:
 --   · scrive i campi del file (nome, tipo, prezzo, SKU; i testi facoltativi solo se il file li ha: un campo vuoto NON cancella);
 --   · un prodotto nel Cestino (archiviato) torna in bozza; uno pubblicato resta pubblicato; le modifiche in bozza non pubblicate
---     si scartano (vince il file);
+--     si scartano (vince il file; il loro contenuto resta nello storico);
+--   · un prodotto PUBBLICATO senza nessun prezzo nel file (tutte le varianti a prezzo effettivo 0) NON si tocca: esce
+--     non_valido «prezzo_pubblicato» (il trigger di pubblicazione scatta solo quando lo stato DIVENTA pubblicato, quindi
+--     senza questo controllo il sito mostrerebbe il prodotto a 0); la regola di Invisible Derm (senza prezzo) è la stessa del trigger;
 --   · varianti per SKU: quella che c'è si aggiorna e si riaccende, quella nuova si crea (con la giacenza del file come «carico»),
 --     quella che il file non ha più si SPEGNE (attiva = false), mai cancellata: ordini e movimenti la citano;
 --   · la giacenza delle varianti che c'erano NON si tocca (la tengono ordini e movimenti; un file senza quantità la azzererebbe);
@@ -159,6 +162,17 @@ BEGIN
     END IF;
     v_prodotto_id := v_vecchio.id;
 
+    -- ── un prodotto online non può restare senza prezzo (stessa regola del trigger shop_controlla_pubblicazione) ──
+    IF v_vecchio.stato = 'pubblicato'
+       AND NOT ((p_prodotto ->> 'nome') ~* '^[[:space:]]*invisibi?l[ei][[:space:]_./&-]*derm\y(?!atolog)'
+                OR v_slug ~* '^[[:space:]]*invisible-derm')
+       AND NOT EXISTS (
+         SELECT 1 FROM jsonb_array_elements(p_varianti) AS e(x)
+          WHERE COALESCE((e.x ->> 'prezzo_cent')::integer, (p_prodotto ->> 'prezzo_cent')::integer) > 0
+       ) THEN
+      RETURN jsonb_build_object('esito', 'non_valido', 'motivo', 'prezzo_pubblicato');
+    END IF;
+
     -- ── uno SKU del file è di un ALTRO prodotto? (i suoi li può riusare) ──
     SELECT x.sku, x.nome INTO v_sku, v_nome FROM (
       SELECT p.sku, p.nome, 1 AS o FROM public.shop_prodotti p WHERE p.sku = ANY (v_skus || v_sku) AND p.id <> v_prodotto_id
@@ -195,7 +209,7 @@ BEGIN
     INSERT INTO public.shop_storico (entita, entita_id, campo, prima, dopo, chi)
     VALUES ('prodotto', v_prodotto_id::text, 'sovrascritto da import',
             jsonb_build_object('sku', v_vecchio.sku, 'nome', v_vecchio.nome, 'tipo', v_vecchio.tipo, 'prezzo_cent', v_vecchio.prezzo_cent,
-                               'stato', v_vecchio.stato, 'bozza_modifiche', v_vecchio.bozza_modifiche IS NOT NULL),
+                               'stato', v_vecchio.stato, 'bozza_modifiche', v_vecchio.bozza_modifiche),
             jsonb_build_object('sku', v_sku, 'nome', p_prodotto ->> 'nome', 'tipo', p_prodotto ->> 'tipo',
                                'prezzo_cent', (p_prodotto ->> 'prezzo_cent')::integer), v_chi);
     IF v_vecchio.stato = 'archiviato' THEN

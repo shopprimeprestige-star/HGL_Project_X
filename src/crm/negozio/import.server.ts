@@ -209,6 +209,11 @@ async function importaUno(grezzo: unknown, chi: string, nota: string, categorie:
     const chiLoUsa = typeof x.prodotto_nome === "string" && x.prodotto_nome ? `dal prodotto «${x.prodotto_nome}»` : "da un altro prodotto";
     return { handle, esito: "errore", errori: [{ riga, handle, frase: `Lo SKU ${sku} è già usato ${chiLoUsa}.`, righeProdotto: tutteLeRighe }] };
   }
+  if (x.motivo === "prezzo_pubblicato")
+    return {
+      handle, esito: "errore",
+      errori: [{ riga: tutteLeRighe[0] ?? 0, handle, frase: "Il prodotto è online e nel file non ha un prezzo: aggiungi il prezzo nel file (o rimettilo in bozza) e ricarica.", righeProdotto: tutteLeRighe }],
+    };
   d.log(`import non_valido ${sigla(x.motivo)}`); // la sigla, mai un valore
   return {
     handle, esito: "errore",

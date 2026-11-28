@@ -105,7 +105,12 @@ export function avviaFoto(a: PerAnteprima, s: Pick<StatoImporta, "gruppi">): Sta
           giaPresente: r.esito === "gia_presente" || r.esito === "aggiornato",
           sostituisci: r.esito === "aggiornato",
         });
-  for (const g of a.giaPresenti) chi.push({ ...g, giaPresente: true, sostituisci: false });
+  // Un già presente che il server ha respinto (SKU preso nel frattempo, prezzo mancante su un prodotto online…) non riceve foto.
+  const respinti = new Set(
+    s.gruppi.flatMap((g) => g.risultati.filter((r) => r.esito === "errore").map((r) => r.handle)),
+  );
+  for (const g of a.giaPresenti)
+    if (!respinti.has(g.handle)) chi.push({ ...g, giaPresente: true, sostituisci: false });
   const visti = new Set<string>();
   const prodotti: ProdottoFoto[] = [];
   for (const c of chi) {

@@ -64,7 +64,8 @@ export interface Analisi {
   nuovi: ProdottoImport[];
   /** Già nel catalogo (stesso indirizzo): partono anche loro e il file li sovrascrive. */
   daAggiornare: ProdottoImport[];
-  giaPresenti: { handle: string; prodottoId: string; nome: string }[];
+  /** `pubblicato`: è sul sito, la sovrascrittura si vede subito. */
+  giaPresenti: { handle: string; prodottoId: string; nome: string; pubblicato?: boolean }[];
   /** Ogni errore, riga per riga: quelli del file e quelli dello SKU già usato da un altro prodotto. */
   errori: ErroreRiga[];
   nProdottiConErrori: number;

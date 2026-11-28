@@ -113,6 +113,8 @@ export async function prove(_mod, { c, gruppo, radice }) {
   const sSov = F.avviaFoto(analisi, statoSov);
   const pSov = porteFinte({ media: CON_FOTO });
   await F.eseguiFoto(sSov, pSov.porte);
+  const statoNo = { ...stato, gruppi: [...stato.gruppi, { prodotti: [], stato: "fatto", risultati: [{ handle: "senza-foto", esito: "errore", errori: [{ riga: 2, frase: "no" }] }] }] };
+  c("un già presente che il server ha respinto non riceve foto", false, F.avviaFoto(analisi, statoNo).prodotti.some((p) => p.handle === "senza-foto"));
   c("«aggiornato» CON foto → le sue foto si caricano negli stessi spazi (media_registra sostituisce), la scheda non si legge", [true, ["principale", "foto2"], false], [sSov.prodotti.find((p) => p.handle === "con-foto")?.sostituisci, pSov.log.registrati.filter((d) => d.prodottoId === "id-con-foto").map((d) => d.slot), pSov.log.letti.includes("id-con-foto")]);
 
   // ── una fallita non ferma le altre; riprova solo le fallite ──

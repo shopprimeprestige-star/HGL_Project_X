@@ -163,14 +163,14 @@ export function confrontaConCatalogo(
 ): {
   nuovi: ProdottoImport[];
   daAggiornare: ProdottoImport[];
-  giaPresenti: { handle: string; prodottoId: string; nome: string }[];
+  giaPresenti: { handle: string; prodottoId: string; nome: string; pubblicato?: boolean }[];
   errori: ErroreRiga[];
 } {
   const presenti = new Map(catalogo.presenti.map((x) => [x.slug, x]));
   const usati = new Map(catalogo.skuUsati.map((x) => [x.sku.toUpperCase(), x]));
   const nuovi: ProdottoImport[] = [];
   const daAggiornare: ProdottoImport[] = [];
-  const giaPresenti: { handle: string; prodottoId: string; nome: string }[] = [];
+  const giaPresenti: { handle: string; prodottoId: string; nome: string; pubblicato?: boolean }[] = [];
   const errori: ErroreRiga[] = [];
   for (const p of prodotti) {
     const c = presenti.get(p.handle);
@@ -181,7 +181,7 @@ export function confrontaConCatalogo(
     }
     if (mie.length) errori.push(...mie.map((e) => ({ ...e, righeProdotto: p.varianti.map((v) => v.riga) })));
     else if (c) {
-      giaPresenti.push({ handle: p.handle, prodottoId: c.id, nome: c.nome });
+      giaPresenti.push({ handle: p.handle, prodottoId: c.id, nome: c.nome, pubblicato: c.stato === "pubblicato" });
       daAggiornare.push(p);
     } else nuovi.push(p);
   }
