@@ -29,7 +29,7 @@ function scenario() {
     prodotti: [...nuovi, ...presenti],
     foto: new Map([["uno", foto("uno", 5, "Spazzola uno vista dall'alto")], ["due", foto("due", 2)], ["rifiutato", foto("rifiutato", 1)], ["corsa", foto("corsa", 1)], ["con-foto", foto("con-foto", 2)], ["senza-foto", foto("senza-foto", 2)]]),
   };
-  const analisi = { lettura, nuovi, giaPresenti: presenti.filter((p) => p.handle !== "corsa").map((p) => ({ handle: p.handle, prodottoId: `id-${p.handle}`, nome: p.titolo })) };
+  const analisi = { lettura, nuovi, dalCestino: [], giaPresenti: presenti.filter((p) => p.handle !== "corsa").map((p) => ({ handle: p.handle, prodottoId: `id-${p.handle}`, nome: p.titolo })) };
   const stato = {
     gruppi: [{ prodotti: nuovi, stato: "fatto", risultati: [
       { handle: "uno", esito: "creato", prodottoId: "id-uno" },
@@ -38,6 +38,7 @@ function scenario() {
       // creato da un altro nel frattempo: il server dice «già presente» → si controlla come gli altri già presenti
       { handle: "corsa", esito: "gia_presente", prodottoId: "id-corsa" },
     ] }],
+    ripristino: [],
     troppoGrandi: [],
     fermo: null,
   };
@@ -176,8 +177,8 @@ export async function prove(_mod, { c, gruppo, radice }) {
 
   // ── il disegno del passo 3 con le foto ──
   const nulla = () => {};
-  const a12 = { lettura: { colonneIgnorate: [], conteggi: {}, foto: new Map() }, nuovi: [], giaPresenti: [], errori: [], nProdottiConErrori: 0, avvisi: [], righe: [], record: [], separatore: "," };
-  const fatto = { gruppi: [], troppoGrandi: [], fermo: null };
+  const a12 = { lettura: { colonneIgnorate: [], conteggi: {}, foto: new Map() }, nuovi: [], giaPresenti: [], dalCestino: [], errori: [], nProdottiConErrori: 0, avvisi: [], righe: [], record: [], separatore: "," };
+  const fatto = { gruppi: [], ripristino: [], troppoGrandi: [], fermo: null };
   const p3 = async (extra) => (await rendiComponente(radice, join(DIR, "PassoImporta.tsx"), "PassoImporta", { analisi: a12, stato: fatto, inCorso: false, interrompi: nulla, riprendi: nulla, scaricaErrori: nulla, vaiAiProdotti: nulla, chiudi: nulla, riprovaFoto: nulla, ...extra })).html;
   const sMeta = await F.eseguiFoto(F.avviaFoto(analisi, stato), porteFinte({ media: CON_FOTO }).porte, { interrompi: (() => { let j = 0; return () => j++ >= 4; })() });
   const hIn = await p3({ foto: sMeta, fotoInCorso: true });
@@ -192,11 +193,11 @@ export async function prove(_mod, { c, gruppo, radice }) {
   // ── il passo 2: quante foto, e il file ricaricato per le sole foto ──
   const tasto = (html, testo) => [...html.matchAll(/<button\b[^>]*>[\s\S]*?<\/button>/g)].map((m) => m[0]).find((b) => leggibile(b).includes(testo));
   const spento = (b) => b === undefined || /\sdisabled(=""|\s|>)/.test(b);
-  const base2 = { nomeFile: "f.csv", errori: [], avvisi: [], righe: [], nProdottiConErrori: 0, importaDisponibile: true, lettura: { ...analisi.lettura, colonneIgnorate: [], conteggi: { prodotti: 6, varianti: 6 } } };
+  const base2 = { nomeFile: "f.csv", dalCestino: [], errori: [], avvisi: [], righe: [], nProdottiConErrori: 0, importaDisponibile: true, lettura: { ...analisi.lettura, colonneIgnorate: [], conteggi: { prodotti: 6, varianti: 6 } } };
   const p2 = async (a) => (await rendiComponente(radice, join(DIR, "PassoControllo.tsx"), "PassoControllo", { analisi: { ...base2, ...a }, cambiaFile: nulla, scaricaErrori: nulla, importa: nulla })).html;
-  const h2 = await p2({ nuovi: analisi.nuovi, giaPresenti: analisi.giaPresenti });
+  const h2 = await p2({ nuovi: analisi.nuovi, giaPresenti: analisi.giaPresenti, dalCestino: [] });
   c("passo 2: dice quante foto verranno caricate dopo i prodotti (13), il tasto resta «Importa 4 prodotti in bozza»", [true, true, 1], [/Dopo i prodotti carico fino a 13 foto da Shopify/.test(leggibile(h2)), !spento(tasto(h2, "Importa 4 prodotti in bozza")), pieni(h2)]);
-  const hSolo = await p2({ nuovi: [], giaPresenti: analisi.giaPresenti });
+  const hSolo = await p2({ nuovi: [], giaPresenti: analisi.giaPresenti, dalCestino: [] });
   c("passo 2, file già importato ma con foto: «Carica 4 foto» acceso (per i già presenti senza foto), un solo tasto pieno", [true, 1], [!spento(tasto(hSolo, "Carica 4 foto")), pieni(hSolo)]);
 
   const hNo = await p3({});

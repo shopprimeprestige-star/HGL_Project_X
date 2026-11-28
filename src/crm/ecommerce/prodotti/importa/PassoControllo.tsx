@@ -2,7 +2,7 @@
  *  Commessa 2026-11-25-editor-prodotti, E10 (SPEC §2.3, §6.4). L'anteprima: il riepilogo («12 prodotti · 41 varianti · 9 nuovi · …»), la tabella dei
  *  prodotti con il filtro «solo gli errori», gli errori riga per riga (numero di riga come in Excel), gli avvisi e le colonne ignorate.
  *  Qui NON è stato scritto niente: il tasto «Importa» è l'unico che scrive, ed è l'unico pieno. Solo presentazione, niente rete.
- *  Il tasto resta spento, con la frase, se manca la funzione del database o se non c'è niente di nuovo. Le foto di Shopify (E13) si contano qui;
+ *  Il tasto resta spento, con la frase, se manca la funzione del database o se non c'è niente da importare (i «Nel Cestino» contano: E15). Le foto di Shopify (E13) si contano qui;
  *  un file già importato con foto si può ricaricare per le sole foto («Carica N foto»: vanno solo ai prodotti che non ne hanno). */
 import { useState } from "react";
 import { AlertTriangle, CheckCircle2, CircleAlert, FileDown } from "lucide-react";
@@ -26,7 +26,7 @@ const MAX_MOSTRATE = 100;
 
 const TIPI: Record<string, string> = { patch: "Patch", cura: "Cura", kit: "Kit" };
 
-/** L'esito di una riga: il testo c'è sempre, il colore e l'icona sono un aiuto. */
+/** L'esito di una riga: il testo c'è sempre, il colore e l'icona sono un aiuto. «Nel Cestino» (E15) ha la forma di «Già presente»: torna in bozza. */
 function EsitoRiga({ riga, apri }: { riga: RigaTabella; apri?: (id: string) => void }) {
   if (riga.esito === "nuovo")
     return (
@@ -45,7 +45,7 @@ function EsitoRiga({ riga, apri }: { riga: RigaTabella; apri?: (id: string) => v
   return (
     <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">
       <span className="rounded-full border border-border px-2 py-0.5 text-[12px] font-medium text-muted-foreground">
-        Già presente
+        {riga.esito === "cestino" ? "Nel Cestino" : "Già presente"}
       </span>
       {riga.prodottoId && apri && (
         <button
@@ -136,11 +136,13 @@ export function PassoControllo({
   importa: () => void;
 }) {
   const [soloErr, setSoloErr] = useState(false);
-  const { nuovi, errori, avvisi, righe, lettura, importaDisponibile } = analisi;
+  const { nuovi, dalCestino, errori, avvisi, righe, lettura, importaDisponibile } = analisi;
   const visibili = soloErr ? soloErrori(righe) : righe;
   const nFoto = fotoPreviste(analisi);
-  const soloFoto = nuovi.length === 0 && nFoto > 0;
-  const puoImportare = importaDisponibile && (nuovi.length > 0 || soloFoto);
+  // Chi torna dal Cestino entra come i nuovi: «Importa» lo rimette in bozza (poi le foto, se non ne ha).
+  const daImportare = nuovi.length + dalCestino.length;
+  const soloFoto = daImportare === 0 && nFoto > 0;
+  const puoImportare = importaDisponibile && (daImportare > 0 || soloFoto);
   const perche = !importaDisponibile
     ? FRASE_NON_DISPONIBILE
     : !puoImportare
@@ -154,10 +156,12 @@ export function PassoControllo({
         <p className="mt-0.5 break-words text-[13px] text-muted-foreground">
           File «{analisi.nomeFile}». Non è stato scritto niente: i prodotti entrano solo quando
           premi «Importa».
+          {dalCestino.length > 0 &&
+            " Quelli nel Cestino tornano in bozza, con i dati che hanno già: il file non li cambia."}
         </p>
         {nFoto > 0 && (
           <p className="mt-0.5 text-[13px] text-muted-foreground">
-            {nuovi.length > 0 ? "Dopo i prodotti carico" : "Carico"} fino a {nFoto} foto da Shopify
+            {daImportare > 0 ? "Dopo i prodotti carico" : "Carico"} fino a {nFoto} foto da Shopify
             (al massimo 5 per prodotto). I prodotti già presenti che hanno già delle foto si
             saltano.
           </p>
@@ -273,9 +277,9 @@ export function PassoControllo({
           >
             {soloFoto
               ? `Carica ${nFoto} foto`
-              : nuovi.length === 1
+              : daImportare === 1
                 ? "Importa 1 prodotto in bozza"
-                : `Importa ${nuovi.length} prodotti in bozza`}
+                : `Importa ${daImportare} prodotti in bozza`}
           </Button>
           {perche && (
             <p id="perche-spento" className="max-w-xs text-right text-[12px] text-muted-foreground">
