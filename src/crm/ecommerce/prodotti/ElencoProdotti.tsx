@@ -30,6 +30,7 @@ import {
   Plus,
   RefreshCw,
   Search,
+  Tags,
   Trash2,
   Upload,
 } from "lucide-react";
@@ -75,6 +76,7 @@ import {
   type Direzione,
   type Fuori,
 } from "./elenco-puro";
+import { FinestraCategorieAuto, type ProdottoScelto } from "./FinestraCategorieAuto";
 import { FinestraImporta } from "./importa/FinestraImporta";
 import { SchedaNuova } from "./SchedaNuova";
 import { elencoCategorie } from "./scheda-nuova-puro";
@@ -138,6 +140,14 @@ export function ElencoProdotti({ negozio, apri, categorieAggiornate = 0 }: Props
   const [importa, setImporta] = useState(false);
   //  La conferma di «Elimina» (E14): `n` resta quello del clic, così il titolo non cambia mentre la finestra si chiude.
   const [cestino, setCestino] = useState({ aperta: false, n: 0 });
+  //  «Metti le categorie» (E16): i prodotti restano quelli scelti al clic, anche se l'elenco si rilegge sotto la finestra.
+  const [categorieAuto, setCategorieAuto] = useState<{
+    aperta: boolean;
+    prodotti: ProdottoScelto[];
+  }>({
+    aperta: false,
+    prodotti: [],
+  });
   const eraNuovo = useRef(false);
   const [categorie, setCategorie] = useState<{ id: string; nome: string }[]>([]);
 
@@ -174,6 +184,11 @@ export function ElencoProdotti({ negozio, apri, categorieAggiornate = 0 }: Props
     }),
     [],
   );
+  //  Come l'import: scrive senza rileggere l'elenco a ogni prodotto (si rilegge una volta, alla chiusura).
+  const negozioCategorie = useMemo(
+    () => ({ ...negozioImporta, categorie: leggiCategorie }),
+    [negozioImporta, leggiCategorie],
+  );
   //  Tornando dalla scheda nuova il cursore va al tasto «Aggiungi prodotto» (quello che si vede: sul telefono è il tasto fisso), non sul nulla.
   useEffect(() => {
     if (eraNuovo.current && !nuovo)
@@ -182,6 +197,10 @@ export function ElencoProdotti({ negozio, apri, categorieAggiornate = 0 }: Props
         ?.focus();
     eraNuovo.current = nuovo;
   }, [nuovo]);
+  const chiudiCategorieAuto = (cambiato: boolean) => {
+    setCategorieAuto((x) => ({ ...x, aperta: false }));
+    if (cambiato) void aggiorna();
+  };
   const chiudiImporta = () => {
     setImporta(false);
     void aggiorna();
@@ -488,6 +507,22 @@ export function ElencoProdotti({ negozio, apri, categorieAggiornate = 0 }: Props
                 variant="outline"
                 className="h-11 text-[12px] md:h-8"
                 disabled={occupato}
+                onClick={() =>
+                  setCategorieAuto({
+                    aperta: true,
+                    prodotti: selezionati.map((r) => ({ id: r.id, nome: r.nome, tipo: r.tipo })),
+                  })
+                }
+              >
+                <Tags className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
+                Metti le categorie
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-11 text-[12px] md:h-8"
+                disabled={occupato}
                 onClick={() => void duplica()}
               >
                 <Copy className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
@@ -755,6 +790,12 @@ export function ElencoProdotti({ negozio, apri, categorieAggiornate = 0 }: Props
         conferma={() =>
           void cambiaStato("archiviato").finally(() => setCestino((x) => ({ ...x, aperta: false })))
         }
+      />
+      <FinestraCategorieAuto
+        aperta={categorieAuto.aperta}
+        chiudi={chiudiCategorieAuto}
+        prodotti={categorieAuto.prodotti}
+        porte={negozioCategorie}
       />
       <FinestraImporta
         aperta={importa}
