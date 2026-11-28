@@ -492,6 +492,6 @@ export function proveFiltroGiorno(mod, { c, gruppo, radice }) {
   }
 
   gruppo("FILTRO GIORNO: LE SEZIONI RAGGRUPPATE HANNO L'ARIA-LABEL DELLA VISTA PIATTA (revisione 17/11/2026)");
-  c("il <ul> di ogni sezione ha l'aria-label di «Da chiamare» o di «Ricontatti», come la vista piatta", true,
-    /<ul\s*\n\s*aria-label=\{\s*\n\s*filtri\.coda === "da-chiamare"\s*\n\s*\? "Chat da chiamare, per stato"\s*\n\s*: "Ricontatti, dal lead più recente; in cima quelli in priorità"/.test(elencoSrc));
+  c("il <ul> di ogni sezione ha l'aria-label di «Da chiamare» o di «Ricontatti», come la vista piatta (28/11/2026: dice anche il verso)", true,
+    /<ul\s*\n\s*aria-label=\{\s*\n\s*filtri\.coda === "da-chiamare"\s*\n\s*\? "Chat da chiamare, per stato"\s*\n\s*: verso === "vecchi"\s*\n\s*\? "Ricontatti, dal lead più vecchio; in cima quelli in priorità"\s*\n\s*: "Ricontatti, dal lead più recente; in cima quelli in priorità"/.test(elencoSrc));
 }

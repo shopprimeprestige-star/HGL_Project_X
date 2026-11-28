@@ -84,6 +84,7 @@ import { proveOggiDelConsulente } from "./idee/oggi-del-consulente.mjs";
 import { proveInvitoMeet } from "./idee/invito-meet.mjs";
 import { proveTestiWame } from "./idee/testi-wame.mjs";
 import { proveOrdineWhatsapp } from "./idee/ordine-whatsapp.mjs";
+import { proveOrdineFiltri } from "./idee/ordine-filtri.mjs";
 import { proveAccontiInCima } from "./idee/acconti-in-cima.mjs";
 import { proveRigaAttesaWame } from "./idee/riga-attesa-wame.mjs";
 import { proveEcoManychatEntrata } from "./idee/eco-manychat-entrata.mjs";
@@ -758,6 +759,8 @@ const MODULI = [
   //  La vista «Tutte» nell'ordine di WhatsApp (commessa 2026-10-30-wa-ordine-come-whatsapp):
   //   prove in prove/idee/ordine-whatsapp.mjs.
   "chatwa/ordineWhatsapp",
+  //  Il verso di «Ricontatti» e «Attesa acconto» (28/11/2026): prove in prove/idee/ordine-filtri.mjs.
+  "chatwa/ordineFiltri",
   //  La chat veloce (commessa 2026-10-30-chat-veloce): prove in prove/idee/chat-veloce.mjs.
   "chatwa/costruisciChat",
   "chatwa/finestraLista",
@@ -21741,6 +21744,7 @@ proveInvitoMeet(mod, { c, gruppo, radice });
 proveTestiWame(mod, { c, gruppo, radice });
 proveDelMeetAdessoSpento();
 proveOrdineWhatsapp(mod, { c, gruppo, radice });
+proveOrdineFiltri(mod, { c, gruppo, radice });
 proveAccontiInCima(mod, { c, gruppo, radice });
 proveRigaAttesaWame(mod, { c, gruppo, radice });
 await proveEcoManychatEntrata(mod, { c, gruppo, radice });

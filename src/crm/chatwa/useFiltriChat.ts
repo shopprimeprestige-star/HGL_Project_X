@@ -8,9 +8,11 @@
  *  funzionano lo stesso e si perdono alla chiusura. */
 import { useCallback, useEffect, useState } from "react";
 import { FILTRI_VUOTI, leggiFiltri, scriviFiltriSessione, type FiltriChat } from "./filtri";
+import { leggiOrdine, scriviOrdine, type OrdineFiltri } from "./ordineFiltri";
 
 const chiaveSessione = (utente: string) => `hgl_chat_filtri_v1:${utente}`;
 const chiaveConsulente = (utente: string) => `hgl_chat_consulente_v1:${utente}`;
+const chiaveOrdine = (utente: string) => `hgl_chat_ordine_v1:${utente}`;
 
 function leggi(store: () => Storage, chiave: string): string | null {
   try {
@@ -56,4 +58,29 @@ export function useFiltriChat(utente: string | null | undefined): {
   );
 
   return { filtri, setFiltri };
+}
+
+/** Il verso di «Ricontatti» e «Attesa acconto» (28/11/2026), uno per filtro. Come il consulente: sul
+ *  dispositivo (`localStorage`), perché è una preferenza e non una coda di ieri. Senza spazio nel browser
+ *  funziona lo stesso e si perde alla chiusura. Regole e valori: ordineFiltri.ts. */
+export function useOrdineFiltri(utente: string | null | undefined): {
+  ordine: OrdineFiltri;
+  setOrdine: (o: OrdineFiltri) => void;
+} {
+  const [ordine, setOrdineLocale] = useState<OrdineFiltri>(() => leggiOrdine(null));
+
+  useEffect(() => {
+    if (!utente) return;
+    setOrdineLocale(leggiOrdine(leggi(() => window.localStorage, chiaveOrdine(utente))));
+  }, [utente]);
+
+  const setOrdine = useCallback(
+    (o: OrdineFiltri) => {
+      setOrdineLocale(o);
+      if (utente) scrivi(() => window.localStorage, chiaveOrdine(utente), scriviOrdine(o));
+    },
+    [utente],
+  );
+
+  return { ordine, setOrdine };
 }
