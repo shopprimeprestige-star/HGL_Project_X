@@ -10,6 +10,9 @@
  *  · Ripresa: un gruppo andato a buon fine non si rimanda MAI. Quello interrotto (rete, server) si rimanda: il server dice «già presente»
  *    per ciò che era entrato, quindi non nasce nessun doppione.
  *  · Una risposta che non è nella forma del contratto non è un successo. Un prodotto senza risposta non risulta importato.
+ *  · Dal Cestino (E15): un indirizzo che esiste ma è `archiviato` non si ricrea (lo slug è unico) e non si dice «già presente»: PRIMA dei nuovi
+ *    torna in bozza con la stessa azione del tasto «Rimetti in bozza» (`gruppo_stato`, a pezzi da 20 come l'elenco: `aGruppi`). Un pezzo andato non
+ *    si rimanda; uno fallito si riprende. I dati del prodotto non si toccano (D5): resta com'era, poi seguono le foto come per i già presenti.
  *  ⚠️ Niente rete qui dentro: chi chiama passa `esegui` (quello di `negozio`). Nessun log, mai. */
 import { righeDaCorreggere } from "@/crm/negozio/csv-errori";
 import {
@@ -25,10 +28,20 @@ import {
   type Analisi,
   type EsitoEsegui,
 } from "./importa-analisi";
+import {
+  fermaPezzo,
+  pezziDa,
+  prossimoPezzo,
+  registraRipristino,
+  type PezzoRipristino,
+} from "./importa-ripristino";
 
 export * from "./importa-analisi";
+export * from "./importa-ripristino";
 
 export const AZIONE_IMPORTA = "prodotti_importa";
+/** «Rimetti in bozza» della linguetta Cestino: la stessa azione del server (E14), non una copia. */
+export const AZIONE_RIMETTI = "gruppo_stato";
 export const NOME_FILE_DA_CORREGGERE = "righe-da-correggere.csv";
 
 const CENTO = 100;
@@ -82,13 +95,19 @@ export interface Fermo {
 }
 export interface StatoImporta {
   gruppi: GruppoImporta[];
+  /** I pezzi dal Cestino, da fare prima dei gruppi (nessuno se il file non ne ha). */
+  ripristino: PezzoRipristino[];
   troppoGrandi: ProdottoImport[];
   fermo: Fermo | null;
 }
 
-export function avviaImporta(nuovi: readonly ProdottoImport[]): StatoImporta {
+export function avviaImporta(
+  nuovi: readonly ProdottoImport[],
+  dalCestino: readonly { handle: string; prodottoId: string }[] = [],
+): StatoImporta {
   const { gruppi, troppoGrandi } = dividiInGruppi(nuovi);
   return {
+    ripristino: pezziDa(dalCestino),
     gruppi: gruppi.map((prodotti) => ({ prodotti, stato: "da_fare", risultati: [] })),
     troppoGrandi,
     fermo: null,
@@ -206,10 +225,13 @@ export const sospendi = (s: StatoImporta): StatoImporta => ({
   },
 });
 
-/** «Riprendi»: solo il gruppo interrotto torna in coda; i gruppi fatti non si toccano e non si rimandano. */
+/** «Riprendi»: solo il gruppo (o il pezzo del Cestino) interrotto torna in coda; ciò che è fatto non si tocca e non si rimanda. */
 export const riprendi = (s: StatoImporta): StatoImporta => ({
   ...s,
   gruppi: s.gruppi.map((g) => (g.stato === "interrotto" ? { ...g, stato: "da_fare" as const } : g)),
+  ripristino: s.ripristino.map((p) =>
+    p.stato === "interrotto" ? { ...p, stato: "da_fare" as const } : p,
+  ),
   fermo: null,
 });
 
@@ -220,36 +242,63 @@ export function avanzamento(s: StatoImporta): {
   prodottiTotali: number;
   percento: number;
 } {
-  const fatti = s.gruppi.filter((g) => g.stato === "fatto");
-  const somma = (gruppi: GruppoImporta[]) => gruppi.reduce((n, g) => n + g.prodotti.length, 0);
+  // I pezzi dal Cestino contano come i gruppi: una barra sola, 100 solo alla fine.
+  const passi: { stato: StatoGruppo; prodotti: unknown[] }[] = [...s.ripristino, ...s.gruppi];
+  const fatti = passi.filter((g) => g.stato === "fatto");
+  const somma = (x: { prodotti: unknown[] }[]) => x.reduce((n, g) => n + g.prodotti.length, 0);
   const prodottiFatti = somma(fatti);
-  const prodottiTotali = somma(s.gruppi);
+  const prodottiTotali = somma(passi);
   // Mai 100 prima della fine: si arrotonda per difetto.
   return {
     gruppiFatti: fatti.length,
-    gruppiTotali: s.gruppi.length,
+    gruppiTotali: passi.length,
     prodottiFatti,
     prodottiTotali,
     percento: prodottiTotali === 0 ? CENTO : Math.floor((prodottiFatti * CENTO) / prodottiTotali),
   };
 }
 
-/** Manda i gruppi uno dopo l'altro e si ferma al primo errore, oppure quando `interrompi()` dice di sì (dopo il gruppo in corso). */
+/** Manda i pezzi del Cestino (`rimetti`, con gli id), poi i gruppi, uno dopo l'altro; si ferma al primo errore, oppure quando `interrompi()` dice di sì
+ *  (dopo il passo in corso). Senza `rimetti` i pezzi non partono. */
 export async function eseguiGruppi(
   inizio: StatoImporta,
   invia: (prodotti: ProdottoImport[]) => Promise<EsitoEsegui>,
-  opz: { interrompi?: () => boolean; aggiorna?: (s: StatoImporta) => void } = {},
+  opz: {
+    interrompi?: () => boolean;
+    aggiorna?: (s: StatoImporta) => void;
+    rimetti?: (ids: string[]) => Promise<EsitoEsegui>;
+  } = {},
 ): Promise<StatoImporta> {
+  const { rimetti } = opz;
   let s = inizio;
   while (!s.fermo) {
+    const k = rimetti ? prossimoPezzo(s) : null;
     const i = prossimoGruppo(s);
-    if (i === null) break;
+    if (k === null && i === null) break;
     if (opz.interrompi?.()) {
       s = sospendi(s);
       opz.aggiorna?.(s);
       break;
     }
     let r: EsitoEsegui;
+    if (rimetti && k !== null) {
+      try {
+        r = await rimetti(s.ripristino[k].prodotti.map((p) => p.prodottoId));
+      } catch {
+        r = {
+          ok: false,
+          errore: {
+            tipo: "rete",
+            messaggio:
+              "Non so se i prodotti del Cestino siano tornati in bozza: controlla la connessione e premi «Riprendi».",
+          },
+        };
+      }
+      s = r.ok ? registraRipristino(s, k, r.dati) : fermaPezzo(s, k, r.errore);
+      opz.aggiorna?.(s);
+      continue;
+    }
+    if (i === null) break; // solo per il compilatore: senza `rimetti` k è null, quindi un gruppo da fare c'è
     try {
       r = await invia(s.gruppi[i].prodotti);
     } catch {
@@ -272,6 +321,8 @@ export async function eseguiGruppi(
 
 export interface Riepilogo {
   importati: number;
+  /** Tornati in bozza dal Cestino (E15). */
+  ripristinati: number;
   /** Già presenti: quelli visti all'anteprima più quelli che il server ha trovato già presenti. */
   saltati: number;
   respinti: number;
@@ -287,9 +338,21 @@ export function riepilogoFinale(
 ): Riepilogo {
   const errori = [...a.errori];
   let importati = 0;
+  let ripristinati = 0;
   let saltati = a.giaPresenti.length;
   let respinti = a.nProdottiConErrori + s.troppoGrandi.length;
   let rimasti = 0;
+  for (const p of s.ripristino) {
+    if (p.stato !== "fatto") {
+      rimasti += p.prodotti.length;
+      continue;
+    }
+    ripristinati += p.prodotti.length - p.restano.length;
+    for (const x of p.restano) {
+      respinti++;
+      errori.push({ riga: 0, handle: x.handle, frase: x.frase });
+    }
+  }
   for (const g of s.gruppi) {
     if (g.stato !== "fatto") {
       rimasti += g.prodotti.length;
@@ -314,18 +377,25 @@ export function riepilogoFinale(
       frase: "Il prodotto è troppo grande per essere inviato: accorcia i testi o dividilo.",
       righeProdotto: p.varianti.map((v) => v.riga),
     });
-  return { importati, saltati, respinti, rimasti, errori };
+  return { importati, ripristinati, saltati, respinti, rimasti, errori };
 }
 
-/** «Importati N prodotti (tutti in bozza). Saltati N già presenti. Respinti N con errori.» */
-export function fraseFinale(r: Pick<Riepilogo, "importati" | "saltati" | "respinti">): string {
+/** «Importati N prodotti (tutti in bozza). Rimessi in bozza dal Cestino N. Saltati N già presenti. Respinti N con errori.»
+ *  La parte dei nuovi si scrive solo se ce n'è almeno uno o se non è tornato niente dal Cestino: con 0 importati e N tornati la frase parte
+ *  da «Rimessi in bozza dal Cestino N» (un «Importati 0» sembrerebbe un fallimento). */
+export function fraseFinale(
+  r: Pick<Riepilogo, "importati" | "ripristinati" | "saltati" | "respinti">,
+): string {
   const importati =
     r.importati === 1
       ? "Importato 1 prodotto (in bozza)"
       : `Importati ${r.importati} prodotti (tutti in bozza)`;
+  const cestino = `${r.ripristinati === 1 ? "Rimesso" : "Rimessi"} in bozza dal Cestino ${r.ripristinati}`;
   const saltati = r.saltati === 1 ? "Saltato 1 già presente" : `Saltati ${r.saltati} già presenti`;
   const respinti = r.respinti === 1 ? "Respinto 1 con errori" : `Respinti ${r.respinti} con errori`;
-  return `${importati}. ${saltati}. ${respinti}.`;
+  const parti = [r.importati > 0 || r.ripristinati === 0 ? importati : null];
+  if (r.ripristinati > 0) parti.push(cestino);
+  return `${[...parti, saltati, respinti].filter(Boolean).join(". ")}.`;
 }
 
 /** C'è almeno una riga del file da correggere? (Un errore «di tutto il file» non ne ha: il file delle righe sarebbe vuoto.) */
