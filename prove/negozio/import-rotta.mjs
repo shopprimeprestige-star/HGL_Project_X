@@ -70,7 +70,7 @@ export async function prove(mod, { c, gruppo, radice }) {
   const lettura = await GET("prodotti_importa_verifica");
   c("l'import non ha letture: GET ?prodotti_importa_verifica → 400, niente scritto", [400, 0], [lettura.stato, lettura.db.scritture.length]);
 
-  // ── il tetto del corpo: 100 000 byte, anche dallo smistamento ──
+  // ── il tetto del corpo: 200 000 byte, anche dallo smistamento ──
   const grande = (n) => prodotto(n, {
     descrizioneBreve: "Testo di prova per la descrizione breve. ".repeat(10).trim().slice(0, 300),
     descrizioneLunga: "Una riga di descrizione inventata per misurare la richiesta. ".repeat(100).slice(0, 5000).trim(),
@@ -82,9 +82,9 @@ export async function prove(mod, { c, gruppo, radice }) {
   const g75 = await POST({ azione: "prodotti_importa", prodotti: gruppo75 });
   c(`un gruppo di 5 prodotti da ~75 KB (${peso} byte) passa dallo smistamento e dal modulo`, [true, 200, ["creato", "creato", "creato", "creato", "creato"]], [peso > 70_000 && peso < 100_000, g75.stato, g75.corpo.risultati?.map((r) => r.esito)]);
   const pad = (n) => JSON.stringify({ azione: "prodotti_importa", prodotti: [], x: "a".repeat(n) });
-  const n0 = 100_000 - byte(pad(0));
+  const n0 = 200_000 - byte(pad(0));
   const sopra = await POST(pad(n0 + 1));
-  c("oltre 100 000 byte → 413 dallo smistamento, database mai toccato", [413, 0], [sopra.stato, sopra.db.chiamate]);
+  c("oltre 200 000 byte → 413 dallo smistamento, database mai toccato", [413, 0], [sopra.stato, sopra.db.chiamate]);
 
   // ── il sorgente ──
   const sm = togliCommenti(readFileSync(join(radice, "src/crm/negozio/smista.server.ts"), "utf8"));

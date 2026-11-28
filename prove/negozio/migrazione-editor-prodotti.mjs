@@ -28,7 +28,7 @@ export async function prove(_mod, { c, gruppo, radice }) {
   const percorso = join(cartella, FILE);
   c("la migrazione esiste col nome del piano e viene dopo ogni altra migrazione che c'è già", [true, []], [
     existsSync(percorso),
-    existsSync(cartella) ? readdirSync(cartella).filter((f) => f.endsWith(".sql") && f !== FILE && f > FILE) : [],
+    existsSync(cartella) ? readdirSync(cartella).filter((f) => f.endsWith(".sql") && f !== FILE && f > FILE && f !== "20261128120000_shop_import_250_varianti.sql") /* la ricrea col tetto di 250: viene dopo apposta */ : [],
   ]);
   const collaudo = join(radice, "prove/sql/shop-editor-prodotti.sql");
   c("il collaudo su Postgres usa-e-getta c'è e il LEGGIMI lo spiega", [true, true], [

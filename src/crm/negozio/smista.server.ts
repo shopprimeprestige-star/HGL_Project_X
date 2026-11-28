@@ -68,7 +68,7 @@ const LEGGI: Record<string, (r: Request, d: DipendenzeNegozio) => Promise<Respon
   cassa: leggiInterruttori,
   spedizioni: leggiSpedizioni,
 };
-const MAX_CORPO = 100_000; // il tetto più alto dei moduli (prodotti); gli altri hanno il loro, più stretto
+const MAX_CORPO = 200_000; // il tetto più alto dei moduli (prodotti: l'import di un kit da 250 varianti); gli altri hanno il loro, più stretto
 
 const json = (o: unknown, stato: number): Response =>
   new Response(JSON.stringify(o), { status: stato, headers: { "Content-Type": "application/json", "Cache-Control": "no-store" } });

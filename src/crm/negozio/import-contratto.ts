@@ -87,11 +87,11 @@ export const LIMITI = {
   /** Solo del browser: il server è senza stato. */
   prodottiPerFile: 300,
   prodottiPerRichiesta: 5,
-  variantiPerProdotto: 50,
+  variantiPerProdotto: 250,
   categorieSuProdotto: 10,
-  /** Il server accetta fino a 100 000 byte; il client si ferma a 80 000. */
-  byteServer: 100_000,
-  byteClient: 80_000,
+  /** Il server accetta fino a 200 000 byte; il client si ferma a 160 000 (un kit da 250 varianti ne pesa circa 81 000). */
+  byteServer: 200_000,
+  byteClient: 160_000,
   nome: 120,
   descrizioneBreve: 300,
   descrizioneLunga: 5000,

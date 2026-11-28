@@ -21,6 +21,7 @@
  *  · Nei log SOLO codici: mai l'oggetto errore, mai testi del cliente o del titolare. */
 import {
   MAX_CENT,
+  MAX_COMBINAZIONI,
   SLOT,
   SOTTO_RUOLI,
   TETTI,
@@ -94,10 +95,11 @@ export const AZIONI_PRODOTTI = [
 ] as const;
 
 const MANCANTI = ["42703", "42P01", "PGRST204", "PGRST205", "PGRST202"];
-const MAX_CORPO = 100_000;
+const MAX_CORPO = 200_000;
 /** Ogni prodotto pubblicato è una scrittura con i suoi controlli: poche per richiesta. */
 const MAX_GRUPPO = 20;
-const MAX_VARIANTI = 50;
+/** Lo stesso tetto delle combinazioni e del database (250). */
+const MAX_VARIANTI = MAX_COMBINAZIONI;
 /** shortcut: l'elenco legge fino a questo numero di prodotti (il catalogo parte da 33); si pagina se un giorno serve. */
 const MAX_PRODOTTI = 1000;
 const TIPI = ["patch", "cura", "kit"];

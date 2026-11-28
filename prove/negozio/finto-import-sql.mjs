@@ -55,7 +55,7 @@ export async function prove(_mod, { c, gruppo, radice }) {
     elenco.scenari.every((s) => s.passi.length > 0 && s.controlli.length > 0 && s.descrizione),
   ]);
   const casi = ["semplice", "quattro_varianti", "slug_gia_presente", "sku_di_altro_prodotto", "sku_doppio_nel_gruppo", "giacenza_zero", "categoria_inesistente", "input_manomesso",
-    "cinquantuno_varianti", "giacenza_enorme", "sku_variante_di_altro_prodotto", "secondo_invio"];
+    "duecentocinquantuno_varianti", "giacenza_enorme", "sku_variante_di_altro_prodotto", "secondo_invio"];
   c("i casi che il piano chiede per nome ci sono tutti", [], casi.filter((n) => !nomi.includes(n)));
   const rifiutati = [];
   for (const sc of elenco.scenari) {

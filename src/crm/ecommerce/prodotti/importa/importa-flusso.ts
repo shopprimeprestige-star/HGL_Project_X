@@ -5,8 +5,8 @@
  *
  *  ── LE REGOLE ───────────────────────────────────────────────────────────────
  *  · Il file vive solo in memoria. Prima di «Importa» il server riceve SOLO la verifica (indirizzi e SKU, sola lettura): nessuna scrittura.
- *  · Un gruppo = al massimo 5 prodotti e 80 000 byte di richiesta (misurati in byte con `TextEncoder`, non in caratteri: gli accenti e l'euro
- *    ne pesano di più). Un prodotto che da solo supera gli 80 000 byte non parte e si dice a parte.
+ *  · Un gruppo = al massimo 5 prodotti e 160 000 byte di richiesta (misurati in byte con `TextEncoder`, non in caratteri: gli accenti e l'euro
+ *    ne pesano di più). Un prodotto che da solo supera i 160 000 byte non parte e si dice a parte.
  *  · Ripresa: un gruppo andato a buon fine non si rimanda MAI. Quello interrotto (rete, server) si rimanda: il server dice «già presente»
  *    per ciò che era entrato, quindi non nasce nessun doppione.
  *  · Una risposta che non è nella forma del contratto non è un successo. Un prodotto senza risposta non risulta importato.
@@ -39,7 +39,7 @@ const CENTO = 100;
 export const misuraRichiesta = (prodotti: readonly ProdottoImport[]): number =>
   new TextEncoder().encode(JSON.stringify({ azione: AZIONE_IMPORTA, prodotti })).length;
 
-/** In ordine, mai oltre 5 prodotti e 80 000 byte per gruppo. `troppoGrandi`: quelli che da soli superano il tetto (non partono). */
+/** In ordine, mai oltre 5 prodotti e 160 000 byte per gruppo. `troppoGrandi`: quelli che da soli superano il tetto (non partono). */
 export function dividiInGruppi(prodotti: readonly ProdottoImport[]): {
   gruppi: ProdottoImport[][];
   troppoGrandi: ProdottoImport[];

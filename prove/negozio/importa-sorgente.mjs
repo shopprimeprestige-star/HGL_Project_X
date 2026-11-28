@@ -49,9 +49,9 @@ export async function prove(_mod, { c, gruppo, radice }) {
   }
   const fl = senzaCommenti(src["importa-flusso.ts"] + src["importa-analisi.ts"]);
   c("importa-flusso.ts è puro: niente React, niente DOM, niente rete", false, /from "react|\bdocument\b|\bwindow\b|\bnavigator\b|\bfetch\b/.test(fl));
-  c("i gruppi usano i limiti del contratto (5 prodotti, 80 000 byte), non numeri scritti qui", [true, true], [/LIMITI\.prodottiPerRichiesta/.test(fl), /LIMITI\.byteClient/.test(fl)]);
+  c("i gruppi usano i limiti del contratto (5 prodotti, 160 000 byte), non numeri scritti qui", [true, true], [/LIMITI\.prodottiPerRichiesta/.test(fl), /LIMITI\.byteClient/.test(fl)]);
   const contratto = readFileSync(join(radice, "src/crm/negozio/import-contratto.ts"), "utf8");
-  c("…e il contratto dice davvero 5 e 80 000", [true, true], [/prodottiPerRichiesta: 5\b/.test(contratto), /byteClient: 80_000\b/.test(contratto)]);
+  c("…e il contratto dice davvero 5 e 160 000", [true, true], [/prodottiPerRichiesta: 5\b/.test(contratto), /byteClient: 160_000\b/.test(contratto)]);
   c("la misura è in byte (TextEncoder), non in caratteri", true, /new TextEncoder\(\)\.encode\(JSON\.stringify\(\{ azione: AZIONE_IMPORTA/.test(fl));
   const client = readFileSync(join(radice, "src/crm/negozio/client.ts"), "utf8");
   c("le due azioni sono quelle che il client del negozio conosce", [true, true, true, true], [/AZIONE_VERIFICA = "prodotti_importa_verifica"/.test(fl), /AZIONE_IMPORTA = "prodotti_importa"/.test(fl), /"prodotti_importa_verifica"/.test(client), /"prodotti_importa",/.test(client)]);

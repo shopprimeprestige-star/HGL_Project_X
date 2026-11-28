@@ -681,15 +681,15 @@ export async function prove(_mod, { c, gruppo, radice }) {
   const troppe = S.anteprimaCombinazioni(
     "P1",
     [
-      { nome: "A", valori: Array.from({ length: 8 }, (_, k) => `a${k}`) },
-      { nome: "B", valori: Array.from({ length: 8 }, (_, k) => `b${k}`) },
+      { nome: "A", valori: Array.from({ length: 16 }, (_, k) => `a${k}`) },
+      { nome: "B", valori: Array.from({ length: 16 }, (_, k) => `b${k}`) },
     ],
     [],
   );
   c(
-    "oltre 50 combinazioni: la frase dice il massimo",
+    "oltre 250 combinazioni: la frase dice il massimo",
     [false, true],
-    [troppe.ok, /50/.test(troppe.frase ?? "")],
+    [troppe.ok, /250/.test(troppe.frase ?? "")],
   );
   c(
     "quattro opzioni: la frase dice il massimo di 3",

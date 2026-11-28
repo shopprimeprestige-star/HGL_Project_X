@@ -753,7 +753,7 @@ export function fintoDb({ tabelle = {}, mancante = false, codiceMancante = "42P0
     const non = (motivo) => ({ data: { esito: "non_valido", motivo } });
     if (!oggettoImport(p)) return non("prodotto");
     if (!Array.isArray(vs)) return non("varianti");
-    if (vs.length < 1 || vs.length > 50) return non("varianti_numero");
+    if (vs.length < 1 || vs.length > 250) return non("varianti_numero");
     if (cats.length > 10) return non("categorie_numero");
     const sbagliato = CAMPI_IMPORT_PRODOTTO.find((k) => !campoImportOk(p[k[0]], k))
       ?? vs.flatMap((v) => CAMPI_IMPORT_VARIANTE.map((k) => [v, k])).find(([v, k]) => !campoImportOk(oggettoImport(v) ? v[k[0]] : undefined, k))?.[1];

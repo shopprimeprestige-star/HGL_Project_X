@@ -16,7 +16,7 @@
  *    e simili del corpo non arrivano mai al database (entra sempre in bozza). `p_chi` è il nome della guardia, mai del corpo; la data
  *    della nota «Importato da CSV il …» è quella del server (ora italiana).
  *  · I testi si ripuliscono dai bordi con `trim()` JS (toglie anche tab e a capo): la funzione SQL usa `btrim` e toglie solo gli spazi.
- *  · Il corpo si legge con `leggiTesto(request, 100_000)` (non `leggiCorpo`, che ha 20 000): i gruppi veri sono più grandi.
+ *  · Il corpo si legge con `leggiTesto(request, LIMITI.byteServer)` (200 000) (non `leggiCorpo`, che ha 20 000): i gruppi veri sono più grandi.
  *  · Una funzione assente (migrazione non applicata) = 409 con la frase «Per importare serve un aggiornamento del database».
  *  · Nessuna cancellazione, da nessuna parte. Nei log SOLO codici. */
 import { skuValido, slugValido } from "../../shop/cms/modello";
@@ -48,7 +48,7 @@ const FUNZIONE = "shop_import_prodotto";
 const valore = (frase: string) => rifiuta("valore", 400, frase);
 const sigla = (x: unknown): string => String(x ?? "?").replace(/[^A-Za-z0-9_.]/g, "").slice(0, 30) || "?";
 
-/** Il corpo di una richiesta dell'import: JSON, un oggetto, non oltre 100 000 byte (413). */
+/** Il corpo di una richiesta dell'import: JSON, un oggetto, non oltre 200 000 byte (413). */
 async function leggiCorpoImport(request: Request): Promise<Record<string, unknown>> {
   const testo = await leggiTesto(request, LIMITI.byteServer);
   let corpo: unknown;

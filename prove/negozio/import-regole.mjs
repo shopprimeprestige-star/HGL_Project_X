@@ -52,7 +52,7 @@ export async function prove(_mod, { c, gruppo, radice }) {
 
   // ── varianti ──
   const tante = (n) => Array.from({ length: n }, (_x, i) => variante({ riga: i + 2, sku: `S-${i}`, nome: `v${i}`, opzioni: { N: `v${i}` } }));
-  c("50 varianti vanno, 51 no, nessuna no", [0, true, true], [frasi(prodotto({ varianti: tante(50) })).length, frasi(prodotto({ varianti: tante(51) })).some((x) => /51 varianti: il massimo è 50/.test(x)), frasi(prodotto({ varianti: [] })).some((x) => /nessuna variante/.test(x))]);
+  c("250 varianti vanno, 251 no, nessuna no", [0, true, true], [frasi(prodotto({ varianti: tante(250) })).length, frasi(prodotto({ varianti: tante(251) })).some((x) => /251 varianti: il massimo è 250/.test(x)), frasi(prodotto({ varianti: [] })).some((x) => /nessuna variante/.test(x))]);
   const doppia = frasi(prodotto({ varianti: [variante({ riga: 2 }), variante({ riga: 3, sku: "SIERO-1" })] }));
   c("lo stesso SKU su due varianti dello stesso prodotto → errore con le due righe", [true], [doppia.some((x) => /SKU SIERO-1 è scritto due volte nel prodotto \(righe 2 e 3\)/.test(x))]);
   c("una frase per riga: gli errori portano la riga della variante", [3], [V(prodotto({ varianti: [variante({ riga: 2 }), variante({ riga: 3, sku: "DUE-1", giacenza: -1 })] })).errori[0].riga]);

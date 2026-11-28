@@ -140,7 +140,21 @@ export async function prove(_mod, { c, gruppo, radice }) {
   c("due varianti con le stesse opzioni (anche in maiuscolo) → errore con la riga della prima", true, /già alla riga 2/.test(rep.errori[0]?.frase ?? ""));
   c("due opzioni con lo stesso nome (anche in maiuscolo) → errore a parole", true, L([{ Handle: "dn", Title: "Dn", "Option1 Name": "Colore", "Option1 Value": "a", "Option2 Name": "colore", "Option2 Value": "b", "Variant SKU": "DN1", "Variant Price": "1" }]).errori.some((e) => /«colore» è scritta due volte/.test(e.frase)));
   c("più varianti ma una senza opzioni → errore a parole", true, L([{ Handle: "no", Title: "No", "Variant SKU": "N1", "Variant Price": "1" }, { Handle: "no", "Variant SKU": "N2", "Variant Price": "1" }]).errori.some((e) => /non ha opzioni/.test(e.frase)));
-  c("più di 50 varianti → errore con il numero", true, L(Array.from({ length: 51 }, (_x, i) => ({ Handle: "tante", Title: "Tante", "Option1 Name": "Nn", "Option1 Value": `v${i}`, "Variant SKU": `T-${i}`, "Variant Price": "1" }))).errori.some((e) => /51 varianti: il massimo è 50/.test(e.frase)));
+  const tante = (n) => L(Array.from({ length: n }, (_x, i) => ({ Handle: "tante", Title: "Tante", "Option1 Name": "Nn", "Option1 Value": `v${i}`, "Variant SKU": `T-${i}`, "Variant Price": "1" })));
+  c("250 varianti (un kit di Shopify con due colori) entrano", [0, 1], [tante(250).errori.length, tante(250).prodotti.length]);
+  c("più di 250 varianti → errore con il numero", true, tante(251).errori.some((e) => /251 varianti: il massimo è 250/.test(e.frase)));
+  // Shopify lascia scrivere una frase intera come nome dell'opzione: diventa la parola che dice cosa si sceglie, con un avviso.
+  const FRASE = "Prima di procedere, scegli il colore corretto. Se hai dubbi, contattaci: ti aiuteremo a trovare la tonalità perfetta per te.";
+  const lunga = L([
+    { Handle: "protesi-x", Title: "Protesi X", Type: "patch", "Option1 Name": FRASE, "Option1 Value": "1B", "Option2 Name": "Taglia", "Option2 Value": "20X15", "Variant SKU": "PX-1", "Variant Price": "100" },
+    { Handle: "protesi-x", "Option1 Value": "1B10", "Option2 Value": "20X15", "Variant SKU": "PX-2", "Variant Price": "100" },
+  ]);
+  c("nome dell'opzione di 124 segni → «Colore», nessun errore, un avviso che lo dice", [0, 1, ["Colore", "Taglia"], true],
+    [lunga.errori.length, lunga.prodotti.length, Object.keys(lunga.prodotti[0]?.varianti[0]?.opzioni ?? {}), lunga.avvisi.some((a) => /è lungo 124 segni.*l'ho chiamata «Colore»/.test(a.frase))]);
+  const lunghi = M.nomeOpzioneCorto("Scegli qui sotto la versione che preferisci per il tuo acquisto di oggi", []);
+  const occupati = M.nomeOpzioneCorto(FRASE, ["Colore"]);
+  c("nome lungo senza parole note → le prime parole entro 40 segni; se «Colore» c'è già, mai lo stesso nome", [true, "Scegli qui sotto la versione che", true, true],
+    [lunghi.length <= 40, lunghi, occupati.length <= 40, occupati.toLowerCase() !== "colore"]);
   const tanti = M.leggiProdottiCsv(tab(Array.from({ length: 301 }, (_x, i) => ({ Handle: `p${i}`, Title: `P${i}`, "Variant SKU": `S${i}`, "Variant Price": "1" }))), { categorie: [] });
   c("oltre 300 prodotti → respinto con la frase, nessun prodotto", [0, true], [tanti.prodotti.length, /301 prodotti: il massimo è 300/.test(tanti.errori[0].frase)]);
 

@@ -19,7 +19,8 @@ export const SOTTO_RUOLI = ["retro_base", "macro_attaccatura", "colore_luce", "a
 export type SottoRuolo = (typeof SOTTO_RUOLI)[number];
 
 export const MAX_OPZIONI = 3;
-export const MAX_COMBINAZIONI = 50;
+/** Come i kit di Shopify con due colori da scegliere (15 × 15 = 225, 10 × 25 = 250): il database ha lo stesso tetto. */
+export const MAX_COMBINAZIONI = 250;
 const MAX_SLUG = 80;
 const MAX_SKU = 40;
 
@@ -309,7 +310,7 @@ const sigla = (valore: string) => (senzaAccenti(valore).toUpperCase().replace(/[
 /**
  * Le varianti che nascono da opzioni e valori (Design §4.10.4): il prodotto di tutti i valori, la prima opzione
  * gira più lenta. Lo SKU proposto è `<SKU del prodotto>-<2 lettere per valore>`; il titolare lo può cambiare.
- * Si rifiuta (con la frase per il titolare) oltre 3 opzioni o oltre 50 combinazioni, PRIMA di costruirle.
+ * Si rifiuta (con la frase per il titolare) oltre 3 opzioni o oltre 250 combinazioni, PRIMA di costruirle.
  */
 export function combinazioni(skuProdotto: string, opzioni: readonly OpzioneInput[]): EsitoCombinazioni {
   if (!skuValido(skuProdotto)) return rifiuto("sku_non_valido", "Prima serve lo SKU del prodotto: maiuscolo, senza spazi (per esempio HG-T01).");

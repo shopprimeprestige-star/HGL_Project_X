@@ -288,8 +288,8 @@ export async function prove(mod, { c, gruppo, radice }) {
     c("varianti_genera con 3 opzioni (2×2×2) → 8 varianti, SKU diversi, giacenza 0", [true, 8, 8, true], [r.json.ok, r.json.create.length, new Set(r.json.create.map((v) => v.sku)).size, r.json.create.every((v) => v.giacenza === 0)]);
     const di_nuovo = await POST(g, { azione: "varianti_genera", prodottoId: P2, opzioni: [{ nome: "Colore", valori: ["Nero", "Biondo"] }, { nome: "Lunghezza", valori: ["30", "40"] }, { nome: "Base", valori: ["PU", "Lace"] }] });
     c("rilanciata: non nascono doppioni", [0, 8, 9], [di_nuovo.json.create.length, di_nuovo.json.esistenti, g.tabelle.shop_varianti.filter((v) => v.prodotto_id === P2).length]);
-    const troppe = await POST(g, { azione: "varianti_genera", prodottoId: P2, opzioni: ["A", "B", "C"].map((nome) => ({ nome, valori: ["1", "2", "3", "4"] })) });
-    c("64 combinazioni → rifiutate con la frase del limite; 4 opzioni anche", [400, true, 400], [troppe.stato, /50/.test(troppe.json.frase), (await POST(g, { azione: "varianti_genera", prodottoId: P2, opzioni: ["A", "B", "C", "D"].map((nome) => ({ nome, valori: ["1"] })) })).stato]);
+    const troppe = await POST(g, { azione: "varianti_genera", prodottoId: P2, opzioni: ["A", "B", "C"].map((nome) => ({ nome, valori: ["1", "2", "3", "4", "5", "6", "7"] })) });
+    c("343 combinazioni → rifiutate con la frase del limite (250); 4 opzioni anche", [400, true, 400], [troppe.stato, /250/.test(troppe.json.frase), (await POST(g, { azione: "varianti_genera", prodottoId: P2, opzioni: ["A", "B", "C", "D"].map((nome) => ({ nome, valori: ["1"] })) })).stato]);
     c("opzioni nulle → 400, nessuna eccezione", 400, (await POST(g, { azione: "varianti_genera", prodottoId: P2, opzioni: [{ nome: null, valori: null }] })).stato);
   }
 

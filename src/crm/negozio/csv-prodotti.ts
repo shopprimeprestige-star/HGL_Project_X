@@ -92,6 +92,30 @@ const VERO = /^(?:true|vero|si|sì|yes|1|active|attivo)$/i;
 const sigla = (valore: string): string =>
   (valore.normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase().replace(/[^A-Z0-9]/g, "") || "XX").slice(0, 2);
 
+/** Le parole che dicono cosa sceglie un'opzione, nell'ordine in cui si cercano dentro un nome troppo lungo. */
+const NOMI_NOTI: readonly [RegExp, string][] = [
+  [/\b(?:colore|colori|tonalit[aà]|colour|color)\b/i, "Colore"],
+  [/\b(?:lunghezza|lunghezze|length)\b/i, "Lunghezza"],
+  [/\b(?:taglia|taglie|misura|misure|dimensione|dimensioni|size)\b/i, "Taglia"],
+  [/\b(?:densit[aà]|density)\b/i, "Densità"],
+  [/\b(?:base|basi)\b/i, "Base"],
+  [/\b(?:formato|formati)\b/i, "Formato"],
+  [/\b(?:modello|modelli)\b/i, "Modello"],
+];
+
+/** Shopify lascia scrivere come nome dell'opzione anche una frase intera («Prima di procedere, scegli il colore corretto…»): qui diventa
+ *  la parola che dice cosa si sceglie, o le prime parole che stanno nel tetto. Il nome nuovo non deve essere già di un'altra opzione. */
+export function nomeOpzioneCorto(nome: string, altri: readonly string[], max: number = LIMITI.nomeOpzione): string {
+  const occupato = (x: string) => altri.some((a) => a.toLowerCase() === x.toLowerCase());
+  for (const [re, corto] of NOMI_NOTI) if (re.test(nome) && !occupato(corto)) return corto;
+  const parole = nome.replace(/[.,;:!?]+/g, " ").split(/\s+/).filter(Boolean);
+  let t = "";
+  for (const w of parole) { if (`${t} ${w}`.trim().length > max) break; t = `${t} ${w}`.trim(); }
+  t = (t || nome.slice(0, max)).trim();
+  for (let k = 2; occupato(t); k++) t = `${t.slice(0, max - `${k}`.length - 1).trim()} ${k}`;
+  return t;
+}
+
 interface Gruppo {
   handle: string;
   righe: { riga: number; celle: readonly string[] }[];
@@ -207,6 +231,12 @@ export function leggiProdottiCsv(record: readonly (readonly string[])[], opz: Op
     const nomi: string[] = ["", "", ""];
     const opt = (k: number, parte: "Nome" | "Valore") => `opt${k}${parte}` as ChiaveColonna;
     for (const r of g.righe) for (let k = 1; k <= 3; k++) if (!nomi[k - 1]) nomi[k - 1] = uno(cella(r.celle, opt(k, "Nome")));
+    for (let k = 0; k < 3; k++)
+      if (nomi[k].length > LIMITI.nomeOpzione) {
+        const corto = nomeOpzioneCorto(nomi[k], nomi.filter((_x, j) => j !== k));
+        avv(riga1, `Il nome dell'opzione «${mostra(nomi[k])}» è lungo ${nomi[k].length} segni (il massimo è ${LIMITI.nomeOpzione}): l'ho chiamata «${corto}». Lo cambi nella scheda.`);
+        nomi[k] = corto;
+      }
     const nomiDoppi = nomi.filter((x, k) => x && nomi.findIndex((y) => y.toLowerCase() === x.toLowerCase()) < k);
     if (nomiDoppi.length) err(riga1, `L'opzione «${mostra(nomiDoppi[0])}» è scritta due volte: ogni opzione ha un nome diverso.`);
     let massimoOpzioni = 0;

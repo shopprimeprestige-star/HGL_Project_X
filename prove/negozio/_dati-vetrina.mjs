@@ -148,7 +148,7 @@ export const CATALOGO = congela([...PIENO.prodotti, PIENO.invisibleDerm]);
 export const CATALOGO_UNA_FOTO = congela((() => { const c = catalogo({ media: "una" }); return [...c.prodotti, c.invisibleDerm]; })());
 export const CATALOGO_SENZA_FOTO = congela((() => { const c = catalogo({ media: "vuota" }); return [...c.prodotti, c.invisibleDerm]; })());
 
-/** Un prodotto «stress»: 10 colori x 5 lunghezze = 50 varianti (il massimo, `MAX_COMBINAZIONI`). */
+/** Un prodotto «stress»: 10 colori x 5 lunghezze = 50 varianti (il vecchio massimo; `MAX_COMBINAZIONI` è 250 dal 28/11/2026). */
 export function prodottoStress(media = "piena") {
   return prodotto({
     slug: "prodotto-stress", sku: "STRESS", nome: "Prodotto stress di prova", tipo: "patch", categorie: [CATEGORIA_PATCH], base: 30000, media,

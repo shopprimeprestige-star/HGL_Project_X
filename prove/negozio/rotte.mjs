@@ -98,7 +98,7 @@ export async function prove(mod, { c, gruppo, radice }) {
     pull(ctrl) { contatore.letti++; ctrl.enqueue(new TextEncoder().encode("x".repeat(dimensionePezzo))); if (contatore.letti > 20000) ctrl.close(); },
   });
   const richiestaFlusso = (contatore, extra = {}) => new Request("https://sito.test/api/crm/negozio", { method: "POST", headers: { "content-type": "application/json", ...extra }, body: flusso(1000, contatore), duplex: "half" });
-  for (const [nome, gestore, tetto] of [["smistamento (tetto 100 mila)", (r, a) => S.gestisciPOST(r, a.d), 100_000], ["giacenza (tetto 20 mila)", (r, a) => G.gestisciPOST(r, a.d), 20_000], ["categorie (tetto 20 mila)", (r, a) => K.gestisciPOST(r, a.d), 20_000]]) {
+  for (const [nome, gestore, tetto] of [["smistamento (tetto 200 mila)", (r, a) => S.gestisciPOST(r, a.d), 200_000], ["giacenza (tetto 20 mila)", (r, a) => G.gestisciPOST(r, a.d), 20_000], ["categorie (tetto 20 mila)", (r, a) => K.gestisciPOST(r, a.d), 20_000]]) {
     const cont = { letti: 0 }, a = ambiente();
     const r = await leggi(await gestore(richiestaFlusso(cont), a));
     c(`corpo senza Content-Length che non finisce mai, ${nome}: rifiutato (413) e si smette di leggere poco oltre il tetto`, [413, false, true, 0], [r.stato, r.corpo.ok, cont.letti <= tetto / 1000 + 5, a.db.chiamate]);

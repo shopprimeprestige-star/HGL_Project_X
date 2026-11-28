@@ -258,10 +258,10 @@ export async function prove(mod, { c, gruppo, radice }) {
       const quattro = [variante({ opzioni: { Colore: "Nero", Misura: "S", Lunghezza: "30", Base: "Liscia" } })];
       const h4 = await vedi(props(quattro));
       c("4 opzioni: «Crea le varianti» spento e la frase «al massimo 3 opzioni»", [true, true], [spentoCon(h4, "Crea le varianti"), leggibile(h4).includes("Si possono usare al massimo 3 opzioni")]);
-      const cinquantasei = [...Array.from({ length: 8 }, (_, i) => variante({ id: `a${i}`, sku: `X-A${i}`, opzioni: { Colore: `C${i}`, Misura: "M0" } })), ...Array.from({ length: 6 }, (_, i) => variante({ id: `b${i}`, sku: `X-B${i}`, opzioni: { Colore: "C0", Misura: `M${i + 1}` } }))];
+      const cinquantasei = [...Array.from({ length: 16 }, (_, i) => variante({ id: `a${i}`, sku: `X-A${i}`, opzioni: { Colore: `C${i}`, Misura: "M0" } })), ...Array.from({ length: 16 }, (_, i) => variante({ id: `b${i}`, sku: `X-B${i}`, opzioni: { Colore: "C0", Misura: `M${i + 1}` } }))];
       const h56 = await vedi(props(cinquantasei));
-      c("56 combinazioni: «Crea le varianti» spento e la frase «il massimo è 50»", [true, true], [spentoCon(h56, "Crea le varianti"), /56 varianti: il massimo è 50/.test(leggibile(h56))]);
-      c("sempre scritto: «Al massimo 3 opzioni e 50 combinazioni.»", true, leggibile(h56).includes("Al massimo 3 opzioni e 50 combinazioni."));
+      c("272 combinazioni (16 × 17): «Crea le varianti» spento e la frase «il massimo è 250»", [true, true], [spentoCon(h56, "Crea le varianti"), /272 varianti: il massimo è 250/.test(leggibile(h56))]);
+      c("sempre scritto: «Al massimo 3 opzioni e 250 combinazioni.»", true, leggibile(h56).includes("Al massimo 3 opzioni e 250 combinazioni."));
       const tre = [variante({ opzioni: { Colore: "Nero", Misura: "S", Lunghezza: "30" } })];
       const h3 = await vedi(props(tre));
       c("3 opzioni: «Aggiungi un'opzione» spento, con «Hai già 3 opzioni: è il massimo»", [true, true], [spentoCon(h3, "Aggiungi un'opzione") || spentoCon(h3, "Aggiungi un&#x27;opzione"), leggibile(h3).includes("Hai già 3 opzioni: è il massimo.")]);

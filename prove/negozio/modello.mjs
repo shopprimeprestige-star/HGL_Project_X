@@ -10,7 +10,7 @@ export async function prove(mod, { c, gruppo }) {
   // ── costanti ──
   c("gli slot dei media (D30)", ["principale", "foto2", "foto3", "foto4", "foto5", "scala", "video", "confezione", "campione"], [...M.SLOT]);
   c("i sotto-ruoli delle foto", ["retro_base", "macro_attaccatura", "colore_luce", "altro"], [...M.SOTTO_RUOLI]);
-  c("opzioni al massimo 3, combinazioni al massimo 50 (D25)", [3, 50], [M.MAX_OPZIONI, M.MAX_COMBINAZIONI]);
+  c("opzioni al massimo 3, combinazioni al massimo 250 (D25; 250 dal 28/11/2026 per i kit di Shopify)", [3, 250], [M.MAX_OPZIONI, M.MAX_COMBINAZIONI]);
   c("tetti di lunghezza: riga 90, breve 300, alt 125, SEO 60 e 155", { riga: 90, breve: 300, alt: 125, seoTitolo: 60, seoDescrizione: 155 }, { ...M.TETTI });
 
   // ── slug ──
@@ -71,17 +71,17 @@ export async function prove(mod, { c, gruppo }) {
   c("combinazioni: con un SKU di 40 segni quelli proposti restano validi e diversi", [true, 3], [lunga.varianti?.every((v) => M.skuValido(v.sku)), new Set(lunga.varianti?.map((v) => v.sku)).size]);
   const senzaLettere = M.combinazioni("HG-X", [{ nome: "Misura", valori: ["—", "…"] }]);
   c("combinazioni: un valore senza lettere né cifre dà comunque uno SKU valido", [true, 2], [senzaLettere.varianti?.every((v) => M.skuValido(v.sku)), new Set(senzaLettere.varianti?.map((v) => v.sku)).size]);
-  const cinquanta = M.combinazioni("HG-X", [{ nome: "Colore", valori: Array.from({ length: 5 }, (_, i) => `c${i}`) }, { nome: "Lunghezza", valori: Array.from({ length: 10 }, (_, i) => `l${i}`) }]);
-  c("combinazioni: 50 è il massimo e passa", [true, 50, 50], [cinquanta.ok, cinquanta.varianti?.length, new Set(cinquanta.varianti?.map((v) => v.sku)).size]);
+  const cinquanta = M.combinazioni("HG-X", [{ nome: "Colore", valori: Array.from({ length: 10 }, (_, i) => `c${i}`) }, { nome: "Lunghezza", valori: Array.from({ length: 25 }, (_, i) => `l${i}`) }]);
+  c("combinazioni: 250 è il massimo e passa", [true, 250, 250], [cinquanta.ok, cinquanta.varianti?.length, new Set(cinquanta.varianti?.map((v) => v.sku)).size]);
   const tre = M.combinazioni("HG-X", [{ nome: "A", valori: ["1", "2"] }, { nome: "B", valori: ["1", "2"] }, { nome: "C", valori: ["1", "2"] }]);
   c("combinazioni: 3 opzioni da 2 valori → 8 varianti", [true, 8], [tre.ok, tre.varianti?.length]);
 
   const v = (n) => Array.from({ length: n }, (_, i) => `v${i}`);
-  const sessantaquattro = M.combinazioni("HG-X", [{ nome: "A", valori: v(4) }, { nome: "B", valori: v(4) }, { nome: "C", valori: v(4) }]);
-  c("combinazioni: 3 opzioni da 4 valori (64) → rifiutate", [false, "troppe_combinazioni"], [sessantaquattro.ok, sessantaquattro.motivo]);
-  c("…con la frase del limite: dice 64 e 50", [true, true], [/64/.test(sessantaquattro.frase), /\b50\b/.test(sessantaquattro.frase)]);
-  const cinquantuno = M.combinazioni("HG-X", [{ nome: "A", valori: v(3) }, { nome: "B", valori: v(17) }]);
-  c("combinazioni: 51 → rifiutate", [false, "troppe_combinazioni"], [cinquantuno.ok, cinquantuno.motivo]);
+  const sessantaquattro = M.combinazioni("HG-X", [{ nome: "A", valori: v(7) }, { nome: "B", valori: v(7) }, { nome: "C", valori: v(7) }]);
+  c("combinazioni: 3 opzioni da 7 valori (343) → rifiutate", [false, "troppe_combinazioni"], [sessantaquattro.ok, sessantaquattro.motivo]);
+  c("…con la frase del limite: dice 343 e 250", [true, true], [/343/.test(sessantaquattro.frase), /\b250\b/.test(sessantaquattro.frase)]);
+  const cinquantuno = M.combinazioni("HG-X", [{ nome: "A", valori: v(3) }, { nome: "B", valori: v(84) }]);
+  c("combinazioni: 252 → rifiutate", [false, "troppe_combinazioni"], [cinquantuno.ok, cinquantuno.motivo]);
   const quattro = M.combinazioni("HG-X", ["A", "B", "C", "D"].map((nome) => ({ nome, valori: ["1", "2"] })));
   c("combinazioni: 4 opzioni → rifiutate, anche se le combinazioni sarebbero poche", [false, "troppe_opzioni", true], [quattro.ok, quattro.motivo, /\b3\b/.test(quattro.frase)]);
   const enorme = M.combinazioni("HG-X", ["A", "B", "C"].map((nome) => ({ nome, valori: v(2000) })));

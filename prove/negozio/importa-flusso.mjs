@@ -1,5 +1,5 @@
 /** ── EDITOR PRODOTTI · E10 · IL FLUSSO DELL'IMPORT (macchina a stati pura) ─────
- *  `src/crm/ecommerce/prodotti/importa/importa-flusso.ts`: gruppi (mai oltre 5 prodotti e 80 000 byte), anteprima dal file, avanzamento, ripresa
+ *  `src/crm/ecommerce/prodotti/importa/importa-flusso.ts`: gruppi (mai oltre 5 prodotti e 160 000 byte), anteprima dal file, avanzamento, ripresa
  *  dopo un errore, riepilogo e righe da correggere. Il server è uno STUB scritto qui secondo `import-contratto.ts` (il vero è E3): registra ogni
  *  richiesta e ogni scrittura. Dati inventati, nessuna rete. */
 import { build } from "esbuild";
@@ -51,8 +51,8 @@ function serverFinto({ presenti = [], skuUsati = [], categorie = [], importaDisp
 
 const variante = (n, o = {}) => ({ riga: n + 1, sku: `P-${n}`, nome: "Unica", opzioni: {}, prezzoCent: null, pesoG: null, gtin: null, costoCent: null, giacenza: 3, ...o });
 const prod = (n, o = {}) => ({ handle: `prodotto-${n}`, titolo: `Prodotto ${n}`, tipo: "cura", categorie: [], sku: `P-${n}`, prezzoCent: 1990, varianti: [variante(n)], ...o });
-/** Un prodotto grosso di proposito: 50 varianti con nomi da 200 «€» (3 byte l'uno): molti byte, pochi caratteri. */
-const grosso = (n, lung = 200) => prod(n, { varianti: Array.from({ length: 50 }, (_, i) => variante(n * 100 + i, { sku: `G${n}-${i}`, nome: "€".repeat(lung) })) });
+/** Un prodotto grosso di proposito: 50 varianti con nomi da 400 «€» (3 byte l'uno): molti byte, pochi caratteri. */
+const grosso = (n, lung = 400) => prod(n, { varianti: Array.from({ length: 50 }, (_, i) => variante(n * 100 + i, { sku: `G${n}-${i}`, nome: "€".repeat(lung) })) });
 const serie = (n, da = 1) => Array.from({ length: n }, (_, i) => prod(da + i));
 
 export async function prove(_mod, { c, gruppo, radice }) {
@@ -65,17 +65,17 @@ export async function prove(_mod, { c, gruppo, radice }) {
   const Lt = await carica(radice, "src/crm/negozio/csv-lettore.ts");
   const dim = (gruppi) => gruppi.map((g) => g.length);
 
-  // ════ I GRUPPI: mai oltre 5 prodotti e 80 000 byte ════
+  // ════ I GRUPPI: mai oltre 5 prodotti e 160 000 byte ════
   c("12 prodotti → gruppi da 5, 5 e 2, nello stesso ordine, nessuno perso o doppio", [[5, 5, 2], serie(12).map((p) => p.handle)], [dim(F.dividiInGruppi(serie(12)).gruppi), F.dividiInGruppi(serie(12)).gruppi.flat().map((p) => p.handle)]);
   c("6 prodotti → 5 e 1 (mai 6 insieme); 5 → un gruppo; 0 → nessuno", [[5, 1], [5], []], [dim(F.dividiInGruppi(serie(6)).gruppi), dim(F.dividiInGruppi(serie(5)).gruppi), dim(F.dividiInGruppi([]).gruppi)]);
   const sette = Array.from({ length: 7 }, (_, i) => grosso(i + 1));
   const tre = JSON.stringify({ azione: "prodotti_importa", prodotti: sette.slice(0, 3) });
   const g7 = F.dividiInGruppi(sette);
-  c("la misura è in BYTE: tre prodotti grossi sono sotto 80 000 caratteri ma sopra 80 000 byte", [true, true], [tre.length < 80_000, new TextEncoder().encode(tre).length > 80_000]);
-  c("sette prodotti grossi → gruppi da 2, 2, 2 e 1; ogni richiesta vera sta sotto gli 80 000 byte", [[2, 2, 2, 1], true, true], [dim(g7.gruppi), g7.gruppi.every((g) => byteDi("prodotti_importa", { prodotti: g }) <= 80_000), F.misuraRichiesta(g7.gruppi[0]) === byteDi("prodotti_importa", { prodotti: g7.gruppi[0] })]);
-  const enorme = prod(9, { varianti: Array.from({ length: 50 }, (_, i) => variante(900 + i, { sku: `E-${i}`, nome: "€".repeat(600) })) });
+  c("la misura è in BYTE: tre prodotti grossi sono sotto 160 000 caratteri ma sopra 160 000 byte", [true, true], [tre.length < 160_000, new TextEncoder().encode(tre).length > 160_000]);
+  c("sette prodotti grossi → gruppi da 2, 2, 2 e 1; ogni richiesta vera sta sotto gli 160 000 byte", [[2, 2, 2, 1], true, true], [dim(g7.gruppi), g7.gruppi.every((g) => byteDi("prodotti_importa", { prodotti: g }) <= 160_000), F.misuraRichiesta(g7.gruppi[0]) === byteDi("prodotti_importa", { prodotti: g7.gruppi[0] })]);
+  const enorme = prod(9, { varianti: Array.from({ length: 50 }, (_, i) => variante(900 + i, { sku: `E-${i}`, nome: "€".repeat(1200) })) });
   const g8 = F.dividiInGruppi([prod(1), enorme, prod(2)]);
-  c("un prodotto da solo oltre 80 000 byte non parte: lo si dice a parte, gli altri vanno", [[2], ["prodotto-9"]], [dim(g8.gruppi), g8.troppoGrandi.map((p) => p.handle)]);
+  c("un prodotto da solo oltre 160 000 byte non parte: lo si dice a parte, gli altri vanno", [[2], ["prodotto-9"]], [dim(g8.gruppi), g8.troppoGrandi.map((p) => p.handle)]);
 
   // ════ L'AVANZAMENTO E IL GIRO COMPLETO ════
   let s = F.avviaImporta(serie(12));
@@ -83,7 +83,7 @@ export async function prove(_mod, { c, gruppo, radice }) {
   const srv = serverFinto();
   const aggiornamenti = [];
   s = await F.eseguiGruppi(s, (prodotti) => srv.esegui("prodotti_importa", { prodotti }), { aggiorna: (x) => aggiornamenti.push(F.avanzamento(x).percento) });
-  c("giro completo: 3 richieste (5, 5, 2 prodotti), tutte sotto 5 prodotti e 100 000 byte", [[5, 5, 2], true], [srv.richiesteImporta().map((r) => r.dati.prodotti.length), srv.richiesteImporta().every((r) => r.dati.prodotti.length <= 5 && r.byte <= 80_000)]);
+  c("giro completo: 3 richieste (5, 5, 2 prodotti), tutte sotto 5 prodotti e 200 000 byte", [[5, 5, 2], true], [srv.richiesteImporta().map((r) => r.dati.prodotti.length), srv.richiesteImporta().every((r) => r.dati.prodotti.length <= 5 && r.byte <= 160_000)]);
   c("la barra sale a ogni gruppo e arriva a 100 solo alla fine (41, 83, 100)", [41, 83, 100], aggiornamenti);
   c("nel server ci sono 12 prodotti, tutti in bozza, nessuno doppio", [12, ["bozza"]], [srv.db.size, [...new Set([...srv.db.values()].map((p) => p.stato))]]);
   c("nessuna richiesta porta un campo «stato»: l'import non lo scrive mai", false, srv.log.some((r) => JSON.stringify(r.dati).includes('"stato"')));

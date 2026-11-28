@@ -69,7 +69,7 @@ export async function prove(mod, { c, gruppo, radice }) {
 
   // ── categorie, stress, scenario da 50 ──
   c("3 categorie: la terza senza prodotti (`quanti` 0), le altre contano i prodotti che le portano", [[6, 3, 0], true], [D.CATEGORIE.map((x) => x.quanti), new Set(D.CATEGORIE.map((x) => x.seo.titolo)).size === 3]);
-  c("prodotto «stress»: 50 varianti (il massimo del modello), 2 opzioni", [M.MAX_COMBINAZIONI, 2], [D.PRODOTTO_STRESS.varianti.length, D.PRODOTTO_STRESS.opzioni.length]);
+  c("prodotto «stress»: 50 varianti (entro il massimo del modello, 250), 2 opzioni", [50, true, 2], [D.PRODOTTO_STRESS.varianti.length, D.PRODOTTO_STRESS.varianti.length <= M.MAX_COMBINAZIONI, D.PRODOTTO_STRESS.opzioni.length]);
   c("scenario da 50 prodotti: nomi e indirizzi tutti diversi, SKU validi", [50, 50, true], [D.SCENARIO_50.length, new Set(D.SCENARIO_50.map((p) => p.slug)).size, D.SCENARIO_50.every((p) => M.skuValido(p.sku) && p.varianti.every((v) => M.skuValido(v.sku)))]);
 
   // ── tariffa, testi confermati, landing_content ──

@@ -181,7 +181,7 @@ export async function prove(mod, { c, gruppo, radice }) {
     "SKU non valido": prodotto(21, { sku: "hg t01", varianti: [variante(2, "hg t01")] }),
     "handle non normalizzato": prodotto(22, { handle: "Lace Front" }),
     "«sconto del» nel titolo": prodotto(23, { titolo: "Crema sconto del 20%" }),
-    "51 varianti": prodotto(24, { varianti: Array.from({ length: 51 }, (_, k) => variante(2 + k, `IMP-24-${k}`)) }),
+    "251 varianti": prodotto(24, { varianti: Array.from({ length: 251 }, (_, k) => variante(2 + k, `IMP-24-${k}`)) }),
     "giacenza enorme": prodotto(25, { varianti: [variante(2, "IMP-25", { giacenza: 99999999999 })] }),
     "tipo sconosciuto": prodotto(26, { tipo: "boh" }),
     "categoria inesistente": prodotto(27, { categorie: ["non-esiste"] }),
@@ -230,17 +230,17 @@ export async function prove(mod, { c, gruppo, radice }) {
   const gruppo75 = Array.from({ length: 5 }, (_, i) => grande(70 + i));
   const peso = byte({ azione: "prodotti_importa", prodotti: gruppo75 });
   const g75 = await importa(gruppo75);
-  c(`un gruppo di 5 prodotti da ~75 KB (${peso} byte: oltre i 20 000 di leggiCorpo, sotto i 100 000 del server) è accettato`, [true, 200, ["creato", "creato", "creato", "creato", "creato"], 250], [peso > 70_000 && peso < 100_000, g75.stato, g75.corpo.risultati?.map((r) => r.esito), righeDi(g75.db, "shop_varianti").filter((v) => v.sku.startsWith("GR-")).length]);
+  c(`un gruppo di 5 prodotti da ~75 KB (${peso} byte: oltre i 20 000 di leggiCorpo, sotto i 200 000 del server) è accettato`, [true, 200, ["creato", "creato", "creato", "creato", "creato"], 250], [peso > 70_000 && peso < 100_000, g75.stato, g75.corpo.risultati?.map((r) => r.esito), righeDi(g75.db, "shop_varianti").filter((v) => v.sku.startsWith("GR-")).length]);
   const pad = (n) => JSON.stringify({ azione: "prodotti_importa", prodotti: [], x: "a".repeat(n) });
-  const n0 = 100_000 - byte(pad(0));
+  const n0 = 200_000 - byte(pad(0));
   const alTetto = await POST(pad(n0));
-  c("corpo di ESATTAMENTE 100 000 byte → non è 413 (qui è «elenco vuoto», 400)", [100_000, 400], [byte(pad(n0)), alTetto.stato]);
+  c("corpo di ESATTAMENTE 200 000 byte → non è 413 (qui è «elenco vuoto», 400)", [200_000, 400], [byte(pad(n0)), alTetto.stato]);
   const sopra = await POST(pad(n0 + 1));
-  c("corpo di 100 001 byte (con Content-Length) → 413, database mai toccato", [100_001, 413, 0], [byte(pad(n0 + 1)), sopra.stato, sopra.db.chiamate]);
+  c("corpo di 200 001 byte (con Content-Length) → 413, database mai toccato", [200_001, 413, 0], [byte(pad(n0 + 1)), sopra.stato, sopra.db.chiamate]);
   const flusso = (testo) => new ReadableStream({ start(ctrl) { const e = new TextEncoder().encode(testo); for (let i = 0; i < e.length; i += 4096) ctrl.enqueue(e.subarray(i, i + 4096)); ctrl.close(); } });
   const a2 = amb();
   const senzaLunghezza = await leggi(await I.gestisciPOST(new Request("https://sito.test/api/crm/negozio", { method: "POST", body: flusso(pad(n0 + 1)), duplex: "half" }), a2.d));
-  c("corpo a pezzi senza Content-Length oltre 100 000 byte → 413 lo stesso", [413, 0], [senzaLunghezza.stato, a2.db.chiamate]);
+  c("corpo a pezzi senza Content-Length oltre 200 000 byte → 413 lo stesso", [413, 0], [senzaLunghezza.stato, a2.db.chiamate]);
 
   // ── doppioni: secondo invio, SKU di un altro prodotto, due prodotti con lo stesso SKU ──
   const db2 = fintoDb({ tabelle: tabelleProva() });
@@ -283,7 +283,7 @@ export async function prove(mod, { c, gruppo, radice }) {
   // ── il sorgente ──
   const src = togliCommenti(readFileSync(join(radice, "src/crm/negozio/import.server.ts"), "utf8"));
   c("sorgente: nessun `delete`, nessun `.delete(`, nessun `console.`, nessun `process.env`, nessun `parseFloat`", [false, false, false, false, false], [/\bdelete\b/i.test(src), /\.delete\(/.test(src), /console\./.test(src), /process\.env/.test(src), /parseFloat/.test(src)]);
-  c("sorgente: il tetto del corpo è quello dell'import (100 000, LIMITI.byteServer) letto con leggiTesto, non con leggiCorpo (20 000)", [true, false], [/leggiTesto\(request,\s*LIMITI\.byteServer\)/.test(src), /leggiCorpo\(/.test(src)]);
+  c("sorgente: il tetto del corpo è quello dell'import (200 000, LIMITI.byteServer) letto con leggiTesto, non con leggiCorpo (20 000)", [true, false], [/leggiTesto\(request,\s*LIMITI\.byteServer\)/.test(src), /leggiCorpo\(/.test(src)]);
   c("sorgente: ogni `d.log(` scrive un codice (parola fissa + codice o nome del tipo), mai un testo del prodotto", true, (src.match(/\.log\([^;]*\);/g) ?? []).length > 0 && (src.match(/\.log\([^;]*\);/g) ?? []).every((l) => /^\.log\(`[a-z_ ]+( \$\{sigla\([^`]*\)\})?`\);$/.test(l)));
   c("sorgente: `p_chi` viene dalla guardia (`chi`), mai dal corpo; i campi del prodotto si scrivono uno per uno (nessuna copia dell'input)", [true, false, false], [/p_chi:\s*chi\b/.test(src), /p_chi:\s*(corpo|p)\b/.test(src), /p_prodotto:\s*\{?\s*\.\.\./.test(src)]);
   c("sorgente: riusa le regole del browser (`validaProdottoImport`) e le letture sono spezzate in gruppi da 100", [true, true], [/validaProdottoImport\(/.test(src), /\b100\b/.test(src)]);
