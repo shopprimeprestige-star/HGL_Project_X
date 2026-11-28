@@ -313,7 +313,16 @@ export async function prove(mod, { c, gruppo, radice }) {
     c("gruppo_stato su 3 prodotti (2 ok, 1 senza foto) → {pubblicati:2, restano:[{id, motivo}]}", [2, [{ id: uuid(0x205), motivo: FRASE_FOTO }], ["pubblicato", "bozza", "pubblicato"]],
       [rg.json.pubblicati, rg.json.restano, [uuid(0x204), uuid(0x205), uuid(0x206)].map((i) => riga(gr, i).stato)]);
     c("gruppo_stato: elenco vuoto, troppo lungo o stato strano → 400", [400, 400, 400],
-      [(await POST(gr, { azione: "gruppo_stato", ids: [], stato: "pubblicato" })).stato, (await POST(gr, { azione: "gruppo_stato", ids: Array.from({ length: 101 }, (_, i) => `x${i}`), stato: "pubblicato" })).stato, (await POST(gr, { azione: "gruppo_stato", ids: [P1], stato: "archiviato" })).stato]);
+      [(await POST(gr, { azione: "gruppo_stato", ids: [], stato: "pubblicato" })).stato, (await POST(gr, { azione: "gruppo_stato", ids: Array.from({ length: 101 }, (_, i) => `x${i}`), stato: "pubblicato" })).stato, (await POST(gr, { azione: "gruppo_stato", ids: [P1], stato: "boh" })).stato]);
+    // E14 (27/11/2026): «Elimina» di gruppo = Cestino (stato «archiviato»), mai un delete; dal Cestino si torna in bozza
+    const ce = fintoDb({ tabelle: tab(completo(4), completo(5, {}, false), completo(6)) });
+    const tre = [uuid(0x204), uuid(0x205), uuid(0x206)];
+    const rce = await POST(ce, { azione: "gruppo_stato", ids: tre, stato: "archiviato" });
+    c("E14 · gruppo_stato «archiviato» su 3 → {archiviati:3, restano:[]}, tutti archiviati, NESSUN delete", [200, 3, [], ["archiviato", "archiviato", "archiviato"], true],
+      [rce.stato, rce.json.archiviati, rce.json.restano, tre.map((i) => riga(ce, i).stato), ce.registro.every((x) => x.op !== "delete")]);
+    const rtb = await POST(ce, { azione: "gruppo_stato", ids: tre, stato: "bozza" });
+    c("E14 · dal Cestino «Rimetti in bozza» (gruppo_stato bozza) → {bozze:3}, tornano in bozza", [200, 3, ["bozza", "bozza", "bozza"]], [rtb.stato, rtb.json.bozze, tre.map((i) => riga(ce, i).stato)]);
+    c("E14 · «archiviato» con 21 prodotti → 400 (stesso tetto)", 400, (await POST(ce, { azione: "gruppo_stato", ids: Array.from({ length: 21 }, (_, i) => uuid(0x900 + i)), stato: "archiviato" })).stato);
 
     const ar = fintoDb({ tabelle: tab() });
     const rar = await POST(ar, { azione: "prodotto_stato", prodottoId: P1, stato: "archiviato" });
@@ -346,6 +355,11 @@ export async function prove(mod, { c, gruppo, radice }) {
     const nomi = async (url) => (await GET(fintoDb({ tabelle: t() }), url)).json.prodotti.map((p) => p.sku);
     c("elenco «tutti»: i prodotti del CMS, non quelli del vecchio catalogo (D28)", ["PROVA-001", "PROVA-002"], await nomi("?prodotti"));
     c("segmenti: pubblicati, bozze, da sistemare, vecchio catalogo", [["PROVA-001"], ["PROVA-002"], ["PROVA-002"], ["PROVA-003"]], [await nomi("?prodotti&segmento=pubblicati"), await nomi("?prodotti&segmento=bozze"), await nomi("?prodotti&segmento=da_sistemare"), await nomi("?prodotti&segmento=vecchio_catalogo")]);
+    // E14: gli archiviati stanno solo nel «Cestino» (quelli del vecchio catalogo restano nel loro segmento)
+    const tc = () => tab(completo(3, { origine: "codice", id_codice: "v3" }, false), completo(7, { stato: "archiviato" }), completo(8, { stato: "archiviato", origine: "codice", id_codice: "v8" }));
+    const nomiC = async (url) => (await GET(fintoDb({ tabelle: tc() }), url)).json.prodotti?.map((p) => p.sku) ?? "rifiutato";
+    c("E14 · tutti, pubblicati, bozze e da sistemare NON mostrano gli archiviati; il Cestino solo loro (non il vecchio catalogo)", [["PROVA-001", "PROVA-002"], ["PROVA-001"], ["PROVA-002"], ["PROVA-002"], ["PROVA-007"], ["PROVA-003", "PROVA-008"]],
+      [await nomiC("?prodotti"), await nomiC("?prodotti&segmento=pubblicati"), await nomiC("?prodotti&segmento=bozze"), await nomiC("?prodotti&segmento=da_sistemare"), await nomiC("?prodotti&segmento=cestino"), await nomiC("?prodotti&segmento=vecchio_catalogo")]);
     c("ricerca per nome o SKU (maiuscole non contano), filtro per categoria", [["PROVA-002"], ["PROVA-001"], 400], [await nomi("?prodotti&q=BOZZA"), await nomi(`?prodotti&categoria=${uuid(0x100)}`), (await GET(fintoDb({ tabelle: t() }), "?prodotti&segmento=boh")).stato]);
     const el = (await GET(fintoDb({ tabelle: t() }), "?prodotti")).json.prodotti;
     c("ogni riga porta il PRIMO motivo per cui non è pubblicabile (null se lo è) e la versione", [null, FRASE_FOTO, ISTANTE], [el[0].motivo, el[1].motivo, el[0].versione]);

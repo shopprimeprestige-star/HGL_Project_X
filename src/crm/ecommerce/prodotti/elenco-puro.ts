@@ -16,12 +16,30 @@ export function aGruppi(ids: readonly string[], n = MAX_GRUPPO): string[][] {
   return pezzi;
 }
 
+/** Lo stato che manda un'azione di gruppo; «archiviato» è «Elimina» = il Cestino (E14), mai una cancellazione. */
+export type AzioneGruppo = "pubblicato" | "bozza" | "archiviato";
+/** Dove `gruppo_stato` scrive quanti ne ha cambiati. */
+const CHIAVE_GRUPPO = {
+  pubblicato: "pubblicati",
+  bozza: "bozze",
+  archiviato: "archiviati",
+} as const;
+const FRASI_GRUPPO = {
+  pubblicato: ["Nessun prodotto pubblicato.", "prodotto pubblicato", "prodotti pubblicati"],
+  bozza: ["Nessun prodotto messo in bozza.", "prodotto messo in bozza", "prodotti messi in bozza"],
+  archiviato: [
+    "Nessun prodotto spostato nel Cestino.",
+    "prodotto spostato nel Cestino",
+    "prodotti spostati nel Cestino",
+  ],
+} as const;
+
 /** Somma le risposte di più `gruppo_stato` in una sola, della stessa forma (così `riepilogoGruppo` non cambia). */
 export function uniscoGruppi(
-  azione: "pubblicato" | "bozza",
+  azione: AzioneGruppo,
   risposte: readonly unknown[],
 ): Record<string, unknown> {
-  const chiave = azione === "pubblicato" ? "pubblicati" : "bozze";
+  const chiave = CHIAVE_GRUPPO[azione];
   let n = 0;
   const restano: unknown[] = [];
   for (const r of risposte) {
@@ -39,6 +57,7 @@ export const ETICHETTE_SEGMENTO: Record<Segmento, string> = {
   bozze: "Bozze",
   da_sistemare: "Da sistemare",
   vecchio_catalogo: "Vecchio catalogo",
+  cestino: "Cestino",
 };
 
 /* ══ RICERCA E ORDINE ═══════════════════════════════════════════════════════ */
@@ -175,13 +194,13 @@ const eOggetto = (v: unknown): v is Record<string, unknown> =>
 
 /** Dice quanti sono cambiati, quanti c'erano già così e chi è rimasto fuori, con il perché (la frase la scrive il server). */
 export function riepilogoGruppo(
-  azione: "pubblicato" | "bozza",
+  azione: AzioneGruppo,
   ids: readonly string[],
   dati: unknown,
   nomi: Record<string, string>,
 ): Riepilogo {
   const d = eOggetto(dati) ? dati : {};
-  const n = d[azione === "pubblicato" ? "pubblicati" : "bozze"];
+  const n = d[CHIAVE_GRUPPO[azione]];
   const cambiati = typeof n === "number" && Number.isSafeInteger(n) && n > 0 ? n : 0;
   const fuori: Fuori[] = (Array.isArray(d.restano) ? d.restano : []).flatMap((x: unknown) =>
     eOggetto(x) && typeof x.id === "string"
@@ -194,17 +213,8 @@ export function riepilogoGruppo(
         ]
       : [],
   );
-  const parti = [
-    cambiati === 0
-      ? azione === "pubblicato"
-        ? "Nessun prodotto pubblicato."
-        : "Nessun prodotto messo in bozza."
-      : unaVoltaOMolte(
-          cambiati,
-          azione === "pubblicato" ? "prodotto pubblicato" : "prodotto messo in bozza",
-          azione === "pubblicato" ? "prodotti pubblicati" : "prodotti messi in bozza",
-        ) + ".",
-  ];
+  const [nessuno, uno, molti] = FRASI_GRUPPO[azione];
+  const parti = [cambiati === 0 ? nessuno : `${unaVoltaOMolte(cambiati, uno, molti)}.`];
   const gia = Math.max(0, new Set(ids).size - cambiati - fuori.length);
   if (gia > 0) parti.push(`${gia} ${gia === 1 ? "era già così" : "erano già così"}.`);
   if (fuori.length)

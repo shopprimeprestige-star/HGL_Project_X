@@ -615,7 +615,8 @@ const prodotto_stato: Azione = (c, corpo) => cambiaStato(c, corpo.prodottoId, co
 const gruppo_stato: Azione = async (c, corpo) => {
   const ids = corpo.ids;
   if (!Array.isArray(ids) || ids.length === 0 || ids.length > MAX_GRUPPO || !ids.every(eId)) throw valore(`Si possono cambiare al massimo ${MAX_GRUPPO} prodotti alla volta: scegline meno e ripeti.`);
-  if (corpo.stato !== "pubblicato" && corpo.stato !== "bozza") throw valore("Qui si può solo pubblicare o rimettere in bozza.");
+  // «archiviato» = il Cestino dell'elenco (E14): si sposta, non si cancella niente (D5)
+  if (corpo.stato !== "pubblicato" && corpo.stato !== "bozza" && corpo.stato !== "archiviato") throw valore("Qui si può solo pubblicare, rimettere in bozza o spostare nel Cestino.");
   let cambiati = 0;
   const restano: { id: string; motivo: string }[] = [];
   for (const id of [...new Set(ids as string[])]) {
@@ -626,7 +627,8 @@ const gruppo_stato: Azione = async (c, corpo) => {
       restano.push({ id, motivo: e.frase });
     }
   }
-  return corpo.stato === "pubblicato" ? { pubblicati: cambiati, restano } : { bozze: cambiati, restano };
+  const chiave = corpo.stato === "pubblicato" ? "pubblicati" : corpo.stato === "archiviato" ? "archiviati" : "bozze";
+  return { [chiave]: cambiati, restano };
 };
 
 const prodotto_adotta: Azione = async (c, corpo) => {
@@ -919,7 +921,7 @@ const AZIONI: Record<(typeof AZIONI_PRODOTTI)[number], Azione> = {
 
 /* ══ LE LETTURE ═════════════════════════════════════════════════════════════ */
 
-const SEGMENTI = ["tutti", "pubblicati", "bozze", "da_sistemare", "vecchio_catalogo"];
+const SEGMENTI = ["tutti", "pubblicati", "bozze", "da_sistemare", "vecchio_catalogo", "cestino"];
 
 async function elencoProdotti(d: DipendenzeProdotti, p: URLSearchParams) {
   const segmento = p.get("segmento") ?? "tutti";
@@ -956,9 +958,11 @@ async function elencoProdotti(d: DipendenzeProdotti, p: URLSearchParams) {
       const vecchio = x.origine === "codice";
       if (segmento === "vecchio_catalogo") return vecchio;
       if (vecchio) return false; // il vecchio catalogo sta solo nel suo segmento (D28)
+      if (segmento === "cestino") return x.stato === "archiviato";
+      if (x.stato === "archiviato") return false; // gli archiviati stanno solo nel Cestino (E14)
       if (segmento === "pubblicati") return x.stato === "pubblicato";
       if (segmento === "bozze") return x.stato === "bozza";
-      if (segmento === "da_sistemare") return x.stato !== "archiviato" && motivo !== null;
+      if (segmento === "da_sistemare") return motivo !== null;
       return true;
     })
     .map(({ prodotto: x, motivo, giacenza, canali }) => ({

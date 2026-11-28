@@ -106,6 +106,8 @@ export async function prove(_mod, { c, gruppo, radice }) {
     "Categorie.tsx": [/\bfetch\(/],
     //  E13 (capo progetto, 26/11/2026): l'unico scaricamento delle foto dell'import, solo verso `HOST_FOTO` (cdn.shopify.com), senza credenziali.
     "importa/importa-foto.ts": [/\bfetch\(/],
+    //  E14 (titolare, 27/11/2026): «Elimina» di gruppo = sposta nel Cestino (stato «archiviato», D5), dopo una conferma; nessun delete.
+    "ElencoProdotti.tsx": [/Elimina/],
   };
   const VIETATE = [/compareAt/i, /prezzo\s+barrato/i, /\brating\b/i, /best\s*seller/i, /\bstelle\b/i, /sconto/i, /\bdelete\b/, /Elimina/, /parseFloat/, /\*\s*100\b/, /\bfetch\(/];
   const tutti = filesDi(dir);

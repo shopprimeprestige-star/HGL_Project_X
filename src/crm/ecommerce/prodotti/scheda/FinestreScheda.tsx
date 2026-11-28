@@ -67,8 +67,8 @@ export function FinestraArchivia({
         <DialogHeader>
           <DialogTitle>Archiviare «{nome}»?</DialogTitle>
           <DialogDescription>
-            Sparisce dal sito e dall'elenco normale. Non si cancella niente: lo ritrovi in «Tutti» e
-            lo puoi rimettere in bozza.
+            Sparisce dal sito e dall'elenco normale. Non si cancella niente: lo ritrovi nel Cestino
+            e lo puoi rimettere in bozza.
           </DialogDescription>
         </DialogHeader>
         <DialogFooter className="gap-2">
