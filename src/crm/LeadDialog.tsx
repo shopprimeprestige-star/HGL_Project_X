@@ -978,6 +978,12 @@ export function LeadDialog({
      l'import da MeetGiornalieri: sono spariti tutti insieme. */
 
   const prezzo = form.payment?.prezzoFinaleVendita || form.payment?.prezzoTotale || 0;
+  /*  «Prezzo e acconto» si vede solo in trattativa o con un prezzo. Le «Note dopo la consulenza»
+      stanno lì dentro, ma si scrivono anche DA FUORI (il tasto «Note» dell'agenda e di «Da fare
+      oggi»): senza questo, su ogni altra scheda le note salvate da fuori non si trovavano più
+      (titolare, 28/11/2026). Quando il blocco è nascosto, le stesse note scendono nella sezione
+      «Note», sempre visibile: un campo solo (`notePostCall`), mai due copie. */
+  const denaroVisibile = !perso && (inTrattativa || prezzo > 0);
   const acconto = form.payment?.accontoPagato || 0;
 
   /*  La catena si apre da sola solo quando fissare È il lavoro: su un lead
@@ -1506,7 +1512,7 @@ export function LeadDialog({
                 />
               )}
 
-              {!perso && (inTrattativa || prezzo > 0) && (
+              {denaroVisibile && (
                 <BloccoDenaro
                   form={form}
                   update={update}
@@ -1667,6 +1673,17 @@ export function LeadDialog({
             {/*  Nota vocale: il testo dettato va in fondo alle note, da rileggere.
                  Non parte niente verso il cliente. */}
             <NotaVocale onTesto={(t) => update("note", notaConDettato(form.note, t, new Date()))} />
+            {!denaroVisibile && (
+              <Campo etichetta="Note dopo la consulenza" className="mt-3">
+                <Textarea
+                  rows={3}
+                  className={CLASSI_AREA}
+                  placeholder="Le note scritte dal tasto «Note» fuori dalla scheda"
+                  value={form.notePostCall || ""}
+                  onChange={(e) => update("notePostCall", e.target.value)}
+                />
+              </Campo>
+            )}
           </SezioneFinestra>
 
           {/* ═══ 4bis · I SUOI PREVENTIVI ═══
