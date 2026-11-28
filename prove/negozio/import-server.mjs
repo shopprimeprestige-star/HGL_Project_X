@@ -248,7 +248,36 @@ export async function prove(mod, { c, gruppo, radice }) {
   const prima = { ...Object.fromEntries(["shop_prodotti", "shop_varianti", "shop_giacenza_movimenti", "shop_storico", "shop_prodotti_categorie"].map((t) => [t, righeDi(db2, t).length])), scritture: scritte(db2) };
   const secondo = await importa([semplice], { db: db2 });
   const dopo = { ...Object.fromEntries(["shop_prodotti", "shop_varianti", "shop_giacenza_movimenti", "shop_storico", "shop_prodotti_categorie"].map((t) => [t, righeDi(db2, t).length])), scritture: scritte(db2) };
-  c("secondo invio dello stesso prodotto → «gia_presente» con lo stesso id, e non entra niente (né righe né movimenti)", [["creato"], ["gia_presente"], true, prima], [primo.corpo.risultati.map((r) => r.esito), secondo.corpo.risultati.map((r) => r.esito), secondo.corpo.risultati[0].prodottoId === primo.corpo.risultati[0].prodottoId, dopo]);
+  c("secondo invio dello stesso prodotto → «aggiornato» con lo stesso id: nessun prodotto, variante o movimento in più, solo lo storico della sovrascrittura", [["creato"], ["aggiornato"], true, { ...prima, shop_storico: prima.shop_storico + 2, scritture: prima.scritture + 1 }], [primo.corpo.risultati.map((r) => r.esito), secondo.corpo.risultati.map((r) => r.esito), secondo.corpo.risultati[0].prodottoId === primo.corpo.risultati[0].prodottoId, dopo]);
+
+  // ── la sovrascrittura (migrazione 20261128130000): il file rimette a posto il prodotto che c'è già ──
+  const db3 = fintoDb({ tabelle: tabelleProva() });
+  const vecchio = prodotto(70, { descrizioneBreve: "Breve vecchia", marca: "Vecchia", varianti: [variante(2, "SOV-1", { nome: "Biondo", opzioni: { Colore: "Biondo" }, giacenza: 5 }), variante(3, "SOV-2", { nome: "Nero", opzioni: { Colore: "Nero" }, giacenza: 5 })] });
+  const creato = await importa([vecchio], { db: db3 });
+  const p70 = () => righeDi(db3, "shop_prodotti").find((r) => r.slug === "prova-70");
+  Object.assign(p70(), { stato: "archiviato", bozza_modifiche: { nome: "modifica a metà" }, nota_titolare: "Nota mia" });
+  const nuovoFile = prodotto(70, { titolo: "Prodotto rifatto", prezzoCent: 2500, marca: "Nuova", descrizioneBreve: "", varianti: [variante(2, "SOV-1", { nome: "Biondo chiaro", opzioni: { Colore: "Biondo chiaro" }, prezzoCent: 2600, giacenza: 99 }), variante(3, "SOV-3", { nome: "Rosso", opzioni: { Colore: "Rosso" }, giacenza: 3 })] });
+  const sov = await importa([nuovoFile], { db: db3 });
+  const v70 = (sku) => righeDi(db3, "shop_varianti").find((r) => r.sku === sku);
+  c("sovrascrive: stesso id, nome e prezzo del file, marca nuova, descrizione vuota nel file = resta quella di prima, nota del titolare intatta", ["aggiornato", creato.corpo.risultati[0].prodottoId, "Prodotto rifatto", 2500, "Nuova", "Breve vecchia", "Nota mia"], [sov.corpo.risultati[0].esito, sov.corpo.risultati[0].prodottoId, p70().nome, p70().prezzo_cent, p70().marca, p70().descrizione_breve, p70().nota_titolare]);
+  c("dal Cestino torna in bozza e le modifiche in bozza non pubblicate si scartano (vince il file)", ["bozza", null], [p70().stato, p70().bozza_modifiche]);
+  c("varianti per SKU: SOV-1 aggiornata (giacenza che c'era intatta, non quella del file), SOV-3 nuova col carico del file, SOV-2 tolta dal file = spenta, non cancellata", [["Biondo chiaro", 2600, 5, true], ["Rosso", 3, true], [false, 5]], [
+    [v70("SOV-1").nome, v70("SOV-1").prezzo_cent, v70("SOV-1").giacenza, v70("SOV-1").attiva], [v70("SOV-3").nome, v70("SOV-3").giacenza, v70("SOV-3").attiva], [v70("SOV-2").attiva, v70("SOV-2").giacenza],
+  ]);
+  Object.assign(p70(), { stato: "pubblicato" });
+  const ancora = await importa([nuovoFile], { db: db3 });
+  c("un prodotto pubblicato sovrascritto resta pubblicato", ["aggiornato", "pubblicato"], [ancora.corpo.risultati[0].esito, p70().stato]);
+  const rubaSku = await importa([prodotto(70, { varianti: [variante(2, "PROVA-001-A")] })], { db: db3 });
+  c("sovrascrivere con lo SKU di un ALTRO prodotto → errore col suo nome, il prodotto resta com'era", [["errore"], ["Lo SKU PROVA-001-A è già usato dal prodotto «Prodotto di prova»."], "Prodotto rifatto", true], [rubaSku.corpo.risultati.map((r) => r.esito), rubaSku.corpo.risultati[0].errori.map((e) => e.frase), p70().nome, v70("SOV-1").attiva]);
+  const db4 = fintoDb({ tabelle: tabelleProva(), senzaFunzioni: ["shop_import_sovrascrivi"] });
+  await importa([vecchio], { db: db4 });
+  const nScritte = scritte(db4);
+  const senzaSov = await importa([nuovoFile], { db: db4 });
+  c("database senza la funzione della sovrascrittura → «gia_presente» come prima, niente scritto, nessun errore", [200, ["gia_presente"], nScritte, "Prodotto importato 70"], [senzaSov.stato, senzaSov.corpo.risultati.map((r) => r.esito), scritte(db4), righeDi(db4, "shop_prodotti").find((r) => r.slug === "prova-70").nome]);
+  const db5 = fintoDb({ tabelle: tabelleProva(), errori: { "rpc.shop_import_sovrascrivi": { error: { code: "XX000", message: "SEGRETO-DEL-DATABASE" } } } });
+  await importa([vecchio], { db: db5 });
+  const guastoSov = await importa([nuovoFile], { db: db5 });
+  c("guasto del database nella sovrascrittura → 500 senza il messaggio del database", [500, false], [guastoSov.stato, JSON.stringify(guastoSov.corpo).includes("SEGRETO")]);
   const altroSku = await importa([prodotto(80, { varianti: [variante(9, "PROVA-001-A")] }), prodotto(81, { varianti: [variante(4, "PROVA-002")] })]);
   c("SKU di una variante o di un prodotto di un ALTRO prodotto → errore col nome del prodotto e la riga; niente scritto", [["errore", "errore"], ["Lo SKU PROVA-001-A è già usato dal prodotto «Prodotto di prova»."], ["Lo SKU PROVA-002 è già usato dal prodotto «Prodotto in bozza»."], [9, 4], 0], [
     altroSku.corpo.risultati.map((r) => r.esito), altroSku.corpo.risultati[0].errori.map((e) => e.frase), altroSku.corpo.risultati[1].errori.map((e) => e.frase), altroSku.corpo.risultati.map((r) => r.errori[0].riga), righeDi(altroSku.db, "shop_prodotti").filter((r) => r.slug === "prova-80" || r.slug === "prova-81").length,

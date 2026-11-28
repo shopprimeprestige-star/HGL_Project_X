@@ -28,7 +28,7 @@ export async function prove(_mod, { c, gruppo, radice }) {
   const percorso = join(cartella, FILE);
   c("la migrazione esiste col nome del piano e viene dopo ogni altra migrazione che c'è già", [true, []], [
     existsSync(percorso),
-    existsSync(cartella) ? readdirSync(cartella).filter((f) => f.endsWith(".sql") && f !== FILE && f > FILE && f !== "20261128120000_shop_import_250_varianti.sql") /* la ricrea col tetto di 250: viene dopo apposta */ : [],
+    existsSync(cartella) ? readdirSync(cartella).filter((f) => f.endsWith(".sql") && f !== FILE && f > FILE && f !== "20261128120000_shop_import_250_varianti.sql" && f !== "20261128130000_shop_import_sovrascrivi.sql") /* la ricrea col tetto di 250, e la sovrascrittura che ne copia i controlli: vengono dopo apposta */ : [],
   ]);
   const collaudo = join(radice, "prove/sql/shop-editor-prodotti.sql");
   c("il collaudo su Postgres usa-e-getta c'è e il LEGGIMI lo spiega", [true, true], [
@@ -120,4 +120,23 @@ export async function prove(_mod, { c, gruppo, radice }) {
   const vistePrima = altre.flatMap((f) => [...senzaCommenti(readFileSync(join(cartella, f), "utf8")).matchAll(/CREATE\s+(?:OR\s+REPLACE\s+)?VIEW\s+public\.shop_v_\w+[\s\S]*?;/gi)].map((m) => m[0]));
   c("le viste shop_v_* delle altre migrazioni sono quattro e nessuna cita il costo", [true, 0], [vistePrima.length >= 4, vistePrima.filter((v) => /costo/i.test(v)).length]);
   c("questa migrazione non ne ridefinisce nessuna e non nomina shop_v_ nel codice", 0, (sql.match(/shop_v_/g) || []).length);
+
+  /* ── 20261128130000: la sovrascrittura del già presente (il comportamento vero l'ho provato su un Postgres usa-e-getta) ── */
+  const SOV = join(cartella, "20261128130000_shop_import_sovrascrivi.sql");
+  const sov = existsSync(SOV) ? senzaCommenti(readFileSync(SOV, "utf8")) : "";
+  const v250 = senzaCommenti(readFileSync(join(cartella, "20261128120000_shop_import_250_varianti.sql"), "utf8"));
+  const controlli = (t) => piatto(t.slice(t.indexOf("IF p_prodotto IS NULL"), t.indexOf("PERFORM pg_advisory_xact_lock")));
+  const FIRMA_SOV = "public.shop_import_sovrascrivi(jsonb, jsonb, uuid[], text)";
+  c("sovrascrittura: c'è, in una transazione, e i suoi controlli sono IDENTICI a quelli dell'import (250 varianti comprese)", [true, true, true, true], [
+    sov.length > 0, /^\s*BEGIN;[\s\S]*COMMIT;\s*$/.test(sov), controlli(sov).length > 1000 && controlli(sov) === controlli(v250), /v_n < 1 OR v_n > 250/.test(sov),
+  ]);
+  c("sovrascrittura: SECURITY DEFINER, search_path fisso, chiusa a PUBLIC/anon/authenticated e aperta solo a service_role", [true, true, true], [
+    /SECURITY DEFINER SET search_path = public, pg_temp/.test(sov), sov.includes(`REVOKE ALL ON FUNCTION ${FIRMA_SOV} FROM PUBLIC, anon, authenticated;`), sov.includes(`GRANT EXECUTE ON FUNCTION ${FIRMA_SOV} TO service_role;`),
+  ]);
+  c("sovrascrittura: niente DELETE, DROP, TRUNCATE, ALTER; non tocca shop_import_prodotto; le varianti tolte si spengono; la nota del titolare e la giacenza vecchia non si scrivono", [false, false, true, false, false], [
+    /\b(DELETE|DROP|TRUNCATE|ALTER)\b/i.test(sov), /FUNCTION public\.shop_import_prodotto/.test(sov), /SET attiva = false/.test(sov), /nota_titolare\s*=/.test(sov), /SET[\s\S]{0,40}giacenza\s*=/.test(sov.slice(sov.indexOf("UPDATE public.shop_varianti"))),
+  ]);
+  c("sovrascrittura: lo stesso lucchetto dell'import e lo SKU di un ALTRO prodotto rifiutato prima di scrivere", [true, true], [
+    sov.includes("pg_advisory_xact_lock(hashtext('shop_import_prodotto'))"), sov.indexOf("'sku_usato'") > 0 && sov.indexOf("'sku_usato'") < sov.indexOf("UPDATE public.shop_prodotti"),
+  ]);
 }

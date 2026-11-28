@@ -155,26 +155,35 @@ export function validaProdottoImport(p: ProdottoImport, ctx: ContestoImport = {}
 
 /* ── confronto con il catalogo (la risposta di `prodotti_importa_verifica`) ── */
 
-/** Dopo la verifica: chi c'è già (saltato, non è un errore), chi usa uno SKU di un altro prodotto (errore), chi è nuovo. */
+/** Dopo la verifica: chi c'è già (si SOVRASCRIVE: va in `daAggiornare`, e in `giaPresenti` per la tabella e le foto), chi usa uno SKU
+ *  di un ALTRO prodotto (errore: gli SKU del prodotto stesso si possono riusare), chi è nuovo. */
 export function confrontaConCatalogo(
   prodotti: readonly ProdottoImport[],
   catalogo: Pick<RispostaVerifica, "presenti" | "skuUsati">,
-): { nuovi: ProdottoImport[]; giaPresenti: { handle: string; prodottoId: string; nome: string }[]; errori: ErroreRiga[] } {
+): {
+  nuovi: ProdottoImport[];
+  daAggiornare: ProdottoImport[];
+  giaPresenti: { handle: string; prodottoId: string; nome: string }[];
+  errori: ErroreRiga[];
+} {
   const presenti = new Map(catalogo.presenti.map((x) => [x.slug, x]));
   const usati = new Map(catalogo.skuUsati.map((x) => [x.sku.toUpperCase(), x]));
   const nuovi: ProdottoImport[] = [];
+  const daAggiornare: ProdottoImport[] = [];
   const giaPresenti: { handle: string; prodottoId: string; nome: string }[] = [];
   const errori: ErroreRiga[] = [];
   for (const p of prodotti) {
     const c = presenti.get(p.handle);
-    if (c) { giaPresenti.push({ handle: p.handle, prodottoId: c.id, nome: c.nome }); continue; }
     const mie: ErroreRiga[] = [];
     for (const v of p.varianti) {
       const u = usati.get(v.sku.toUpperCase());
-      if (u) mie.push({ riga: v.riga, handle: p.handle, frase: `Lo SKU ${v.sku.toUpperCase()} è già usato dal prodotto «${u.prodottoNome}».` });
+      if (u && u.prodottoId !== c?.id) mie.push({ riga: v.riga, handle: p.handle, frase: `Lo SKU ${v.sku.toUpperCase()} è già usato dal prodotto «${u.prodottoNome}».` });
     }
     if (mie.length) errori.push(...mie.map((e) => ({ ...e, righeProdotto: p.varianti.map((v) => v.riga) })));
-    else nuovi.push(p);
+    else if (c) {
+      giaPresenti.push({ handle: p.handle, prodottoId: c.id, nome: c.nome });
+      daAggiornare.push(p);
+    } else nuovi.push(p);
   }
-  return { nuovi, giaPresenti, errori };
+  return { nuovi, daAggiornare, giaPresenti, errori };
 }

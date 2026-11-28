@@ -88,7 +88,7 @@ export async function prove(_mod, { c, gruppo, radice }) {
   c("passo 1: il campo è un file .csv, nascosto (il tasto lo apre)", [true, true], [/<input[^>]*type="file"[^>]*accept="\.csv,text\/csv"/.test(p1) || /<input[^>]*accept="\.csv,text\/csv"[^>]*type="file"/.test(p1), /<input[^>]*class="sr-only"/.test(p1)]);
   c("passo 1: «Scegli il file» (tasto pieno, uno solo), «Scarica il file modello» e «Cosa leggo e cosa ignoro»", [1, true, true, true], [pieni(p1), leggibile(p1).includes("Scegli il file"), leggibile(p1).includes("Scarica il file modello"), leggibile(p1).includes("Cosa leggo e cosa ignoro")]);
   c("passo 1: il riquadro si apre e si chiude (aria-expanded) ed è aperto all'inizio", true, /aria-expanded="true"/.test(p1));
-  c("passo 1: dice cosa si legge, cosa si ignora (foto, Published, Compare At Price) e i limiti (2 MB, 5000 righe, 300 prodotti)", [true, true, true, true, true, true], ["Leggo", "Ignoro", "Foto e video", "2 MB, 5000 righe e 300 prodotti", "CSV UTF-8", "viene saltato, mai aggiornato"].map((t) => leggibile(p1).includes(t)));
+  c("passo 1: dice cosa si legge, cosa si ignora (foto, Published, Compare At Price) e i limiti (2 MB, 5000 righe, 300 prodotti)", [true, true, true, true, true, true], ["Leggo", "Ignoro", "Foto e video", "2 MB, 5000 righe e 300 prodotti", "CSV UTF-8", "viene sovrascritto"].map((t) => leggibile(p1).includes(t)));
   c("passo 1: il file non viene salvato, si dice", true, /non viene salvato/.test(leggibile(p1)));
   c("passo 1: i tasti sono alti 44 px sul telefono (h-11) e 36 sul computer (md:h-9)", true, conta(p1, /h-11 text-\[13px\] md:h-9/g) >= 2);
   const p1l = await resa("PassoScegli.tsx", "PassoScegli", { leggo: true, scegli: nulla, scaricaModello: nulla });
@@ -108,12 +108,12 @@ export async function prove(_mod, { c, gruppo, radice }) {
   const hm = await p2(aMisto);
   c("passo 2, file con errori: «Errori (2)» con la riga e la frase (riga 3 prezzo, riga 4 SKU di un altro prodotto)", [true, true, true], [leggibile(hm).includes("Errori (2)"), /Riga 3 \(handle `prezzo-brutto`\)[^.]*«abc»/.test(leggibile(hm)), /Riga 4 \(handle `sku-altrui`\)[^.]*HG-T01[^.]*«Lace Front Swiss \+ PU»/.test(leggibile(hm))]);
   c("passo 2: il filtro «Mostra solo gli errori» (casella con etichetta) e «Scarica le righe da correggere» ci sono", [true, true, true], [/<label[^>]*>\s*<input[^>]*type="checkbox"[\s\S]*?Mostra solo gli errori/.test(hm), leggibile(hm).includes("Scarica le righe da correggere"), leggibile(hm).includes("Un prodotto con un errore non entra")]);
-  c("passo 2: «Importa 2 prodotti in bozza» (i buoni), «Già presente» col collegamento per aprire il prodotto", [true, true, true], [leggibile(hm).includes("Importa 2 prodotti in bozza"), leggibile(hm).includes("Già presente"), /Apri il prodotto<span class="sr-only"> Già qui<\/span>/.test(hm)]);
+  c("passo 2: «Importa 2 nuovi e sovrascrivi 1» (i buoni e il già presente), «Già presente: lo sovrascrivo» col collegamento per aprire il prodotto", [true, true, true], [leggibile(hm).includes("Importa 2 nuovi e sovrascrivi 1"), leggibile(hm).includes("Già presente: lo sovrascrivo"), /Apri il prodotto<span class="sr-only"> Già qui<\/span>/.test(hm)]);
   c("passo 2: senza la funzione per aprirlo, nessun collegamento falso", false, /Apri il prodotto/.test(await p2(aMisto, { apriProdotto: undefined })));
   const hs = await p2(aSpento);
   c("passo 2, importaDisponibile:false: tasto spento con la frase, legata al tasto (aria-describedby)", [true, true, true], [spento(tasto(hs, "Importa 2 prodotti in bozza")), leggibile(hs).includes("Per importare serve un aggiornamento del database."), /aria-describedby="perche-spento"/.test(hs) && /id="perche-spento"/.test(hs)]);
   const hp = await p2(aTuttiPresenti);
-  c("passo 2, file già importato: «nessun nuovo · 2 già presenti (saltati)», tasto spento con la frase", [true, true, true], [leggibile(hp).includes("2 prodotti · 5 varianti · nessun nuovo · 2 già presenti (saltati) · 0 errori"), spento(tasto(hp, "Importa 0 prodotti in bozza")), leggibile(hp).includes("Non c'è niente di nuovo da importare")]);
+  c("passo 2, file già importato: «nessun nuovo · 2 già presenti (da sovrascrivere)», tasto «Sovrascrivi 2 prodotti» acceso", [true, true, false], [leggibile(hp).includes("2 prodotti · 5 varianti · nessun nuovo · 2 già presenti (da sovrascrivere) · 0 errori"), !spento(tasto(hp, "Sovrascrivi 2 prodotti")), /perche-spento/.test(hp)]);
   const tanti = { ...aMisto, errori: Array.from({ length: 150 }, (_, i) => ({ riga: i + 2, handle: `p-${i}`, frase: `Frase ${i}.` })) };
   const ht = await p2(tanti);
   c("passo 2, 150 errori: se ne scrivono 100 e si dice degli altri 50", [100, true], [conta(ht.slice(ht.indexOf("Errori ("), ht.indexOf("Prodotti del file")), /<li class="break-words">Riga \d+/g), leggibile(ht).includes("…e altri 50 errori")]);
@@ -140,7 +140,7 @@ export async function prove(_mod, { c, gruppo, radice }) {
   c("passo 3, interrotto da chi usa: «Importazione interrotta» come avviso, «Riprendi» acceso, 5 di 12", [true, true, true], [leggibile(hi).includes("Importazione interrotta"), !/role="alert"/.test(hi), leggibile(hi).includes("5 di 12 prodotti")]);
   const finito = await F.eseguiGruppi(F.avviaImporta(a12.nuovi), srv());
   const hz = await p3(finito, false);
-  c("passo 3, finito: «Importati 12 prodotti (tutti in bozza). Saltati 0 già presenti. Respinti 0 con errori.», barra al 100, «Vai ai prodotti importati» pieno, nessun «righe da correggere»", [true, true, 1, true, false], [leggibile(hz).includes("Importati 12 prodotti (tutti in bozza). Saltati 0 già presenti. Respinti 0 con errori."), /aria-valuenow="100"/.test(hz), pieni(hz), leggibile(hz).includes("Vai ai prodotti importati"), /righe da correggere/.test(hz)]);
+  c("passo 3, finito: «Importati 12 prodotti nuovi (tutti in bozza). Sovrascritti 0 già presenti. Respinti 0 con errori.», barra al 100, «Vai ai prodotti importati» pieno, nessun «righe da correggere»", [true, true, 1, true, false], [leggibile(hz).includes("Importati 12 prodotti nuovi (tutti in bozza). Sovrascritti 0 già presenti. Respinti 0 con errori."), /aria-valuenow="100"/.test(hz), pieni(hz), leggibile(hz).includes("Vai ai prodotti importati"), /righe da correggere/.test(hz)]);
   c("passo 3, finito: dice che sono in bozza e senza foto, da controllare prima di pubblicare", true, /in bozza e senza foto/.test(leggibile(hz)));
   const conErr = { ...aMisto, nuovi: aMisto.nuovi };
   const sErr = await F.eseguiGruppi(F.avviaImporta(conErr.nuovi), srv());

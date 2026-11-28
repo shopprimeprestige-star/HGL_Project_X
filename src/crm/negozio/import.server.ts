@@ -18,6 +18,9 @@
  *  · I testi si ripuliscono dai bordi con `trim()` JS (toglie anche tab e a capo): la funzione SQL usa `btrim` e toglie solo gli spazi.
  *  · Il corpo si legge con `leggiTesto(request, LIMITI.byteServer)` (200 000) (non `leggiCorpo`, che ha 20 000): i gruppi veri sono più grandi.
  *  · Una funzione assente (migrazione non applicata) = 409 con la frase «Per importare serve un aggiornamento del database».
+ *  · Un prodotto che c'è già (stesso indirizzo: `shop_import_prodotto` dice «già presente» senza scrivere) si SOVRASCRIVE con
+ *    `shop_import_sovrascrivi` (migrazione 20261128130000): stessi controlli, varianti per SKU, quelle tolte dal file si spengono.
+ *    Se il database non ha ancora quella funzione resta «già presente» (saltato), come prima.
  *  · Nessuna cancellazione, da nessuna parte. Nei log SOLO codici. */
 import { skuValido, slugValido } from "../../shop/cms/modello";
 import { LIMITI, type AvvisoRiga, type ErroreRiga, type ProdottoImport, type RisultatoImporta } from "./import-contratto";
@@ -44,6 +47,8 @@ const FRASE_NON_VALIDA = "La richiesta non è valida.";
 
 /** La funzione SQL (migrazione 20261125120000). */
 const FUNZIONE = "shop_import_prodotto";
+/** La sovrascrittura di un prodotto già presente (migrazione 20261128130000): stessi argomenti. */
+const SOVRASCRIVI = "shop_import_sovrascrivi";
 
 const valore = (frase: string) => rifiuta("valore", 400, frase);
 const sigla = (x: unknown): string => String(x ?? "?").replace(/[^A-Za-z0-9_.]/g, "").slice(0, 30) || "?";
@@ -166,7 +171,7 @@ async function importaUno(grezzo: unknown, chi: string, nota: string, categorie:
   const doppie = opzioniDoppie(grezzo).map(({ riga, nome }) => ({ riga, handle, frase: `Due opzioni hanno lo stesso nome «${nome}» (spazi a parte): tienine una sola.` }));
   if (errori.length || doppie.length) return conAvvisi({ handle, esito: "errore", errori: conRighe([...errori, ...doppie], p) }, avvisi);
 
-  const r = await d.db.rpc(FUNZIONE, {
+  const argomenti = {
     p_prodotto: {
       sku: p.sku, slug: p.handle, nome: p.titolo, tipo: p.tipo, prezzo_cent: p.prezzoCent,
       marca: vuotoANiente(p.marca), descrizione_breve: vuotoANiente(p.descrizioneBreve), descrizione_lunga: vuotoANiente(p.descrizioneLunga),
@@ -179,12 +184,24 @@ async function importaUno(grezzo: unknown, chi: string, nota: string, categorie:
     })),
     p_categorie: [...new Set(p.categorie.map((s) => categorie.get(s)))],
     p_chi: chi,
-  });
+  };
+  const r = await d.db.rpc(FUNZIONE, argomenti);
   if (r.error) throw eMancante(r.error) ? rifiuta("migrazione", 409, "Per importare serve un aggiornamento del database: chiedi a chi gestisce il database di applicarlo.") : guasto(d, "importa", r.error);
 
-  const x = eOggetto(r.data) ? r.data : {};
+  let x = eOggetto(r.data) ? r.data : {};
   if (x.esito === "creato") return conAvvisi({ handle, esito: "creato", prodottoId: String(x.prodotto_id) }, avvisi);
-  if (x.esito === "gia_presente") return { handle, esito: "gia_presente", prodottoId: String(x.prodotto_id) };
+  if (x.esito === "gia_presente") {
+    // C'è già: il file lo sovrascrive. Senza la funzione nuova si salta, come prima.
+    const giaPresente: RisultatoImporta = { handle, esito: "gia_presente", prodottoId: String(x.prodotto_id) };
+    const s = await d.db.rpc(SOVRASCRIVI, argomenti);
+    if (s.error) {
+      if (eMancante(s.error)) return giaPresente;
+      throw guasto(d, "sovrascrivi", s.error);
+    }
+    x = eOggetto(s.data) ? s.data : {};
+    if (x.esito === "aggiornato") return conAvvisi({ handle, esito: "aggiornato", prodottoId: String(x.prodotto_id) }, avvisi);
+    if (x.esito === "non_trovato") return giaPresente; // sparito fra le due chiamate: non si inventa niente
+  }
   const tutteLeRighe = p.varianti.map((v) => v.riga);
   if (x.esito === "sku_usato") {
     const sku = String(x.sku);

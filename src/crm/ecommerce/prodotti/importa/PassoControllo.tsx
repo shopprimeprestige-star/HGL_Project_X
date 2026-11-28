@@ -2,8 +2,8 @@
  *  Commessa 2026-11-25-editor-prodotti, E10 (SPEC §2.3, §6.4). L'anteprima: il riepilogo («12 prodotti · 41 varianti · 9 nuovi · …»), la tabella dei
  *  prodotti con il filtro «solo gli errori», gli errori riga per riga (numero di riga come in Excel), gli avvisi e le colonne ignorate.
  *  Qui NON è stato scritto niente: il tasto «Importa» è l'unico che scrive, ed è l'unico pieno. Solo presentazione, niente rete.
- *  Il tasto resta spento, con la frase, se manca la funzione del database o se non c'è niente di nuovo. Le foto di Shopify (E13) si contano qui;
- *  un file già importato con foto si può ricaricare per le sole foto («Carica N foto»: vanno solo ai prodotti che non ne hanno). */
+ *  Il tasto resta spento, con la frase, se manca la funzione del database o se non c'è niente da importare. I prodotti già presenti
+ *  partono anche loro: il file li sovrascrive (foto comprese). Le foto di Shopify (E13) si contano qui. */
 import { useState } from "react";
 import { AlertTriangle, CheckCircle2, CircleAlert, FileDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -45,7 +45,7 @@ function EsitoRiga({ riga, apri }: { riga: RigaTabella; apri?: (id: string) => v
   return (
     <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">
       <span className="rounded-full border border-border px-2 py-0.5 text-[12px] font-medium text-muted-foreground">
-        Già presente
+        Già presente: lo sovrascrivo
       </span>
       {riga.prodottoId && apri && (
         <button
@@ -136,16 +136,27 @@ export function PassoControllo({
   importa: () => void;
 }) {
   const [soloErr, setSoloErr] = useState(false);
-  const { nuovi, errori, avvisi, righe, lettura, importaDisponibile } = analisi;
+  const { nuovi, daAggiornare, errori, avvisi, righe, lettura, importaDisponibile } = analisi;
   const visibili = soloErr ? soloErrori(righe) : righe;
   const nFoto = fotoPreviste(analisi);
-  const soloFoto = nuovi.length === 0 && nFoto > 0;
-  const puoImportare = importaDisponibile && (nuovi.length > 0 || soloFoto);
+  const daInviare = nuovi.length + daAggiornare.length;
+  const soloFoto = daInviare === 0 && nFoto > 0;
+  const puoImportare = importaDisponibile && (daInviare > 0 || soloFoto);
   const perche = !importaDisponibile
     ? FRASE_NON_DISPONIBILE
     : !puoImportare
-      ? "Non c'è niente di nuovo da importare: i prodotti del file sono già presenti oppure hanno errori."
+      ? "Non c'è niente da importare: i prodotti del file hanno errori."
       : null;
+  const testoTasto =
+    daAggiornare.length === 0
+      ? nuovi.length === 1
+        ? "Importa 1 prodotto in bozza"
+        : `Importa ${nuovi.length} prodotti in bozza`
+      : nuovi.length === 0
+        ? daAggiornare.length === 1
+          ? "Sovrascrivi 1 prodotto"
+          : `Sovrascrivi ${daAggiornare.length} prodotti`
+        : `Importa ${nuovi.length} nuovi e sovrascrivi ${daAggiornare.length}`;
 
   return (
     <div className="flex min-w-0 flex-col gap-4">
@@ -157,9 +168,9 @@ export function PassoControllo({
         </p>
         {nFoto > 0 && (
           <p className="mt-0.5 text-[13px] text-muted-foreground">
-            {nuovi.length > 0 ? "Dopo i prodotti carico" : "Carico"} fino a {nFoto} foto da Shopify
-            (al massimo 5 per prodotto). I prodotti già presenti che hanno già delle foto si
-            saltano.
+            {daInviare > 0 ? "Dopo i prodotti carico" : "Carico"} fino a {nFoto} foto da Shopify (al
+            massimo 5 per prodotto). Nei prodotti già presenti le foto del file prendono il posto di
+            quelle che c'erano.
           </p>
         )}
       </div>
@@ -271,11 +282,7 @@ export function PassoControllo({
             aria-describedby={perche ? "perche-spento" : undefined}
             onClick={importa}
           >
-            {soloFoto
-              ? `Carica ${nFoto} foto`
-              : nuovi.length === 1
-                ? "Importa 1 prodotto in bozza"
-                : `Importa ${nuovi.length} prodotti in bozza`}
+            {soloFoto ? `Carica ${nFoto} foto` : testoTasto}
           </Button>
           {perche && (
             <p id="perche-spento" className="max-w-xs text-right text-[12px] text-muted-foreground">

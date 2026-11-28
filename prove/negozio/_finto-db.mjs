@@ -79,6 +79,7 @@ export const PARAMETRI_FUNZIONI = {
   shop_email_prenota: ["p_ordine", "p_chiave"],
   shop_email_esito: ["p_ordine", "p_chiave", "p_stato", "p_codice"],
   shop_import_prodotto: ["p_prodotto", "p_varianti", "p_categorie", "p_chi"], // editor prodotti (E1): l'import di UN prodotto, tutto o niente
+  shop_import_sovrascrivi: ["p_prodotto", "p_varianti", "p_categorie", "p_chi"], // import che sovrascrive un prodotto già presente (20261128130000)
 };
 /** Le colonne che S4 aggiunge a `shop_orders` e il valore che hanno su una riga VECCHIA dopo la migrazione (default costante o vuoto). */
 export const COLONNE_S4 = {
@@ -746,7 +747,8 @@ export function fintoDb({ tabelle = {}, mancante = false, codiceMancante = "42P0
   };
   const oggettoImport = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
   const pienoONull = (v) => (typeof v === "string" && v.trim() !== "" ? v.trim() : null); // NULLIF(btrim(x), '')
-  function importaProdotto(a) {
+  /** I controlli comuni a import e sovrascrittura (lo stesso blocco SQL nelle due funzioni): `non_valido` o null. */
+  function controllaImport(a) {
     const p = a.p_prodotto;
     const vs = a.p_varianti;
     const cats = a.p_categorie ?? [];
@@ -762,6 +764,15 @@ export function fintoDb({ tabelle = {}, mancante = false, codiceMancante = "42P0
     if (vs.some(opzioniStorte)) return non("varianti.opzioni");
     const skus = vs.map((v) => v.sku);
     if (new Set(skus).size !== skus.length) return non("sku_doppio");
+    return null;
+  }
+  function importaProdotto(a) {
+    const rifiuto = controllaImport(a);
+    if (rifiuto) return rifiuto;
+    const p = a.p_prodotto;
+    const vs = a.p_varianti;
+    const cats = a.p_categorie ?? [];
+    const skus = vs.map((v) => v.sku);
     const chi = chiDi(a.p_chi);
     const gia = righe("shop_prodotti").find((x) => x.slug === p.slug);
     if (gia) return { data: { esito: "gia_presente", prodotto_id: gia.id, nome: gia.nome } };
@@ -798,12 +809,85 @@ export function fintoDb({ tabelle = {}, mancante = false, codiceMancante = "42P0
     }
     return { data: { esito: "creato", prodotto_id: nuovo.id, varianti: creati } };
   }
+  /** `shop_import_sovrascrivi` (migrazione 20261128130000): STESSA logica del SQL. Il prodotto per indirizzo; obbligatori scritti,
+   *  facoltativi solo se pieni; archiviato → bozza; bozza_modifiche azzerate; varianti per SKU (aggiornate e riaccese, nuove col
+   *  «carico», quelle tolte spente); la giacenza di quelle che c'erano non si tocca; categorie solo aggiunte; nota non toccata.
+   *  Esiti: aggiornato {prodotto_id, varianti:[{sku, id, esito}], spente} · non_trovato · sku_usato · non_valido. */
+  function sovrascriviProdotto(a) {
+    const rifiuto = controllaImport(a);
+    if (rifiuto) return rifiuto;
+    const p = a.p_prodotto;
+    const vs = a.p_varianti;
+    const cats = a.p_categorie ?? [];
+    const skus = vs.map((v) => v.sku);
+    const chi = chiDi(a.p_chi);
+    const vecchio = righe("shop_prodotti").find((x) => x.slug === p.slug);
+    if (!vecchio) return { data: { esito: "non_trovato" } };
+    const mie = [...skus, p.sku];
+    const usati = [
+      ...righe("shop_prodotti").filter((x) => mie.includes(x.sku) && x.id !== vecchio.id).map((x) => ({ o: 1, sku: x.sku, nome: x.nome })),
+      ...righe("shop_varianti").filter((x) => mie.includes(x.sku) && x.prodotto_id !== vecchio.id).map((x) => ({ o: 2, sku: x.sku, nome: righe("shop_prodotti").find((q) => q.id === x.prodotto_id)?.nome ?? null })),
+    ].sort((x, y) => x.o - y.o || (x.sku < y.sku ? -1 : x.sku > y.sku ? 1 : 0));
+    if (usati.length) return { data: { esito: "sku_usato", sku: usati[0].sku, prodotto_nome: usati[0].nome } };
+
+    const prima = { sku: vecchio.sku, nome: vecchio.nome, tipo: vecchio.tipo, prezzo_cent: vecchio.prezzo_cent, stato: vecchio.stato, bozza_modifiche: vecchio.bozza_modifiche != null };
+    const statoPrima = vecchio.stato;
+    const oPrima = (nuovo, vecchia) => pienoONull(nuovo) ?? vecchia ?? null;
+    Object.assign(vecchio, {
+      sku: p.sku, nome: p.nome, tipo: p.tipo, prezzo_cent: p.prezzo_cent,
+      marca: oPrima(p.marca, vecchio.marca), descrizione_breve: oPrima(p.descrizione_breve, vecchio.descrizione_breve),
+      descrizione_lunga: oPrima(p.descrizione_lunga, vecchio.descrizione_lunga), categoria_google: oPrima(p.categoria_google, vecchio.categoria_google),
+      fornitore: oPrima(p.fornitore, vecchio.fornitore), seo_titolo: oPrima(p.seo_titolo, vecchio.seo_titolo), seo_descrizione: oPrima(p.seo_descrizione, vecchio.seo_descrizione),
+      peso_g: p.peso_g ?? vecchio.peso_g ?? null, gtin: oPrima(p.gtin, vecchio.gtin),
+      stato: statoPrima === "archiviato" ? "bozza" : statoPrima, bozza_modifiche: null, bozza_modificata_il: null, aggiornato_il: adesso(),
+    });
+    storico("prodotto", vecchio.id, "sovrascritto da import", prima, { sku: p.sku, nome: p.nome, tipo: p.tipo, prezzo_cent: p.prezzo_cent }, chi);
+    if (statoPrima === "archiviato") storico("prodotto", vecchio.id, "stato", "archiviato", "bozza", chi);
+    const varianti = [];
+    vs.forEach((v, k) => {
+      const c = righe("shop_varianti").find((x) => x.prodotto_id === vecchio.id && x.sku === v.sku);
+      if (c) {
+        const primaV = { nome: c.nome, opzioni: c.opzioni, prezzo_cent: c.prezzo_cent, attiva: c.attiva };
+        Object.assign(c, {
+          nome: v.nome ?? "", opzioni: oggettoImport(v.opzioni) ? v.opzioni : {}, prezzo_cent: v.prezzo_cent ?? null, peso_g: v.peso_g ?? c.peso_g ?? null,
+          gtin: pienoONull(v.gtin) ?? c.gtin ?? null, costo_cent: v.costo_cent ?? c.costo_cent ?? null, ordine: v.ordine ?? k + 1, attiva: true, aggiornato_il: adesso(),
+        });
+        storico("variante", c.id, "sovrascritta da import", primaV, { nome: v.nome ?? "", opzioni: v.opzioni ?? null, prezzo_cent: v.prezzo_cent ?? null, attiva: true }, chi);
+        varianti.push({ sku: v.sku, id: c.id, esito: "aggiornata" });
+      } else {
+        const riga = ins("shop_varianti", {
+          prodotto_id: vecchio.id, sku: v.sku, nome: v.nome ?? "", opzioni: oggettoImport(v.opzioni) ? v.opzioni : {}, prezzo_cent: v.prezzo_cent ?? null, giacenza: 0,
+          peso_g: v.peso_g ?? null, attiva: true, gtin: pienoONull(v.gtin), costo_cent: v.costo_cent ?? null, ordine: v.ordine ?? k + 1,
+        });
+        if ((v.giacenza ?? 0) > 0) {
+          const m = muovi(riga.id, v.giacenza, "carico", "Import CSV", chi, null);
+          if (m.error) throw new ErroreSql(m.error);
+        }
+        storico("variante", riga.id, "creata", null, { sku: v.sku, nome: v.nome ?? "" }, chi);
+        varianti.push({ sku: v.sku, id: riga.id, esito: "creata" });
+      }
+    });
+    let spente = 0;
+    for (const x of righe("shop_varianti"))
+      if (x.prodotto_id === vecchio.id && x.attiva && !skus.includes(x.sku)) {
+        Object.assign(x, { attiva: false, aggiornato_il: adesso() });
+        storico("variante", x.id, "attiva", true, false, chi);
+        spente++;
+      }
+    for (const categoria of new Set(cats.filter((x) => x != null))) {
+      if (!righe("shop_categorie").some((x) => x.id === categoria)) throw new ErroreSql(ERR("23503", "insert or update on table \"shop_prodotti_categorie\" violates foreign key constraint"));
+      if (!righe("shop_prodotti_categorie").some((x) => x.prodotto_id === vecchio.id && x.categoria_id === categoria)) ins("shop_prodotti_categorie", { prodotto_id: vecchio.id, categoria_id: categoria });
+    }
+    return { data: { esito: "aggiornato", prodotto_id: vecchio.id, varianti, spente } };
+  }
   /** Una transazione; ogni errore del database annulla tutto e diventa `non_valido` col solo SQLSTATE (come il `WHEN OTHERS` del SQL). */
+  const unaTransazione = (f) => (a) => {
+    const r = transazione(f, a);
+    return r.error ? { data: { esito: "non_valido", motivo: r.error.code }, scrisse: false } : r;
+  };
   const E1 = {
-    shop_import_prodotto: (a) => {
-      const r = transazione(importaProdotto, a);
-      return r.error ? { data: { esito: "non_valido", motivo: r.error.code }, scrisse: false } : r;
-    },
+    shop_import_prodotto: unaTransazione(importaProdotto),
+    shop_import_sovrascrivi: unaTransazione(sovrascriviProdotto),
   };
 
   /** A quale migrazione appartiene ogni funzione, e quale tabella dice che è applicata. */

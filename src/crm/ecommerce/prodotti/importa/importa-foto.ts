@@ -4,8 +4,10 @@
  *  → `nuovoLavoro` → `eseguiLavoro` con le stesse porte di caricamento. Le porte arrivano da fuori (`foto-browser.ts`): qui niente React.
  *
  *  ── LE REGOLE ───────────────────────────────────────────────────────────────
- *  · Vale per i prodotti creati e per i «già presenti» che NON hanno foto (principale e foto2..foto5): uno che ne ha già si salta tutto,
- *    così niente viene sostituito. Se non riesco a leggerne la scheda non carico niente su di lui (si riprova).
+ *  · Vale per i prodotti creati e per quelli SOVRASCRITTI dal file («aggiornato»): le foto del file prendono il posto di quelle che
+ *    c'erano negli stessi spazi (principale, foto2..foto5; `media_registra` sostituisce). Un «già presente» NON sovrascritto (database
+ *    senza la funzione nuova) le riceve solo se non ne ha: uno che ne ha già si salta tutto. Se non riesco a leggerne la scheda non
+ *    carico niente su di lui (si riprova).
  *  · Posizione 1 → principale, 2..5 → foto2..foto5. Alt del file se valido, altrimenti `altProposto`. Nessuna persona ritratta.
  *  · Due prodotti alla volta, le foto di un prodotto una dopo l'altra (il server dà l'ordine in arrivo). Una foto fallita non ferma le altre.
  *  · «Riprova» rifà solo le non riuscite (e le ferme dopo «Interrompi»): un lavoro a metà riparte da dove era; dopo 3 tentativi si riscarica.
@@ -65,6 +67,8 @@ export interface ProdottoFoto {
   handle: string;
   nome: string;
   giaPresente: boolean;
+  /** Sovrascritto dal file: le sue foto si sostituiscono senza guardare quelle che aveva. */
+  sostituisci?: boolean;
   /** Già presente: so che non aveva foto (non si rilegge la scheda a ogni «Riprova»). */
   controllato: boolean;
   foto: VoceFoto[];
@@ -90,16 +94,18 @@ export const fotoPreviste = (a: PerAnteprima): number =>
 /** Chi riceve le foto: i creati e i già presenti detti dal server, poi i già presenti dell'anteprima. Mai due volte lo stesso. */
 export function avviaFoto(a: PerAnteprima, s: Pick<StatoImporta, "gruppi">): StatoFoto {
   const titolo = new Map(a.lettura.prodotti.map((p) => [p.handle, p.titolo]));
-  const chi: { handle: string; prodottoId: string; giaPresente: boolean }[] = [];
+  const chi: { handle: string; prodottoId: string; giaPresente: boolean; sostituisci: boolean }[] =
+    [];
   for (const g of s.gruppi)
     for (const r of g.risultati)
       if (r.esito !== "errore" && r.prodottoId)
         chi.push({
           handle: r.handle,
           prodottoId: r.prodottoId,
-          giaPresente: r.esito === "gia_presente",
+          giaPresente: r.esito === "gia_presente" || r.esito === "aggiornato",
+          sostituisci: r.esito === "aggiornato",
         });
-  for (const g of a.giaPresenti) chi.push({ ...g, giaPresente: true });
+  for (const g of a.giaPresenti) chi.push({ ...g, giaPresente: true, sostituisci: false });
   const visti = new Set<string>();
   const prodotti: ProdottoFoto[] = [];
   for (const c of chi) {
@@ -189,7 +195,7 @@ export async function eseguiFoto(
 
   async function prodotto(p: ProdottoFoto): Promise<void> {
     if (!p.foto.some((v) => v.stato === "da_fare")) return;
-    if (p.giaPresente && !p.controllato) {
+    if (p.giaPresente && !p.sostituisci && !p.controllato) {
       if (fermo()) return;
       let media: readonly Media[] | null = null;
       try {

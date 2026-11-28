@@ -19,7 +19,8 @@ const fileDa = (name, contenuto, size) => {
 };
 
 /** Il server finto: rispetta `import-contratto.ts`. `db` = i prodotti scritti (sempre in bozza); `log` = ogni richiesta con la sua misura. */
-function serverFinto({ presenti = [], skuUsati = [], categorie = [], importaDisponibile = true, rifiuta = {}, guasti = {} } = {}) {
+/** `senzaSovrascrivi`: il database non ha ancora `shop_import_sovrascrivi` → il già presente risponde «gia_presente» (saltato), come prima. */
+function serverFinto({ presenti = [], skuUsati = [], categorie = [], importaDisponibile = true, rifiuta = {}, guasti = {}, senzaSovrascrivi = false } = {}) {
   const db = new Map(presenti.map((p) => [p.slug, { ...p, stato: p.stato ?? "bozza" }]));
   const log = [];
   let chiamateImporta = 0;
@@ -39,7 +40,12 @@ function serverFinto({ presenti = [], skuUsati = [], categorie = [], importaDisp
     if (g && !g.dopoScrittura) return { ok: false, errore: { tipo: g.tipo, messaggio: g.messaggio ?? "Non riesco a collegarmi al server." } };
     const risultati = dati.prodotti.map((p) => {
       if (rifiuta[p.handle]) return { handle: p.handle, esito: "errore", errori: [{ riga: p.varianti[0].riga, handle: p.handle, frase: rifiuta[p.handle] }] };
-      if (db.has(p.handle)) return { handle: p.handle, esito: "gia_presente", prodottoId: db.get(p.handle).id ?? `id-${p.handle}` };
+      if (db.has(p.handle)) {
+        const id = db.get(p.handle).id ?? `id-${p.handle}`;
+        if (senzaSovrascrivi) return { handle: p.handle, esito: "gia_presente", prodottoId: id };
+        db.set(p.handle, { ...db.get(p.handle), nome: p.titolo, aggiornato: (db.get(p.handle).aggiornato ?? 0) + 1 });
+        return { handle: p.handle, esito: "aggiornato", prodottoId: id };
+      }
       db.set(p.handle, { slug: p.handle, nome: p.titolo, stato: "bozza", id: `id-${p.handle}` });
       return { handle: p.handle, esito: "creato", prodottoId: `id-${p.handle}` };
     });
@@ -102,13 +108,18 @@ export async function prove(_mod, { c, gruppo, radice }) {
   c("dopo la ripresa: il primo gruppo è partito UNA volta sola (mai rimandato)", [1, 1, 1, 1, 1], ["prodotto-1", "prodotto-2", "prodotto-3", "prodotto-4", "prodotto-5"].map((h) => mandati.filter((x) => x === h).length));
   c("…e il server ha tutti i 12 prodotti, senza doppioni", [12, 12, null], [rete.db.size, F.riepilogoFinale({ nuovi: serie(12), giaPresenti: [], errori: [], nProdottiConErrori: 0 }, r1).importati, r1.fermo]);
 
-  // errore dopo la scrittura (la risposta si perde): il gruppo si rimanda, il server dice «già presente», nessun doppione
+  // errore dopo la scrittura (la risposta si perde): il gruppo si rimanda, il server lo sovrascrive con gli stessi dati, nessun doppione
   const perso = serverFinto({ guasti: { 2: { tipo: "rete", dopoScrittura: true } } });
   let r2 = await F.eseguiGruppi(F.avviaImporta(serie(12)), (prodotti) => perso.esegui("prodotti_importa", { prodotti }), {});
   c("risposta persa dopo la scrittura: si ferma, e dice che non sa se è entrato", [true, true], [r2.fermo?.incerto, /Non so se/.test(r2.fermo?.messaggio ?? "")]);
   r2 = await F.eseguiGruppi(F.riprendi(r2), (prodotti) => perso.esegui("prodotti_importa", { prodotti }), {});
   const rie2 = F.riepilogoFinale({ nuovi: serie(12), giaPresenti: [], errori: [], nProdottiConErrori: 0 }, r2);
-  c("rimandato il gruppo già scritto: 12 prodotti nel server, nessun doppione; 5 risultano «già presenti» e il totale torna", [12, 7, 5, 12], [perso.db.size, rie2.importati, rie2.saltati, rie2.importati + rie2.saltati]);
+  c("rimandato il gruppo già scritto: 12 prodotti nel server, nessun doppione; 5 risultano «sovrascritti» e il totale torna", [12, 7, 5, 0, 12], [perso.db.size, rie2.importati, rie2.aggiornati, rie2.saltati, rie2.importati + rie2.aggiornati]);
+  const perso2 = serverFinto({ guasti: { 2: { tipo: "rete", dopoScrittura: true } }, senzaSovrascrivi: true });
+  let r2b = await F.eseguiGruppi(F.avviaImporta(serie(12)), (prodotti) => perso2.esegui("prodotti_importa", { prodotti }), {});
+  r2b = await F.eseguiGruppi(F.riprendi(r2b), (prodotti) => perso2.esegui("prodotti_importa", { prodotti }), {});
+  const rie2c = F.riepilogoFinale({ errori: [], nProdottiConErrori: 0 }, r2b);
+  c("…e col database senza la sovrascrittura: 5 «già presenti» saltati, come prima", [12, 7, 0, 5], [perso2.db.size, rie2c.importati, rie2c.aggiornati, rie2c.saltati]);
 
   // errori che non si riprovano da soli
   const negato = serverFinto({ guasti: { 1: { tipo: "permesso", messaggio: "Il tuo utente non può gestire il negozio: chiedi a un amministratore." } } });
@@ -157,13 +168,14 @@ export async function prove(_mod, { c, gruppo, radice }) {
   let st = F.avviaImporta(a1.analisi.nuovi);
   st = await F.eseguiGruppi(st, (prodotti) => s1.esegui("prodotti_importa", { prodotti }), {});
   const fin1 = F.riepilogoFinale(a1.analisi, st);
-  c("importato: «Importati 2 prodotti (tutti in bozza). Saltati 0 già presenti. Respinti 0 con errori.»", [2, 0, 0, "Importati 2 prodotti (tutti in bozza). Saltati 0 già presenti. Respinti 0 con errori."], [fin1.importati, fin1.saltati, fin1.respinti, F.fraseFinale(fin1)]);
+  c("importato: «Importati 2 prodotti nuovi (tutti in bozza). Sovrascritti 0 già presenti. Respinti 0 con errori.»", [2, 0, 0, "Importati 2 prodotti nuovi (tutti in bozza). Sovrascritti 0 già presenti. Respinti 0 con errori."], [fin1.importati, fin1.saltati, fin1.respinti, F.fraseFinale(fin1)]);
   c("nel server: 2 prodotti, in bozza", [2, ["bozza"]], [s1.db.size, [...new Set([...s1.db.values()].map((p) => p.stato))]]);
   const a2 = await F.analizzaFile(fileDa("modello-prodotti.csv", modello), s1.esegui);
-  c("lo stesso file una seconda volta: «2 già presenti (saltati)», nessun nuovo, nessun errore", [true, "2 prodotti · 5 varianti · nessun nuovo · 2 già presenti (saltati) · 0 errori", 0, 2], [a2.ok, a2.ok && F.fraseRiepilogo(a2.analisi), a2.analisi.nuovi.length, a2.analisi.giaPresenti.length]);
+  c("lo stesso file una seconda volta: «2 già presenti (da sovrascrivere)», nessun nuovo, nessun errore", [true, "2 prodotti · 5 varianti · nessun nuovo · 2 già presenti (da sovrascrivere) · 0 errori", 0, 2, 2], [a2.ok, a2.ok && F.fraseRiepilogo(a2.analisi), a2.analisi.nuovi.length, a2.analisi.giaPresenti.length, a2.analisi.daAggiornare.length]);
   c("…con l'esito «presente» e l'id per aprire il prodotto", [["presente", "presente"], ["id-shampoo-delicato-esempio", "id-parrucca-esempio"]], [a2.analisi.righe.map((r) => r.esito), a2.analisi.righe.map((r) => r.prodottoId)]);
-  const rie2b = F.riepilogoFinale(a2.analisi, F.avviaImporta(a2.analisi.nuovi));
-  c("e non parte nessuna richiesta di import: 2 saltati, 0 importati", [2, 0, 0, 0], [rie2b.saltati, rie2b.importati, s1.richiesteImporta().length - 1, F.avviaImporta(a2.analisi.nuovi).gruppi.length]);
+  const st2b = await F.eseguiGruppi(F.avviaImporta([...a2.analisi.nuovi, ...a2.analisi.daAggiornare]), (prodotti) => s1.esegui("prodotti_importa", { prodotti }), {});
+  const rie2b = F.riepilogoFinale(a2.analisi, st2b);
+  c("e partono anche loro: 2 sovrascritti, 0 importati, 0 saltati, ancora 2 prodotti nel server (nessun doppione)", [2, 0, 0, 2, "Importati 0 prodotti nuovi (tutti in bozza). Sovrascritti 2 già presenti. Respinti 0 con errori."], [rie2b.aggiornati, rie2b.importati, rie2b.saltati, s1.db.size, F.fraseFinale(rie2b)]);
 
   // il file con tutti i difetti del criterio 6
   const INT = ["Handle", "Title", "Body (HTML)", "Option1 Name", "Option1 Value", "Option2 Name", "Option2 Value", "Option3 Name", "Option3 Value", "Option4 Name", "Variant SKU", "Variant Price", "Variant Inventory Qty", "Categories"];
@@ -184,20 +196,20 @@ export async function prove(_mod, { c, gruppo, radice }) {
   const s7 = serverFinto({ presenti: [{ slug: "gia-qui", nome: "Già qui", id: "id-gia-qui" }], skuUsati: [{ sku: "HG-T01", prodottoId: "id-lace", prodottoNome: "Lace Front Swiss + PU", comeVariante: false }], categorie: [{ id: "c1", slug: "cura-capelli", nome: "Cura capelli" }] });
   const a7 = await F.analizzaFile(fileDa("difetti.csv", cattivo), s7.esegui);
   const A7 = a7.analisi;
-  c("file con i difetti: nuovi = quelli senza errori (ok-uno, doppio-a, con-maiuscole), già presente = gia-qui", [true, ["ok-uno", "doppio-a", "con-maiuscole"], ["gia-qui"]], [a7.ok, A7.nuovi.map((p) => p.handle), A7.giaPresenti.map((p) => p.handle)]);
+  c("file con i difetti: nuovi = quelli senza errori (ok-uno, doppio-a, con-maiuscole), già presente (da sovrascrivere) = gia-qui", [true, ["ok-uno", "doppio-a", "con-maiuscole"], ["gia-qui"], ["gia-qui"]], [a7.ok, A7.nuovi.map((p) => p.handle), A7.giaPresenti.map((p) => p.handle), A7.daAggiornare.map((p) => p.handle)]);
   c("la categoria esiste (la porta la verifica): il prodotto la ha, senza avviso «non esiste»", [["cura-capelli"], false], [A7.nuovi[0].categorie, A7.avvisi.some((x) => /non esiste/.test(x.frase))]);
   const righeErr = [...new Set(A7.errori.map((e) => e.riga))].sort((x, y) => x - y);
   c("errori su ogni riga sbagliata, col numero di riga di Excel (3, 5, 6, 7, 8, 9, 11); 7 prodotti con errori", [[3, 5, 6, 7, 8, 9, 11], 7], [righeErr, A7.nProdottiConErrori]);
   c("SKU di un altro prodotto: la frase dice quale prodotto lo usa", true, A7.errori.some((e) => e.riga === 6 && /Lace Front Swiss \+ PU/.test(e.frase)));
   c("SKU scritto due volte nel file: lo dice con le due righe", true, A7.errori.some((e) => e.riga === 5 && /righe 4 e 5/.test(e.frase)));
-  c("riepilogo: «11 prodotti · 11 varianti · 3 nuovi · 1 già presente (saltato) · 7 con errori · N avvisi»", true, /^11 prodotti · 11 varianti · 3 nuovi · 1 già presente \(saltato\) · 7 con errori · \d+ avvisi?$/.test(F.fraseRiepilogo(A7)));
+  c("riepilogo: «11 prodotti · 11 varianti · 3 nuovi · 1 già presente (da sovrascrivere) · 7 con errori · N avvisi»", true, /^11 prodotti · 11 varianti · 3 nuovi · 1 già presente \(da sovrascrivere\) · 7 con errori · \d+ avvisi?$/.test(F.fraseRiepilogo(A7)));
   c("la tabella: 11 righe (3 nuovo, 1 presente, 7 errore) e il filtro «solo errori» ne tiene 7", [11, 3, 1, 7, 7], [A7.righe.length, A7.righe.filter((x) => x.esito === "nuovo").length, A7.righe.filter((x) => x.esito === "presente").length, A7.righe.filter((x) => x.esito === "errore").length, F.soloErrori(A7.righe).length]);
   c("la verifica non ha scritto niente", [0, 0], [s7.richiesteImporta().length, [...s7.db.keys()].filter((k) => k !== "gia-qui").length]);
-  // importa i 3 buoni: uno viene respinto dal server (una corsa fra due persone)
+  // importa i 3 buoni e sovrascrive il già presente: uno viene respinto dal server (una corsa fra due persone)
   const s7b = serverFinto({ presenti: [{ slug: "gia-qui", id: "id-gia-qui" }], rifiuta: { "con-maiuscole": "Lo SKU CM-1 è già usato dal prodotto «Altro»." } });
-  const st7 = await F.eseguiGruppi(F.avviaImporta(A7.nuovi), (prodotti) => s7b.esegui("prodotti_importa", { prodotti }), {});
+  const st7 = await F.eseguiGruppi(F.avviaImporta([...A7.nuovi, ...A7.daAggiornare]), (prodotti) => s7b.esegui("prodotti_importa", { prodotti }), {});
   const fin7 = F.riepilogoFinale(A7, st7);
-  c("riepilogo finale: importati 2, saltati 1, respinti 8 (7 del controllo + 1 del server)", [2, 1, 8, "Importati 2 prodotti (tutti in bozza). Saltato 1 già presente. Respinti 8 con errori."], [fin7.importati, fin7.saltati, fin7.respinti, F.fraseFinale(fin7)]);
+  c("riepilogo finale: importati 2, sovrascritto 1, respinti 8 (7 del controllo + 1 del server)", [2, 1, 0, 8, "Importati 2 prodotti nuovi (tutti in bozza). Sovrascritto 1 già presente. Respinti 8 con errori."], [fin7.importati, fin7.aggiornati, fin7.saltati, fin7.respinti, F.fraseFinale(fin7)]);
   const csv7 = Lt.leggiCsv(new TextEncoder().encode(F.csvDaCorreggere(A7, fin7)));
   c("«Scarica le righe da correggere»: l'intestazione con «Errore» e solo le 8 righe respinte (anche quella respinta dal server, che non ha righeProdotto)", [true, "Errore", ["prezzo-brutto", "doppio-b", "sku-altrui", "quattro-opzioni", "sconto", "senza-titolo", "Con Maiuscole", "troppo-lungo"]], [csv7.ok, csv7.record[0].at(-1), csv7.record.slice(1).map((x) => x[0])]);
 

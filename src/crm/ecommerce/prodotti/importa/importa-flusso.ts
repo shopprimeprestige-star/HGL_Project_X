@@ -7,8 +7,10 @@
  *  · Il file vive solo in memoria. Prima di «Importa» il server riceve SOLO la verifica (indirizzi e SKU, sola lettura): nessuna scrittura.
  *  · Un gruppo = al massimo 5 prodotti e 160 000 byte di richiesta (misurati in byte con `TextEncoder`, non in caratteri: gli accenti e l'euro
  *    ne pesano di più). Un prodotto che da solo supera i 160 000 byte non parte e si dice a parte.
- *  · Ripresa: un gruppo andato a buon fine non si rimanda MAI. Quello interrotto (rete, server) si rimanda: il server dice «già presente»
- *    per ciò che era entrato, quindi non nasce nessun doppione.
+ *  · Ripresa: un gruppo andato a buon fine non si rimanda MAI. Quello interrotto (rete, server) si rimanda: ciò che era entrato il server
+ *    lo trova per indirizzo e lo sovrascrive con gli stessi dati, quindi non nasce nessun doppione.
+ *  · I già presenti partono insieme ai nuovi: il server li sovrascrive («aggiornato»). «Già presente» resta solo se il database non sa
+ *    ancora sovrascrivere (migrazione 20261128130000 non applicata): allora è saltato, come prima.
  *  · Una risposta che non è nella forma del contratto non è un successo. Un prodotto senza risposta non risulta importato.
  *  ⚠️ Niente rete qui dentro: chi chiama passa `esegui` (quello di `negozio`). Nessun log, mai. */
 import { righeDaCorreggere } from "@/crm/negozio/csv-errori";
@@ -156,7 +158,10 @@ export function registraRisposta(
   const risultati = s.gruppi[i].prodotti.map((p): RisultatoImporta => {
     const riga = p.varianti[0]?.riga ?? 0;
     const r = lista.find((x) => eOggetto(x) && x.handle === p.handle);
-    if (!eOggetto(r) || !["creato", "gia_presente", "errore"].includes(r.esito as string))
+    if (
+      !eOggetto(r) ||
+      !["creato", "aggiornato", "gia_presente", "errore"].includes(r.esito as string)
+    )
       return {
         handle: p.handle,
         esito: "errore",
@@ -171,7 +176,7 @@ export function registraRisposta(
     if (r.esito !== "errore")
       return {
         handle: p.handle,
-        esito: r.esito as "creato" | "gia_presente",
+        esito: r.esito as "creato" | "aggiornato" | "gia_presente",
         prodottoId: eTesto(r.prodottoId) ? r.prodottoId : undefined,
       };
     const errori = (Array.isArray(r.errori) ? r.errori : [])
@@ -272,7 +277,9 @@ export async function eseguiGruppi(
 
 export interface Riepilogo {
   importati: number;
-  /** Già presenti: quelli visti all'anteprima più quelli che il server ha trovato già presenti. */
+  /** Già presenti che il file ha sovrascritto. */
+  aggiornati: number;
+  /** Già presenti che il server non ha potuto sovrascrivere (database senza la funzione nuova): saltati. */
   saltati: number;
   respinti: number;
   /** Prodotti dei gruppi non ancora fatti (importazione interrotta). */
@@ -282,12 +289,13 @@ export interface Riepilogo {
 }
 
 export function riepilogoFinale(
-  a: Pick<Analisi, "nuovi" | "giaPresenti" | "errori" | "nProdottiConErrori">,
+  a: Pick<Analisi, "errori" | "nProdottiConErrori">,
   s: StatoImporta,
 ): Riepilogo {
   const errori = [...a.errori];
   let importati = 0;
-  let saltati = a.giaPresenti.length;
+  let aggiornati = 0;
+  let saltati = 0;
   let respinti = a.nProdottiConErrori + s.troppoGrandi.length;
   let rimasti = 0;
   for (const g of s.gruppi) {
@@ -297,6 +305,7 @@ export function riepilogoFinale(
     }
     for (const r of g.risultati) {
       if (r.esito === "creato") importati++;
+      else if (r.esito === "aggiornato") aggiornati++;
       else if (r.esito === "gia_presente") saltati++;
       else {
         respinti++;
@@ -314,18 +323,22 @@ export function riepilogoFinale(
       frase: "Il prodotto è troppo grande per essere inviato: accorcia i testi o dividilo.",
       righeProdotto: p.varianti.map((v) => v.riga),
     });
-  return { importati, saltati, respinti, rimasti, errori };
+  return { importati, aggiornati, saltati, respinti, rimasti, errori };
 }
 
-/** «Importati N prodotti (tutti in bozza). Saltati N già presenti. Respinti N con errori.» */
-export function fraseFinale(r: Pick<Riepilogo, "importati" | "saltati" | "respinti">): string {
+/** «Importati N prodotti nuovi (tutti in bozza). Sovrascritti N già presenti. Respinti N con errori.» I saltati solo se ce ne sono. */
+export function fraseFinale(
+  r: Pick<Riepilogo, "importati" | "saltati" | "respinti"> & Partial<Pick<Riepilogo, "aggiornati">>,
+): string {
   const importati =
     r.importati === 1
-      ? "Importato 1 prodotto (in bozza)"
-      : `Importati ${r.importati} prodotti (tutti in bozza)`;
+      ? "Importato 1 prodotto nuovo (in bozza)"
+      : `Importati ${r.importati} prodotti nuovi (tutti in bozza)`;
+  const n = r.aggiornati ?? 0;
+  const aggiornati = n === 1 ? "Sovrascritto 1 già presente" : `Sovrascritti ${n} già presenti`;
   const saltati = r.saltati === 1 ? "Saltato 1 già presente" : `Saltati ${r.saltati} già presenti`;
   const respinti = r.respinti === 1 ? "Respinto 1 con errori" : `Respinti ${r.respinti} con errori`;
-  return `${importati}. ${saltati}. ${respinti}.`;
+  return [importati, aggiornati, ...(r.saltati > 0 ? [saltati] : []), respinti].join(". ") + ".";
 }
 
 /** C'è almeno una riga del file da correggere? (Un errore «di tutto il file» non ne ha: il file delle righe sarebbe vuoto.) */

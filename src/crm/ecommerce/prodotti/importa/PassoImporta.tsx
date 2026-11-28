@@ -141,7 +141,8 @@ export function PassoImporta({
               <p className="text-[15px] font-semibold">{fraseFoto(af)}</p>
               {af.saltate > 0 && (
                 <p className="text-muted-foreground">
-                  Saltate {af.saltate} foto: i loro prodotti avevano già delle foto.
+                  Saltate {af.saltate} foto: i loro prodotti non sono stati sovrascritti e avevano
+                  già delle foto.
                 </p>
               )}
               {af.daFare > 0 && (
@@ -177,11 +178,12 @@ export function PassoImporta({
           {stato.fermo.incerto && (
             <p className="mt-1">
               Non so se l'ultimo gruppo sia entrato per intero: se premi «Riprendi» lo rimando, e
-              ciò che era già entrato risulta «già presente», senza doppioni.
+              ciò che era già entrato viene sovrascritto con gli stessi dati, senza doppioni.
             </p>
           )}
           <p className="mt-1">
-            Se chiudi, puoi ricaricare lo stesso file: i prodotti già importati vengono saltati.
+            Se chiudi, puoi ricaricare lo stesso file: i prodotti già importati vengono
+            sovrascritti, senza doppioni.
           </p>
         </Banner>
       )}
@@ -201,10 +203,16 @@ export function PassoImporta({
               di pubblicarlo.
             </p>
           )}
+          {r.aggiornati > 0 && (
+            <p className="text-[13px] text-muted-foreground">
+              I prodotti sovrascritti tengono il loro stato: un pubblicato resta pubblicato, uno che
+              era nel Cestino torna in bozza. Le varianti che il file non ha più sono spente.
+            </p>
+          )}
           {r.respinti > 0 && (
             <p className="text-[13px] text-muted-foreground">
               I prodotti respinti non sono entrati: correggi le righe e ricarica il file, i prodotti
-              già importati verranno saltati.
+              già importati verranno sovrascritti, senza doppioni.
             </p>
           )}
         </div>

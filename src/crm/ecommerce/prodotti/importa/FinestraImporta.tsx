@@ -247,7 +247,12 @@ export function FinestraImporta({
             apriProdotto={apriProdotto}
             cambiaFile={() => setFase(INIZIO)}
             scaricaErrori={scaricaErrori}
-            importa={() => void manda(fase.analisi, avviaImporta(fase.analisi.nuovi))}
+            importa={() =>
+              void manda(
+                fase.analisi,
+                avviaImporta([...fase.analisi.nuovi, ...fase.analisi.daAggiornare]),
+              )
+            }
           />
         )}
         {fase.passo === "importa" && (

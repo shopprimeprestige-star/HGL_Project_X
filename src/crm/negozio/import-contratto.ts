@@ -73,7 +73,9 @@ export interface RichiestaImporta {
 }
 export interface RisultatoImporta {
   handle: string;
-  esito: "creato" | "gia_presente" | "errore";
+  /** «aggiornato»: c'era già (stesso indirizzo) e il file l'ha sovrascritto. «gia_presente»: c'era e non si è potuto sovrascrivere
+   *  (database senza `shop_import_sovrascrivi`): saltato come prima. */
+  esito: "creato" | "aggiornato" | "gia_presente" | "errore";
   prodottoId?: string;
   errori?: ErroreRiga[];
   avvisi?: AvvisoRiga[];

@@ -1,6 +1,7 @@
 /** ── L'ANTEPRIMA DELL'IMPORT: DAL FILE AL CONFRONTO COL CATALOGO (importa-analisi.ts) ──
  *  Commessa 2026-11-25-editor-prodotti, E10 (SPEC §2.3, §6.4). Legge il file (limiti prima, poi i byte), chiede al server SOLO la verifica
- *  (indirizzi e SKU, sola lettura: nessuna scrittura) e costruisce l'anteprima: nuovi, già presenti, errori riga per riga, tabella, riepilogo.
+ *  (indirizzi e SKU, sola lettura: nessuna scrittura) e costruisce l'anteprima: nuovi, già presenti (da sovrascrivere), errori riga per riga,
+ *  tabella, riepilogo.
  *  Puro: la rete arriva da fuori come funzione `esegui` (quella di `negozio`). Lo usa `importa-flusso.ts` (che lo ri-esporta). Nessun log, mai. */
 import { controllaFile, leggiCsv } from "@/crm/negozio/csv-lettore";
 import { leggiProdottiCsv, type LetturaProdotti } from "@/crm/negozio/csv-prodotti";
@@ -61,6 +62,8 @@ export interface Analisi {
   record: string[][];
   lettura: LetturaProdotti;
   nuovi: ProdottoImport[];
+  /** Già nel catalogo (stesso indirizzo): partono anche loro e il file li sovrascrive. */
+  daAggiornare: ProdottoImport[];
   giaPresenti: { handle: string; prodottoId: string; nome: string }[];
   /** Ogni errore, riga per riga: quelli del file e quelli dello SKU già usato da un altro prodotto. */
   errori: ErroreRiga[];
@@ -192,6 +195,7 @@ export async function analizzaFile(
       record: csv.record,
       lettura,
       nuovi: confronto.nuovi,
+      daAggiornare: confronto.daAggiornare,
       giaPresenti: confronto.giaPresenti,
       errori,
       nProdottiConErrori: lettura.respinti.length + conErrore.size,
@@ -205,7 +209,7 @@ export async function analizzaFile(
 export const soloErrori = (righe: readonly RigaTabella[]): RigaTabella[] =>
   righe.filter((r) => r.esito === "errore");
 
-/** «12 prodotti · 41 varianti · 9 nuovi · 2 già presenti (saltati) · 1 con errori · 5 avvisi» (le parti a zero non si scrivono, tranne gli errori). */
+/** «12 prodotti · 41 varianti · 9 nuovi · 2 già presenti (da sovrascrivere) · 1 con errori · 5 avvisi» (le parti a zero non si scrivono, tranne gli errori). */
 export function fraseRiepilogo(
   a: Pick<Analisi, "lettura" | "nuovi" | "giaPresenti" | "nProdottiConErrori" | "avvisi">,
 ): string {
@@ -216,7 +220,13 @@ export function fraseRiepilogo(
     nuovi > 0 ? plurale(nuovi, "nuovo", "nuovi") : "nessun nuovo",
   ];
   if (a.giaPresenti.length > 0)
-    parti.push(plurale(a.giaPresenti.length, "già presente (saltato)", "già presenti (saltati)"));
+    parti.push(
+      plurale(
+        a.giaPresenti.length,
+        "già presente (da sovrascrivere)",
+        "già presenti (da sovrascrivere)",
+      ),
+    );
   parti.push(a.nProdottiConErrori > 0 ? `${a.nProdottiConErrori} con errori` : "0 errori");
   if (a.avvisi.length > 0) parti.push(plurale(a.avvisi.length, "avviso", "avvisi"));
   return parti.join(" · ");

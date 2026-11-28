@@ -108,6 +108,13 @@ export async function prove(_mod, { c, gruppo, radice }) {
   c("l'avanzamento si annuncia mentre va avanti (sale fino al totale)", [true, 12], [aggiornamenti.length >= 10 && aggiornamenti.every((x, i) => i === 0 || x >= aggiornamenti[i - 1]), aggiornamenti.at(-1)]);
   c("la frase: «Foto caricate 10 · non riuscite 0»", "Foto caricate 10 · non riuscite 0", F.fraseFoto(a1));
 
+  // ── sovrascritto dal file («aggiornato»): le foto del file prendono il posto di quelle che c'erano, senza leggere la scheda ──
+  const statoSov = { ...stato, gruppi: [...stato.gruppi, { prodotti: [], stato: "fatto", risultati: [{ handle: "con-foto", esito: "aggiornato", prodottoId: "id-con-foto" }] }] };
+  const sSov = F.avviaFoto(analisi, statoSov);
+  const pSov = porteFinte({ media: CON_FOTO });
+  await F.eseguiFoto(sSov, pSov.porte);
+  c("«aggiornato» CON foto → le sue foto si caricano negli stessi spazi (media_registra sostituisce), la scheda non si legge", [true, ["principale", "foto2"], false], [sSov.prodotti.find((p) => p.handle === "con-foto")?.sostituisci, pSov.log.registrati.filter((d) => d.prodottoId === "id-con-foto").map((d) => d.slot), pSov.log.letti.includes("id-con-foto")]);
+
   // ── una fallita non ferma le altre; riprova solo le fallite ──
   const rotta = `${CDN}/uno-2.jpg?v=1`;
   const g = porteFinte({ media: CON_FOTO, guasti: { scarica: (u) => u === rotta, registra: (d) => d.prodottoId === "id-due" && d.slot === "foto2", tipo: (u) => (u.includes("senza-foto-2") ? "text/html" : undefined) } });
@@ -194,10 +201,12 @@ export async function prove(_mod, { c, gruppo, radice }) {
   const spento = (b) => b === undefined || /\sdisabled(=""|\s|>)/.test(b);
   const base2 = { nomeFile: "f.csv", errori: [], avvisi: [], righe: [], nProdottiConErrori: 0, importaDisponibile: true, lettura: { ...analisi.lettura, colonneIgnorate: [], conteggi: { prodotti: 6, varianti: 6 } } };
   const p2 = async (a) => (await rendiComponente(radice, join(DIR, "PassoControllo.tsx"), "PassoControllo", { analisi: { ...base2, ...a }, cambiaFile: nulla, scaricaErrori: nulla, importa: nulla })).html;
-  const h2 = await p2({ nuovi: analisi.nuovi, giaPresenti: analisi.giaPresenti });
+  const h2 = await p2({ nuovi: analisi.nuovi, daAggiornare: [], giaPresenti: analisi.giaPresenti });
   c("passo 2: dice quante foto verranno caricate dopo i prodotti (13), il tasto resta «Importa 4 prodotti in bozza»", [true, true, 1], [/Dopo i prodotti carico fino a 13 foto da Shopify/.test(leggibile(h2)), !spento(tasto(h2, "Importa 4 prodotti in bozza")), pieni(h2)]);
-  const hSolo = await p2({ nuovi: [], giaPresenti: analisi.giaPresenti });
-  c("passo 2, file già importato ma con foto: «Carica 4 foto» acceso (per i già presenti senza foto), un solo tasto pieno", [true, 1], [!spento(tasto(hSolo, "Carica 4 foto")), pieni(hSolo)]);
+  const hSolo = await p2({ nuovi: [], daAggiornare: [], giaPresenti: analisi.giaPresenti });
+  c("passo 2, nessun prodotto da mandare ma foto: «Carica 4 foto» acceso, un solo tasto pieno", [true, 1], [!spento(tasto(hSolo, "Carica 4 foto")), pieni(hSolo)]);
+  const hSov = await p2({ nuovi: [], daAggiornare: analisi.lettura.prodotti.filter((p) => ["con-foto", "senza-foto"].includes(p.handle)), giaPresenti: analisi.giaPresenti });
+  c("passo 2, file già importato: «Sovrascrivi 2 prodotti» acceso, e dice che le foto del file prendono il posto di quelle che c'erano", [true, 1, true], [!spento(tasto(hSov, "Sovrascrivi 2 prodotti")), pieni(hSov), /prendono il\s+posto di quelle che c'erano/.test(leggibile(hSov))]);
 
   const hNo = await p3({});
   c("passo 3 senza foto: nessuna seconda barra (come prima)", [undefined, false], [statoFoto(hNo), /Carico le foto/.test(hNo)]);
