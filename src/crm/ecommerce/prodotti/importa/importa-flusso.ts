@@ -21,7 +21,6 @@ import {
   type ProdottoImport,
   type RisultatoImporta,
 } from "@/crm/negozio/import-contratto";
-import { aGruppi } from "../elenco-puro";
 import {
   FRASE_RISPOSTA,
   eOggetto,
@@ -31,7 +30,7 @@ import {
 } from "./importa-analisi";
 import {
   fermaPezzo,
-  pezziDi,
+  pezziDa,
   prossimoPezzo,
   registraRipristino,
   type PezzoRipristino,
@@ -96,8 +95,8 @@ export interface Fermo {
 }
 export interface StatoImporta {
   gruppi: GruppoImporta[];
-  /** I pezzi dal Cestino, da fare prima dei gruppi. Facoltativo: chi costruisce uno stato a mano può non averli. */
-  ripristino?: PezzoRipristino[];
+  /** I pezzi dal Cestino, da fare prima dei gruppi (nessuno se il file non ne ha). */
+  ripristino: PezzoRipristino[];
   troppoGrandi: ProdottoImport[];
   fermo: Fermo | null;
 }
@@ -107,13 +106,8 @@ export function avviaImporta(
   dalCestino: readonly { handle: string; prodottoId: string }[] = [],
 ): StatoImporta {
   const { gruppi, troppoGrandi } = dividiInGruppi(nuovi);
-  const handle = new Map(dalCestino.map((d) => [d.prodottoId, d.handle]));
   return {
-    ripristino: aGruppi(dalCestino.map((d) => d.prodottoId)).map((ids) => ({
-      prodotti: ids.map((prodottoId) => ({ handle: handle.get(prodottoId) ?? "", prodottoId })),
-      stato: "da_fare",
-      restano: [],
-    })),
+    ripristino: pezziDa(dalCestino),
     gruppi: gruppi.map((prodotti) => ({ prodotti, stato: "da_fare", risultati: [] })),
     troppoGrandi,
     fermo: null,
@@ -235,7 +229,7 @@ export const sospendi = (s: StatoImporta): StatoImporta => ({
 export const riprendi = (s: StatoImporta): StatoImporta => ({
   ...s,
   gruppi: s.gruppi.map((g) => (g.stato === "interrotto" ? { ...g, stato: "da_fare" as const } : g)),
-  ripristino: pezziDi(s).map((p) =>
+  ripristino: s.ripristino.map((p) =>
     p.stato === "interrotto" ? { ...p, stato: "da_fare" as const } : p,
   ),
   fermo: null,
@@ -249,7 +243,7 @@ export function avanzamento(s: StatoImporta): {
   percento: number;
 } {
   // I pezzi dal Cestino contano come i gruppi: una barra sola, 100 solo alla fine.
-  const passi: { stato: StatoGruppo; prodotti: unknown[] }[] = [...pezziDi(s), ...s.gruppi];
+  const passi: { stato: StatoGruppo; prodotti: unknown[] }[] = [...s.ripristino, ...s.gruppi];
   const fatti = passi.filter((g) => g.stato === "fatto");
   const somma = (x: { prodotti: unknown[] }[]) => x.reduce((n, g) => n + g.prodotti.length, 0);
   const prodottiFatti = somma(fatti);
@@ -275,10 +269,11 @@ export async function eseguiGruppi(
     rimetti?: (ids: string[]) => Promise<EsitoEsegui>;
   } = {},
 ): Promise<StatoImporta> {
+  const { rimetti } = opz;
   let s = inizio;
   while (!s.fermo) {
-    const k = opz.rimetti ? prossimoPezzo(s) : null;
-    const i = k === null ? prossimoGruppo(s) : null;
+    const k = rimetti ? prossimoPezzo(s) : null;
+    const i = prossimoGruppo(s);
     if (k === null && i === null) break;
     if (opz.interrompi?.()) {
       s = sospendi(s);
@@ -286,9 +281,9 @@ export async function eseguiGruppi(
       break;
     }
     let r: EsitoEsegui;
-    if (k !== null) {
+    if (rimetti && k !== null) {
       try {
-        r = await opz.rimetti!(pezziDi(s)[k].prodotti.map((p) => p.prodottoId));
+        r = await rimetti(s.ripristino[k].prodotti.map((p) => p.prodottoId));
       } catch {
         r = {
           ok: false,
@@ -303,8 +298,9 @@ export async function eseguiGruppi(
       opz.aggiorna?.(s);
       continue;
     }
+    if (i === null) break; // solo per il compilatore: senza `rimetti` k è null, quindi un gruppo da fare c'è
     try {
-      r = await invia(s.gruppi[i as number].prodotti);
+      r = await invia(s.gruppi[i].prodotti);
     } catch {
       r = {
         ok: false,
@@ -315,9 +311,7 @@ export async function eseguiGruppi(
         },
       };
     }
-    s = r.ok
-      ? registraRisposta(s, i as number, r.dati)
-      : registraFallimento(s, i as number, r.errore);
+    s = r.ok ? registraRisposta(s, i, r.dati) : registraFallimento(s, i, r.errore);
     opz.aggiorna?.(s);
   }
   return s;
@@ -348,7 +342,7 @@ export function riepilogoFinale(
   let saltati = a.giaPresenti.length;
   let respinti = a.nProdottiConErrori + s.troppoGrandi.length;
   let rimasti = 0;
-  for (const p of pezziDi(s)) {
+  for (const p of s.ripristino) {
     if (p.stato !== "fatto") {
       rimasti += p.prodotti.length;
       continue;
@@ -386,21 +380,22 @@ export function riepilogoFinale(
   return { importati, ripristinati, saltati, respinti, rimasti, errori };
 }
 
-/** «Importati N prodotti (tutti in bozza). Rimessi in bozza dal Cestino N. Saltati N già presenti. Respinti N con errori.» (la parte del Cestino solo se c'è) */
+/** «Importati N prodotti (tutti in bozza). Rimessi in bozza dal Cestino N. Saltati N già presenti. Respinti N con errori.»
+ *  La parte dei nuovi si scrive solo se ce n'è almeno uno o se non è tornato niente dal Cestino: con 0 importati e N tornati la frase parte
+ *  da «Rimessi in bozza dal Cestino N» (un «Importati 0» sembrerebbe un fallimento). */
 export function fraseFinale(
-  r: Pick<Riepilogo, "importati" | "saltati" | "respinti"> &
-    Partial<Pick<Riepilogo, "ripristinati">>,
+  r: Pick<Riepilogo, "importati" | "ripristinati" | "saltati" | "respinti">,
 ): string {
   const importati =
     r.importati === 1
       ? "Importato 1 prodotto (in bozza)"
       : `Importati ${r.importati} prodotti (tutti in bozza)`;
+  const cestino = `${r.ripristinati === 1 ? "Rimesso" : "Rimessi"} in bozza dal Cestino ${r.ripristinati}`;
   const saltati = r.saltati === 1 ? "Saltato 1 già presente" : `Saltati ${r.saltati} già presenti`;
   const respinti = r.respinti === 1 ? "Respinto 1 con errori" : `Respinti ${r.respinti} con errori`;
-  const cestino = r.ripristinati
-    ? `${r.ripristinati === 1 ? "Rimesso" : "Rimessi"} in bozza dal Cestino ${r.ripristinati}. `
-    : "";
-  return `${importati}. ${cestino}${saltati}. ${respinti}.`;
+  const parti = [r.importati > 0 || r.ripristinati === 0 ? importati : null];
+  if (r.ripristinati > 0) parti.push(cestino);
+  return `${[...parti, saltati, respinti].filter(Boolean).join(". ")}.`;
 }
 
 /** C'è almeno una riga del file da correggere? (Un errore «di tutto il file» non ne ha: il file delle righe sarebbe vuoto.) */

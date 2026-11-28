@@ -6,6 +6,7 @@
  *  · Il file vive solo in memoria: non va in nessun archivio del browser, non è mai spedito (al server va il prodotto già normalizzato, a gruppi).
  *  · Fino a «Importa» il server riceve solo la verifica (sola lettura): nessuna scrittura.
  *  · I prodotti del file che sono nel Cestino (E15) tornano in bozza prima dei nuovi (`gruppo_stato`, a pezzi da 20); «Riprendi» rifà solo il pezzo fallito.
+ *    A «Importa» e a «Riprendi» si rifà prima la sola verifica (sola lettura): chi nel frattempo non è più archiviato non si tocca ed è «già presente».
  *  · Mentre i gruppi partono la finestra non si chiude; «Interrompi» ferma dopo il gruppo in corso e «Riprendi» non rimanda ciò che è già entrato.
  *  · La rete passa SOLO da `negozio.esegui` (lo stesso di ogni altra azione del negozio): niente chiamate dirette da qui.
  *  · Le foto (E13): finiti i prodotti, salgono dal browser con la pipeline della scheda (`importa-foto.ts`, porte in `foto-browser.ts`);
@@ -42,6 +43,7 @@ import {
   eseguiGruppi,
   riepilogoFinale,
   riprendi,
+  riverificaCestino,
   type Analisi,
   type StatoImporta,
 } from "./importa-flusso";
@@ -133,14 +135,19 @@ export function FinestraImporta({
     );
   };
 
-  const manda = async (analisi: Analisi, inizio: StatoImporta) => {
+  const manda = async (analisi0: Analisi, inizio0: StatoImporta) => {
     const mio = ++giro.current;
     ferma.current = false;
+    let analisi = analisi0;
     const metti = (stato: StatoImporta, inCorso: boolean) =>
       setFase({ passo: "importa", analisi, stato, inCorso, foto: null, fotoInCorso: false });
-    metti(inizio, true);
+    metti(inizio0, true);
+    // Il Cestino dell'anteprima può essere vecchio: si rifà la sola verifica e si rimette in bozza solo chi è ancora archiviato.
+    const v = await riverificaCestino(analisi0, inizio0, negozio.esegui);
+    if (mio !== giro.current) return;
+    analisi = v.analisi;
     const fine = await eseguiGruppi(
-      inizio,
+      v.stato,
       (prodotti) => negozio.esegui(AZIONE_IMPORTA, { prodotti }),
       {
         // Prima i prodotti del Cestino tornano in bozza (la stessa azione di «Rimetti in bozza»), poi entrano i nuovi.

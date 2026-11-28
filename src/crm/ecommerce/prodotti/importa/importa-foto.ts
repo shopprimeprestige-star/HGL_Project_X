@@ -73,20 +73,19 @@ export interface StatoFoto {
   prodotti: ProdottoFoto[];
 }
 
-type PerAnteprima = Pick<Analisi, "nuovi" | "giaPresenti"> &
-  Partial<Pick<Analisi, "dalCestino">> & {
-    lettura: {
-      prodotti: readonly { handle: string; titolo: string }[];
-      foto: Map<string, FotoImport[]>;
-    };
+type PerAnteprima = Pick<Analisi, "nuovi" | "giaPresenti" | "dalCestino"> & {
+  lettura: {
+    prodotti: readonly { handle: string; titolo: string }[];
+    foto: Map<string, FotoImport[]>;
   };
+};
 
 /** Quante foto potrei caricare (passo 2): quelle dei nuovi, dei già presenti e di chi torna dal Cestino; chi ha già foto si saprà dopo. */
 export const fotoPreviste = (a: PerAnteprima): number =>
   [
     ...a.nuovi.map((p) => p.handle),
     ...a.giaPresenti.map((g) => g.handle),
-    ...(a.dalCestino ?? []).map((g) => g.handle),
+    ...a.dalCestino.map((g) => g.handle),
   ].reduce((n, h) => n + (a.lettura.foto.get(h)?.length ?? 0), 0);
 
 /** Chi riceve le foto: i creati e i già presenti detti dal server, quelli tornati in bozza dal Cestino (solo i pezzi andati), poi i già presenti
@@ -105,7 +104,7 @@ export function avviaFoto(
           prodottoId: r.prodottoId,
           giaPresente: r.esito === "gia_presente",
         });
-  for (const p of s.ripristino ?? [])
+  for (const p of s.ripristino)
     if (p.stato === "fatto")
       for (const x of p.prodotti)
         if (!p.restano.some((y) => y.handle === x.handle)) chi.push({ ...x, giaPresente: true });

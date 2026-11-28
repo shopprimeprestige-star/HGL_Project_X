@@ -45,7 +45,7 @@ export function PassoImporta({
   const a = avanzamento(stato);
   const r = riepilogoFinale(analisi, stato);
   const finito = !inCorso && !stato.fermo && a.gruppiFatti === a.gruppiTotali;
-  const nome = `Importati ${a.prodottiFatti} di ${a.prodottiTotali} prodotti`;
+  const nome = `Fatti ${a.prodottiFatti} di ${a.prodottiTotali} prodotti`;
   // Entrati in bozza: i nuovi e quelli tornati dal Cestino (E15).
   const entrati = r.importati + r.ripristinati;
   const af = foto ? avanzamentoFoto(foto) : null;
@@ -93,7 +93,7 @@ export function PassoImporta({
               className="h-4 w-4 animate-spin motion-reduce:animate-none"
               aria-hidden="true"
             />
-            Non chiudere la finestra finché non finisce: i prodotti entrano cinque alla volta.
+            Non chiudere la finestra finché non finisce: i prodotti entrano a gruppi.
           </p>
         )}
       </div>

@@ -224,11 +224,13 @@ export const soloErrori = (righe: readonly RigaTabella[]): RigaTabella[] =>
 /** «12 prodotti · 41 varianti · 9 nuovi · 3 dal Cestino (tornano in bozza) · 2 già presenti (saltati) · 1 con errori · 5 avvisi»
  *  (le parti a zero non si scrivono, tranne gli errori). */
 export function fraseRiepilogo(
-  a: Pick<Analisi, "lettura" | "nuovi" | "giaPresenti" | "nProdottiConErrori" | "avvisi"> &
-    Partial<Pick<Analisi, "dalCestino">>,
+  a: Pick<
+    Analisi,
+    "lettura" | "nuovi" | "giaPresenti" | "dalCestino" | "nProdottiConErrori" | "avvisi"
+  >,
 ): string {
   const nuovi = a.nuovi.length;
-  const cestino = a.dalCestino?.length ?? 0;
+  const cestino = a.dalCestino.length;
   const parti = [
     plurale(a.lettura.conteggi.prodotti, "prodotto", "prodotti"),
     plurale(a.lettura.conteggi.varianti, "variante", "varianti"),
