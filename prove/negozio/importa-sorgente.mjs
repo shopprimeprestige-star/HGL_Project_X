@@ -24,14 +24,14 @@ const spento = (b) => b === undefined || /\sdisabled(=""|\s|>)/.test(b);
 const tasto = (html, testo) => [...html.matchAll(/<button\b[^>]*>[\s\S]*?<\/button>/g)].map((m) => m[0]).find((b) => leggibile(b).includes(testo));
 
 const DIR = "src/crm/ecommerce/prodotti/importa";
-const FILE = ["FinestraImporta.tsx", "PassoScegli.tsx", "PassoControllo.tsx", "PassoImporta.tsx", "importa-flusso.ts", "importa-analisi.ts"];
+const FILE = ["FinestraImporta.tsx", "PassoScegli.tsx", "PassoControllo.tsx", "PassoImporta.tsx", "importa-flusso.ts", "importa-analisi.ts", "importa-ripristino.ts"];
 const variante = (n, o = {}) => ({ riga: n + 1, sku: `P-${n}`, nome: "Unica", opzioni: {}, prezzoCent: null, pesoG: null, gtin: null, costoCent: null, giacenza: 3, ...o });
 const prod = (n) => ({ handle: `prodotto-${n}`, titolo: `Prodotto ${n}`, tipo: "cura", categorie: [], sku: `P-${n}`, prezzoCent: 1990, varianti: [variante(n)] });
 
 export async function prove(_mod, { c, gruppo, radice }) {
   gruppo("EDITOR PRODOTTI · E10 · FINESTRA DELL'IMPORT: SORGENTE E DISEGNO (25/11/2026)");
   const percorso = (f) => join(radice, DIR, f);
-  c("i sei file dell'import esistono", FILE.map(() => true), FILE.map((f) => existsSync(percorso(f))));
+  c("i sette file dell'import esistono", FILE.map(() => true), FILE.map((f) => existsSync(percorso(f))));
   if (!FILE.every((f) => existsSync(percorso(f)))) return;
   const src = Object.fromEntries(FILE.map((f) => [f, readFileSync(percorso(f), "utf8")]));
 
@@ -47,7 +47,7 @@ export async function prove(_mod, { c, gruppo, radice }) {
       c(`${nome}: nessuna occorrenza di ${vietato}`, false, vietato.test(k));
     c(`${nome}: nessuna ombra scritta a mano, nessun colore scritto a mano`, false, /\bshadow-/.test(k) || /#[0-9a-fA-F]{3,8}\b|\brgba?\(|\boklch\(/.test(k.replace(/&#\d+;|&#x[0-9a-f]+;/gi, "")));
   }
-  const fl = senzaCommenti(src["importa-flusso.ts"] + src["importa-analisi.ts"]);
+  const fl = senzaCommenti(src["importa-flusso.ts"] + src["importa-analisi.ts"] + src["importa-ripristino.ts"]);
   c("importa-flusso.ts è puro: niente React, niente DOM, niente rete", false, /from "react|\bdocument\b|\bwindow\b|\bnavigator\b|\bfetch\b/.test(fl));
   c("i gruppi usano i limiti del contratto (5 prodotti, 160 000 byte), non numeri scritti qui", [true, true], [/LIMITI\.prodottiPerRichiesta/.test(fl), /LIMITI\.byteClient/.test(fl)]);
   const contratto = readFileSync(join(radice, "src/crm/negozio/import-contratto.ts"), "utf8");
@@ -56,7 +56,7 @@ export async function prove(_mod, { c, gruppo, radice }) {
   const client = readFileSync(join(radice, "src/crm/negozio/client.ts"), "utf8");
   c("le due azioni sono quelle che il client del negozio conosce", [true, true, true, true], [/AZIONE_VERIFICA = "prodotti_importa_verifica"/.test(fl), /AZIONE_IMPORTA = "prodotti_importa"/.test(fl), /"prodotti_importa_verifica"/.test(client), /"prodotti_importa",/.test(client)]);
   const fin = senzaCommenti(src["FinestraImporta.tsx"]);
-  c("la rete passa da negozio.esegui (verifica e import), una volta ciascuna", [true, true, 2], [/analizzaFile\(file, negozio\.esegui\)/.test(fin), /negozio\.esegui\(AZIONE_IMPORTA, \{ prodotti \}\)/.test(fin), conta(fin, /negozio\.esegui/g)]);
+  c("la rete passa da negozio.esegui (verifica, import e «Rimetti in bozza» dal Cestino), una volta ciascuna", [true, true, true, 3], [/analizzaFile\(file, negozio\.esegui\)/.test(fin), /negozio\.esegui\(AZIONE_IMPORTA, \{ prodotti \}\)/.test(fin), /negozio\.esegui\(AZIONE_RIMETTI, \{ ids, stato: "bozza" \}\)/.test(fin), conta(fin, /negozio\.esegui/g)]);
   c("la finestra non si chiude mentre i gruppi partono (onOpenChange guarda `occupata`)", true, /onOpenChange=\{\(v\) => !v && !occupata && chiudi\(\)\}/.test(fin));
   c("l'indirizzo del file scaricato si libera dopo 5 secondi, non subito", true, /revokeObjectURL\(url\), 5000\)/.test(fin));
   c("«Riprendi» non rimanda i gruppi fatti: passa da riprendi() della macchina", true, /manda\(fase\.analisi, riprendi\(fase\.stato\)\)/.test(fin));

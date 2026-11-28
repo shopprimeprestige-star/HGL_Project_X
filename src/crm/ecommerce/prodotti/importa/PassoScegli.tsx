@@ -130,7 +130,7 @@ export function PassoScegli({
             <p className="text-muted-foreground">
               Fino a 2 MB, 5000 righe e 300 prodotti. Solo file CSV: da Excel scegli «Salva con
               nome» e poi «CSV UTF-8». Un prodotto con un indirizzo già presente viene saltato, mai
-              aggiornato.
+              aggiornato; quelli che sono nel Cestino tornano in bozza.
             </p>
           </div>
         </div>

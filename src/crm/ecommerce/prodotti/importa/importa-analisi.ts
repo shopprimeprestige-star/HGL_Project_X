@@ -1,6 +1,6 @@
 /** ── L'ANTEPRIMA DELL'IMPORT: DAL FILE AL CONFRONTO COL CATALOGO (importa-analisi.ts) ──
  *  Commessa 2026-11-25-editor-prodotti, E10 (SPEC §2.3, §6.4). Legge il file (limiti prima, poi i byte), chiede al server SOLO la verifica
- *  (indirizzi e SKU, sola lettura: nessuna scrittura) e costruisce l'anteprima: nuovi, già presenti, errori riga per riga, tabella, riepilogo.
+ *  (indirizzi e SKU, sola lettura: nessuna scrittura) e costruisce l'anteprima: nuovi, già presenti, dal Cestino (E15: archiviati, tornano in bozza), errori riga per riga, tabella, riepilogo.
  *  Puro: la rete arriva da fuori come funzione `esegui` (quella di `negozio`). Lo usa `importa-flusso.ts` (che lo ri-esporta). Nessun log, mai. */
 import { controllaFile, leggiCsv } from "@/crm/negozio/csv-lettore";
 import { leggiProdottiCsv, type LetturaProdotti } from "@/crm/negozio/csv-prodotti";
@@ -49,8 +49,8 @@ export interface RigaTabella {
   prezzoCent?: number;
   varianti?: number;
   giacenza?: number;
-  esito: "nuovo" | "presente" | "errore";
-  /** Solo per «presente»: per aprire il prodotto che c'è già. */
+  esito: "nuovo" | "presente" | "cestino" | "errore";
+  /** Solo per «presente» e «cestino»: per aprire il prodotto che c'è già. */
   prodottoId?: string;
 }
 
@@ -61,7 +61,10 @@ export interface Analisi {
   record: string[][];
   lettura: LetturaProdotti;
   nuovi: ProdottoImport[];
+  /** Già presenti e NON nel Cestino: si saltano. */
   giaPresenti: { handle: string; prodottoId: string; nome: string }[];
+  /** Con l'indirizzo di un prodotto archiviato (E15): all'import tornano in bozza, senza toccare i loro dati. */
+  dalCestino: { handle: string; prodottoId: string; nome: string }[];
   /** Ogni errore, riga per riga: quelli del file e quelli dello SKU già usato da un altro prodotto. */
   errori: ErroreRiga[];
   nProdottiConErrori: number;
@@ -165,6 +168,12 @@ export async function analizzaFile(
   const confronto = confrontaConCatalogo(lettura.prodotti, catalogo);
   const errori = [...lettura.errori, ...confronto.errori].sort((a, b) => a.riga - b.riga);
   const conErrore = new Set(confronto.errori.map((e) => e.handle));
+  // Un indirizzo già nel catalogo ma archiviato non è «già presente»: è nel Cestino e torna in bozza (lo slug è unico, non si può ricrearlo).
+  const archiviati = new Set(
+    catalogo.presenti.filter((x) => x.stato === "archiviato").map((x) => x.slug),
+  );
+  const dalCestino = confronto.giaPresenti.filter((g) => archiviati.has(g.handle));
+  const giaPresenti = confronto.giaPresenti.filter((g) => !archiviati.has(g.handle));
   const presenti = new Map(confronto.giaPresenti.map((g) => [g.handle, g]));
   const righe: RigaTabella[] = [
     ...lettura.prodotti.map(
@@ -176,7 +185,13 @@ export async function analizzaFile(
         prezzoCent: p.prezzoCent,
         varianti: p.varianti.length,
         giacenza: p.varianti.reduce((somma, v) => somma + v.giacenza, 0),
-        esito: presenti.has(p.handle) ? "presente" : conErrore.has(p.handle) ? "errore" : "nuovo",
+        esito: archiviati.has(p.handle)
+          ? "cestino"
+          : presenti.has(p.handle)
+            ? "presente"
+            : conErrore.has(p.handle)
+              ? "errore"
+              : "nuovo",
         prodottoId: presenti.get(p.handle)?.prodottoId,
       }),
     ),
@@ -192,7 +207,8 @@ export async function analizzaFile(
       record: csv.record,
       lettura,
       nuovi: confronto.nuovi,
-      giaPresenti: confronto.giaPresenti,
+      giaPresenti,
+      dalCestino,
       errori,
       nProdottiConErrori: lettura.respinti.length + conErrore.size,
       avvisi: [...csv.avvisi.map((frase): AvvisoRiga => ({ riga: 0, frase })), ...lettura.avvisi],
@@ -205,16 +221,25 @@ export async function analizzaFile(
 export const soloErrori = (righe: readonly RigaTabella[]): RigaTabella[] =>
   righe.filter((r) => r.esito === "errore");
 
-/** «12 prodotti · 41 varianti · 9 nuovi · 2 già presenti (saltati) · 1 con errori · 5 avvisi» (le parti a zero non si scrivono, tranne gli errori). */
+/** «12 prodotti · 41 varianti · 9 nuovi · 3 dal Cestino (tornano in bozza) · 2 già presenti (saltati) · 1 con errori · 5 avvisi»
+ *  (le parti a zero non si scrivono, tranne gli errori). */
 export function fraseRiepilogo(
-  a: Pick<Analisi, "lettura" | "nuovi" | "giaPresenti" | "nProdottiConErrori" | "avvisi">,
+  a: Pick<Analisi, "lettura" | "nuovi" | "giaPresenti" | "nProdottiConErrori" | "avvisi"> &
+    Partial<Pick<Analisi, "dalCestino">>,
 ): string {
   const nuovi = a.nuovi.length;
+  const cestino = a.dalCestino?.length ?? 0;
   const parti = [
     plurale(a.lettura.conteggi.prodotti, "prodotto", "prodotti"),
     plurale(a.lettura.conteggi.varianti, "variante", "varianti"),
     nuovi > 0 ? plurale(nuovi, "nuovo", "nuovi") : "nessun nuovo",
   ];
+  if (cestino > 0)
+    parti.push(
+      cestino === 1
+        ? "1 dal Cestino (torna in bozza)"
+        : `${cestino} dal Cestino (tornano in bozza)`,
+    );
   if (a.giaPresenti.length > 0)
     parti.push(plurale(a.giaPresenti.length, "già presente (saltato)", "già presenti (saltati)"));
   parti.push(a.nProdottiConErrori > 0 ? `${a.nProdottiConErrori} con errori` : "0 errori");

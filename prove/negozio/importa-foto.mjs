@@ -192,7 +192,7 @@ export async function prove(_mod, { c, gruppo, radice }) {
   // ── il passo 2: quante foto, e il file ricaricato per le sole foto ──
   const tasto = (html, testo) => [...html.matchAll(/<button\b[^>]*>[\s\S]*?<\/button>/g)].map((m) => m[0]).find((b) => leggibile(b).includes(testo));
   const spento = (b) => b === undefined || /\sdisabled(=""|\s|>)/.test(b);
-  const base2 = { nomeFile: "f.csv", errori: [], avvisi: [], righe: [], nProdottiConErrori: 0, importaDisponibile: true, lettura: { ...analisi.lettura, colonneIgnorate: [], conteggi: { prodotti: 6, varianti: 6 } } };
+  const base2 = { nomeFile: "f.csv", dalCestino: [], errori: [], avvisi: [], righe: [], nProdottiConErrori: 0, importaDisponibile: true, lettura: { ...analisi.lettura, colonneIgnorate: [], conteggi: { prodotti: 6, varianti: 6 } } };
   const p2 = async (a) => (await rendiComponente(radice, join(DIR, "PassoControllo.tsx"), "PassoControllo", { analisi: { ...base2, ...a }, cambiaFile: nulla, scaricaErrori: nulla, importa: nulla })).html;
   const h2 = await p2({ nuovi: analisi.nuovi, giaPresenti: analisi.giaPresenti });
   c("passo 2: dice quante foto verranno caricate dopo i prodotti (13), il tasto resta «Importa 4 prodotti in bozza»", [true, true, 1], [/Dopo i prodotti carico fino a 13 foto da Shopify/.test(leggibile(h2)), !spento(tasto(h2, "Importa 4 prodotti in bozza")), pieni(h2)]);

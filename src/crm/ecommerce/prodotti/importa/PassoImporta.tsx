@@ -46,6 +46,8 @@ export function PassoImporta({
   const r = riepilogoFinale(analisi, stato);
   const finito = !inCorso && !stato.fermo && a.gruppiFatti === a.gruppiTotali;
   const nome = `Importati ${a.prodottiFatti} di ${a.prodottiTotali} prodotti`;
+  // Entrati in bozza: i nuovi e quelli tornati dal Cestino (E15).
+  const entrati = r.importati + r.ripristinati;
   const af = foto ? avanzamentoFoto(foto) : null;
   const occupato = inCorso || fotoInCorso;
   const fotoFerme = !!af && !fotoInCorso;
@@ -195,7 +197,7 @@ export function PassoImporta({
               le foto dalla scheda prima di pubblicarlo.
             </p>
           )}
-          {r.importati > 0 && foto && (
+          {entrati > 0 && foto && (
             <p className="text-[13px] text-muted-foreground">
               Ogni prodotto importato è in bozza: controlla testi, prezzo e foto dalla scheda prima
               di pubblicarlo.
@@ -238,7 +240,7 @@ export function PassoImporta({
               Chiudi
             </Button>
           )}
-          {finito && !fotoInCorso && r.importati > 0 && (
+          {finito && !fotoInCorso && entrati > 0 && (
             <Button type="button" variant="outline" className={CLASSI_TASTO} onClick={chiudi}>
               Chiudi
             </Button>
@@ -250,12 +252,12 @@ export function PassoImporta({
               Riprendi
             </Button>
           )}
-          {finito && !fotoInCorso && r.importati > 0 && (
+          {finito && !fotoInCorso && entrati > 0 && (
             <Button type="button" className={CLASSI_TASTO} onClick={vaiAiProdotti}>
               Vai ai prodotti importati
             </Button>
           )}
-          {finito && !fotoInCorso && r.importati === 0 && (
+          {finito && !fotoInCorso && entrati === 0 && (
             <Button type="button" className={CLASSI_TASTO} onClick={chiudi}>
               Chiudi
             </Button>

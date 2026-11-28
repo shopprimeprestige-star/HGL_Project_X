@@ -5,6 +5,7 @@
  *  ── LE REGOLE CHE SI VEDONO ─────────────────────────────────────────────────
  *  · Il file vive solo in memoria: non va in nessun archivio del browser, non è mai spedito (al server va il prodotto già normalizzato, a gruppi).
  *  · Fino a «Importa» il server riceve solo la verifica (sola lettura): nessuna scrittura.
+ *  · I prodotti del file che sono nel Cestino (E15) tornano in bozza prima dei nuovi (`gruppo_stato`, a pezzi da 20); «Riprendi» rifà solo il pezzo fallito.
  *  · Mentre i gruppi partono la finestra non si chiude; «Interrompi» ferma dopo il gruppo in corso e «Riprendi» non rimanda ciò che è già entrato.
  *  · La rete passa SOLO da `negozio.esegui` (lo stesso di ogni altra azione del negozio): niente chiamate dirette da qui.
  *  · Le foto (E13): finiti i prodotti, salgono dal browser con la pipeline della scheda (`importa-foto.ts`, porte in `foto-browser.ts`);
@@ -32,6 +33,7 @@ import { porteFotoBrowser } from "./foto-browser";
 import { avviaFoto, eseguiFoto, riprovaFoto, type StatoFoto } from "./importa-foto";
 import {
   AZIONE_IMPORTA,
+  AZIONE_RIMETTI,
   NOME_FILE_DA_CORREGGERE,
   analizzaFile,
   avanzamento,
@@ -141,6 +143,8 @@ export function FinestraImporta({
       inizio,
       (prodotti) => negozio.esegui(AZIONE_IMPORTA, { prodotti }),
       {
+        // Prima i prodotti del Cestino tornano in bozza (la stessa azione di «Rimetti in bozza»), poi entrano i nuovi.
+        rimetti: (ids) => negozio.esegui(AZIONE_RIMETTI, { ids, stato: "bozza" }),
         interrompi: () => ferma.current,
         aggiorna: (stato) => {
           if (mio === giro.current) metti(stato, true);
@@ -191,8 +195,9 @@ export function FinestraImporta({
         <DialogHeader>
           <DialogTitle>Importa prodotti da un file</DialogTitle>
           <DialogDescription>
-            Il file si legge nel tuo browser e non viene salvato. Tutto entra in bozza; le foto di
-            Shopify (fino a 5 per prodotto) si caricano subito dopo i prodotti.
+            Il file si legge nel tuo browser e non viene salvato. Tutto entra in bozza (anche i
+            prodotti del Cestino con lo stesso indirizzo); le foto di Shopify (fino a 5 per
+            prodotto) si caricano subito dopo i prodotti.
           </DialogDescription>
         </DialogHeader>
 
@@ -247,7 +252,9 @@ export function FinestraImporta({
             apriProdotto={apriProdotto}
             cambiaFile={() => setFase(INIZIO)}
             scaricaErrori={scaricaErrori}
-            importa={() => void manda(fase.analisi, avviaImporta(fase.analisi.nuovi))}
+            importa={() =>
+              void manda(fase.analisi, avviaImporta(fase.analisi.nuovi, fase.analisi.dalCestino))
+            }
           />
         )}
         {fase.passo === "importa" && (
