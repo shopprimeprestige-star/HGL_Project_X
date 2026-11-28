@@ -644,9 +644,26 @@ export function proveFiltriChat(mod, { c, gruppo, radice }) {
   );
   c(
     "la riga, nell'ordine d'uso: Tutte · Da rispondere · Da chiamare · Con stelle · Sconosciuti · Ricontatti · Da recuperare · Clienti · In sospeso (31/10: gli stati di chiamata solo dentro «Da chiamare»)",
-    ["Da rispondere", "Da chiamare", "Con stelle", "Sconosciuti", "Ricontatti", "Da recuperare", "Clienti", "In sospeso"],
+    ["Da rispondere", "Da chiamare", "Con stelle", "Sconosciuti", "Ricontatti", "Da recuperare", "Clienti", "Attesa acconto", "In sospeso"],
     F.VOCI_RIGA.map((v) => v.nome),
   );
+  {
+    //  Le note scritte da fuori (tasto «Note», campo notePostCall) si vedono SEMPRE nella scheda (28/11/2026).
+    const scheda = leggi("src/crm/LeadDialog.tsx");
+    c("la scheda: «Prezzo e acconto» dipende da denaroVisibile", true, /const denaroVisibile = !perso && \(inTrattativa \|\| prezzo > 0\)/.test(scheda) && /\{denaroVisibile && \(\s*<BloccoDenaro/.test(scheda));
+    c("la scheda: senza quel blocco, le note dopo la consulenza scendono nella sezione «Note»", true, /\{!denaroVisibile && \([\s\S]{0,400}form\.notePostCall[\s\S]{0,120}update\("notePostCall"/.test(scheda));
+  }
+  {
+    //  «Attesa acconto» (28/11/2026): nella riga, solo i lead OGGI nello stato «Attesa acconto».
+    const v = F.VOCI_RIGA.find((x) => x.nome === "Attesa acconto");
+    c("«Attesa acconto» è nella riga, sullo stato in_attesa_acconto", "fase:stato:in_attesa_acconto", v && `${v.campo}:${v.valore}`);
+    const chat = (stato) => ({ phone: "+39" + Math.random(), lead: { id: "x", data: { stato } }, finestra: null });
+    const f = F.commuta(F.FILTRI_VUOTI, v.campo, v.valore);
+    c("attesa acconto: passa", true, F.passaFiltri(chat("in_attesa_acconto"), f, () => 0));
+    for (const altro of ["sta_valutando", "acconto", "appuntamento_fissato", "attesa_whatsapp"])
+      c(`attesa acconto: stato ${altro} non passa`, false, F.passaFiltri(chat(altro), f, () => 0));
+    c("attesa acconto: senza scheda non passa", false, F.passaFiltri({ phone: "+391", lead: null, finestra: null }, f, () => 0));
+  }
   {
     //  «In sospeso» (06/11/2026): solo clienti (definizione di «Clienti») con uno stato fermo in attesa.
     const ultimoNostro = { direction: "outbound", status: "sent", created_at: "2026-11-06T10:00:00Z" };
