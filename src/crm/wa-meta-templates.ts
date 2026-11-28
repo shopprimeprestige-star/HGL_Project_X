@@ -8,7 +8,7 @@
  * Il CRM invia i parametri in ORDINE come array, esattamente come Meta si aspetta.
  */
 
-import { SITO } from "@/lib/sito";
+import { SITO, SITO_PRECEDENTE } from "@/lib/sito";
 import { CHIAVE_CHI, codiceAnteprimaDi, spezzaCodiceAnteprima } from "@/shop/chi-dal-link";
 
 export interface MetaTemplateParam {
@@ -440,20 +440,22 @@ export const MODELLI_DA_APPROVARE: MetaTemplate[] = [
 const IMMAGINE_MODELLI = {
   tipo: "IMAGE" as const,
   dinamica: true,
-  esempio: `${SITO}/api/og/anteprima/modello/esempio_pdemo.jpg`,
+  esempio: `${SITO_PRECEDENTE}/api/og/anteprima/modello/esempio_pdemo.jpg`,
 };
 
 /** L'immagine dei casi clienti (MARKETING, come il vecchio): lì la scheda di Meetly va bene. */
 const IMMAGINE_CASI = {
   tipo: "IMAGE" as const,
   file: "public/anteprima-predefinita.jpg",
-  url: `${SITO}/anteprima-predefinita.jpg`,
+  url: `${SITO_PRECEDENTE}/anteprima-predefinita.jpg`,
 };
 
-/** Il pulsante dei modelli col link del meet: la parte dopo `/meetly/` è variabile ({{1}} del pulsante). */
+/** Il pulsante dei modelli col link del meet: la parte dopo `/meetly/` è variabile ({{1}} del pulsante).
+ *  ⚠️ Gli indirizzi DENTRO i modelli restano sul dominio di prima: sono quelli approvati da Meta, e
+ *   quel dominio porta sempre allo stesso sito. */
 const PULSANTE_ENTRA = {
   testo: "Entra nella consulenza",
-  url: `${SITO}/meetly/{{1}}`,
+  url: `${SITO_PRECEDENTE}/meetly/{{1}}`,
   da: "meet_link" as const,
   esempio: "abc-defg-hij?chi=p1a2b3c",
 };
@@ -626,7 +628,7 @@ export const MODELLI_UTILITY_311026: MetaTemplate[] = [
     ["lead_name"],
     {
       header: IMMAGINE_CASI,
-      pulsante: { testo: "Vedi gli esempi", url: `${SITO}/media/DPKW-3JHV-RC77` },
+      pulsante: { testo: "Vedi gli esempi", url: `${SITO_PRECEDENTE}/media/DPKW-3JHV-RC77` },
     },
   ),
   nuovo(
@@ -776,13 +778,14 @@ export function interruttoreAcceso(valore: unknown): boolean {
 }
 
 /** La parte variabile del pulsante «Entra nella consulenza»: quello che sta dopo
- *  `https://hair-genius-hub.hair/meetly/` nel link personale (codice della stanza e gettone di chi
+ *  `https://hairgeniuslabs.hair/meetly/` nel link personale (codice della stanza e gettone di chi
  *  lo riceve, es. `kfr-mbqd-tzp?chi=pAbC12`). `null` se il link non è una stanza nostra: allora
  *  il modello nuovo non si può mandare e parte il vecchio, col link nel testo. */
 export function suffissoMeetly(link: string | null | undefined): string | null {
   const l = String(link ?? "").trim();
-  const base = `${SITO}/meetly/`;
-  if (!l.startsWith(base)) return null;
+  //  Il link può essere sul dominio nuovo o su quello di prima (stanze create prima del 27/11/2026).
+  const base = [`${SITO}/meetly/`, `${SITO_PRECEDENTE}/meetly/`].find((b) => l.startsWith(b));
+  if (!base) return null;
   const resto = l.slice(base.length);
   return resto && !/[\s#]/.test(resto) ? resto : null;
 }

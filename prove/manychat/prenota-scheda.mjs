@@ -48,7 +48,7 @@ export async function proveDellaSchedaPrenota(mod, { c, gruppo, radice }) {
 
   const ADESSO = new Date("2026-10-27T14:42:00Z");
   const ISO = ADESSO.toISOString();
-  const LINK = "https://hair-genius-hub.hair/meetly/bcd-fghj-kmn";
+  const LINK = "https://hairgeniuslabs.hair/meetly/bcd-fghj-kmn";
   const P = {
     consulenteId: "cons-filippo",
     giorno: "2026-10-29",
@@ -355,7 +355,7 @@ export async function proveDellaSchedaPrenota(mod, { c, gruppo, radice }) {
       dataMeeting: "2026-10-12",
       oraMeeting: "17:00",
       durataMeeting: 45,
-      linkMeeting: "https://hair-genius-hub.hair/meetly/vecchio-codice-xyz",
+      linkMeeting: "https://hairgeniuslabs.hair/meetly/vecchio-codice-xyz",
       consulenteId: "cons-altro",
       dataRicontatto: "2026-10-28",
       oraRicontatto: "09:00",
@@ -395,7 +395,7 @@ export async function proveDellaSchedaPrenota(mod, { c, gruppo, radice }) {
     c("la setter cambia la data: null", null, tocca({ dataMeeting: "2026-10-30" }));
     c("la setter cambia l'ora: null", null, tocca({ oraMeeting: "19:00" }));
     c("la setter cambia il consulente: null", null, tocca({ consulenteId: "cons-altro" }));
-    c("la setter cambia il link: null", null, tocca({ linkMeeting: "https://hair-genius-hub.hair/meetly/altro" }));
+    c("la setter cambia il link: null", null, tocca({ linkMeeting: "https://hairgeniuslabs.hair/meetly/altro" }));
     c("la setter cambia lo stato: null", null, tocca({ stato: "no_show" }));
     c("la setter cambia la durata: null", null, tocca({ durataMeeting: 90 }));
     c("cambia statoDal: null", null, tocca({ statoDal: "2026-10-27T15:00:00.000Z" }));

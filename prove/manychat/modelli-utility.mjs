@@ -77,10 +77,10 @@ export const LISTA_NERA = [
 ];
 
 const SUFFISSO = "_311026";
-const LINK_PERSONALE = "https://hair-genius-hub.hair/meetly/kfr-mbqd-tzp?chi=pb4b5c685";
+const LINK_PERSONALE = "https://hairgeniuslabs.hair/meetly/kfr-mbqd-tzp?chi=pb4b5c685";
 const SUFFISSO_LINK = "kfr-mbqd-tzp?chi=pb4b5c685";
 const CODICE_IMMAGINE = "kfr-mbqd-tzp_pb4b5c685";
-const URL_IMMAGINE = `https://hair-genius-hub.hair/api/og/anteprima/modello/${CODICE_IMMAGINE}.jpg`;
+const URL_IMMAGINE = `https://hairgeniuslabs.hair/api/og/anteprima/modello/${CODICE_IMMAGINE}.jpg`;
 
 export async function proveModelliUtility(mod, { c, gruppo, radice }) {
   const T = mod["wa-meta-templates"];
@@ -330,7 +330,7 @@ export async function proveModelliUtility(mod, { c, gruppo, radice }) {
     utility.filter((t) => /anteprima-predefinita/.test(JSON.stringify(t.header ?? {}))).map((t) => t.name),
   ]);
   c(
-    "pulsante «Entra nella consulenza» con indirizzo dinamico https://hair-genius-hub.hair/meetly/{{1}}",
+    "pulsante «Entra nella consulenza» con indirizzo dinamico https://hair-genius-hub.hair/meetly/{{1}} (quello approvato da Meta)",
     [],
     nuoviColLink
       .filter(
@@ -368,24 +368,25 @@ export async function proveModelliUtility(mod, { c, gruppo, radice }) {
 
   gruppo("MODELLI _311026 · DAL LINK PERSONALE ALLA PARTE VARIABILE DEL PULSANTE");
   c("link della stanza con il gettone di chi lo riceve", SUFFISSO_LINK, T.suffissoMeetly(LINK_PERSONALE));
-  c("link della stanza senza gettone", "kfr-mbqd-tzp", T.suffissoMeetly("https://hair-genius-hub.hair/meetly/kfr-mbqd-tzp"));
+  c("link della stanza senza gettone", "kfr-mbqd-tzp", T.suffissoMeetly("https://hairgeniuslabs.hair/meetly/kfr-mbqd-tzp"));
   c(
-    "unito all'indirizzo del pulsante dà di nuovo il link personale",
-    LINK_PERSONALE,
+    "unito all'indirizzo del pulsante dà di nuovo il link personale (sul dominio di prima, stesso sito)",
+    LINK_PERSONALE.replace("hairgeniuslabs.hair", "hair-genius-hub.hair"),
     "https://hair-genius-hub.hair/meetly/{{1}}".replace("{{1}}", T.suffissoMeetly(LINK_PERSONALE)),
   );
+  c("una stanza creata col dominio di prima si converte ancora", "kfr-mbqd-tzp", T.suffissoMeetly("https://hair-genius-hub.hair/meetly/kfr-mbqd-tzp"));
   c(
     "un link che non è una stanza nostra non si converte",
     [null, null, null, null, null],
     [
       T.suffissoMeetly("https://meet.google.com/abc-defg-hij"),
-      T.suffissoMeetly("https://hair-genius-hub.hair/videochiamata/abc"),
-      T.suffissoMeetly("https://hair-genius-hub.hair/meetly/"),
-      T.suffissoMeetly("http://hair-genius-hub.hair/meetly/abc"),
+      T.suffissoMeetly("https://hairgeniuslabs.hair/videochiamata/abc"),
+      T.suffissoMeetly("https://hairgeniuslabs.hair/meetly/"),
+      T.suffissoMeetly("http://hairgeniuslabs.hair/meetly/abc"),
       T.suffissoMeetly(""),
     ],
   );
-  c("spazi e a capo nel link: non si converte", null, T.suffissoMeetly("https://hair-genius-hub.hair/meetly/ab c"));
+  c("spazi e a capo nel link: non si converte", null, T.suffissoMeetly("https://hairgeniuslabs.hair/meetly/ab c"));
 
   gruppo("MODELLI _311026 · I PARAMETRI SI CONVERTONO DAL VECCHIO AL NUOVO");
   const conv = (vecchio, par) => T.convertiModelloUtility(vecchio, par);
@@ -417,9 +418,9 @@ export async function proveModelliUtility(mod, { c, gruppo, radice }) {
   c("link che non si converte: niente nuovo, col motivo (parte il vecchio)", { ripiego: "link" }, conv("hgl_promemoria_meet", ["Mario", "18:00", "https://meet.google.com/x-y-z", "Luca"]));
   c("un valore mancante: niente nuovo, col motivo", { ripiego: "valori" }, conv("hgl_promemoria_meet", ["Mario", "18:00"]));
   //  ── L'immagine è personale: il suo indirizzo ha SOLO il codice del meet e il gettone di chi lo riceve ──
-  const leadA = conv("hgl_promemoria_meet", ["Mario", "18:00", "https://hair-genius-hub.hair/meetly/kfr-mbqd-tzp?chi=pb4b5c685", "Luca"]);
-  const leadB = conv("hgl_promemoria_meet", ["Anna", "09:30", "https://hair-genius-hub.hair/meetly/kfr-mbqd-tzp?chi=pf00d1234", "Luca"]);
-  const leadC = conv("hgl_promemoria_meet", ["Rita", "11:00", "https://hair-genius-hub.hair/meetly/xyz-abcd-efg?chi=pb4b5c685", "Luca"]);
+  const leadA = conv("hgl_promemoria_meet", ["Mario", "18:00", "https://hairgeniuslabs.hair/meetly/kfr-mbqd-tzp?chi=pb4b5c685", "Luca"]);
+  const leadB = conv("hgl_promemoria_meet", ["Anna", "09:30", "https://hairgeniuslabs.hair/meetly/kfr-mbqd-tzp?chi=pf00d1234", "Luca"]);
+  const leadC = conv("hgl_promemoria_meet", ["Rita", "11:00", "https://hairgeniuslabs.hair/meetly/xyz-abcd-efg?chi=pb4b5c685", "Luca"]);
   c("due clienti della stessa stanza: due immagini diverse, ciascuna la sua", ["kfr-mbqd-tzp_pb4b5c685", "kfr-mbqd-tzp_pf00d1234"], [leadA.immagine.codice, leadB.immagine.codice]);
   c("stesso gettone in un'altra stanza: un'altra immagine", "xyz-abcd-efg_pb4b5c685", leadC.immagine.codice);
   c(
@@ -427,7 +428,7 @@ export async function proveModelliUtility(mod, { c, gruppo, radice }) {
     [true, false, false],
     [
       leadA.immagine.url === URL_IMMAGINE,
-      /[?&=]|Mario|Luca|18|3331234567/.test(leadA.immagine.url.replace("https://hair-genius-hub.hair/api/og/anteprima/modello/", "").replace(".jpg", "").replace(/[-_]/g, "").replace("kfrmbqdtzppb4b5c685", "")),
+      /[?&=]|Mario|Luca|18|3331234567/.test(leadA.immagine.url.replace("https://hairgeniuslabs.hair/api/og/anteprima/modello/", "").replace(".jpg", "").replace(/[-_]/g, "").replace("kfrmbqdtzppb4b5c685", "")),
       /\?/.test(leadA.immagine.url),
     ],
   );
@@ -435,9 +436,9 @@ export async function proveModelliUtility(mod, { c, gruppo, radice }) {
     "senza il gettone di chi lo riceve non c'è un'immagine personale (sarebbe quella di un altro): parte il vecchio",
     [{ ripiego: "immagine" }, { ripiego: "immagine" }, { ripiego: "immagine" }],
     [
-      conv("hgl_promemoria_meet", ["Mario", "18:00", "https://hair-genius-hub.hair/meetly/kfr-mbqd-tzp", "Luca"]),
-      conv("hgl_promemoria_meet", ["Mario", "18:00", "https://hair-genius-hub.hair/meetly/kfr-mbqd-tzp?chi=zzz", "Luca"]),
-      conv("hgl_meet_adesso", ["Mario", "Luca", "https://hair-genius-hub.hair/meetly/kfr-mbqd-tzp?x=1"]),
+      conv("hgl_promemoria_meet", ["Mario", "18:00", "https://hairgeniuslabs.hair/meetly/kfr-mbqd-tzp", "Luca"]),
+      conv("hgl_promemoria_meet", ["Mario", "18:00", "https://hairgeniuslabs.hair/meetly/kfr-mbqd-tzp?chi=zzz", "Luca"]),
+      conv("hgl_meet_adesso", ["Mario", "Luca", "https://hairgeniuslabs.hair/meetly/kfr-mbqd-tzp?x=1"]),
     ],
   );
   c("i modelli senza immagine non hanno un'immagine", undefined, conv("hgl_come_eravamo_rimasti", ["Mario", "Luca"]).immagine);
@@ -601,8 +602,8 @@ export async function proveModelliUtility(mod, { c, gruppo, radice }) {
   {
     //  Lo stesso modello per un altro cliente: la SUA immagine.
     const x = creaPorte({ acceso: true });
-    await P.inviaWhatsapp(x.porte, { ...promemoria, parametri: ["Anna", "09:30", "https://hair-genius-hub.hair/meetly/kfr-mbqd-tzp?chi=pf00d1234", "Luca"] });
-    c("un altro cliente nella stessa stanza: la sua immagine, non quella del primo", "https://hair-genius-hub.hair/api/og/anteprima/modello/kfr-mbqd-tzp_pf00d1234.jpg", campiDi(x).crm_img);
+    await P.inviaWhatsapp(x.porte, { ...promemoria, parametri: ["Anna", "09:30", "https://hairgeniuslabs.hair/meetly/kfr-mbqd-tzp?chi=pf00d1234", "Luca"] });
+    c("un altro cliente nella stessa stanza: la sua immagine, non quella del primo", "https://hairgeniuslabs.hair/api/og/anteprima/modello/kfr-mbqd-tzp_pf00d1234.jpg", campiDi(x).crm_img);
   }
   {
     //  L'immagine personale non è stata generata (nessuno ha ancora aperto o salvato la consulenza nel CRM).
@@ -703,7 +704,7 @@ export async function proveModelliUtility(mod, { c, gruppo, radice }) {
     c(
       "dentro le 24 ore: testo normale con il link, come prima",
       ["ok", true, undefined],
-      [r.esito, /Per collegarti: https:\/\/hair-genius-hub\.hair\/meetly\/kfr-mbqd-tzp\?chi=pb4b5c685/.test(JSON.stringify(corpo)), flussoDi(x)],
+      [r.esito, /Per collegarti: https:\/\/hairgeniuslabs\.hair\/meetly\/kfr-mbqd-tzp\?chi=pb4b5c685/.test(JSON.stringify(corpo)), flussoDi(x)],
     );
   }
   {
@@ -838,7 +839,7 @@ export async function proveModelliUtility(mod, { c, gruppo, radice }) {
   gruppo("MODELLI _311026 · L'IMMAGINE PERSONALE: IL BIGLIETTO DA UTILITY");
   {
     const B = carica(radice, "src/crm/biglietto-modello.ts");
-    const dati = { nome: "Mario", giorno: "2026-11-05", ora: "18:00", consulente: "Luca", telefono: "393331234567", stanza: "kfr-mbqd-tzp", gettone: "pb4b5c685", link: "https://hair-genius-hub.hair/invito/AB12", durataMinuti: 45 };
+    const dati = { nome: "Mario", giorno: "2026-11-05", ora: "18:00", consulente: "Luca", telefono: "393331234567", stanza: "kfr-mbqd-tzp", gettone: "pb4b5c685", link: "https://hairgeniuslabs.hair/invito/AB12", durataMinuti: 45 };
     const righe = B.righeBigliettoModello(dati);
     const testo = righe.map((r) => r.testo);
     c("le righe: marchio, titolo, nome, giorno, ora, consulente", ["Hair Genius Labs", "Consulenza Hair Genius Labs", "Mario", "Giovedì 5 novembre", "Ore 18:00", "Con Luca"], testo);
@@ -876,7 +877,7 @@ export async function proveModelliUtility(mod, { c, gruppo, radice }) {
     );
     c("il deposito rifiuta un codice di forma sbagliata (400), prima di toccare lo spazio file", [true, true], [/tipo === "modello" && !formaCodiceImmagineModello\(codice\)/.test(dep), dep.indexOf("formaCodiceImmagineModello(codice)") < dep.indexOf("storage.createBucket")]);
     c("la rotta risponde 404 a un codice di forma sbagliata, prima di leggere il deposito", [true, true], [/!formaCodiceImmagineModello\(codice\)/.test(corpoModello), corpoModello.indexOf("formaCodiceImmagineModello") < corpoModello.indexOf("anteprimaDepositata")]);
-    c("l'anteprima di Meetly non cambia: l'og:image della stanza resta «invito»", true, /anteprimaStanza = \(code: string, chi\?: string\) =>\s*`https:\/\/hair-genius-hub\.hair\/api\/og\/anteprima\/invito\//.test(leggi("src/routes/meetly_.$code.tsx")));
+    c("l'anteprima di Meetly non cambia: l'og:image della stanza resta «invito»", true, /anteprimaStanza = \(code: string, chi\?: string\) =>\s*`https:\/\/hairgeniuslabs\.hair\/api\/og\/anteprima\/invito\//.test(leggi("src/routes/meetly_.$code.tsx")));
     c("il browser deposita l'immagine da Utility dove deposita già il biglietto, solo sotto il codice personale", [true, true], [/tipo", "modello"/.test(link), /codiceImmaginePersonale/.test(link)]);
     c("la porta del server controlla il deposito direttamente nel database (nessuna richiesta HTTP al proprio sito)", [true, false], [/immagineModello:/.test(porta) && /chiaveImmagineModello/.test(porta), /fetch\(.*hair-genius/.test(porta)]);
   }

@@ -27,7 +27,7 @@ import { createFileRoute } from "@tanstack/react-router";
 
 const DEPOSITO =
   "https://izxvzyirjniukxkkedjp.supabase.co/storage/v1/object/public/anteprime/_predefinita.jpg";
-const NOSTRA = "https://hair-genius-hub.hair/api/og/anteprima/invito/_predefinita.jpg";
+const NOSTRA = "https://hairgeniuslabs.hair/api/og/anteprima/invito/_predefinita.jpg";
 
 export const Route = createFileRoute("/prova-anteprima/$caso")({
   head: ({ params }) => {
@@ -43,7 +43,7 @@ export const Route = createFileRoute("/prova-anteprima/$caso")({
         { property: "og:site_name", content: "Hair Genius Labs" },
         { property: "og:title", content: T },
         { property: "og:description", content: D },
-        { property: "og:url", content: `https://hair-genius-hub.hair/prova-anteprima/${params.caso}` },
+        { property: "og:url", content: `https://hairgeniuslabs.hair/prova-anteprima/${params.caso}` },
         { property: "og:image", content: IMG },
         { property: "og:image:secure_url", content: IMG },
         { property: "og:image:type", content: "image/jpeg" },

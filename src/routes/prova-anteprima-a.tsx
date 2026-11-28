@@ -33,7 +33,7 @@ export const Route = createFileRoute("/prova-anteprima-a")({
       { property: "og:site_name", content: "Hair Genius Labs" },
       { property: "og:title", content: T },
       { property: "og:description", content: D },
-      { property: "og:url", content: "https://hair-genius-hub.hair/prova-anteprima-a" },
+      { property: "og:url", content: "https://hairgeniuslabs.hair/prova-anteprima-a" },
       { property: "og:image", content: IMG },
       { property: "og:image:secure_url", content: IMG },
       { property: "og:image:type", content: "image/jpeg" },

@@ -53,7 +53,7 @@ import { entro, testoAnteprimaStanza, type Destinatario } from "@/seo/chi-riceve
  *   la decodifica chiede un indirizzo storto e rinuncia in silenzio — è la
  *   trappola già scritta per esteso in api.og.anteprima.$tipo.$codice. */
 const anteprimaStanza = (code: string, chi?: string) =>
-  `https://hair-genius-hub.hair/api/og/anteprima/invito/${encodeURIComponent(
+  `https://hairgeniuslabs.hair/api/og/anteprima/invito/${encodeURIComponent(
     codiceAnteprimaDi(code, chi),
   )}.jpg`;
 

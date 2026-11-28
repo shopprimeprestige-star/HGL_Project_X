@@ -91,7 +91,7 @@ export async function prove(mod, { c, gruppo, radice }) {
   const testa = route.head({ loaderData: ok.r, params: { slug: "patch-pronte" } });
   const meta = (n) => testa.meta.find((m) => m.name === n || m.property === n)?.content;
   c("head: senza dati (codice) solo `meta` vuoto", { meta: [] }, route.head({ params: { slug: "x" } }));
-  c("head: titolo e descrizione sono quelli del CMS (D97), suffisso «| Hair Genius Shop» come scheda e carrello, canonical senza parametri", ["Patch pronte di prova | titolo di prova | Hair Genius Shop", "Descrizione di prova della categoria Patch pronte di prova.", "https://hair-genius-hub.hair/shop/c/patch-pronte"], [testa.meta.find((m) => m.title)?.title, meta("description"), testa.links[0].href]);
+  c("head: titolo e descrizione sono quelli del CMS (D97), suffisso «| Hair Genius Shop» come scheda e carrello, canonical senza parametri", ["Patch pronte di prova | titolo di prova | Hair Genius Shop", "Descrizione di prova della categoria Patch pronte di prova.", "https://hairgeniuslabs.hair/shop/c/patch-pronte"], [testa.meta.find((m) => m.title)?.title, meta("description"), testa.links[0].href]);
   c("head: un titolo del CMS che ha già «Hair Genius» non si raddoppia", "Patch | Hair Genius Labs", route.head({ loaderData: { ...ok.r, meta: { titolo: "Patch | Hair Genius Labs", descrizione: "d" } }, params: { slug: "patch-pronte" } }).meta.find((m) => m.title)?.title);
   //  due categorie che nel CMS hanno lo STESSO testo SEO: il loader dà meta diversi (T77 `metaCategorie`, D97 «mai uguali», V1-C3)
   const doppie = [{ ...categorie[0], seo: { titolo: "Stesso titolo", descrizione: "Stessa descrizione" } }, { ...categorie[1], seo: { titolo: "Stesso titolo", descrizione: "Stessa descrizione" } }];

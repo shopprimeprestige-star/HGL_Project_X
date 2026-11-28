@@ -109,7 +109,7 @@ export function chiaviDaAmbiente(env: Record<string, string | undefined>) {
   if (!pubblica || !privata) return null;
   const soggetto =
     String(env.VAPID_SUBJECT ?? "").trim() ||
-    (env.CRM_ADMIN_EMAIL ? `mailto:${env.CRM_ADMIN_EMAIL}` : "https://hair-genius-hub.hair");
+    (env.CRM_ADMIN_EMAIL ? `mailto:${env.CRM_ADMIN_EMAIL}` : "https://hairgeniuslabs.hair");
   return { pubblica, privata, soggetto };
 }
 
